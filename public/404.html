@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FIGTEAM 통합 클라우드 포털 - 404 Not Found</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bp-ground: #173F6B;
+      --bp-deep:   #0F2D4F;
+      --bp-ink:    #E6EEF5;
+      --bp-ink-2:  rgba(230,238,245,.72);
+      --bp-ink-3:  rgba(230,238,245,.45);
+      --bp-grid:   rgba(230,238,245,.07);
+      --bp-grid-major: rgba(230,238,245,.14);
+      --bp-pencil: #F4C95D;
+      --bp-redline:#FF8A73;
+      --bp-ok:     #8FE0B4;
+      --font: 'IBM Plex Sans KR', system-ui, sans-serif;
+      --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: var(--font);
+      color: var(--bp-ink);
+      background-color: var(--bp-ground);
+      background-image:
+        linear-gradient(var(--bp-grid-major) 1px, transparent 1px),
+        linear-gradient(90deg, var(--bp-grid-major) 1px, transparent 1px),
+        linear-gradient(var(--bp-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--bp-grid) 1px, transparent 1px);
+      background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
+      background-position: -1px -1px;
+      padding: 24px;
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .sheet {
+      position: relative;
+      width: 100%;
+      max-width: 900px;
+      border: 2px solid var(--bp-ink);
+      outline: 1px solid var(--bp-ink-3);
+      outline-offset: 6px;
+      background: rgba(15, 45, 79, 0.92);
+      box-shadow: 0 12px 36px rgba(0,0,0,0.4);
+      display: flex;
+      flex-direction: column;
+    }
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 20px;
+      border-bottom: 2px solid var(--bp-ink);
+      background: var(--bp-deep);
+    }
+    .sys-badge {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      color: var(--bp-pencil);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sys-badge::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      background: var(--bp-redline);
+      display: inline-block;
+      animation: pulse 1.6s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+    .content-wrap {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      min-height: 380px;
+    }
+    .main-pane {
+      padding: 40px 36px;
+      border-right: 1px solid var(--bp-ink-3);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .err-code {
+      font-family: var(--mono);
+      font-size: 64px;
+      font-weight: 600;
+      line-height: 1;
+      color: var(--bp-pencil);
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+    }
+    .err-code span {
+      font-size: 18px;
+      font-weight: 400;
+      color: var(--bp-ink-2);
+      margin-left: 12px;
+      border-left: 1px solid var(--bp-ink-3);
+      padding-left: 12px;
+    }
+    .err-title {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: var(--bp-ink);
+    }
+    .err-desc {
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--bp-ink-2);
+      margin-bottom: 28px;
+    }
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 22px;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: all .15s ease;
+    }
+    .btn-primary {
+      background: var(--bp-ink);
+      color: var(--bp-deep);
+      border: 1px solid var(--bp-ink);
+    }
+    .btn-primary:hover {
+      background: #fff;
+    }
+    .btn-secondary {
+      background: transparent;
+      color: var(--bp-ink);
+      border: 1px solid var(--bp-ink-3);
+    }
+    .btn-secondary:hover {
+      border-color: var(--bp-pencil);
+      color: var(--bp-pencil);
+    }
+    .side-pane {
+      background: var(--bp-deep);
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .tb-title {
+      font-size: 12px;
+      color: var(--bp-ink-3);
+      letter-spacing: .05em;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--bp-ink-3);
+      padding-bottom: 8px;
+    }
+    .meta-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      font-size: 13px;
+    }
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .meta-key {
+      color: var(--bp-ink-3);
+      font-size: 11px;
+      text-transform: uppercase;
+      font-family: var(--mono);
+    }
+    .meta-val {
+      font-family: var(--mono);
+      color: var(--bp-ink-2);
+      word-break: break-all;
+    }
+    .footer-bar {
+      border-top: 1px solid var(--bp-ink-3);
+      padding: 10px 20px;
+      background: var(--bp-deep);
+      font-size: 12px;
+      color: var(--bp-ink-3);
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--mono);
+    }
+    @media (max-width: 768px) {
+      .content-wrap {
+        grid-template-columns: 1fr;
+      }
+      .main-pane {
+        border-right: none;
+        border-bottom: 1px solid var(--bp-ink-3);
+        padding: 30px 20px;
+      }
+      .side-pane {
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="header-bar">
+      <div class="sys-badge">FIGTEAM CMP ROUTING DIAGNOSTIC</div>
+      <div style="font-family: var(--mono); font-size: 12px; color: var(--bp-ink-3);">STATUS: HTTP 404</div>
+    </div>
+    
+    <div class="content-wrap">
+      <div class="main-pane">
+        <div class="err-code">404 <span>NOT FOUND</span></div>
+        <h1 class="err-title">요청하신 도면(페이지)을 찾을 수 없습니다</h1>
+        <p class="err-desc">
+          입력하신 주소의 리소스가 포털 청사진 상에 등록되어 있지 않거나 경로가 변경되었습니다.<br>
+          아래 버튼을 클릭하여 통합 모니터링 대시보드 메인 또는 로그인 화면으로 이동해 주십시오.
+        </p>
+        <div class="btn-group">
+          <a href="/" class="btn btn-primary">통합 대시보드로 이동</a>
+          <a href="/login" class="btn btn-secondary">로그인 화면으로 이동</a>
+        </div>
+      </div>
+      
+      <div class="side-pane">
+        <div>
+          <div class="tb-title">요청 진단 정보 (DIAGNOSTIC DATA)</div>
+          <ul class="meta-list">
+            <li class="meta-item">
+              <span class="meta-key">REQUEST URI</span>
+              <span class="meta-val" id="diag-uri">-</span>
+            </li>
+            <li class="meta-item">
+              <span class="meta-key">ROUTING HOST</span>
+              <span class="meta-val">figteam.ktci5.kr</span>
+            </li>
+            <li class="meta-item">
+              <span class="meta-key">TARGET NODE</span>
+              <span class="meta-val">Edge Cloudflare Pages</span>
+            </li>
+            <li class="meta-item">
+              <span class="meta-key">TIMESTAMP</span>
+              <span class="meta-val" id="diag-time">-</span>
+            </li>
+          </ul>
+        </div>
+        <div style="font-size: 11px; color: var(--bp-ink-3); line-height: 1.5; margin-top: 24px;">
+          * KT_CI5 6조 하이브리드 장애자동복구 플랫폼 관제 센터
+        </div>
+      </div>
+    </div>
+    
+    <div class="footer-bar">
+      <span>BLUEPRINT REV 3.0</span>
+      <span>FIGTEAM FAILOVER & DR SYSTEM</span>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('diag-uri').textContent = location.pathname + location.search;
+    document.getElementById('diag-time').textContent = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+  </script>
+</body>
+</html>
