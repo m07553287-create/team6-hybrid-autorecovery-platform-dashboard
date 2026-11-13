@@ -35,6 +35,10 @@
   - VM 도구: 콘솔 로그, 스냅샷(확인 후 실행), Horizon 열기 — 삭제 · 네트워크 변경은 Horizon에서
 - 백엔드 API: `GET /api/openstack/overview`(조회 전용, 항목별 실패 격리) · `GET /api/openstack/console-log?id=` · `POST /api/openstack/vm/snapshot`
 
+## 팀 협업 및 인프라 가이드
+
+- [📋 KT Cloud 진입점 2인 분업 가이드 및 통합 검증서 (이근규 · 최진태)](docs/kt-cloud-edge-guide.md): KT Cloud Edge-GW VM(`kt-edge-dr-01`) 구축을 위한 2인 역할 분담, 인터페이스 계약표, 11/12~11/13 작업일지 및 4대 합동 Integration Test 실행 매뉴얼
+
 ## 수정 · 빌드
 
 ```bash
