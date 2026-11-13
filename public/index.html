@@ -672,6 +672,83 @@
     @media (max-width: 1500px) {
       #dr-panel, #osvm-panel.osv-on { overflow-y: auto; }
     }
+
+    /* ===== 스크롤 최소화: 밀도 · 가로 배치 ===== */
+    /* DR 오른쪽 열 */
+    .dc-side { gap: 10px; }
+    .dc-side > div:first-child { padding: 10px !important; }
+    .dc-side #dr-v3-btns { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 5px !important; }
+    .dc-side #dr-v3-btns .btn-top { padding: 6px 8px; font-size: 12px; }
+    .dc-side #btn-v3-mgmt { grid-column: auto; }
+    .dc-stage { padding: 10px 12px; }
+    .dc-stage #v3-stage-title { font-size: 14px !important; line-height: 1.4; }
+    .dc-stage #v3-stage-desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12px !important; }
+    .dc-flow { padding: 4px 0; }
+    .dc-flow li { padding: 3px 10px; font-size: 12px; line-height: 1.38; gap: 7px; grid-template-columns: 22px 1fr; }
+    .dc-flow li i { height: 18px; line-height: 16px; font-size: 10.5px; }
+    .dc-flow li.bg { margin-top: 2px; }
+    .dr-console:fullscreen .dc-flow li, .dr-console.is-fs .dc-flow li { font-size: 13px; padding: 4px 12px; }
+    /* DR 상세 구성 압축 */
+    .dc-detail-head { padding: 6px 12px; font-size: 12.5px; }
+    .dc-detail .arch-container { padding: 8px; gap: 8px; }
+    .dc-detail .arch-zone { padding: 8px; gap: 6px; }
+    .dc-detail .zone-title { font-size: 12px; padding-bottom: 5px; }
+    .dc-detail .arch-subnet { padding: 6px 8px; gap: 3px; }
+    .dc-detail .subnet-label { font-size: 11px; }
+    .dc-detail .arch-subnet div, .dc-detail .arch-subnet span { font-size: 11px !important; line-height: 1.4 !important; }
+    .dc-detail .k8s-pod-grid { gap: 4px; } .dc-detail .k8s-pod-chip { padding: 3px 6px; font-size: 11px; }
+    .dc-detail #zone-kt-box > div:nth-child(2) { display: none; }   /* 장식용 '대민 사용자 & Cloudflare' 블록 */
+    .dc-detail .menu-badge { font-size: 10px; }
+    .dc-detail #zone-kt-box, .dc-detail #zone-onprem-box, .dc-detail #zone-aws-box { overflow: hidden; }
+    .dr-console.show-detail .dc-main { grid-template-rows: minmax(0, 1.15fr) minmax(0, 1fr) auto; }
+
+    /* OpenStack: 경로 추적 한 줄 · 구성도 비율 · 탭 내용 가로 배치 */
+    .osv-mapcol .osx-svg { max-height: calc((100vh - 56px - 120px) * 0.46); }
+    .osv-mapcol .osx-tbar { flex-wrap: nowrap; }
+    .osv-mapcol .osx-tbar .osx-tcap { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .osv-mapcol .osx-tbar .osx-tlist.compact { padding: 0; flex-wrap: nowrap; order: 5; }
+    .osx-sum { margin: 2px 0 8px; font-size: 13px; }
+    .osx-card { padding: 9px 12px; } .osx-card h4 { font-size: 13.5px; margin-bottom: 4px; }
+    .osx-card ul { gap: 3px; } .osx-card li { font-size: 12px; }
+    .osx-sub { margin: 10px 0 6px; padding-bottom: 4px; font-size: 13px; }
+    .osx-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+    .osx-chip { display: flex; gap: 8px; align-items: baseline; border: 1px solid var(--bp-line); padding: 5px 9px; font-size: 12px; min-width: 0; }
+    .osx-chip b { font-weight: 600; } .osx-chip span { color: var(--bp-ink-2); }
+    .osx-chip em { font-style: normal; color: var(--bp-ink-3); font-family: var(--mono); font-size: 11px; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .osx-resgrid { display: grid; grid-template-columns: 1.25fr 1fr 1.2fr 1.2fr; gap: 14px; align-items: start; }
+    .osx-resgrid .osx-sub { margin-top: 2px; }
+    .osx-hv { border: 1px solid var(--bp-line); padding: 7px 10px; margin-bottom: 8px; background: var(--bp-ground); }
+    .osx-hv .t { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; margin-bottom: 4px; }
+    .osx-hv .t span { color: var(--bp-ink-3); font-size: 11.5px; }
+    .osx-meter { display: grid; grid-template-columns: 52px 1fr auto; align-items: center; gap: 8px; margin-top: 4px; font-size: 11.5px; }
+    .osx-meter .lb { color: var(--bp-ink-3); }
+    .osx-meter b { color: var(--bp-ink); font-weight: 500; font-variant-numeric: tabular-nums; min-width: 56px; text-align: right; }
+    .osx-meter .bar { margin: 0; height: 6px; }
+    .osx-list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+    .osx-list li { display: flex; flex-direction: column; border-left: 2px solid var(--bp-line); padding: 2px 8px; font-size: 12px; }
+    .osx-list li span { color: var(--bp-ink-3); font-size: 11.5px; }
+    .osx-list li.empty { color: var(--bp-ink-3); border: 0; }
+    .dc-flow li { padding: 2px 10px; font-size: 11.8px; line-height: 1.34; }
+    .dr-console:not(.is-fs):not(:fullscreen) .dc-detail .arch-subnet > div[style*="line-height"] { display: none; }
+    .dr-console:not(.is-fs):not(:fullscreen) .dc-detail .arch-subnet { gap: 4px; }
+    .dc-detail .arch-container { grid-template-columns: minmax(0, 0.9fr) minmax(0, 2fr) minmax(0, 1.35fr); }
+    .dc-detail #zone-onprem-box { grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) minmax(0, 1fr); }
+    .dc-detail #zone-onprem-box > #subnet-onprem-wg { grid-column: 1; grid-row: 2; }
+    .dc-detail #zone-onprem-box > .arch-subnet:last-child { grid-column: 1; grid-row: 3; }
+    .dc-detail #zone-onprem-box > #subnet-onprem-k8s { grid-column: 2; grid-row: 2 / span 2; }
+    .dc-detail #zone-onprem-box > #subnet-onprem-db { grid-column: 3; grid-row: 2 / span 2; }
+    .dr-console.show-detail .dc-main { grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) auto; }
+    .dr-console:fullscreen.show-detail .dc-main, .dr-console.is-fs.show-detail .dc-main { grid-template-rows: minmax(0, 1.9fr) minmax(0, 1fr) auto; }
+    .dc-detail .arch-subnet > div[style*="line-height"] { display: none; }
+    .dc-detail .arch-subnet { gap: 4px; }
+    .dc-flow li { line-height: 1.3; }
+    .dr-console:fullscreen .dc-flow li, .dr-console.is-fs .dc-flow li { font-size: 12.5px; padding: 3px 12px; line-height: 1.32; }
+    .dc-detail-head { display: none; }
+    .dc-detail .arch-container { padding: 6px; gap: 6px; }
+    .dc-detail .arch-zone { padding: 6px 8px; }
+    .dc-detail .zone-title { padding-bottom: 4px; }
+    .dc-flow { padding: 2px 0; }
+    .dc-side > div:first-child > div:first-child { margin-bottom: 6px !important; }
   </style>
 </head>
 <body>
@@ -3411,7 +3488,7 @@
     traceCap = h('span', 'osx-tcap', '단계를 고르거나 재생하세요', bar);
     var bPrev = h('button', 'btn-top', '◀ 이전', bar), bPlay = h('button', 'btn-top', '재생', bar), bNext = h('button', 'btn-top', '다음 ▶', bar);
     [bPrev, bPlay, bNext].forEach(function (b) { b.type = 'button'; });
-    traceList = h('ol', 'osx-tlist compact', null, trace);
+    traceList = h('ol', 'osx-tlist compact', null, bar);
     var target = servers.filter(function (v) { return el['fip-' + v.id]; })[0] || servers[0];
     var rt = routers[0];
     var tNet = target ? intn.filter(function (n) { return (target.addresses || {})[n.name]; })[0] : null;
@@ -3477,12 +3554,11 @@
     ['nova_services', 'agents', 'cinder_services'].forEach(function (k) { errBox(p, k); });
     if ((d.catalog || []).length) {
       h('h4', 'osx-sub', 'Keystone 서비스 카탈로그', p);
-      var t = h('table', 'osx-table', null, p), tr = h('tr', null, null, h('thead', null, null, t));
-      ['유형', '이름', '인터페이스', '접속 주소'].forEach(function (x) { h('th', null, x, tr); });
-      var tb = h('tbody', null, null, t);
+      var cg = h('div', 'osx-chips', null, p);
       d.catalog.forEach(function (c) {
-        var r = h('tr', null, null, tb);
-        h('td', null, c.type, r); h('td', null, c.name, r); h('td', null, (c.interfaces || []).join(' · '), r); h('td', 'mono', (d.endpoints || {})[c.type] || '', r);
+        var chip = h('div', 'osx-chip', null, cg);
+        h('b', null, c.type, chip); h('span', null, c.name, chip); h('em', null, (d.endpoints || {})[c.type] || '', chip);
+        chip.title = (c.interfaces || []).join(' · ');
       });
     }
   }
@@ -3490,54 +3566,48 @@
   // ---------- 4. 자원 현황 ----------
   function meter(parent, label, used, total, unit) {
     var m = h('div', 'osx-meter', null, parent);
-    var top = h('div', 'top', null, m); h('span', null, label, top); h('b', null, used + ' / ' + total + (unit || ''), top);
+    h('span', 'lb', label, m);
     var b = h('div', 'bar', null, m); var f = h('i', null, null, b);
     var v = pct(used, total); f.style.width = v + '%'; if (v >= 85) f.className = 'hot';
+    h('b', null, (used == null ? '-' : used) + '/' + (total == null ? '-' : total) + (unit || ''), m);
   }
-  function table(parent, cols, rows) {
-    var t = h('table', 'osx-table', null, parent), tr = h('tr', null, null, h('thead', null, null, t));
-    cols.forEach(function (c) { h('th', null, c, tr); });
-    var tb = h('tbody', null, null, t);
-    rows.forEach(function (r) { var x = h('tr', null, null, tb); r.forEach(function (c) { h('td', null, c == null ? '-' : String(c), x); }); });
-    if (!rows.length) { var x = h('tr', null, null, tb); var td = h('td', null, '없음', x); td.colSpan = cols.length; }
+  function list(parent, rows, empty) {
+    var ul = h('ul', 'osx-list', null, parent);
+    if (!rows.length) { h('li', 'empty', empty || '없음', ul); return; }
+    rows.forEach(function (r) { var li = h('li', null, null, ul); h('b', null, r[0], li); h('span', null, r[1], li); if (r[2]) li.title = r[2]; });
   }
   function renderRes() {
     var p = panes.res; p.textContent = '';
     var d = DATA, names = {};
     (d.servers || []).forEach(function (v) { names[v.id] = v.name; });
-    h('h4', 'osx-sub', 'Compute 노드', p);
-    var g = h('div', 'osx-hosts', null, p);
+    var g = h('div', 'osx-resgrid', null, p);
+    var c1 = h('section', null, null, g); h('h4', 'osx-sub', 'Compute 노드', c1);
     (d.hypervisors || []).forEach(function (x) {
-      var c = h('div', 'osx-card', null, g);
-      h('h4', null, x.hypervisor_hostname, c);
-      h('p', 'osx-meta', (x.hypervisor_type || '') + ' · ' + (x.host_ip || '') + ' · VM ' + (x.running_vms || 0) + '대 · ' + (x.state || ''), c);
+      var c = h('div', 'osx-hv', null, c1);
+      var t = h('div', 't', null, c); h('b', null, x.hypervisor_hostname, t); h('span', null, (x.host_ip || '') + ' · VM ' + (x.running_vms || 0), t);
       meter(c, 'vCPU', x.vcpus_used, x.vcpus);
-      meter(c, 'RAM', Math.round(x.memory_mb_used / 1024), Math.round(x.memory_mb / 1024), ' GB');
-      meter(c, '디스크', x.local_gb_used, x.local_gb, ' GB');
+      meter(c, 'RAM', Math.round(x.memory_mb_used / 1024), Math.round(x.memory_mb / 1024), 'G');
+      meter(c, '디스크', x.local_gb_used, x.local_gb, 'G');
     });
-    errBox(p, 'hypervisors');
+    errBox(c1, 'hypervisors');
     var L = d.limits || {};
+    var c2 = h('section', null, null, g); h('h4', 'osx-sub', '프로젝트 쿼터', c2);
     if (L.maxTotalCores) {
-      h('h4', 'osx-sub', '프로젝트 쿼터', p);
-      var q = h('div', 'osx-quota', null, p);
-      meter(q, '인스턴스', L.totalInstancesUsed, L.maxTotalInstances);
-      meter(q, 'vCPU', L.totalCoresUsed, L.maxTotalCores);
-      meter(q, 'RAM', Math.round(L.totalRAMUsed / 1024), Math.round(L.maxTotalRAMSize / 1024), ' GB');
-    }
-    errBox(p, 'limits');
-    h('h4', 'osx-sub', 'Cinder 볼륨', p);
-    table(p, ['이름', '크기', '상태', '유형', '연결'], (d.volumes || []).map(function (v) {
-      return [v.name || v.id.slice(0, 8), v.size + ' GB', v.status, v.volume_type, (v.attachments || []).map(function (a) { return (names[a.server_id] || a.server_id) + ' ' + (a.device || ''); }).join(', ')];
-    }));
-    errBox(p, 'volumes');
-    h('h4', 'osx-sub', 'Glance 이미지', p);
-    table(p, ['이름', '상태', '형식', '크기', '공개'], (d.images || []).map(function (i) { return [i.name, i.status, i.disk_format, gb(i.size), i.visibility]; }));
-    errBox(p, 'images');
-    if (d.swift || (d.errors || {}).swift) {
-      h('h4', 'osx-sub', 'Swift 컨테이너', p);
-      table(p, ['컨테이너', '객체 수', '용량'], (d.swift || []).map(function (c) { return [c.name, c.count, gb(c.bytes)]; }));
-      errBox(p, 'swift');
-    }
+      meter(c2, '인스턴스', L.totalInstancesUsed, L.maxTotalInstances);
+      meter(c2, 'vCPU', L.totalCoresUsed, L.maxTotalCores);
+      meter(c2, 'RAM', Math.round(L.totalRAMUsed / 1024), Math.round(L.maxTotalRAMSize / 1024), 'G');
+    } else h('p', 'osx-meta', '쿼터 정보 없음', c2);
+    errBox(c2, 'limits');
+    var c3 = h('section', null, null, g); h('h4', 'osx-sub', 'Cinder 볼륨 · Swift', c3);
+    list(c3, (d.volumes || []).map(function (v) {
+      var at = (v.attachments || []).map(function (a) { return (names[a.server_id] || '') + ' ' + (a.device || ''); }).join(', ');
+      return [v.name || v.id.slice(0, 8), v.size + 'GB · ' + v.status + (at ? ' · ' + at : ''), v.volume_type];
+    }), '볼륨 없음');
+    if (d.swift) list(c3, d.swift.map(function (c) { return ['🗄 ' + c.name, c.count + '개 · ' + gb(c.bytes)]; }));
+    errBox(c3, 'volumes'); errBox(c3, 'swift');
+    var c4 = h('section', null, null, g); h('h4', 'osx-sub', 'Glance 이미지', c4);
+    list(c4, (d.images || []).map(function (i) { return [i.name, (i.disk_format || '') + ' · ' + gb(i.size) + ' · ' + (i.status || ''), i.visibility]; }), '이미지 없음');
+    errBox(c4, 'images');
   }
 
   // ---------- 5. VM 도구 ----------

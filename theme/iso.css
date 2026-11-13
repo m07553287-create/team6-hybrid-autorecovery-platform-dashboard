@@ -460,3 +460,80 @@
     @media (max-width: 1500px) {
       #dr-panel, #osvm-panel.osv-on { overflow-y: auto; }
     }
+
+    /* ===== 스크롤 최소화: 밀도 · 가로 배치 ===== */
+    /* DR 오른쪽 열 */
+    .dc-side { gap: 10px; }
+    .dc-side > div:first-child { padding: 10px !important; }
+    .dc-side #dr-v3-btns { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 5px !important; }
+    .dc-side #dr-v3-btns .btn-top { padding: 6px 8px; font-size: 12px; }
+    .dc-side #btn-v3-mgmt { grid-column: auto; }
+    .dc-stage { padding: 10px 12px; }
+    .dc-stage #v3-stage-title { font-size: 14px !important; line-height: 1.4; }
+    .dc-stage #v3-stage-desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12px !important; }
+    .dc-flow { padding: 4px 0; }
+    .dc-flow li { padding: 3px 10px; font-size: 12px; line-height: 1.38; gap: 7px; grid-template-columns: 22px 1fr; }
+    .dc-flow li i { height: 18px; line-height: 16px; font-size: 10.5px; }
+    .dc-flow li.bg { margin-top: 2px; }
+    .dr-console:fullscreen .dc-flow li, .dr-console.is-fs .dc-flow li { font-size: 13px; padding: 4px 12px; }
+    /* DR 상세 구성 압축 */
+    .dc-detail-head { padding: 6px 12px; font-size: 12.5px; }
+    .dc-detail .arch-container { padding: 8px; gap: 8px; }
+    .dc-detail .arch-zone { padding: 8px; gap: 6px; }
+    .dc-detail .zone-title { font-size: 12px; padding-bottom: 5px; }
+    .dc-detail .arch-subnet { padding: 6px 8px; gap: 3px; }
+    .dc-detail .subnet-label { font-size: 11px; }
+    .dc-detail .arch-subnet div, .dc-detail .arch-subnet span { font-size: 11px !important; line-height: 1.4 !important; }
+    .dc-detail .k8s-pod-grid { gap: 4px; } .dc-detail .k8s-pod-chip { padding: 3px 6px; font-size: 11px; }
+    .dc-detail #zone-kt-box > div:nth-child(2) { display: none; }   /* 장식용 '대민 사용자 & Cloudflare' 블록 */
+    .dc-detail .menu-badge { font-size: 10px; }
+    .dc-detail #zone-kt-box, .dc-detail #zone-onprem-box, .dc-detail #zone-aws-box { overflow: hidden; }
+    .dr-console.show-detail .dc-main { grid-template-rows: minmax(0, 1.15fr) minmax(0, 1fr) auto; }
+
+    /* OpenStack: 경로 추적 한 줄 · 구성도 비율 · 탭 내용 가로 배치 */
+    .osv-mapcol .osx-svg { max-height: calc((100vh - 56px - 120px) * 0.46); }
+    .osv-mapcol .osx-tbar { flex-wrap: nowrap; }
+    .osv-mapcol .osx-tbar .osx-tcap { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .osv-mapcol .osx-tbar .osx-tlist.compact { padding: 0; flex-wrap: nowrap; order: 5; }
+    .osx-sum { margin: 2px 0 8px; font-size: 13px; }
+    .osx-card { padding: 9px 12px; } .osx-card h4 { font-size: 13.5px; margin-bottom: 4px; }
+    .osx-card ul { gap: 3px; } .osx-card li { font-size: 12px; }
+    .osx-sub { margin: 10px 0 6px; padding-bottom: 4px; font-size: 13px; }
+    .osx-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+    .osx-chip { display: flex; gap: 8px; align-items: baseline; border: 1px solid var(--bp-line); padding: 5px 9px; font-size: 12px; min-width: 0; }
+    .osx-chip b { font-weight: 600; } .osx-chip span { color: var(--bp-ink-2); }
+    .osx-chip em { font-style: normal; color: var(--bp-ink-3); font-family: var(--mono); font-size: 11px; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .osx-resgrid { display: grid; grid-template-columns: 1.25fr 1fr 1.2fr 1.2fr; gap: 14px; align-items: start; }
+    .osx-resgrid .osx-sub { margin-top: 2px; }
+    .osx-hv { border: 1px solid var(--bp-line); padding: 7px 10px; margin-bottom: 8px; background: var(--bp-ground); }
+    .osx-hv .t { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; margin-bottom: 4px; }
+    .osx-hv .t span { color: var(--bp-ink-3); font-size: 11.5px; }
+    .osx-meter { display: grid; grid-template-columns: 52px 1fr auto; align-items: center; gap: 8px; margin-top: 4px; font-size: 11.5px; }
+    .osx-meter .lb { color: var(--bp-ink-3); }
+    .osx-meter b { color: var(--bp-ink); font-weight: 500; font-variant-numeric: tabular-nums; min-width: 56px; text-align: right; }
+    .osx-meter .bar { margin: 0; height: 6px; }
+    .osx-list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+    .osx-list li { display: flex; flex-direction: column; border-left: 2px solid var(--bp-line); padding: 2px 8px; font-size: 12px; }
+    .osx-list li span { color: var(--bp-ink-3); font-size: 11.5px; }
+    .osx-list li.empty { color: var(--bp-ink-3); border: 0; }
+    .dc-flow li { padding: 2px 10px; font-size: 11.8px; line-height: 1.34; }
+    .dr-console:not(.is-fs):not(:fullscreen) .dc-detail .arch-subnet > div[style*="line-height"] { display: none; }
+    .dr-console:not(.is-fs):not(:fullscreen) .dc-detail .arch-subnet { gap: 4px; }
+    .dc-detail .arch-container { grid-template-columns: minmax(0, 0.9fr) minmax(0, 2fr) minmax(0, 1.35fr); }
+    .dc-detail #zone-onprem-box { grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) minmax(0, 1fr); }
+    .dc-detail #zone-onprem-box > #subnet-onprem-wg { grid-column: 1; grid-row: 2; }
+    .dc-detail #zone-onprem-box > .arch-subnet:last-child { grid-column: 1; grid-row: 3; }
+    .dc-detail #zone-onprem-box > #subnet-onprem-k8s { grid-column: 2; grid-row: 2 / span 2; }
+    .dc-detail #zone-onprem-box > #subnet-onprem-db { grid-column: 3; grid-row: 2 / span 2; }
+    .dr-console.show-detail .dc-main { grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) auto; }
+    .dr-console:fullscreen.show-detail .dc-main, .dr-console.is-fs.show-detail .dc-main { grid-template-rows: minmax(0, 1.9fr) minmax(0, 1fr) auto; }
+    .dc-detail .arch-subnet > div[style*="line-height"] { display: none; }
+    .dc-detail .arch-subnet { gap: 4px; }
+    .dc-flow li { line-height: 1.3; }
+    .dr-console:fullscreen .dc-flow li, .dr-console.is-fs .dc-flow li { font-size: 12.5px; padding: 3px 12px; line-height: 1.32; }
+    .dc-detail-head { display: none; }
+    .dc-detail .arch-container { padding: 6px; gap: 6px; }
+    .dc-detail .arch-zone { padding: 6px 8px; }
+    .dc-detail .zone-title { padding-bottom: 4px; }
+    .dc-flow { padding: 2px 0; }
+    .dc-side > div:first-child > div:first-child { margin-bottom: 6px !important; }

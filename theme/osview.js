@@ -250,7 +250,7 @@
     traceCap = h('span', 'osx-tcap', '단계를 고르거나 재생하세요', bar);
     var bPrev = h('button', 'btn-top', '◀ 이전', bar), bPlay = h('button', 'btn-top', '재생', bar), bNext = h('button', 'btn-top', '다음 ▶', bar);
     [bPrev, bPlay, bNext].forEach(function (b) { b.type = 'button'; });
-    traceList = h('ol', 'osx-tlist compact', null, trace);
+    traceList = h('ol', 'osx-tlist compact', null, bar);
     var target = servers.filter(function (v) { return el['fip-' + v.id]; })[0] || servers[0];
     var rt = routers[0];
     var tNet = target ? intn.filter(function (n) { return (target.addresses || {})[n.name]; })[0] : null;
@@ -316,12 +316,11 @@
     ['nova_services', 'agents', 'cinder_services'].forEach(function (k) { errBox(p, k); });
     if ((d.catalog || []).length) {
       h('h4', 'osx-sub', 'Keystone 서비스 카탈로그', p);
-      var t = h('table', 'osx-table', null, p), tr = h('tr', null, null, h('thead', null, null, t));
-      ['유형', '이름', '인터페이스', '접속 주소'].forEach(function (x) { h('th', null, x, tr); });
-      var tb = h('tbody', null, null, t);
+      var cg = h('div', 'osx-chips', null, p);
       d.catalog.forEach(function (c) {
-        var r = h('tr', null, null, tb);
-        h('td', null, c.type, r); h('td', null, c.name, r); h('td', null, (c.interfaces || []).join(' · '), r); h('td', 'mono', (d.endpoints || {})[c.type] || '', r);
+        var chip = h('div', 'osx-chip', null, cg);
+        h('b', null, c.type, chip); h('span', null, c.name, chip); h('em', null, (d.endpoints || {})[c.type] || '', chip);
+        chip.title = (c.interfaces || []).join(' · ');
       });
     }
   }
@@ -329,54 +328,48 @@
   // ---------- 4. 자원 현황 ----------
   function meter(parent, label, used, total, unit) {
     var m = h('div', 'osx-meter', null, parent);
-    var top = h('div', 'top', null, m); h('span', null, label, top); h('b', null, used + ' / ' + total + (unit || ''), top);
+    h('span', 'lb', label, m);
     var b = h('div', 'bar', null, m); var f = h('i', null, null, b);
     var v = pct(used, total); f.style.width = v + '%'; if (v >= 85) f.className = 'hot';
+    h('b', null, (used == null ? '-' : used) + '/' + (total == null ? '-' : total) + (unit || ''), m);
   }
-  function table(parent, cols, rows) {
-    var t = h('table', 'osx-table', null, parent), tr = h('tr', null, null, h('thead', null, null, t));
-    cols.forEach(function (c) { h('th', null, c, tr); });
-    var tb = h('tbody', null, null, t);
-    rows.forEach(function (r) { var x = h('tr', null, null, tb); r.forEach(function (c) { h('td', null, c == null ? '-' : String(c), x); }); });
-    if (!rows.length) { var x = h('tr', null, null, tb); var td = h('td', null, '없음', x); td.colSpan = cols.length; }
+  function list(parent, rows, empty) {
+    var ul = h('ul', 'osx-list', null, parent);
+    if (!rows.length) { h('li', 'empty', empty || '없음', ul); return; }
+    rows.forEach(function (r) { var li = h('li', null, null, ul); h('b', null, r[0], li); h('span', null, r[1], li); if (r[2]) li.title = r[2]; });
   }
   function renderRes() {
     var p = panes.res; p.textContent = '';
     var d = DATA, names = {};
     (d.servers || []).forEach(function (v) { names[v.id] = v.name; });
-    h('h4', 'osx-sub', 'Compute 노드', p);
-    var g = h('div', 'osx-hosts', null, p);
+    var g = h('div', 'osx-resgrid', null, p);
+    var c1 = h('section', null, null, g); h('h4', 'osx-sub', 'Compute 노드', c1);
     (d.hypervisors || []).forEach(function (x) {
-      var c = h('div', 'osx-card', null, g);
-      h('h4', null, x.hypervisor_hostname, c);
-      h('p', 'osx-meta', (x.hypervisor_type || '') + ' · ' + (x.host_ip || '') + ' · VM ' + (x.running_vms || 0) + '대 · ' + (x.state || ''), c);
+      var c = h('div', 'osx-hv', null, c1);
+      var t = h('div', 't', null, c); h('b', null, x.hypervisor_hostname, t); h('span', null, (x.host_ip || '') + ' · VM ' + (x.running_vms || 0), t);
       meter(c, 'vCPU', x.vcpus_used, x.vcpus);
-      meter(c, 'RAM', Math.round(x.memory_mb_used / 1024), Math.round(x.memory_mb / 1024), ' GB');
-      meter(c, '디스크', x.local_gb_used, x.local_gb, ' GB');
+      meter(c, 'RAM', Math.round(x.memory_mb_used / 1024), Math.round(x.memory_mb / 1024), 'G');
+      meter(c, '디스크', x.local_gb_used, x.local_gb, 'G');
     });
-    errBox(p, 'hypervisors');
+    errBox(c1, 'hypervisors');
     var L = d.limits || {};
+    var c2 = h('section', null, null, g); h('h4', 'osx-sub', '프로젝트 쿼터', c2);
     if (L.maxTotalCores) {
-      h('h4', 'osx-sub', '프로젝트 쿼터', p);
-      var q = h('div', 'osx-quota', null, p);
-      meter(q, '인스턴스', L.totalInstancesUsed, L.maxTotalInstances);
-      meter(q, 'vCPU', L.totalCoresUsed, L.maxTotalCores);
-      meter(q, 'RAM', Math.round(L.totalRAMUsed / 1024), Math.round(L.maxTotalRAMSize / 1024), ' GB');
-    }
-    errBox(p, 'limits');
-    h('h4', 'osx-sub', 'Cinder 볼륨', p);
-    table(p, ['이름', '크기', '상태', '유형', '연결'], (d.volumes || []).map(function (v) {
-      return [v.name || v.id.slice(0, 8), v.size + ' GB', v.status, v.volume_type, (v.attachments || []).map(function (a) { return (names[a.server_id] || a.server_id) + ' ' + (a.device || ''); }).join(', ')];
-    }));
-    errBox(p, 'volumes');
-    h('h4', 'osx-sub', 'Glance 이미지', p);
-    table(p, ['이름', '상태', '형식', '크기', '공개'], (d.images || []).map(function (i) { return [i.name, i.status, i.disk_format, gb(i.size), i.visibility]; }));
-    errBox(p, 'images');
-    if (d.swift || (d.errors || {}).swift) {
-      h('h4', 'osx-sub', 'Swift 컨테이너', p);
-      table(p, ['컨테이너', '객체 수', '용량'], (d.swift || []).map(function (c) { return [c.name, c.count, gb(c.bytes)]; }));
-      errBox(p, 'swift');
-    }
+      meter(c2, '인스턴스', L.totalInstancesUsed, L.maxTotalInstances);
+      meter(c2, 'vCPU', L.totalCoresUsed, L.maxTotalCores);
+      meter(c2, 'RAM', Math.round(L.totalRAMUsed / 1024), Math.round(L.maxTotalRAMSize / 1024), 'G');
+    } else h('p', 'osx-meta', '쿼터 정보 없음', c2);
+    errBox(c2, 'limits');
+    var c3 = h('section', null, null, g); h('h4', 'osx-sub', 'Cinder 볼륨 · Swift', c3);
+    list(c3, (d.volumes || []).map(function (v) {
+      var at = (v.attachments || []).map(function (a) { return (names[a.server_id] || '') + ' ' + (a.device || ''); }).join(', ');
+      return [v.name || v.id.slice(0, 8), v.size + 'GB · ' + v.status + (at ? ' · ' + at : ''), v.volume_type];
+    }), '볼륨 없음');
+    if (d.swift) list(c3, d.swift.map(function (c) { return ['🗄 ' + c.name, c.count + '개 · ' + gb(c.bytes)]; }));
+    errBox(c3, 'volumes'); errBox(c3, 'swift');
+    var c4 = h('section', null, null, g); h('h4', 'osx-sub', 'Glance 이미지', c4);
+    list(c4, (d.images || []).map(function (i) { return [i.name, (i.disk_format || '') + ' · ' + gb(i.size) + ' · ' + (i.status || ''), i.visibility]; }), '이미지 없음');
+    errBox(c4, 'images');
   }
 
   // ---------- 5. VM 도구 ----------
