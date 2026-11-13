@@ -83,13 +83,13 @@ def get_openstack_credentials():
         except Exception as e:
             print(f"[ERROR] Failed to load OpenStack config: {e}")
     return {
-        "auth_url": "http://192.168.120.160:5000/v3",
+        "auth_url": os.environ.get("OS_AUTH_URL", "http://192.168.120.160:5000/v3"),
         "username": OS_USER,
         "password": OS_PASS,
         "project_name": "admin",
         "user_domain": "Default",
         "project_domain": "Default",
-        "nova_url": "http://192.168.120.160:8774/v2.1"
+        "nova_url": os.environ.get("OS_NOVA_URL", "http://192.168.120.160:8774/v2.1")
     }
 
 def get_openstack_token():
@@ -131,6 +131,152 @@ def get_openstack_token():
             OS_TOKEN_CACHE["expires"] = now + 1800
             return token
     raise Exception("OpenStack Keystone 토큰 발급에 실패했습니다.")
+
+# ============================================================
+# OpenStack 구조 · 연결 조회 (v2.5.1) — 읽기 전용 + 콘솔 로그 · 스냅샷
+# ============================================================
+OS_AUTH_CACHE = {"expires": 0}
+OS_ID_RE = re.compile(r"^[0-9a-fA-F-]{8,64}$")
+
+def _os_host_fix(url, auth_url):
+    """카탈로그 주소의 호스트명을 해석할 수 없으면 auth_url 호스트로 바꾼다 (예: controller → 192.168.120.160)."""
+    try:
+        import socket
+        u = urllib.parse.urlparse(url)
+        socket.gethostbyname(u.hostname)
+        return url
+    except Exception:
+        try:
+            u = urllib.parse.urlparse(url)
+            a = urllib.parse.urlparse(auth_url)
+            netloc = f"{a.hostname}:{u.port}" if u.port else a.hostname
+            return u._replace(netloc=netloc).geturl()
+        except Exception:
+            return url
+
+def os_auth_full():
+    now = time.time()
+    if OS_AUTH_CACHE.get("token") and now < OS_AUTH_CACHE["expires"]:
+        return OS_AUTH_CACHE
+    cfg = get_openstack_credentials()
+    payload = {"auth": {
+        "identity": {"methods": ["password"], "password": {"user": {
+            "name": cfg["username"], "domain": {"name": cfg.get("user_domain", "Default")}, "password": cfg["password"]}}},
+        "scope": {"project": {"name": cfg["project_name"], "domain": {"name": cfg.get("project_domain", "Default")}}}}}
+    req = urllib.request.Request(f"{cfg['auth_url'].rstrip('/')}/auth/tokens", data=json.dumps(payload).encode("utf-8"),
+                                 headers={"Content-Type": "application/json", "User-Agent": "FIGTEAM-CMP/1.0"})
+    with urllib.request.urlopen(req, timeout=6) as res:
+        token = res.headers.get("X-Subject-Token")
+        body = json.loads(res.read().decode("utf-8") or "{}")
+    if not token:
+        raise Exception("Keystone 토큰 발급 실패")
+    tok = body.get("token", {})
+    pid = (tok.get("project") or {}).get("id", "")
+    endpoints, catalog = {}, []
+    for svc in tok.get("catalog", []):
+        eps = {e.get("interface"): e.get("url") for e in svc.get("endpoints", [])}
+        url = eps.get("internal") or eps.get("public") or eps.get("admin")
+        if url:
+            url = url.replace("%(tenant_id)s", pid).replace("%(project_id)s", pid).replace("$(project_id)s", pid)
+            endpoints[svc.get("type")] = _os_host_fix(url, cfg["auth_url"]).rstrip("/")
+        catalog.append({"type": svc.get("type"), "name": svc.get("name"), "interfaces": sorted(k for k in eps if k)})
+    host = urllib.parse.urlparse(cfg["auth_url"]).hostname
+    endpoints.setdefault("compute", cfg.get("nova_url", f"http://{host}:8774/v2.1").rstrip("/"))
+    endpoints.setdefault("network", f"http://{host}:9696")
+    endpoints.setdefault("image", f"http://{host}:9292")
+    if "volumev3" not in endpoints and "block-storage" in endpoints:
+        endpoints["volumev3"] = endpoints["block-storage"]
+    endpoints.setdefault("volumev3", f"http://{host}:8776/v3/{pid}")
+    OS_AUTH_CACHE.update({"token": token, "expires": now + 1500, "project_id": pid, "endpoints": endpoints, "catalog": catalog})
+    return OS_AUTH_CACHE
+
+def _os_call(service, path, body=None, timeout=8):
+    a = os_auth_full()
+    base = a["endpoints"].get(service)
+    if not base:
+        raise Exception(f"{service} 엔드포인트가 카탈로그에 없습니다")
+    headers = {"X-Auth-Token": a["token"], "Accept": "application/json", "User-Agent": "FIGTEAM-CMP/1.0"}
+    data = None
+    if body is not None:
+        data = json.dumps(body).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(base + path, data=data, headers=headers, method="POST" if body is not None else "GET")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as res:
+            raw = res.read().decode("utf-8")
+            return json.loads(raw) if raw.strip() else {}
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            OS_AUTH_CACHE["expires"] = 0
+        raise Exception(f"HTTP {e.code} {service}{path.split('?')[0]}")
+
+def _pick(d, keys):
+    return {k: d.get(k) for k in keys}
+
+def openstack_overview():
+    out = {"status": "ok", "generated": int(time.time()), "errors": {}}
+    try:
+        a = os_auth_full()
+        out["catalog"] = a["catalog"]
+        out["endpoints"] = {k: urllib.parse.urlparse(v).netloc for k, v in a["endpoints"].items()}
+    except Exception as e:
+        return {"status": "error", "message": f"Keystone 인증 실패: {e}"}
+
+    def grab(key, fn):
+        try:
+            out[key] = fn()
+        except Exception as e:
+            out["errors"][key] = str(e)[:200]
+
+    grab("nova_services", lambda: [_pick(x, ("binary", "host", "zone", "status", "state", "updated_at"))
+                                   for x in _os_call("compute", "/os-services").get("services", [])])
+    grab("hypervisors", lambda: [_pick(x, ("hypervisor_hostname", "state", "status", "vcpus", "vcpus_used", "memory_mb", "memory_mb_used",
+                                           "local_gb", "local_gb_used", "running_vms", "host_ip", "hypervisor_type"))
+                                 for x in _os_call("compute", "/os-hypervisors/detail").get("hypervisors", [])])
+    grab("servers", lambda: [{"id": x.get("id"), "name": x.get("name"), "status": x.get("status"),
+                              "host": x.get("OS-EXT-SRV-ATTR:host") or x.get("OS-EXT-SRV-ATTR:hypervisor_hostname"),
+                              "flavor": (x.get("flavor") or {}).get("original_name") or (x.get("flavor") or {}).get("id"),
+                              "addresses": x.get("addresses") or {},
+                              "volumes": [v.get("id") for v in (x.get("os-extended-volumes:volumes_attached") or [])]}
+                             for x in _os_call("compute", "/servers/detail?all_tenants=1").get("servers", [])])
+    grab("limits", lambda: _os_call("compute", "/limits").get("limits", {}).get("absolute", {}))
+    grab("networks", lambda: [_pick(x, ("id", "name", "status", "router:external", "subnets", "provider:network_type", "shared"))
+                              for x in _os_call("network", "/v2.0/networks").get("networks", [])])
+    grab("subnets", lambda: [_pick(x, ("id", "name", "cidr", "network_id", "gateway_ip", "enable_dhcp"))
+                             for x in _os_call("network", "/v2.0/subnets").get("subnets", [])])
+    grab("routers", lambda: [_pick(x, ("id", "name", "status", "external_gateway_info"))
+                             for x in _os_call("network", "/v2.0/routers").get("routers", [])])
+    grab("ports", lambda: [_pick(x, ("id", "network_id", "device_owner", "device_id", "fixed_ips", "status"))
+                           for x in _os_call("network", "/v2.0/ports").get("ports", [])])
+    grab("floatingips", lambda: [_pick(x, ("id", "floating_ip_address", "fixed_ip_address", "port_id", "router_id", "status", "floating_network_id"))
+                                 for x in _os_call("network", "/v2.0/floatingips").get("floatingips", [])])
+    grab("agents", lambda: [_pick(x, ("agent_type", "binary", "host", "alive", "admin_state_up"))
+                            for x in _os_call("network", "/v2.0/agents").get("agents", [])])
+    grab("cinder_services", lambda: [_pick(x, ("binary", "host", "zone", "status", "state"))
+                                     for x in _os_call("volumev3", "/os-services").get("services", [])])
+    grab("volumes", lambda: [{"id": x.get("id"), "name": x.get("name"), "size": x.get("size"), "status": x.get("status"),
+                              "volume_type": x.get("volume_type"),
+                              "attachments": [_pick(t, ("server_id", "device")) for t in (x.get("attachments") or [])]}
+                             for x in _os_call("volumev3", "/volumes/detail?all_tenants=1").get("volumes", [])])
+    grab("images", lambda: [_pick(x, ("id", "name", "status", "size", "disk_format", "visibility"))
+                            for x in _os_call("image", "/v2/images?limit=50").get("images", [])])
+    if "object-store" in OS_AUTH_CACHE.get("endpoints", {}):
+        grab("swift", lambda: [_pick(x, ("name", "count", "bytes"))
+                               for x in (_os_call("object-store", "?format=json") or [])])
+    return out
+
+def openstack_console_log(server_id, length=80):
+    if not OS_ID_RE.match(server_id or ""):
+        raise Exception("잘못된 서버 ID")
+    res = _os_call("compute", f"/servers/{server_id}/action", {"os-getConsoleOutput": {"length": int(length)}})
+    return res.get("output", "")
+
+def openstack_snapshot(server_id, name):
+    if not OS_ID_RE.match(server_id or ""):
+        raise Exception("잘못된 서버 ID")
+    name = re.sub(r"[^0-9A-Za-z가-힣._ -]", "", name or "")[:60] or f"figteam-snap-{time.strftime('%Y%m%d-%H%M')}"
+    res = _os_call("compute", f"/servers/{server_id}/action", {"createImage": {"name": name}})
+    return {"name": name, "image_id": (res or {}).get("image_id")}
 
 def list_openstack_servers():
     cfg = get_openstack_credentials()
@@ -965,6 +1111,71 @@ PORTAL_HTML = """<!DOCTYPE html>
     .t2-dns { fill: var(--bp-ink-2); font-size: 12px; font-weight: 600; paint-order: stroke; stroke: var(--bp-deep); stroke-width: 4px; }
     .t2-dns.s { fill: var(--bp-ink-3); font-weight: 400; font-size: 11px; }
     .dc-side #btn-v3-mgmt { grid-column: 1 / -1; }
+
+    /* ===== OpenStack 구조 · 연결 (#osvm) ===== */
+    .osx { border: 2px solid var(--bp-ink); background: var(--bp-deep); padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 12px; }
+    .osx-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .osx-head h3 { font-size: 18px; font-weight: 600; }
+    .osx-meta { font-size: 12.5px; color: var(--bp-ink-3); margin-right: auto; }
+    .osx-tabs { display: flex; border-bottom: 1px solid var(--bp-ink); }
+    .osx-tab { background: transparent; border: 1px solid transparent; border-bottom: 0; color: var(--bp-ink-3); font: 500 13.5px var(--font); padding: 7px 16px; cursor: pointer; }
+    .osx-tab.on { color: var(--bp-ink); border-color: var(--bp-ink); background: var(--bp-ground); margin-bottom: -1px; }
+    .osx-pane[hidden] { display: none !important; }
+    .osx-err { font-size: 12.5px; color: var(--bp-redline); border: 1px solid var(--bp-redline); padding: 6px 10px; margin-top: 8px; }
+    .osx-map { overflow: auto; border: 1px solid var(--bp-line); background: var(--bp-ground); max-height: 640px; }
+    .osx-svg { display: block; min-width: 1100px; width: 100%; height: auto; }
+    .osx-svg text { font-family: var(--font); }
+    .osx-svg .osx-col { fill: var(--bp-ink-3); font-size: 12.5px; }
+    .osx-node rect { fill: rgba(29,74,122,.92); stroke: var(--bp-ink); stroke-width: 1.4; }
+    .osx-node.ext rect { stroke-dasharray: 5 4; }
+    .osx-node.rt rect { stroke: var(--bp-pencil); }
+    .osx-node.vm.st-ok rect { stroke: var(--bp-ok); } .osx-node.vm.st-off rect { stroke: var(--bp-ink-3); opacity: .7; } .osx-node.vm.st-warn rect { stroke: var(--bp-pencil); }
+    .osx-node .t { fill: var(--bp-ink); font-size: 14px; font-weight: 600; } .osx-node .s { fill: var(--bp-ink-3); font-size: 11.5px; }
+    .osx-bar rect { fill: rgba(159,211,245,.35); stroke: #9FD3F5; }
+    .osx-bar.ext rect { fill: rgba(244,201,93,.3); stroke: var(--bp-pencil); }
+    .osx-bar .b { fill: var(--bp-ink); font-size: 13px; font-weight: 600; } .osx-bar .s, .osx-host .s { fill: var(--bp-ink-3); font-size: 11.5px; }
+    .osx-host rect { fill: rgba(230,238,245,.03); stroke: var(--bp-ink-3); stroke-dasharray: 6 4; }
+    .osx-host .b { fill: var(--bp-ink); font-size: 14px; font-weight: 600; }
+    .osx-fip rect { fill: rgba(244,201,93,.15); stroke: var(--bp-pencil); } .osx-fip text { fill: var(--bp-pencil); font-size: 12px; font-weight: 600; font-family: var(--mono); }
+    .osx-link path { fill: none; stroke: var(--bp-ink-3); stroke-width: 1.6; }
+    .osx-link.gw path { stroke: var(--bp-pencil); } .osx-link.if path { stroke: #9FD3F5; } .osx-link.vm path { stroke: var(--bp-ink-2); }
+    .osx-link.geneve path { stroke: var(--bp-violet); stroke-dasharray: 6 5; } .osx-link.ext path { stroke-dasharray: 4 4; }
+    .osx-link .l { fill: var(--bp-ink-2); font-size: 11px; font-family: var(--mono); paint-order: stroke; stroke: var(--bp-ground); stroke-width: 4px; }
+    .osx-link.geneve .l { fill: var(--bp-violet); font-family: var(--font); }
+    .osx-svg .done rect, .osx-svg .done path { stroke: var(--bp-ok) !important; }
+    .osx-svg .hl rect, .osx-svg .hl path { stroke: var(--bp-pencil) !important; stroke-width: 3.5 !important; }
+    .osx-svg .hl rect { fill: rgba(244,201,93,.22); }
+    .osx-trace { border: 1px solid var(--bp-line); margin-top: 10px; }
+    .osx-tbar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--bp-line); flex-wrap: wrap; }
+    .osx-tbar strong { font-size: 14px; } .osx-tcap { flex: 1; font-size: 13px; color: var(--bp-pencil); min-width: 200px; }
+    .osx-tlist { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+    .osx-tlist li { display: grid; grid-template-columns: 24px 1fr; gap: 8px; padding: 7px 10px; font-size: 12.5px; color: var(--bp-ink-3); cursor: pointer; border-left: 3px solid transparent; }
+    .osx-tlist li i { font-style: normal; text-align: center; border: 1px solid currentColor; height: 20px; line-height: 18px; font-size: 11px; }
+    .osx-tlist li.done { color: var(--bp-ink-2); } .osx-tlist li.active { color: var(--bp-ink); background: var(--bp-raised); border-left-color: var(--bp-pencil); }
+    .osx-sum { font-size: 14px; font-weight: 600; margin: 4px 0 10px; } .osx-sum.good { color: var(--bp-ok-2); } .osx-sum.bad { color: var(--bp-redline); }
+    .osx-hosts { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .osx-card { border: 1px solid var(--bp-line); padding: 12px 14px; background: var(--bp-ground); }
+    .osx-card h4 { font-size: 14.5px; font-weight: 600; margin-bottom: 6px; }
+    .osx-card ul { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+    .osx-card li { display: grid; grid-template-columns: 12px 1fr auto; gap: 8px; align-items: center; font-size: 12.5px; }
+    .osx-card li em { font-style: normal; color: var(--bp-ink-3); font-size: 11.5px; } .osx-card li.down b { color: var(--bp-redline); }
+    .osx-sub { font-size: 14px; font-weight: 600; margin: 16px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--bp-line); }
+    .osx-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .osx-table th { text-align: left; font-weight: 500; color: var(--bp-ink-3); border-bottom: 1px solid var(--bp-ink-3); padding: 6px 8px; }
+    .osx-table td { border-bottom: 1px solid var(--bp-line-2); padding: 6px 8px; } .osx-table td.mono { font-family: var(--mono); color: var(--bp-ink-2); }
+    .osx-meter { margin-top: 8px; } .osx-meter .top { display: flex; justify-content: space-between; font-size: 12px; color: var(--bp-ink-3); }
+    .osx-meter .top b { color: var(--bp-ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+    .osx-meter .bar { height: 6px; background: var(--bp-line-2); margin-top: 3px; } .osx-meter .bar i { display: block; height: 100%; background: var(--bp-ok); }
+    .osx-meter .bar i.hot { background: var(--bp-redline); }
+    .osx-quota { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+    .osx-ops { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .osx-ops label { font-size: 13px; color: var(--bp-ink-3); }
+    .osx-ops select, .osx-confirm input { background: var(--bp-sunk); color: var(--bp-ink); border: 1px solid var(--bp-line); padding: 6px 8px; font: 13px var(--font); min-width: 260px; }
+    .osx-confirm { border: 1px solid var(--bp-pencil); padding: 10px 12px; margin-top: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+    .osx-confirm p { width: 100%; }
+    .btn-top.primary { background: var(--bp-ink); color: var(--bp-deep); border-color: var(--bp-ink); }
+    .osx-log { margin-top: 10px; background: var(--bp-sunk); border: 1px solid var(--bp-line); padding: 12px; font: 12px/1.5 var(--mono); color: var(--bp-ink-2); max-height: 320px; overflow: auto; white-space: pre-wrap; }
+    .osx-note { font-size: 12px; color: var(--bp-ink-3); margin-top: 8px; }
   </style>
 </head>
 <body>
@@ -1457,6 +1668,7 @@ PORTAL_HTML = """<!DOCTYPE html>
             </div>
           </div>
         </div>
+        <div class="osx" id="osx"></div>
       </section>
 
                   <!-- 4. v3.0 DRAWIO TECHNICAL ARCHITECTURE & DR CONTROL PANEL -->
@@ -3449,6 +3661,405 @@ PORTAL_HTML = """<!DOCTYPE html>
 })();
 
   </script>
+  <script>
+(function () {
+  'use strict';
+  // ===== 민원불패 v2.5.1 — OpenStack 구조 · 연결 (#osvm 하단) =====
+  var root = document.getElementById('osx');
+  if (!root) return;
+  var NS = 'http://www.w3.org/2000/svg';
+  var DATA = null, loading = false, lastLoad = 0;
+
+  function h(tag, cls, text, parent) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function s(tag, attrs, parent, text) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function pct(a, b) { return b ? Math.min(100, Math.round(a / b * 100)) : 0; }
+  function gb(bytes) { return bytes == null ? '-' : (bytes / 1073741824).toFixed(bytes > 1073741824 ? 1 : 2) + ' GB'; }
+
+  // ---------- 골격 ----------
+  var head = h('div', 'osx-head', null, root);
+  h('h3', null, 'OpenStack 구조 · 연결', head);
+  var meta = h('p', 'osx-meta', '불러오는 중…', head);
+  var refresh = h('button', 'btn-top', '새로고침', head); refresh.type = 'button';
+  var tabs = h('div', 'osx-tabs', null, root); tabs.setAttribute('role', 'tablist');
+  var panes = {};
+  [['map', '구성도 · 경로'], ['svc', '서비스 상태'], ['res', '자원 현황'], ['ops', 'VM 도구']].forEach(function (t, i) {
+    var b = h('button', 'osx-tab' + (i ? '' : ' on'), t[1], tabs); b.type = 'button'; b.dataset.p = t[0]; b.setAttribute('role', 'tab');
+    var p = h('div', 'osx-pane', null, root); p.dataset.p = t[0]; if (i) p.hidden = true;
+    panes[t[0]] = p;
+  });
+  tabs.addEventListener('click', function (e) {
+    var k = e.target.dataset && e.target.dataset.p; if (!k) return;
+    Array.prototype.forEach.call(tabs.children, function (b) { b.classList.toggle('on', b.dataset.p === k); });
+    Object.keys(panes).forEach(function (p) { panes[p].hidden = p !== k; });
+  });
+  refresh.addEventListener('click', function () { load(true); });
+
+  function errBox(parent, key) {
+    if (DATA && DATA.errors && DATA.errors[key]) h('p', 'osx-err', '불러오지 못함 (' + key + '): ' + DATA.errors[key], parent);
+  }
+
+  // ---------- 데이터 ----------
+  function load(force) {
+    if (loading || (!force && Date.now() - lastLoad < 20000)) return;
+    loading = true; meta.textContent = '불러오는 중…';
+    fetch('/api/openstack/overview', { credentials: 'same-origin' })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (x) {
+        loading = false; lastLoad = Date.now();
+        if (!x.ok || x.j.status !== 'ok') { meta.textContent = 'OpenStack 정보를 불러오지 못했습니다: ' + (x.j.message || ('HTTP ' + x.ok)); return; }
+        DATA = x.j;
+        var ne = Object.keys(DATA.errors || {}).length;
+        meta.textContent = '갱신 ' + new Date(DATA.generated * 1000).toLocaleTimeString() + ' · VM ' + (DATA.servers || []).length + '대 · 네트워크 ' + (DATA.networks || []).length + '개' + (ne ? ' · 일부 항목 실패 ' + ne + '건' : '');
+        render();
+      })
+      .catch(function (e) { loading = false; meta.textContent = 'OpenStack 정보를 불러오지 못했습니다: ' + e.message; });
+  }
+  function render() { renderMap(); renderSvc(); renderRes(); renderOps(); }
+
+  // ---------- 1·3. 구성도 + 경로 추적 ----------
+  var mapWrap, svg, traceList, traceCap, traceIdx = -1, traceTimer = null, HOPS = [];
+  function renderMap() {
+    var p = panes.map; p.textContent = '';
+    var d = DATA, nets = d.networks || [], subnets = {}, ports = d.ports || [], servers = d.servers || [];
+    (d.subnets || []).forEach(function (x) { subnets[x.id] = x; });
+    var ext = nets.filter(function (n) { return n['router:external']; });
+    var intn = nets.filter(function (n) { return !n['router:external']; });
+    // 네트워크 정보가 없으면 VM 주소의 네트워크 이름으로 대체
+    if (!nets.length) {
+      var names = {};
+      servers.forEach(function (v) { Object.keys(v.addresses || {}).forEach(function (k) { names[k] = 1; }); });
+      intn = Object.keys(names).map(function (k) { return { id: 'name:' + k, name: k, subnets: [] }; });
+    }
+    var cidr = function (n) { return (n.subnets || []).map(function (id) { return subnets[id] ? subnets[id].cidr : ''; }).filter(Boolean).join(', '); };
+    var hosts = (d.hypervisors || []).map(function (x) { return x.hypervisor_hostname; });
+    servers.forEach(function (v) { if (v.host && hosts.indexOf(v.host) < 0 && hosts.indexOf((v.host || '').split('.')[0]) < 0) hosts.push(v.host); });
+    if (servers.some(function (v) { return !v.host; })) hosts.push('(배치 정보 없음)');
+    var byHost = {};
+    hosts.forEach(function (hn) { byHost[hn] = []; });
+    servers.forEach(function (v) {
+      var key = hosts.filter(function (hn) { return v.host && (hn === v.host || hn.split('.')[0] === v.host.split('.')[0]); })[0] || '(배치 정보 없음)';
+      (byHost[key] = byHost[key] || []).push(v);
+    });
+    var fipByFixed = {};
+    (d.floatingips || []).forEach(function (f) { if (f.fixed_ip_address) fipByFixed[f.fixed_ip_address] = f; });
+
+    // 배치 (열: 외부 경로 | 외부망 | 라우터 | 내부망 | Compute)
+    var X_EXTCHAIN = 20, X_EXT = 230, X_RT = 360, X_INT = 660, INT_GAP = 80;
+    var X_HOST = X_INT + Math.max(1, intn.length) * INT_GAP + 60, HOST_W = 340, ROW = 64, TOP = 60;
+    var y = TOP, frames = [];
+    hosts.forEach(function (hn) {
+      var list = byHost[hn] || [];
+      var hgt = 46 + Math.max(1, list.length) * ROW;
+      frames.push({ host: hn, y: y, h: hgt, vms: list });
+      y += hgt + 24;
+    });
+    var H = Math.max(y, 520), W = X_HOST + HOST_W + 40;
+    mapWrap = h('div', 'osx-map', null, p);
+    svg = s('svg', { viewBox: '0 0 ' + W + ' ' + H, 'class': 'osx-svg', role: 'img', 'aria-label': 'OpenStack 네트워크 구성도' }, mapWrap);
+    var gL = s('g', {}, svg), gN = s('g', {}, svg);
+    var el = {};
+
+    function box(id, x, y0, w, hh, title, sub, cls) {
+      var g = s('g', { 'class': 'osx-node ' + (cls || ''), 'data-id': id }, gN);
+      s('rect', { x: x, y: y0, width: w, height: hh }, g);
+      s('text', { x: x + w / 2, y: y0 + (sub ? hh / 2 - 2 : hh / 2 + 5), 'text-anchor': 'middle', 'class': 't' }, g, title);
+      if (sub) s('text', { x: x + w / 2, y: y0 + hh / 2 + 15, 'text-anchor': 'middle', 'class': 's' }, g, sub);
+      el[id] = g; return g;
+    }
+    function line(id, pts, cls, label, lx, ly, anchor) {
+      var g = s('g', { 'class': 'osx-link ' + (cls || ''), 'data-id': id }, gL);
+      s('path', { d: 'M' + pts.map(function (q) { return q.join(','); }).join(' L') }, g);
+      if (label) s('text', { x: lx, y: ly, 'text-anchor': anchor || 'start', 'class': 'l' }, g, label);
+      el[id] = g; return g;
+    }
+    // 외부 경로 체인
+    var chain = [['ext-cf', 'Cloudflare', 'Anycast · WAF'], ['ext-kt', 'KT Edge', '14.63.213.214'], ['ext-wg', 'WG 터널 A', 'KT ↔ 온프렘'], ['ext-host', '온프렘 호스트', '10.10.10.8 · VMware']];
+    chain.forEach(function (c, i) {
+      box(c[0], X_EXTCHAIN, TOP + i * 90, 150, 56, c[1], c[2], 'ext');
+      if (i) line('l-' + c[0], [[X_EXTCHAIN + 75, TOP + (i - 1) * 90 + 56], [X_EXTCHAIN + 75, TOP + i * 90]], 'ext');
+    });
+    s('text', { x: X_EXTCHAIN, y: TOP - 20, 'class': 'osx-col' }, gN, 'OpenStack 밖 (대민 경로)');
+    // 외부망 막대
+    var extBars = {};
+    var extList = ext.length ? ext : [{ id: 'ext:none', name: '외부망 정보 없음', subnets: [] }];
+    extList.forEach(function (n, i) {
+      var x = X_EXT + i * 18;
+      extBars[n.id] = x;
+      var g = s('g', { 'class': 'osx-bar ext', 'data-id': 'net-' + n.id }, gN);
+      s('rect', { x: x - 5, y: TOP - 10, width: 10, height: H - TOP - 20 }, g);
+      s('text', { x: x, y: TOP - 18, 'text-anchor': 'middle', 'class': 'b' }, g, n.name || n.id.slice(0, 8));
+      s('text', { x: x + 12, y: H - 16, 'class': 's' }, g, cidr(n));
+      el['net-' + n.id] = g;
+    });
+    var firstExt = extList[0].id;
+    line('l-host-ext', [[X_EXTCHAIN + 150, TOP + 3 * 90 + 28], [extBars[firstExt] - 5, TOP + 3 * 90 + 28]], 'ext', 'VMware 브리지', X_EXTCHAIN + 156, TOP + 3 * 90 + 22);
+    // 내부망 막대
+    var intBars = {};
+    intn.forEach(function (n, i) {
+      var x = X_INT + i * INT_GAP;
+      intBars[n.id] = x; intBars['name:' + n.name] = x;
+      var g = s('g', { 'class': 'osx-bar', 'data-id': 'net-' + n.id }, gN);
+      s('rect', { x: x - 5, y: TOP - 10, width: 10, height: H - TOP - 20 }, g);
+      s('text', { x: x, y: TOP - 18, 'text-anchor': 'middle', 'class': 'b' }, g, n.name || n.id.slice(0, 8));
+      s('text', { x: x + 10, y: H - 16, 'class': 's' }, g, cidr(n));
+      el['net-' + n.id] = g;
+    });
+    // 라우터
+    var routers = d.routers || [];
+    routers.forEach(function (r, i) {
+      var ry = TOP + 40 + i * 120;
+      box('rt-' + r.id, X_RT, ry, 150, 56, r.name || '라우터', 'OVN · NAT', 'rt');
+      var gw = r.external_gateway_info || {};
+      var gwip = ((gw.external_fixed_ips || [])[0] || {}).ip_address || '';
+      var ex = extBars[gw.network_id] != null ? extBars[gw.network_id] : extBars[firstExt];
+      line('l-gw-' + r.id, [[ex + 5, ry + 20], [X_RT, ry + 20]], 'gw', gwip, ex + 14, ry + 14);
+      ports.filter(function (pt) { return pt.device_id === r.id && /router_interface/.test(pt.device_owner || ''); }).forEach(function (pt, k) {
+        var ix = intBars[pt.network_id]; if (ix == null) return;
+        var ip = ((pt.fixed_ips || [])[0] || {}).ip_address || '';
+        var yy = ry + 36 + k * 10;
+        line('l-if-' + pt.id, [[X_RT + 150, yy], [ix - 5, yy]], 'if', ip, X_RT + 160, yy - 5);
+        el['l-if-net-' + pt.network_id] = el['l-if-' + pt.id];
+      });
+    });
+    // Compute 프레임 + VM
+    frames.forEach(function (f, fi) {
+      var g = s('g', { 'class': 'osx-host', 'data-id': 'host-' + f.host }, gN);
+      s('rect', { x: X_HOST, y: f.y, width: HOST_W, height: f.h }, g);
+      var hv = (d.hypervisors || []).filter(function (x) { return x.hypervisor_hostname === f.host; })[0];
+      s('text', { x: X_HOST + 10, y: f.y + 20, 'class': 'b' }, g, f.host);
+      if (hv) s('text', { x: X_HOST + 10, y: f.y + 36, 'class': 's' }, g, (hv.host_ip || '') + ' · vCPU ' + hv.vcpus_used + '/' + hv.vcpus + ' · RAM ' + Math.round(hv.memory_mb_used / 1024) + '/' + Math.round(hv.memory_mb / 1024) + 'G');
+      el['host-' + f.host] = g;
+      f.vms.forEach(function (v, i) {
+        var vy = f.y + 46 + i * ROW;
+        var ips = [];
+        Object.keys(v.addresses || {}).forEach(function (nn) { (v.addresses[nn] || []).forEach(function (a) { ips.push({ net: nn, ip: a.addr, type: a['OS-EXT-IPS:type'] }); }); });
+        var fixed = ips.filter(function (a) { return a.type !== 'floating'; });
+        var fip = ips.filter(function (a) { return a.type === 'floating'; }).map(function (a) { return a.ip; })[0] ||
+          fixed.map(function (a) { return fipByFixed[a.ip] && fipByFixed[a.ip].floating_ip_address; }).filter(Boolean)[0];
+        var st = (v.status || '').toUpperCase();
+        box('vm-' + v.id, X_HOST + 20, vy, 170, 50, v.name, (v.flavor || '') + ' · ' + st, 'vm st-' + (st === 'ACTIVE' ? 'ok' : st === 'SHUTOFF' ? 'off' : 'warn'));
+        if (fip) {
+          var fg = s('g', { 'class': 'osx-fip', 'data-id': 'fip-' + v.id }, gN);
+          s('rect', { x: X_HOST + 200, y: vy + 13, width: 124, height: 24 }, fg);
+          s('text', { x: X_HOST + 262, y: vy + 29, 'text-anchor': 'middle' }, fg, fip);
+          el['fip-' + v.id] = fg;
+        }
+        fixed.forEach(function (a, k) {
+          var net = intn.filter(function (n) { return n.name === a.net; })[0];
+          var bx = net ? intBars[net.id] : intBars['name:' + a.net];
+          if (bx == null) return;
+          var yy = vy + 18 + k * 12;
+          line('l-vm-' + v.id + '-' + k, [[bx + 5, yy], [X_HOST + 20, yy]], 'vm', a.ip, bx + 10, yy - 5);
+          if (!k) el['l-vm-' + v.id] = el['l-vm-' + v.id + '-' + k];
+        });
+      });
+      if (fi > 0) {
+        var prev = frames[fi - 1];
+        line('l-geneve-' + fi, [[X_HOST + HOST_W + 14, prev.y + prev.h / 2], [X_HOST + HOST_W + 14, f.y + f.h / 2]], 'geneve', 'OVN Geneve', X_HOST + HOST_W + 8, (prev.y + prev.h / 2 + f.y + f.h / 2) / 2, 'end');
+      }
+    });
+    s('text', { x: X_HOST, y: TOP - 20, 'class': 'osx-col' }, gN, 'Compute 노드 · VM (Nova 배치)');
+    errBox(p, 'networks'); errBox(p, 'routers'); errBox(p, 'servers');
+
+    // 경로 추적 (실데이터 기반)
+    var trace = h('div', 'osx-trace', null, p);
+    var bar = h('div', 'osx-tbar', null, trace);
+    h('strong', null, '전체 경로 추적', bar);
+    traceCap = h('span', 'osx-tcap', '단계를 고르거나 재생하세요', bar);
+    var bPrev = h('button', 'btn-top', '◀ 이전', bar), bPlay = h('button', 'btn-top', '재생', bar), bNext = h('button', 'btn-top', '다음 ▶', bar);
+    [bPrev, bPlay, bNext].forEach(function (b) { b.type = 'button'; });
+    traceList = h('ol', 'osx-tlist', null, trace);
+    var target = servers.filter(function (v) { return el['fip-' + v.id]; })[0] || servers[0];
+    var rt = routers[0];
+    var tNet = target ? intn.filter(function (n) { return (target.addresses || {})[n.name]; })[0] : null;
+    var tFixed = target ? ((((target.addresses || {})[tNet ? tNet.name : Object.keys(target.addresses || {})[0]] || [])[0]) || {}).addr : '';
+    var tFip = target && el['fip-' + target.id] ? el['fip-' + target.id].textContent : '';
+    HOPS = [
+      ['Cloudflare 애니캐스트: 가장 가까운 엣지가 요청 수신 (WAF)', ['ext-cf']],
+      ['KT Edge(14.63.213.214): TLS 종료 · 접수 대기열', ['ext-kt', 'l-ext-kt']],
+      ['WireGuard 터널 A → 온프렘 호스트', ['ext-wg', 'l-ext-wg']],
+      ['온프렘 호스트(10.10.10.8) → VMware 브리지 → 외부망', ['ext-host', 'l-ext-host', 'l-host-ext', 'net-' + firstExt]],
+      [tFip ? 'Floating IP ' + tFip + ' → 라우터 (OVN NAT)' : '외부망 → 라우터 게이트웨이 (OVN NAT)', rt ? ['l-gw-' + rt.id, 'rt-' + rt.id].concat(target ? ['fip-' + target.id] : []) : []],
+      [tNet ? '라우터 → ' + tNet.name + ' (게이트웨이 인터페이스)' : '라우터 → 내부망', tNet ? ['l-if-net-' + tNet.id, 'net-' + tNet.id] : []],
+      [target ? tNet ? tNet.name + ' → ' + target.name + ' (' + tFixed + ' · ' + (target.host || '') + ')' : target.name : 'VM 정보 없음', target ? ['l-vm-' + target.id, 'vm-' + target.id, 'host-' + (frames.filter(function (f) { return f.vms.indexOf(target) >= 0; })[0] || {}).host] : []]
+    ];
+    if (frames.length > 1) HOPS.push(['다른 Compute의 VM과는 OVN Geneve 터널로 통신', ['l-geneve-1']]);
+    HOPS.forEach(function (hp, i) {
+      var li = h('li', null, null, traceList); li.dataset.i = i;
+      h('i', null, String(i + 1), li); h('span', null, hp[0], li);
+      li.addEventListener('click', function () { stop(); go(i); });
+    });
+    function go(i) {
+      traceIdx = Math.max(0, Math.min(HOPS.length - 1, i));
+      Object.keys(el).forEach(function (k) { if (el[k]) el[k].classList.remove('hl', 'done'); });
+      HOPS.forEach(function (hp, j) { if (j <= traceIdx) hp[1].forEach(function (id) { if (el[id]) el[id].classList.add(j === traceIdx ? 'hl' : 'done'); }); });
+      Array.prototype.forEach.call(traceList.children, function (li) { li.classList.toggle('active', +li.dataset.i === traceIdx); li.classList.toggle('done', +li.dataset.i < traceIdx); });
+      traceCap.textContent = (traceIdx + 1) + '. ' + HOPS[traceIdx][0];
+    }
+    function stop() { if (traceTimer) { clearInterval(traceTimer); traceTimer = null; } bPlay.textContent = '재생'; }
+    bPrev.addEventListener('click', function () { stop(); go(traceIdx - 1); });
+    bNext.addEventListener('click', function () { stop(); go(traceIdx + 1); });
+    bPlay.addEventListener('click', function () {
+      if (traceTimer) { stop(); return; }
+      bPlay.textContent = '일시정지';
+      if (traceIdx >= HOPS.length - 1) traceIdx = -1;
+      go(traceIdx + 1);
+      traceTimer = setInterval(function () { if (traceIdx >= HOPS.length - 1) { stop(); return; } go(traceIdx + 1); }, 1600);
+    });
+  }
+
+  // ---------- 2. 서비스 상태 ----------
+  function renderSvc() {
+    var p = panes.svc; p.textContent = '';
+    var d = DATA, byHost = {};
+    function add(host, name, up, src) { (byHost[host || '?'] = byHost[host || '?'] || []).push({ name: name, up: up, src: src }); }
+    (d.nova_services || []).forEach(function (x) { add(x.host, x.binary, x.state === 'up' && x.status === 'enabled', 'Nova'); });
+    (d.agents || []).forEach(function (x) { add(x.host, x.binary || x.agent_type, !!x.alive && x.admin_state_up !== false, 'Neutron'); });
+    (d.cinder_services || []).forEach(function (x) { add((x.host || '').split('@')[0], x.binary, x.state === 'up' && x.status === 'enabled', 'Cinder'); });
+    var all = [].concat.apply([], Object.keys(byHost).map(function (k) { return byHost[k]; }));
+    var down = all.filter(function (x) { return !x.up; }).length;
+    h('p', 'osx-sum ' + (down ? 'bad' : 'good'), down ? '서비스 ' + all.length + '개 중 ' + down + '개 비정상' : '서비스 ' + all.length + '개 모두 정상', p);
+    var grid = h('div', 'osx-hosts', null, p);
+    Object.keys(byHost).sort().forEach(function (host) {
+      var c = h('div', 'osx-card', null, grid);
+      h('h4', null, host, c);
+      var ul = h('ul', null, null, c);
+      byHost[host].forEach(function (x) {
+        var li = h('li', x.up ? 'up' : 'down', null, ul);
+        h('span', 'dot ' + (x.up ? 'green' : 'red'), null, li);
+        h('b', null, x.name, li); h('em', null, x.src + (x.up ? '' : ' · 비정상'), li);
+      });
+    });
+    ['nova_services', 'agents', 'cinder_services'].forEach(function (k) { errBox(p, k); });
+    if ((d.catalog || []).length) {
+      h('h4', 'osx-sub', 'Keystone 서비스 카탈로그', p);
+      var t = h('table', 'osx-table', null, p), tr = h('tr', null, null, h('thead', null, null, t));
+      ['유형', '이름', '인터페이스', '접속 주소'].forEach(function (x) { h('th', null, x, tr); });
+      var tb = h('tbody', null, null, t);
+      d.catalog.forEach(function (c) {
+        var r = h('tr', null, null, tb);
+        h('td', null, c.type, r); h('td', null, c.name, r); h('td', null, (c.interfaces || []).join(' · '), r); h('td', 'mono', (d.endpoints || {})[c.type] || '', r);
+      });
+    }
+  }
+
+  // ---------- 4. 자원 현황 ----------
+  function meter(parent, label, used, total, unit) {
+    var m = h('div', 'osx-meter', null, parent);
+    var top = h('div', 'top', null, m); h('span', null, label, top); h('b', null, used + ' / ' + total + (unit || ''), top);
+    var b = h('div', 'bar', null, m); var f = h('i', null, null, b);
+    var v = pct(used, total); f.style.width = v + '%'; if (v >= 85) f.className = 'hot';
+  }
+  function table(parent, cols, rows) {
+    var t = h('table', 'osx-table', null, parent), tr = h('tr', null, null, h('thead', null, null, t));
+    cols.forEach(function (c) { h('th', null, c, tr); });
+    var tb = h('tbody', null, null, t);
+    rows.forEach(function (r) { var x = h('tr', null, null, tb); r.forEach(function (c) { h('td', null, c == null ? '-' : String(c), x); }); });
+    if (!rows.length) { var x = h('tr', null, null, tb); var td = h('td', null, '없음', x); td.colSpan = cols.length; }
+  }
+  function renderRes() {
+    var p = panes.res; p.textContent = '';
+    var d = DATA, names = {};
+    (d.servers || []).forEach(function (v) { names[v.id] = v.name; });
+    h('h4', 'osx-sub', 'Compute 노드', p);
+    var g = h('div', 'osx-hosts', null, p);
+    (d.hypervisors || []).forEach(function (x) {
+      var c = h('div', 'osx-card', null, g);
+      h('h4', null, x.hypervisor_hostname, c);
+      h('p', 'osx-meta', (x.hypervisor_type || '') + ' · ' + (x.host_ip || '') + ' · VM ' + (x.running_vms || 0) + '대 · ' + (x.state || ''), c);
+      meter(c, 'vCPU', x.vcpus_used, x.vcpus);
+      meter(c, 'RAM', Math.round(x.memory_mb_used / 1024), Math.round(x.memory_mb / 1024), ' GB');
+      meter(c, '디스크', x.local_gb_used, x.local_gb, ' GB');
+    });
+    errBox(p, 'hypervisors');
+    var L = d.limits || {};
+    if (L.maxTotalCores) {
+      h('h4', 'osx-sub', '프로젝트 쿼터', p);
+      var q = h('div', 'osx-quota', null, p);
+      meter(q, '인스턴스', L.totalInstancesUsed, L.maxTotalInstances);
+      meter(q, 'vCPU', L.totalCoresUsed, L.maxTotalCores);
+      meter(q, 'RAM', Math.round(L.totalRAMUsed / 1024), Math.round(L.maxTotalRAMSize / 1024), ' GB');
+    }
+    errBox(p, 'limits');
+    h('h4', 'osx-sub', 'Cinder 볼륨', p);
+    table(p, ['이름', '크기', '상태', '유형', '연결'], (d.volumes || []).map(function (v) {
+      return [v.name || v.id.slice(0, 8), v.size + ' GB', v.status, v.volume_type, (v.attachments || []).map(function (a) { return (names[a.server_id] || a.server_id) + ' ' + (a.device || ''); }).join(', ')];
+    }));
+    errBox(p, 'volumes');
+    h('h4', 'osx-sub', 'Glance 이미지', p);
+    table(p, ['이름', '상태', '형식', '크기', '공개'], (d.images || []).map(function (i) { return [i.name, i.status, i.disk_format, gb(i.size), i.visibility]; }));
+    errBox(p, 'images');
+    if (d.swift || (d.errors || {}).swift) {
+      h('h4', 'osx-sub', 'Swift 컨테이너', p);
+      table(p, ['컨테이너', '객체 수', '용량'], (d.swift || []).map(function (c) { return [c.name, c.count, gb(c.bytes)]; }));
+      errBox(p, 'swift');
+    }
+  }
+
+  // ---------- 5. VM 도구 ----------
+  function renderOps() {
+    var p = panes.ops; p.textContent = '';
+    var vms = DATA.servers || [];
+    var row = h('div', 'osx-ops', null, p);
+    h('label', null, '대상 VM', row).htmlFor = 'osx-vm';
+    var sel = h('select', null, null, row); sel.id = 'osx-vm';
+    vms.forEach(function (v) { var o = h('option', null, v.name + ' (' + v.status + ' · ' + (v.host || '-') + ')', sel); o.value = v.id; });
+    var bLog = h('button', 'btn-top', '콘솔 로그 보기', row), bSnap = h('button', 'btn-top', '스냅샷 만들기', row);
+    var aHz = h('a', 'btn-top', 'Horizon에서 열기 ↗', row); aHz.target = '_blank'; aHz.rel = 'noopener';
+    [bLog, bSnap].forEach(function (b) { b.type = 'button'; });
+    function syncLink() { aHz.href = 'https://horizon.ktci5.kr/dashboard/project/instances/' + encodeURIComponent(sel.value) + '/'; }
+    sel.addEventListener('change', syncLink); syncLink();
+    var confirmBox = h('div', 'osx-confirm', null, p); confirmBox.hidden = true;
+    var out = h('pre', 'osx-log', '콘솔 로그(부팅 · 커널 메시지 최근 80줄)를 볼 VM을 고르세요.', p);
+    h('p', 'osx-note', '원격 콘솔(noVNC)은 Controller 내부 6080 포트를 쓰므로 외부에서는 Horizon 콘솔 탭이 열리지 않을 수 있습니다. 삭제 · 네트워크 변경은 Horizon에서 하세요.', p);
+    bLog.addEventListener('click', function () {
+      out.textContent = '불러오는 중…';
+      fetch('/api/openstack/console-log?id=' + encodeURIComponent(sel.value), { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { out.textContent = j.status === 'ok' ? (j.output || '(출력 없음)') : '불러오지 못함: ' + j.message; })
+        .catch(function (e) { out.textContent = '불러오지 못함: ' + e.message; });
+    });
+    bSnap.addEventListener('click', function () {
+      var v = vms.filter(function (x) { return x.id === sel.value; })[0]; if (!v) return;
+      confirmBox.textContent = ''; confirmBox.hidden = false;
+      h('p', null, v.name + ' 스냅샷을 만듭니다. Glance 이미지로 저장되며 디스크 용량을 사용합니다.', confirmBox);
+      var inp = h('input', null, null, confirmBox); inp.value = v.name + '-snap-' + new Date().toISOString().slice(0, 16).replace(/[-:T]/g, ''); inp.setAttribute('aria-label', '스냅샷 이름');
+      var ok = h('button', 'btn-top primary', '스냅샷 만들기', confirmBox), no = h('button', 'btn-top', '취소', confirmBox);
+      ok.type = no.type = 'button';
+      no.addEventListener('click', function () { confirmBox.hidden = true; });
+      ok.addEventListener('click', function () {
+        ok.disabled = true; ok.textContent = '요청 중…';
+        fetch('/api/openstack/vm/snapshot', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: v.id, name: inp.value }) })
+          .then(function (r) { return r.json(); })
+          .then(function (j) { confirmBox.textContent = j.status === 'ok' ? '스냅샷 요청됨: ' + j.name + ' (Glance에서 진행 상태 확인)' : '스냅샷 실패: ' + j.message; })
+          .catch(function (e) { confirmBox.textContent = '스냅샷 실패: ' + e.message; });
+      });
+    });
+  }
+
+  // ---------- 탭 진입 시 불러오기 ----------
+  var orig = window.switchTab;
+  if (typeof orig === 'function') {
+    window.switchTab = function (k) { orig(k); if (k === 'osvm') load(false); };
+  }
+  if ((location.hash || '').replace('#', '') === 'osvm') load(false);
+  setInterval(function () { var pnl = document.getElementById('osvm-panel'); if (pnl && pnl.style.display !== 'none' && !document.hidden) load(false); }, 60000);
+  window.OSView = { load: load };
+})();
+
+  </script>
 </body>
 </html>
 """
@@ -3510,6 +4121,21 @@ class PortalHandler(http.server.BaseHTTPRequestHandler):
 
         if path == '/api/session':
             self.send_json({"status": "ok", "user": VALID_USER})
+            return
+
+        if path == '/api/openstack/overview':
+            try:
+                self.send_json(openstack_overview())
+            except Exception as e:
+                self.send_json({"status": "error", "message": str(e)}, status=500)
+            return
+
+        if path == '/api/openstack/console-log':
+            q = urllib.parse.parse_qs(parsed.query)
+            try:
+                self.send_json({"status": "ok", "output": openstack_console_log(q.get('id', [''])[0])})
+            except Exception as e:
+                self.send_json({"status": "error", "message": str(e)}, status=500)
             return
 
         # OpenStack API: List Servers and Hypervisors
@@ -3609,6 +4235,15 @@ class PortalHandler(http.server.BaseHTTPRequestHandler):
         token = self.get_cookie('figteam_session')
         if not is_valid_session(token):
             self.send_json({"status": "error", "message": "Unauthorized"}, status=401)
+            return
+
+        if path == '/api/openstack/vm/snapshot':
+            length = int(self.headers.get('Content-Length', 0))
+            try:
+                data = json.loads(self.rfile.read(length).decode('utf-8') or '{}')
+                self.send_json({"status": "ok", **openstack_snapshot(data.get('id', ''), data.get('name', ''))})
+            except Exception as e:
+                self.send_json({"status": "error", "message": str(e)}, status=500)
             return
 
         # OpenStack API: VM Action (start / stop / reboot / hard_reboot)

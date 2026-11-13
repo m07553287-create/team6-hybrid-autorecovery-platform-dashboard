@@ -204,6 +204,14 @@ topo = topo.replace('\\', '\\\\')  # 파이썬 문자열 안에서도 JS 원문 
 assert body.count('</body>') == 1
 body = body.replace('</body>', '  <script>\n' + topo + '\n  </script>\n</body>')
 
+# 7) #osvm 하단: OpenStack 구조 · 연결 (서비스 상태 · 네트워크 구성도 · 경로 추적 · 자원 · VM 도구)
+osv = (here / 'osview.js').read_text(encoding='utf-8')
+assert '"""' not in osv
+osv = osv.replace('\\', '\\\\')
+body, n = re.subn(r'(\n\s*</section>\s*\n\s*<!-- 4\. v3\.0 DRAWIO)', '\n        <div class="osx" id="osx"></div>' + r'\1', body, count=1)
+assert n == 1, 'osvm panel end not found'
+body = body.replace('</body>', '  <script>\n' + osv + '\n  </script>\n</body>')
+
 # 6) v2.5.1 DB 최우선 정책 문구 (semi-sync · binlog 실시간 백업)
 DBTXT = [
     ('온프렘 Primary로부터 GTID 비동기 수신', 'GTID semi-sync 수신 (AFTER_SYNC ACK)', 1),

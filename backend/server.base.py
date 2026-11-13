@@ -83,13 +83,13 @@ def get_openstack_credentials():
         except Exception as e:
             print(f"[ERROR] Failed to load OpenStack config: {e}")
     return {
-        "auth_url": "http://192.168.120.160:5000/v3",
+        "auth_url": os.environ.get("OS_AUTH_URL", "http://192.168.120.160:5000/v3"),
         "username": OS_USER,
         "password": OS_PASS,
         "project_name": "admin",
         "user_domain": "Default",
         "project_domain": "Default",
-        "nova_url": "http://192.168.120.160:8774/v2.1"
+        "nova_url": os.environ.get("OS_NOVA_URL", "http://192.168.120.160:8774/v2.1")
     }
 
 def get_openstack_token():
@@ -131,6 +131,152 @@ def get_openstack_token():
             OS_TOKEN_CACHE["expires"] = now + 1800
             return token
     raise Exception("OpenStack Keystone 토큰 발급에 실패했습니다.")
+
+# ============================================================
+# OpenStack 구조 · 연결 조회 (v2.5.1) — 읽기 전용 + 콘솔 로그 · 스냅샷
+# ============================================================
+OS_AUTH_CACHE = {"expires": 0}
+OS_ID_RE = re.compile(r"^[0-9a-fA-F-]{8,64}$")
+
+def _os_host_fix(url, auth_url):
+    """카탈로그 주소의 호스트명을 해석할 수 없으면 auth_url 호스트로 바꾼다 (예: controller → 192.168.120.160)."""
+    try:
+        import socket
+        u = urllib.parse.urlparse(url)
+        socket.gethostbyname(u.hostname)
+        return url
+    except Exception:
+        try:
+            u = urllib.parse.urlparse(url)
+            a = urllib.parse.urlparse(auth_url)
+            netloc = f"{a.hostname}:{u.port}" if u.port else a.hostname
+            return u._replace(netloc=netloc).geturl()
+        except Exception:
+            return url
+
+def os_auth_full():
+    now = time.time()
+    if OS_AUTH_CACHE.get("token") and now < OS_AUTH_CACHE["expires"]:
+        return OS_AUTH_CACHE
+    cfg = get_openstack_credentials()
+    payload = {"auth": {
+        "identity": {"methods": ["password"], "password": {"user": {
+            "name": cfg["username"], "domain": {"name": cfg.get("user_domain", "Default")}, "password": cfg["password"]}}},
+        "scope": {"project": {"name": cfg["project_name"], "domain": {"name": cfg.get("project_domain", "Default")}}}}}
+    req = urllib.request.Request(f"{cfg['auth_url'].rstrip('/')}/auth/tokens", data=json.dumps(payload).encode("utf-8"),
+                                 headers={"Content-Type": "application/json", "User-Agent": "FIGTEAM-CMP/1.0"})
+    with urllib.request.urlopen(req, timeout=6) as res:
+        token = res.headers.get("X-Subject-Token")
+        body = json.loads(res.read().decode("utf-8") or "{}")
+    if not token:
+        raise Exception("Keystone 토큰 발급 실패")
+    tok = body.get("token", {})
+    pid = (tok.get("project") or {}).get("id", "")
+    endpoints, catalog = {}, []
+    for svc in tok.get("catalog", []):
+        eps = {e.get("interface"): e.get("url") for e in svc.get("endpoints", [])}
+        url = eps.get("internal") or eps.get("public") or eps.get("admin")
+        if url:
+            url = url.replace("%(tenant_id)s", pid).replace("%(project_id)s", pid).replace("$(project_id)s", pid)
+            endpoints[svc.get("type")] = _os_host_fix(url, cfg["auth_url"]).rstrip("/")
+        catalog.append({"type": svc.get("type"), "name": svc.get("name"), "interfaces": sorted(k for k in eps if k)})
+    host = urllib.parse.urlparse(cfg["auth_url"]).hostname
+    endpoints.setdefault("compute", cfg.get("nova_url", f"http://{host}:8774/v2.1").rstrip("/"))
+    endpoints.setdefault("network", f"http://{host}:9696")
+    endpoints.setdefault("image", f"http://{host}:9292")
+    if "volumev3" not in endpoints and "block-storage" in endpoints:
+        endpoints["volumev3"] = endpoints["block-storage"]
+    endpoints.setdefault("volumev3", f"http://{host}:8776/v3/{pid}")
+    OS_AUTH_CACHE.update({"token": token, "expires": now + 1500, "project_id": pid, "endpoints": endpoints, "catalog": catalog})
+    return OS_AUTH_CACHE
+
+def _os_call(service, path, body=None, timeout=8):
+    a = os_auth_full()
+    base = a["endpoints"].get(service)
+    if not base:
+        raise Exception(f"{service} 엔드포인트가 카탈로그에 없습니다")
+    headers = {"X-Auth-Token": a["token"], "Accept": "application/json", "User-Agent": "FIGTEAM-CMP/1.0"}
+    data = None
+    if body is not None:
+        data = json.dumps(body).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(base + path, data=data, headers=headers, method="POST" if body is not None else "GET")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as res:
+            raw = res.read().decode("utf-8")
+            return json.loads(raw) if raw.strip() else {}
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            OS_AUTH_CACHE["expires"] = 0
+        raise Exception(f"HTTP {e.code} {service}{path.split('?')[0]}")
+
+def _pick(d, keys):
+    return {k: d.get(k) for k in keys}
+
+def openstack_overview():
+    out = {"status": "ok", "generated": int(time.time()), "errors": {}}
+    try:
+        a = os_auth_full()
+        out["catalog"] = a["catalog"]
+        out["endpoints"] = {k: urllib.parse.urlparse(v).netloc for k, v in a["endpoints"].items()}
+    except Exception as e:
+        return {"status": "error", "message": f"Keystone 인증 실패: {e}"}
+
+    def grab(key, fn):
+        try:
+            out[key] = fn()
+        except Exception as e:
+            out["errors"][key] = str(e)[:200]
+
+    grab("nova_services", lambda: [_pick(x, ("binary", "host", "zone", "status", "state", "updated_at"))
+                                   for x in _os_call("compute", "/os-services").get("services", [])])
+    grab("hypervisors", lambda: [_pick(x, ("hypervisor_hostname", "state", "status", "vcpus", "vcpus_used", "memory_mb", "memory_mb_used",
+                                           "local_gb", "local_gb_used", "running_vms", "host_ip", "hypervisor_type"))
+                                 for x in _os_call("compute", "/os-hypervisors/detail").get("hypervisors", [])])
+    grab("servers", lambda: [{"id": x.get("id"), "name": x.get("name"), "status": x.get("status"),
+                              "host": x.get("OS-EXT-SRV-ATTR:host") or x.get("OS-EXT-SRV-ATTR:hypervisor_hostname"),
+                              "flavor": (x.get("flavor") or {}).get("original_name") or (x.get("flavor") or {}).get("id"),
+                              "addresses": x.get("addresses") or {},
+                              "volumes": [v.get("id") for v in (x.get("os-extended-volumes:volumes_attached") or [])]}
+                             for x in _os_call("compute", "/servers/detail?all_tenants=1").get("servers", [])])
+    grab("limits", lambda: _os_call("compute", "/limits").get("limits", {}).get("absolute", {}))
+    grab("networks", lambda: [_pick(x, ("id", "name", "status", "router:external", "subnets", "provider:network_type", "shared"))
+                              for x in _os_call("network", "/v2.0/networks").get("networks", [])])
+    grab("subnets", lambda: [_pick(x, ("id", "name", "cidr", "network_id", "gateway_ip", "enable_dhcp"))
+                             for x in _os_call("network", "/v2.0/subnets").get("subnets", [])])
+    grab("routers", lambda: [_pick(x, ("id", "name", "status", "external_gateway_info"))
+                             for x in _os_call("network", "/v2.0/routers").get("routers", [])])
+    grab("ports", lambda: [_pick(x, ("id", "network_id", "device_owner", "device_id", "fixed_ips", "status"))
+                           for x in _os_call("network", "/v2.0/ports").get("ports", [])])
+    grab("floatingips", lambda: [_pick(x, ("id", "floating_ip_address", "fixed_ip_address", "port_id", "router_id", "status", "floating_network_id"))
+                                 for x in _os_call("network", "/v2.0/floatingips").get("floatingips", [])])
+    grab("agents", lambda: [_pick(x, ("agent_type", "binary", "host", "alive", "admin_state_up"))
+                            for x in _os_call("network", "/v2.0/agents").get("agents", [])])
+    grab("cinder_services", lambda: [_pick(x, ("binary", "host", "zone", "status", "state"))
+                                     for x in _os_call("volumev3", "/os-services").get("services", [])])
+    grab("volumes", lambda: [{"id": x.get("id"), "name": x.get("name"), "size": x.get("size"), "status": x.get("status"),
+                              "volume_type": x.get("volume_type"),
+                              "attachments": [_pick(t, ("server_id", "device")) for t in (x.get("attachments") or [])]}
+                             for x in _os_call("volumev3", "/volumes/detail?all_tenants=1").get("volumes", [])])
+    grab("images", lambda: [_pick(x, ("id", "name", "status", "size", "disk_format", "visibility"))
+                            for x in _os_call("image", "/v2/images?limit=50").get("images", [])])
+    if "object-store" in OS_AUTH_CACHE.get("endpoints", {}):
+        grab("swift", lambda: [_pick(x, ("name", "count", "bytes"))
+                               for x in (_os_call("object-store", "?format=json") or [])])
+    return out
+
+def openstack_console_log(server_id, length=80):
+    if not OS_ID_RE.match(server_id or ""):
+        raise Exception("잘못된 서버 ID")
+    res = _os_call("compute", f"/servers/{server_id}/action", {"os-getConsoleOutput": {"length": int(length)}})
+    return res.get("output", "")
+
+def openstack_snapshot(server_id, name):
+    if not OS_ID_RE.match(server_id or ""):
+        raise Exception("잘못된 서버 ID")
+    name = re.sub(r"[^0-9A-Za-z가-힣._ -]", "", name or "")[:60] or f"figteam-snap-{time.strftime('%Y%m%d-%H%M')}"
+    res = _os_call("compute", f"/servers/{server_id}/action", {"createImage": {"name": name}})
+    return {"name": name, "image_id": (res or {}).get("image_id")}
 
 def list_openstack_servers():
     cfg = get_openstack_credentials()
@@ -2608,6 +2754,21 @@ class PortalHandler(http.server.BaseHTTPRequestHandler):
             self.send_json({"status": "ok", "user": VALID_USER})
             return
 
+        if path == '/api/openstack/overview':
+            try:
+                self.send_json(openstack_overview())
+            except Exception as e:
+                self.send_json({"status": "error", "message": str(e)}, status=500)
+            return
+
+        if path == '/api/openstack/console-log':
+            q = urllib.parse.parse_qs(parsed.query)
+            try:
+                self.send_json({"status": "ok", "output": openstack_console_log(q.get('id', [''])[0])})
+            except Exception as e:
+                self.send_json({"status": "error", "message": str(e)}, status=500)
+            return
+
         # OpenStack API: List Servers and Hypervisors
         if path == '/api/openstack/vms':
             try:
@@ -2705,6 +2866,15 @@ class PortalHandler(http.server.BaseHTTPRequestHandler):
         token = self.get_cookie('figteam_session')
         if not is_valid_session(token):
             self.send_json({"status": "error", "message": "Unauthorized"}, status=401)
+            return
+
+        if path == '/api/openstack/vm/snapshot':
+            length = int(self.headers.get('Content-Length', 0))
+            try:
+                data = json.loads(self.rfile.read(length).decode('utf-8') or '{}')
+                self.send_json({"status": "ok", **openstack_snapshot(data.get('id', ''), data.get('name', ''))})
+            except Exception as e:
+                self.send_json({"status": "error", "message": str(e)}, status=500)
             return
 
         # OpenStack API: VM Action (start / stop / reboot / hard_reboot)

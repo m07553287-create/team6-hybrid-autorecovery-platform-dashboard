@@ -311,3 +311,68 @@
     .t2-dns { fill: var(--bp-ink-2); font-size: 12px; font-weight: 600; paint-order: stroke; stroke: var(--bp-deep); stroke-width: 4px; }
     .t2-dns.s { fill: var(--bp-ink-3); font-weight: 400; font-size: 11px; }
     .dc-side #btn-v3-mgmt { grid-column: 1 / -1; }
+
+    /* ===== OpenStack 구조 · 연결 (#osvm) ===== */
+    .osx { border: 2px solid var(--bp-ink); background: var(--bp-deep); padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 12px; }
+    .osx-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .osx-head h3 { font-size: 18px; font-weight: 600; }
+    .osx-meta { font-size: 12.5px; color: var(--bp-ink-3); margin-right: auto; }
+    .osx-tabs { display: flex; border-bottom: 1px solid var(--bp-ink); }
+    .osx-tab { background: transparent; border: 1px solid transparent; border-bottom: 0; color: var(--bp-ink-3); font: 500 13.5px var(--font); padding: 7px 16px; cursor: pointer; }
+    .osx-tab.on { color: var(--bp-ink); border-color: var(--bp-ink); background: var(--bp-ground); margin-bottom: -1px; }
+    .osx-pane[hidden] { display: none !important; }
+    .osx-err { font-size: 12.5px; color: var(--bp-redline); border: 1px solid var(--bp-redline); padding: 6px 10px; margin-top: 8px; }
+    .osx-map { overflow: auto; border: 1px solid var(--bp-line); background: var(--bp-ground); max-height: 640px; }
+    .osx-svg { display: block; min-width: 1100px; width: 100%; height: auto; }
+    .osx-svg text { font-family: var(--font); }
+    .osx-svg .osx-col { fill: var(--bp-ink-3); font-size: 12.5px; }
+    .osx-node rect { fill: rgba(29,74,122,.92); stroke: var(--bp-ink); stroke-width: 1.4; }
+    .osx-node.ext rect { stroke-dasharray: 5 4; }
+    .osx-node.rt rect { stroke: var(--bp-pencil); }
+    .osx-node.vm.st-ok rect { stroke: var(--bp-ok); } .osx-node.vm.st-off rect { stroke: var(--bp-ink-3); opacity: .7; } .osx-node.vm.st-warn rect { stroke: var(--bp-pencil); }
+    .osx-node .t { fill: var(--bp-ink); font-size: 14px; font-weight: 600; } .osx-node .s { fill: var(--bp-ink-3); font-size: 11.5px; }
+    .osx-bar rect { fill: rgba(159,211,245,.35); stroke: #9FD3F5; }
+    .osx-bar.ext rect { fill: rgba(244,201,93,.3); stroke: var(--bp-pencil); }
+    .osx-bar .b { fill: var(--bp-ink); font-size: 13px; font-weight: 600; } .osx-bar .s, .osx-host .s { fill: var(--bp-ink-3); font-size: 11.5px; }
+    .osx-host rect { fill: rgba(230,238,245,.03); stroke: var(--bp-ink-3); stroke-dasharray: 6 4; }
+    .osx-host .b { fill: var(--bp-ink); font-size: 14px; font-weight: 600; }
+    .osx-fip rect { fill: rgba(244,201,93,.15); stroke: var(--bp-pencil); } .osx-fip text { fill: var(--bp-pencil); font-size: 12px; font-weight: 600; font-family: var(--mono); }
+    .osx-link path { fill: none; stroke: var(--bp-ink-3); stroke-width: 1.6; }
+    .osx-link.gw path { stroke: var(--bp-pencil); } .osx-link.if path { stroke: #9FD3F5; } .osx-link.vm path { stroke: var(--bp-ink-2); }
+    .osx-link.geneve path { stroke: var(--bp-violet); stroke-dasharray: 6 5; } .osx-link.ext path { stroke-dasharray: 4 4; }
+    .osx-link .l { fill: var(--bp-ink-2); font-size: 11px; font-family: var(--mono); paint-order: stroke; stroke: var(--bp-ground); stroke-width: 4px; }
+    .osx-link.geneve .l { fill: var(--bp-violet); font-family: var(--font); }
+    .osx-svg .done rect, .osx-svg .done path { stroke: var(--bp-ok) !important; }
+    .osx-svg .hl rect, .osx-svg .hl path { stroke: var(--bp-pencil) !important; stroke-width: 3.5 !important; }
+    .osx-svg .hl rect { fill: rgba(244,201,93,.22); }
+    .osx-trace { border: 1px solid var(--bp-line); margin-top: 10px; }
+    .osx-tbar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--bp-line); flex-wrap: wrap; }
+    .osx-tbar strong { font-size: 14px; } .osx-tcap { flex: 1; font-size: 13px; color: var(--bp-pencil); min-width: 200px; }
+    .osx-tlist { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+    .osx-tlist li { display: grid; grid-template-columns: 24px 1fr; gap: 8px; padding: 7px 10px; font-size: 12.5px; color: var(--bp-ink-3); cursor: pointer; border-left: 3px solid transparent; }
+    .osx-tlist li i { font-style: normal; text-align: center; border: 1px solid currentColor; height: 20px; line-height: 18px; font-size: 11px; }
+    .osx-tlist li.done { color: var(--bp-ink-2); } .osx-tlist li.active { color: var(--bp-ink); background: var(--bp-raised); border-left-color: var(--bp-pencil); }
+    .osx-sum { font-size: 14px; font-weight: 600; margin: 4px 0 10px; } .osx-sum.good { color: var(--bp-ok-2); } .osx-sum.bad { color: var(--bp-redline); }
+    .osx-hosts { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .osx-card { border: 1px solid var(--bp-line); padding: 12px 14px; background: var(--bp-ground); }
+    .osx-card h4 { font-size: 14.5px; font-weight: 600; margin-bottom: 6px; }
+    .osx-card ul { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+    .osx-card li { display: grid; grid-template-columns: 12px 1fr auto; gap: 8px; align-items: center; font-size: 12.5px; }
+    .osx-card li em { font-style: normal; color: var(--bp-ink-3); font-size: 11.5px; } .osx-card li.down b { color: var(--bp-redline); }
+    .osx-sub { font-size: 14px; font-weight: 600; margin: 16px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--bp-line); }
+    .osx-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .osx-table th { text-align: left; font-weight: 500; color: var(--bp-ink-3); border-bottom: 1px solid var(--bp-ink-3); padding: 6px 8px; }
+    .osx-table td { border-bottom: 1px solid var(--bp-line-2); padding: 6px 8px; } .osx-table td.mono { font-family: var(--mono); color: var(--bp-ink-2); }
+    .osx-meter { margin-top: 8px; } .osx-meter .top { display: flex; justify-content: space-between; font-size: 12px; color: var(--bp-ink-3); }
+    .osx-meter .top b { color: var(--bp-ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+    .osx-meter .bar { height: 6px; background: var(--bp-line-2); margin-top: 3px; } .osx-meter .bar i { display: block; height: 100%; background: var(--bp-ok); }
+    .osx-meter .bar i.hot { background: var(--bp-redline); }
+    .osx-quota { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+    .osx-ops { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .osx-ops label { font-size: 13px; color: var(--bp-ink-3); }
+    .osx-ops select, .osx-confirm input { background: var(--bp-sunk); color: var(--bp-ink); border: 1px solid var(--bp-line); padding: 6px 8px; font: 13px var(--font); min-width: 260px; }
+    .osx-confirm { border: 1px solid var(--bp-pencil); padding: 10px 12px; margin-top: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+    .osx-confirm p { width: 100%; }
+    .btn-top.primary { background: var(--bp-ink); color: var(--bp-deep); border-color: var(--bp-ink); }
+    .osx-log { margin-top: 10px; background: var(--bp-sunk); border: 1px solid var(--bp-line); padding: 12px; font: 12px/1.5 var(--mono); color: var(--bp-ink-2); max-height: 320px; overflow: auto; white-space: pre-wrap; }
+    .osx-note { font-size: 12px; color: var(--bp-ink-3); margin-top: 8px; }

@@ -26,6 +26,15 @@
 | `tools/build.sh` | 기준본 → `backend/server.py` + `public/` 생성, 비밀값 형태 검사 |
 | `tools/sanitize.py` | 운영 원본 → 기준본 (비밀값 제거 · `/api/session` · 로그인 실패 리다이렉트) |
 
+## 화면 구성
+- **DR 관제 콘솔(`#dr`)**: 2D 연결 구성도 · 9개 시나리오 단계별 흐름 · 상세 구성 · 전체 화면
+- **OpenStack VM 관리(`#osvm`) 하단 — OpenStack 구조 · 연결** (`theme/osview.js`)
+  - 구성도 · 경로: Neutron/Nova 실시간 데이터로 외부망 → 라우터 → 내부망 → Compute별 VM · Floating IP · OVN Geneve를 그리고, Cloudflare 애니캐스트부터 VM까지 경로를 단계별로 재생
+  - 서비스 상태: Nova 서비스 · Neutron(OVN) 에이전트 · Cinder 서비스를 노드별로, Keystone 카탈로그
+  - 자원 현황: 하이퍼바이저 vCPU/RAM/디스크, 프로젝트 쿼터, Cinder 볼륨, Glance 이미지, Swift 컨테이너
+  - VM 도구: 콘솔 로그, 스냅샷(확인 후 실행), Horizon 열기 — 삭제 · 네트워크 변경은 Horizon에서
+- 백엔드 API: `GET /api/openstack/overview`(조회 전용, 항목별 실패 격리) · `GET /api/openstack/console-log?id=` · `POST /api/openstack/vm/snapshot`
+
 ## 수정 · 빌드
 
 ```bash
