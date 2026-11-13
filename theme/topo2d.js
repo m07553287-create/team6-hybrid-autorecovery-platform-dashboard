@@ -51,10 +51,13 @@
     var next = typeof force === 'boolean' ? force : !cur;
     gReach.style.display = next ? 'inline' : 'none';
     var btn = document.getElementById('btn-reach-toggle');
+    var txt = document.getElementById('btn-reach-text');
     if (btn) {
-      btn.style.background = next ? '#B08CFF' : 'transparent';
-      btn.style.color = next ? '#fff' : '#B4C6D8';
-      btn.innerText = next ? '📡 도달 범위 & 격리선 숨기기' : '📡 도달 범위 & 격리선 표시';
+      btn.style.background = next ? '#B08CFF' : 'rgba(56,189,248,0.15)';
+      btn.style.color = next ? '#fff' : '#38bdf8';
+      var str = next ? '📡 도달 범위 & 격리선 숨기기' : '📡 도달 범위 & 격리선 표시';
+      if (txt) txt.innerText = next ? '도달 범위 & 격리선 숨기기' : '도달 범위 & 격리선 표시';
+      else btn.innerText = str;
     }
   };
 
@@ -659,9 +662,9 @@
         if (r[4]) e.style.background = r[4];
       });
     }
-    window.setV3Stage = function (s) {
+    window.setV3Stage = function (s, fromAuto) {
       resetDetail();
-      origSet(s);
+      origSet(s, fromAuto);
       [['btn-v3-surge', 'surge', '#C8962E'], ['btn-v3-mgmt', 'mgmt', '#C9874F']].forEach(function (b) {
         var e = document.getElementById(b[0]); if (!e) return;
         var on = s === b[1];

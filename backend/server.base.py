@@ -609,6 +609,9 @@ PORTAL_HTML = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>FIGTEAM Cloud Management Platform</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
@@ -1395,12 +1398,18 @@ PORTAL_HTML = """<!DOCTYPE html>
 
         <!-- CONTROL BAR & FLOW VELOCITY CONTROLLER -->
         <div style="background:#0f172a; padding:14px 18px; border-radius:12px; border:1px solid #334155; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;">
-          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <button id="btn-dr-autoplay" class="btn-top" style="background:#10b981; color:#fff; font-weight:800; font-size:12.5px; padding:8px 16px; border-radius:6px; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:0 0 12px rgba(16,185,129,0.35); transition:all .2s;" onclick="toggleDrAutoPlay()">
+              <span id="dr-autoplay-icon">▶️</span> <span id="dr-autoplay-text">5초 자동 시뮬레이션</span>
+            </button>
             <button id="btn-open-console" class="btn-top" style="background:#0284c7; color:#fff; font-weight:800; font-size:12.5px; padding:8px 16px; border-radius:6px; cursor:pointer; display:flex; align-items:center; gap:6px;" onclick="openConsoleModal()">
               <span>📋</span> 콘솔확인
             </button>
-            <button id="btn-reach-toggle" class="btn-top" style="background:transparent; color:#38bdf8; border:1px solid #38bdf8; font-weight:700; font-size:12px; padding:7px 14px; border-radius:6px; cursor:pointer;" onclick="window.toggleReachabilityOverlay && window.toggleReachabilityOverlay()">
-              📡 도달 범위 & 격리선 표시
+            <button id="btn-reach-toggle" class="btn-top" style="background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid #38bdf8; font-weight:700; font-size:12px; padding:7px 14px; border-radius:6px; cursor:pointer; display:flex; align-items:center; gap:6px;" onclick="window.toggleReachabilityOverlay && window.toggleReachabilityOverlay()">
+              <span>📡</span> <span id="btn-reach-text">도달 범위 & 격리선 표시</span>
+            </button>
+            <button class="btn-top" style="background:rgba(195,166,255,0.15); color:#c3a6ff; border:1px solid #c3a6ff; font-weight:700; font-size:12px; padding:7px 14px; border-radius:6px; cursor:pointer; display:flex; align-items:center; gap:6px;" onclick="openReachModal()">
+              <span>🗺️</span> 도달 범위 검증 모달
             </button>
             <div style="font-size:11px; color:#cbd5e1; background:rgba(30,41,59,0.7); padding:6px 12px; border-radius:6px; border:1px solid #475569;">
               💡 <b>방어 체계</b>: 1~2단계 <b>자가치유 장애복구</b> (Pod·Ansible) ➔ 3~4단계 <b>광역 DR 절체</b> (AWS Promotion)
@@ -2875,7 +2884,10 @@ PORTAL_HTML = """<!DOCTYPE html>
     // ============================================================
     let currentV3Stage = 'normal';
 
-    function setV3Stage(stage) {
+    function setV3Stage(stage, fromAuto) {
+      if (!fromAuto && typeof drAutoTimer !== 'undefined' && drAutoTimer) {
+        stopDrAutoPlay('manual');
+      }
       currentV3Stage = stage;
 
       const keys = ['normal', 'l1', 'l2', 'path', 'l3', 'l4', 'bs'];
@@ -3185,6 +3197,81 @@ PORTAL_HTML = """<!DOCTYPE html>
       // 동적 트래픽 흐름 속도계 및 하단 파드 단위 상세 상태 동기화
       updateDrVelocity(stage);
       updatePodDetailView(stage);
+    }
+
+    // ============================================================
+    // 5초 자동 시뮬레이션 순환 제어 (Auto-Play / Manual Priority)
+    // ============================================================
+    const V3_STAGES = ['normal', 'l1', 'l2', 'path', 'l3', 'l4', 'bs'];
+    let drAutoTimer = null;
+    let drCountdownTimer = null;
+    let drRemainSec = 5;
+
+    function toggleDrAutoPlay() {
+      if (drAutoTimer) {
+        stopDrAutoPlay();
+      } else {
+        startDrAutoPlay();
+      }
+    }
+
+    function startDrAutoPlay() {
+      if (drAutoTimer) clearInterval(drAutoTimer);
+      if (drCountdownTimer) clearInterval(drCountdownTimer);
+      drRemainSec = 5;
+
+      const btn = document.getElementById('btn-dr-autoplay');
+      const icon = document.getElementById('dr-autoplay-icon');
+      const text = document.getElementById('dr-autoplay-text');
+      if (btn) {
+        btn.style.background = '#f59e0b';
+        btn.style.boxShadow = '0 0 15px rgba(245,158,11,0.5)';
+      }
+      if (icon) icon.innerText = '⏸️';
+      if (text) text.innerText = '자동 순환 중 (5s)';
+
+      addDrLog("[v3.0-AUTOPLAY] ▶️ 5초 자동 시뮬레이션 순환이 시작되었습니다. (수동 단계 클릭 시 자동 일시정지)", "info");
+
+      // 1초 단위 카운트다운
+      drCountdownTimer = setInterval(() => {
+        drRemainSec--;
+        if (drRemainSec <= 0) drRemainSec = 5;
+        const t = document.getElementById('dr-autoplay-text');
+        if (t) t.innerText = `자동 순환 중 (${drRemainSec}s)`;
+      }, 1000);
+
+      // 5초 주기 다음 단계로 자동 이동
+      drAutoTimer = setInterval(() => {
+        let curIdx = V3_STAGES.indexOf(currentV3Stage);
+        let nextIdx = (curIdx + 1) % V3_STAGES.length;
+        let nextStage = V3_STAGES[nextIdx];
+        setV3Stage(nextStage, true);
+        drRemainSec = 5;
+      }, 5000);
+    }
+
+    function stopDrAutoPlay(reason) {
+      if (drAutoTimer) {
+        clearInterval(drAutoTimer);
+        drAutoTimer = null;
+      }
+      if (drCountdownTimer) {
+        clearInterval(drCountdownTimer);
+        drCountdownTimer = null;
+      }
+      const btn = document.getElementById('btn-dr-autoplay');
+      const icon = document.getElementById('dr-autoplay-icon');
+      const text = document.getElementById('dr-autoplay-text');
+      if (btn) {
+        btn.style.background = '#10b981';
+        btn.style.boxShadow = '0 0 12px rgba(16,185,129,0.35)';
+      }
+      if (icon) icon.innerText = '▶️';
+      if (text) text.innerText = '5초 자동 시뮬레이션';
+
+      if (reason === 'manual') {
+        addDrLog(`[v3.0-AUTOPLAY] ⏸️ 수동 단계(${currentV3Stage})가 선택되어 자동 시뮬레이션이 일시정지되었습니다.`, "warn");
+      }
     }
 
     window.addEventListener('DOMContentLoaded', () => {

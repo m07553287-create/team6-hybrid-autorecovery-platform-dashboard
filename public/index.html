@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>FIGTEAM Cloud Management Platform</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1265,12 +1268,18 @@
 
         <!-- CONTROL BAR & FLOW VELOCITY CONTROLLER -->
         <div style="background:#0F2D4F; padding:14px 18px; border-radius:0; border:1px solid #4F739A; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;">
-          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <button id="btn-dr-autoplay" class="btn-top" style="background:#5FD39A; color:#fff; font-weight:800; font-size:12.5px; padding:8px 16px; border-radius:0; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:0 0 12px rgba(95,211,154,0.35); transition:all .2s;" onclick="toggleDrAutoPlay()">
+              <span id="dr-autoplay-icon">▶️</span> <span id="dr-autoplay-text">5초 자동 시뮬레이션</span>
+            </button>
             <button id="btn-open-console" class="btn-top" style="background:#3A78B5; color:#fff; font-weight:800; font-size:12.5px; padding:8px 16px; border-radius:0; cursor:pointer; display:flex; align-items:center; gap:6px;" onclick="openConsoleModal()">
               <span>📋</span> 콘솔확인
             </button>
-            <button id="btn-reach-toggle" class="btn-top" style="background:transparent; color:#9FD3F5; border:1px solid #9FD3F5; font-weight:700; font-size:12px; padding:7px 14px; border-radius:0; cursor:pointer;" onclick="window.toggleReachabilityOverlay && window.toggleReachabilityOverlay()">
-              📡 도달 범위 & 격리선 표시
+            <button id="btn-reach-toggle" class="btn-top" style="background:rgba(159,211,245,0.15); color:#9FD3F5; border:1px solid #9FD3F5; font-weight:700; font-size:12px; padding:7px 14px; border-radius:0; cursor:pointer; display:flex; align-items:center; gap:6px;" onclick="window.toggleReachabilityOverlay && window.toggleReachabilityOverlay()">
+              <span>📡</span> <span id="btn-reach-text">도달 범위 & 격리선 표시</span>
+            </button>
+            <button class="btn-top" style="background:rgba(195,166,255,0.15); color:#c3a6ff; border:1px solid #c3a6ff; font-weight:700; font-size:12px; padding:7px 14px; border-radius:0; cursor:pointer; display:flex; align-items:center; gap:6px;" onclick="openReachModal()">
+              <span>🗺️</span> 도달 범위 검증 모달
             </button>
             <div style="font-size:11px; color:#D3E0EC; background:rgba(29,74,122,0.7); padding:6px 12px; border-radius:0; border:1px solid #6A8BAE;">
               💡 <b>방어 체계</b>: 1~2단계 <b>자가치유 장애복구</b> (Pod·Ansible) ➔ 3~4단계 <b>광역 DR 절체</b> (AWS Promotion)
@@ -2807,7 +2816,10 @@
     // ============================================================
     let currentV3Stage = 'normal';
 
-    function setV3Stage(stage) {
+    function setV3Stage(stage, fromAuto) {
+      if (!fromAuto && typeof drAutoTimer !== 'undefined' && drAutoTimer) {
+        stopDrAutoPlay('manual');
+      }
       currentV3Stage = stage;
       const isoScene = document.getElementById('iso-scene');
       if (isoScene) isoScene.setAttribute('data-stage', stage);
@@ -3122,6 +3134,81 @@
       updatePodDetailView(stage);
     }
 
+    // ============================================================
+    // 5초 자동 시뮬레이션 순환 제어 (Auto-Play / Manual Priority)
+    // ============================================================
+    const V3_STAGES = ['normal', 'l1', 'l2', 'path', 'l3', 'l4', 'bs'];
+    let drAutoTimer = null;
+    let drCountdownTimer = null;
+    let drRemainSec = 5;
+
+    function toggleDrAutoPlay() {
+      if (drAutoTimer) {
+        stopDrAutoPlay();
+      } else {
+        startDrAutoPlay();
+      }
+    }
+
+    function startDrAutoPlay() {
+      if (drAutoTimer) clearInterval(drAutoTimer);
+      if (drCountdownTimer) clearInterval(drCountdownTimer);
+      drRemainSec = 5;
+
+      const btn = document.getElementById('btn-dr-autoplay');
+      const icon = document.getElementById('dr-autoplay-icon');
+      const text = document.getElementById('dr-autoplay-text');
+      if (btn) {
+        btn.style.background = '#F4C95D';
+        btn.style.boxShadow = '0 0 15px rgba(244,201,93,0.5)';
+      }
+      if (icon) icon.innerText = '⏸️';
+      if (text) text.innerText = '자동 순환 중 (5s)';
+
+      addDrLog("[v3.0-AUTOPLAY] ▶️ 5초 자동 시뮬레이션 순환이 시작되었습니다. (수동 단계 클릭 시 자동 일시정지)", "info");
+
+      // 1초 단위 카운트다운
+      drCountdownTimer = setInterval(() => {
+        drRemainSec--;
+        if (drRemainSec <= 0) drRemainSec = 5;
+        const t = document.getElementById('dr-autoplay-text');
+        if (t) t.innerText = `자동 순환 중 (${drRemainSec}s)`;
+      }, 1000);
+
+      // 5초 주기 다음 단계로 자동 이동
+      drAutoTimer = setInterval(() => {
+        let curIdx = V3_STAGES.indexOf(currentV3Stage);
+        let nextIdx = (curIdx + 1) % V3_STAGES.length;
+        let nextStage = V3_STAGES[nextIdx];
+        setV3Stage(nextStage, true);
+        drRemainSec = 5;
+      }, 5000);
+    }
+
+    function stopDrAutoPlay(reason) {
+      if (drAutoTimer) {
+        clearInterval(drAutoTimer);
+        drAutoTimer = null;
+      }
+      if (drCountdownTimer) {
+        clearInterval(drCountdownTimer);
+        drCountdownTimer = null;
+      }
+      const btn = document.getElementById('btn-dr-autoplay');
+      const icon = document.getElementById('dr-autoplay-icon');
+      const text = document.getElementById('dr-autoplay-text');
+      if (btn) {
+        btn.style.background = '#5FD39A';
+        btn.style.boxShadow = '0 0 12px rgba(95,211,154,0.35)';
+      }
+      if (icon) icon.innerText = '▶️';
+      if (text) text.innerText = '5초 자동 시뮬레이션';
+
+      if (reason === 'manual') {
+        addDrLog(`[v3.0-AUTOPLAY] ⏸️ 수동 단계(${currentV3Stage})가 선택되어 자동 시뮬레이션이 일시정지되었습니다.`, "warn");
+      }
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
       const hash = window.location.hash.replace('#', '');
       if (SERVICES[hash]) {
@@ -3200,10 +3287,13 @@
     var next = typeof force === 'boolean' ? force : !cur;
     gReach.style.display = next ? 'inline' : 'none';
     var btn = document.getElementById('btn-reach-toggle');
+    var txt = document.getElementById('btn-reach-text');
     if (btn) {
-      btn.style.background = next ? '#B08CFF' : 'transparent';
-      btn.style.color = next ? '#fff' : '#B4C6D8';
-      btn.innerText = next ? '📡 도달 범위 & 격리선 숨기기' : '📡 도달 범위 & 격리선 표시';
+      btn.style.background = next ? '#B08CFF' : 'rgba(56,189,248,0.15)';
+      btn.style.color = next ? '#fff' : '#38bdf8';
+      var str = next ? '📡 도달 범위 & 격리선 숨기기' : '📡 도달 범위 & 격리선 표시';
+      if (txt) txt.innerText = next ? '도달 범위 & 격리선 숨기기' : '도달 범위 & 격리선 표시';
+      else btn.innerText = str;
     }
   };
 
@@ -3808,9 +3898,9 @@
         if (r[4]) e.style.background = r[4];
       });
     }
-    window.setV3Stage = function (s) {
+    window.setV3Stage = function (s, fromAuto) {
       resetDetail();
-      origSet(s);
+      origSet(s, fromAuto);
       [['btn-v3-surge', 'surge', '#C8962E'], ['btn-v3-mgmt', 'mgmt', '#C9874F']].forEach(function (b) {
         var e = document.getElementById(b[0]); if (!e) return;
         var on = s === b[1];
