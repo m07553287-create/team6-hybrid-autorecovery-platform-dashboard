@@ -1231,6 +1231,35 @@ PORTAL_HTML = """<!DOCTYPE html>
       .osv-side { display: grid; grid-template-columns: minmax(0, 1fr); }
       .osv-mapcol .osx-svg { max-height: calc(100vh - 56px - 200px); }
     }
+
+    /* ===== FHD(1920×1080) 한 화면 페이지 — DR · OpenStack ===== */
+    #dr-panel { padding: 16px 24px 18px; gap: 12px; overflow: hidden; }
+    #dr-panel > .overview-hero { padding: 10px 16px; flex-shrink: 0; }
+    #dr-panel > .overview-hero > div { align-items: center !important; }
+    #dr-panel > .overview-hero h2 { font-size: 18px !important; margin: 0 !important; }
+    #dr-panel > .overview-hero p { display: none; }
+    #dr-panel .tunnel-badge { font-size: 11.5px; }
+    .dr-console { height: auto; min-height: 0; flex: 1 1 auto; }
+    .dc-drill { padding: 12px; }
+    .dc-drill .kt-vm-box { border: 0; padding: 0; background: transparent; gap: 10px; }
+    .dc-drill .kt-vm-box > div:first-child { flex-direction: column; }
+    .dc-drill .btn-action { width: 100%; justify-content: flex-start; font-size: 13px; padding: 9px 12px; }
+    .dc-drill-note { font-size: 12px; color: var(--bp-pencil); margin-bottom: 10px; }
+
+    #osvm-panel.osv-on { padding: 16px 24px 18px; gap: 12px; overflow: hidden; }
+    #osvm-panel.osv-on > .osv-top { flex-shrink: 0; }
+    .osv-main { flex: 1 1 auto; min-height: 0; align-items: stretch; grid-template-columns: minmax(0, 1fr) 380px; }
+    .osv-mapcol { min-height: 0; overflow: hidden; }
+    .osv-mapcol .osx-map { flex-shrink: 0; }
+    .osv-mapcol .osx-svg { max-height: calc((100vh - 56px - 120px) * 0.5); }
+    .osv-mapcol .osx-trace { flex-shrink: 0; }
+    .osv-mapcol .osx { flex: 1 1 auto; min-height: 0; border: 1px solid var(--bp-line); padding: 8px 12px 10px; gap: 8px; }
+    .osv-mapcol .osx-tabs { flex-shrink: 0; }
+    .osv-mapcol .osx-pane { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 4px; }
+    .osv-side { min-height: 0; overflow-y: auto; padding-right: 2px; }
+    @media (max-width: 1500px) {
+      #dr-panel, #osvm-panel.osv-on { overflow-y: auto; }
+    }
   </style>
 </head>
 <body>
@@ -1995,7 +2024,7 @@ PORTAL_HTML = """<!DOCTYPE html>
           </div>
 
           </div>
-          <div class="dc-tabs" role="tablist"><button type="button" class="dc-tab" id="dc-tabbtn-flow" onclick="drTab('flow')">흐름 단계</button><button type="button" class="dc-tab on" id="dc-tabbtn-sop" onclick="drTab('sop')">대응 절차</button></div>
+          <div class="dc-tabs" role="tablist"><button type="button" class="dc-tab" id="dc-tabbtn-flow" onclick="drTab('flow')">흐름 단계</button><button type="button" class="dc-tab on" id="dc-tabbtn-sop" onclick="drTab('sop')">대응 절차</button><button type="button" class="dc-tab" id="dc-tabbtn-drill" onclick="drTab('drill')">모의훈련</button></div>
           <div class="dc-tabpanel" id="dc-tab-flow" hidden><ol class="dc-flow" id="dc-flow"><li class="empty"><span>3D 엔진을 불러오는 중입니다. 불러오지 못하면 대응 절차 탭을 보세요.</span></li></ol></div>
           <div class="dc-tabpanel dc-sop" id="dc-tab-sop"><!-- DETAILED SOP ACTIONS -->
           <div style="background:#0C2542; padding:12px 16px; border-radius:0; border:1px solid #4F739A; font-size:12px; color:#D3E0EC; line-height:1.6;" id="v3-sop-text">
@@ -2005,15 +2034,11 @@ PORTAL_HTML = """<!DOCTYPE html>
             • <b>터널 B 복제</b>: MySQL GTID 이벤트가 터널 B를 타고 AWS Replica(super_read_only=ON)로 semi-sync 복제(ACK 후 커밋 확정)되고 binlog는 S3로 실시간 백업됩니다.
           </div>
         </div>
-        </div>
-        </div>
-
+          <div class="dc-tabpanel dc-drill" id="dc-tab-drill" hidden><p class="dc-drill-note">실제 클러스터에 영향을 주는 명령입니다. 실행 전 확인 창이 뜹니다.</p>
 
 
         <!-- ACTIONABLE DISASTER DRILL CONSOLE -->
-        <div class="section-title" style="margin-top:6px;">
-          <span>⚡ 실제 클러스터 카오스 모의훈련 및 긴급 명령</span>
-        </div>
+        
         <div class="kt-vm-box">
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
             <button class="btn-action" style="background:#3A78B5; color:#fff;" onclick="triggerChaosCrash()">
@@ -2029,7 +2054,11 @@ PORTAL_HTML = """<!DOCTYPE html>
               <span>📄</span> Black Sky: 0초 비상 접수처 열기 ↗
             </a>
           </div>
+        </div></div>
         </div>
+        </div>
+
+
       </section>
 
       <!-- 3. IFRAME WORKSPACE PANEL -->
@@ -2105,7 +2134,7 @@ PORTAL_HTML = """<!DOCTYPE html>
       if (req) { req.call(el); } else { el.classList.add('is-fs'); syncDrFsBtn(); }
     }
     function drTab(k) {
-      ['flow', 'sop'].forEach(function (t) {
+      ['flow', 'sop', 'drill'].forEach(function (t) {
         const p = document.getElementById('dc-tab-' + t), b = document.getElementById('dc-tabbtn-' + t);
         if (p) p.hidden = (t !== k);
         if (b) { b.classList.toggle('on', t === k); b.setAttribute('aria-selected', t === k ? 'true' : 'false'); }
@@ -3775,7 +3804,7 @@ PORTAL_HTML = """<!DOCTYPE html>
     if (focused) side.appendChild(focused);
     panel.insertBefore(top, panel.firstChild);
     panel.insertBefore(main, top.nextSibling);
-    panel.appendChild(root);
+    mapCol.appendChild(root);
     panes.inv = h('div', 'osx-pane', null, null); panes.inv.dataset.p = 'inv'; panes.inv.hidden = true;
     if (invTitle && invTitle.classList.contains('section-title')) invTitle.remove();
     if (grid) panes.inv.appendChild(grid);

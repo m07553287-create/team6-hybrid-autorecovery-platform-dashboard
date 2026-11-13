@@ -96,7 +96,12 @@ menu = re.sub(r'🎮 v3\.0 장애대응 사다리 & 상태 머신 시뮬레이�
 # 어긋난 오버레이 제거 후, 상세 구성(arch-container)을 떼어 콘솔 안으로
 body, n = re.subn(r'\s*<!-- SVG DYNAMIC WIRE-GUARD.*?</svg>', '', body, count=1, flags=re.S)
 assert n == 1, 'overlay not found'
-m_arch = re.search(r'        <!-- MAIN ARCHITECTURE CANVAS.*?(?=\n\s*<!-- ACTIONABLE DISASTER DRILL)', body, re.S)
+m_drill = re.search(r'\s*<!-- ACTIONABLE DISASTER DRILL CONSOLE -->.*?(?=\n\s*</section>)', body, re.S)
+assert m_drill, 'drill block not found'
+drill = m_drill.group(0)
+body = body.replace(drill, '\n', 1)
+drill = re.sub(r'<div class="section-title"[^>]*>\s*<span>[^<]*</span>\s*</div>', '', drill, count=1)
+m_arch = re.search(r'        <!-- MAIN ARCHITECTURE CANVAS.*?(?=\n\s*</section>)', body, re.S)
 assert m_arch, 'arch not found'
 arch = m_arch.group(0)
 console = ('<div class="dr-console" id="dr-console">\n'
@@ -115,10 +120,12 @@ console = ('<div class="dr-console" id="dr-console">\n'
            '          <div class="dc-stage">' + c_head + '</div>\n'
            '          <div class="dc-tabs" role="tablist">'
            '<button type="button" class="dc-tab" id="dc-tabbtn-flow" onclick="drTab(\'flow\')">흐름 단계</button>'
-           '<button type="button" class="dc-tab on" id="dc-tabbtn-sop" onclick="drTab(\'sop\')">대응 절차</button></div>\n'
+           '<button type="button" class="dc-tab on" id="dc-tabbtn-sop" onclick="drTab(\'sop\')">대응 절차</button>'
+           '<button type="button" class="dc-tab" id="dc-tabbtn-drill" onclick="drTab(\'drill\')">모의훈련</button></div>\n'
            '          <div class="dc-tabpanel" id="dc-tab-flow" hidden><ol class="dc-flow" id="dc-flow">'
            '<li class="empty"><span>3D 엔진을 불러오는 중입니다. 불러오지 못하면 대응 절차 탭을 보세요.</span></li></ol></div>\n'
            '          <div class="dc-tabpanel dc-sop" id="dc-tab-sop">' + c_sop + '</div>\n'
+           '          <div class="dc-tabpanel dc-drill" id="dc-tab-drill" hidden><p class="dc-drill-note">실제 클러스터에 영향을 주는 명령입니다. 실행 전 확인 창이 뜹니다.</p>' + drill + '</div>\n'
            '        </div>\n'
            '        </div>\n')
 body = body.replace(arch, '        ' + console, 1)
@@ -154,7 +161,7 @@ drlog = """    function addDrLog(msg, type = '') {
       if (req) { req.call(el); } else { el.classList.add('is-fs'); syncDrFsBtn(); }
     }
     function drTab(k) {
-      ['flow', 'sop'].forEach(function (t) {
+      ['flow', 'sop', 'drill'].forEach(function (t) {
         const p = document.getElementById('dc-tab-' + t), b = document.getElementById('dc-tabbtn-' + t);
         if (p) p.hidden = (t !== k);
         if (b) { b.classList.toggle('on', t === k); b.setAttribute('aria-selected', t === k ? 'true' : 'false'); }

@@ -56,7 +56,7 @@
     if (focused) side.appendChild(focused);
     panel.insertBefore(top, panel.firstChild);
     panel.insertBefore(main, top.nextSibling);
-    panel.appendChild(root);
+    mapCol.appendChild(root);
     panes.inv = h('div', 'osx-pane', null, null); panes.inv.dataset.p = 'inv'; panes.inv.hidden = true;
     if (invTitle && invTitle.classList.contains('section-title')) invTitle.remove();
     if (grid) panes.inv.appendChild(grid);
