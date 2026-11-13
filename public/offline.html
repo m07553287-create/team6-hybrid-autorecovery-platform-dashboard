@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FIGTEAM 통합 클라우드 포털 - ALL CLOUDS OFF</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bp-ground: #173F6B;
+      --bp-deep:   #0F2D4F;
+      --bp-ink:    #E6EEF5;
+      --bp-ink-2:  rgba(230,238,245,.72);
+      --bp-ink-3:  rgba(230,238,245,.45);
+      --bp-grid:   rgba(230,238,245,.07);
+      --bp-grid-major: rgba(230,238,245,.14);
+      --bp-pencil: #F4C95D;
+      --bp-redline:#FF8A73;
+      --bp-ok:     #8FE0B4;
+      --font: 'IBM Plex Sans KR', system-ui, sans-serif;
+      --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: var(--font);
+      color: var(--bp-ink);
+      background-color: var(--bp-ground);
+      background-image:
+        linear-gradient(var(--bp-grid-major) 1px, transparent 1px),
+        linear-gradient(90deg, var(--bp-grid-major) 1px, transparent 1px),
+        linear-gradient(var(--bp-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--bp-grid) 1px, transparent 1px);
+      background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
+      background-position: -1px -1px;
+      padding: 24px;
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .sheet {
+      position: relative;
+      width: 100%;
+      max-width: 980px;
+      border: 2px solid var(--bp-ink);
+      outline: 1px solid var(--bp-ink-3);
+      outline-offset: 6px;
+      background: rgba(15, 45, 79, 0.95);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+    }
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 24px;
+      border-bottom: 2px solid var(--bp-ink);
+      background: var(--bp-deep);
+    }
+    .sys-badge {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      color: var(--bp-redline);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .sys-badge::before {
+      content: '';
+      width: 10px;
+      height: 10px;
+      background: var(--bp-redline);
+      display: inline-block;
+      animation: pulse 1.4s infinite;
+      box-shadow: 0 0 10px rgba(255,138,115,0.7);
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.3; transform: scale(0.8); }
+    }
+    .content-wrap {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      min-height: 440px;
+    }
+    .main-pane {
+      padding: 40px 40px;
+      border-right: 1px solid var(--bp-ink-3);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .power-state {
+      font-family: var(--mono);
+      font-size: 42px;
+      font-weight: 600;
+      line-height: 1.1;
+      color: var(--bp-redline);
+      letter-spacing: -0.01em;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .power-state span {
+      font-size: 16px;
+      font-weight: 400;
+      color: var(--bp-pencil);
+      font-family: var(--font);
+    }
+    .err-title {
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 14px;
+      color: var(--bp-ink);
+    }
+    .err-desc {
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--bp-ink-2);
+      margin-bottom: 24px;
+    }
+    .clouds-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+    .cloud-card {
+      border: 1px solid var(--bp-ink-3);
+      background: rgba(23, 63, 107, 0.4);
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .cloud-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--bp-ink);
+    }
+    .cloud-desc {
+      font-size: 11px;
+      color: var(--bp-ink-3);
+      margin-top: 2px;
+      font-family: var(--mono);
+    }
+    .cloud-status-badge {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border: 1px solid var(--bp-redline);
+      color: var(--bp-redline);
+      background: rgba(255,138,115,0.15);
+    }
+    .cloud-status-badge.standby {
+      border-color: var(--bp-pencil);
+      color: var(--bp-pencil);
+      background: rgba(244,201,93,0.15);
+    }
+    .lockout-alert {
+      background: rgba(255, 138, 115, 0.12);
+      border: 1px dashed var(--bp-redline);
+      padding: 14px 16px;
+      margin-bottom: 24px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--bp-ink);
+    }
+    .lockout-alert strong {
+      color: var(--bp-redline);
+    }
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 22px;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: all .15s ease;
+      border: 0;
+    }
+    .btn-primary {
+      background: var(--bp-ink);
+      color: var(--bp-deep);
+      border: 1px solid var(--bp-ink);
+    }
+    .btn-primary:hover {
+      background: #fff;
+    }
+    .countdown-note {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--bp-pencil);
+    }
+    .side-pane {
+      background: var(--bp-deep);
+      padding: 28px 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .tb-title {
+      font-size: 12px;
+      color: var(--bp-ink-3);
+      letter-spacing: .05em;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--bp-ink-3);
+      padding-bottom: 8px;
+    }
+    .meta-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      font-size: 13px;
+    }
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .meta-key {
+      color: var(--bp-ink-3);
+      font-size: 11px;
+      text-transform: uppercase;
+      font-family: var(--mono);
+    }
+    .meta-val {
+      font-family: var(--mono);
+      color: var(--bp-ink-2);
+      word-break: break-all;
+    }
+    .footer-bar {
+      border-top: 1px solid var(--bp-ink-3);
+      padding: 10px 24px;
+      background: var(--bp-deep);
+      font-size: 12px;
+      color: var(--bp-ink-3);
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--mono);
+    }
+    @media (max-width: 768px) {
+      .content-wrap {
+        grid-template-columns: 1fr;
+      }
+      .clouds-grid {
+        grid-template-columns: 1fr;
+      }
+      .main-pane {
+        border-right: none;
+        border-bottom: 1px solid var(--bp-ink-3);
+        padding: 30px 20px;
+      }
+      .side-pane {
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="header-bar">
+      <div class="sys-badge">FIGTEAM HYBRID CMP // INFRASTRUCTURE MONITOR</div>
+      <div style="font-family: var(--mono); font-size: 12px; color: var(--bp-redline);">POWER STATE: ALL CLOUDS OFF</div>
+    </div>
+    
+    <div class="content-wrap">
+      <div class="main-pane">
+        <div class="power-state">
+          ALL CLOUDS OFF
+          <span>[전체 클라우드 전원 OFF / 절전 상태]</span>
+        </div>
+        
+        <h1 class="err-title">클라우드 인프라 연결 중단으로 로그인 접근이 제한됩니다</h1>
+        
+        <p class="err-desc">
+          현재 온프렘 OpenStack, K8s 클러스터, 하이브리드 WireGuard 터널이 <b>전원 절전(OFF) 또는 유지보수 상태</b>입니다.<br>
+          백엔드 인프라가 가동되지 않은 상태에서의 로그인 오류를 사전에 방지하기 위해 <b>통합 콘솔 로그인 폼이 일시 비활성화</b>되었습니다.
+        </p>
+
+        <!-- 클라우드별 연결 상태 도면 -->
+        <div class="clouds-grid">
+          <div class="cloud-card">
+            <div>
+              <div class="cloud-name">🏢 온프렘 OpenStack</div>
+              <div class="cloud-desc">Controller + Compute1/2</div>
+            </div>
+            <div class="cloud-status-badge">POWER OFF</div>
+          </div>
+
+          <div class="cloud-card">
+            <div>
+              <div class="cloud-name">⚙️ 온프렘 K8s 플랫폼</div>
+              <div class="cloud-desc">k8s-cp1 + w1/w2 (3노드)</div>
+            </div>
+            <div class="cloud-status-badge">POWER OFF</div>
+          </div>
+
+          <div class="cloud-card">
+            <div>
+              <div class="cloud-name">🌐 하이브리드 터널</div>
+              <div class="cloud-desc">figteam-api.ktci5.kr:18088</div>
+            </div>
+            <div class="cloud-status-badge">SUSPENDED</div>
+          </div>
+
+          <div class="cloud-card">
+            <div>
+              <div class="cloud-name">☁️ KT Cloud DR Edge</div>
+              <div class="cloud-desc">Edge Cache / Gateway</div>
+            </div>
+            <div class="cloud-status-badge standby">STANDBY</div>
+          </div>
+        </div>
+
+        <div class="lockout-alert">
+          🔒 <strong>로그인 이벤트 사전 방지:</strong> 백엔드 연결이 복구되면 통합 콘솔 로그인 화면으로 자동 전환됩니다. 호스트 머신 기상(Wake) 또는 터널 데몬을 실행해 주십시오.
+        </div>
+
+        <div class="btn-group">
+          <button onclick="checkNow()" class="btn btn-primary" id="btn-check">
+            인프라 연결 상태 재확인 (CHECK NOW)
+          </button>
+          <span class="countdown-note" id="timer-text">다음 자동 확인: 20초 후</span>
+        </div>
+      </div>
+      
+      <div class="side-pane">
+        <div>
+          <div class="tb-title">인프라 관제 진단표 (DIAGNOSTIC BLOCK)</div>
+          <ul class="meta-list">
+            <li class="meta-item">
+              <span class="meta-key">BACKEND TUNNEL</span>
+              <span class="meta-val" style="color:var(--bp-redline)">UNREACHABLE (OFF)</span>
+            </li>
+            <li class="meta-item">
+              <span class="meta-key">PORTAL CONSOLE</span>
+              <span class="meta-val" style="color:var(--bp-pencil)">LOGIN LOCKED (PREVENTED)</span>
+            </li>
+            <li class="meta-item">
+              <span class="meta-key">EDGE PROXY</span>
+              <span class="meta-val">Cloudflare Pages Global</span>
+            </li>
+            <li class="meta-item">
+              <span class="meta-key">LAST CHECK</span>
+              <span class="meta-val" id="diag-time">-</span>
+            </li>
+          </ul>
+        </div>
+        <div style="font-size: 11px; color: var(--bp-ink-3); line-height: 1.5; margin-top: 24px;">
+          * KT_CI5 6조 하이브리드 장애자동복구 플랫폼<br>
+          * ALL CLOUDS OFF SAFETY LOCKOUT v3.0
+        </div>
+      </div>
+    </div>
+    
+    <div class="footer-bar">
+      <span>BLUEPRINT REV 3.0 // POWER INTERLOCK</span>
+      <span>FIGTEAM CMP SAFETY AUTOMATION</span>
+    </div>
+  </div>
+
+  <script>
+    let remaining = 20;
+    const timerEl = document.getElementById('timer-text');
+    const timeEl = document.getElementById('diag-time');
+
+    function updateTime() {
+      timeEl.textContent = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+    }
+    updateTime();
+
+    async function checkNow() {
+      const btn = document.getElementById('btn-check');
+      btn.textContent = '연결 상태 확인 중...';
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/session', { method: 'GET', cache: 'no-store' });
+        // 만약 200(세션유효) 또는 401(백엔드 정상 응답)이면 인프라가 살아난 것!
+        if (res.status === 200 || res.status === 401) {
+          location.href = '/login';
+          return;
+        }
+      } catch (e) {}
+      updateTime();
+      btn.textContent = '인프라 연결 상태 재확인 (CHECK NOW)';
+      btn.disabled = false;
+      remaining = 20;
+    }
+
+    setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        checkNow();
+      } else {
+        timerEl.textContent = `다음 자동 확인: ${remaining}초 후`;
+      }
+    }, 1000);
+  </script>
+</body>
+</html>

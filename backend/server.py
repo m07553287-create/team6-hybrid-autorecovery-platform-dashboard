@@ -565,7 +565,11 @@ LOGIN_HTML = """<!DOCTYPE html>
         <h1>클라우드 통합 콘솔</h1>
         <p>OpenStack, KT Cloud, K8s, Argo CD, Grafana를 한 계정으로 관리합니다.</p>
       </div>
-      <form method="POST" action="/login">
+      <div id="all-clouds-off-alert" style="display:none; margin:16px 20px 0; padding:12px; border:1px dashed var(--bp-redline); background:rgba(255,138,115,0.15); color:var(--bp-redline); font-size:12px; line-height:1.5;">
+        <strong style="display:block; font-size:13px; margin-bottom:4px;">🚨 모든 클라우드 OFF 상태</strong>
+        현재 온프렘 및 하이브리드 인프라가 OFF/절전 상태이므로 로그인이 일시 차단되었습니다.
+      </div>
+      <form method="POST" action="/login" id="login-form">
         %%ERROR%%
         <div class="field">
           <label for="u">통합 계정 ID</label>
@@ -575,13 +579,39 @@ LOGIN_HTML = """<!DOCTYPE html>
           <label for="p">비밀번호</label>
           <input id="p" type="password" name="password" placeholder="••••••••" required autocomplete="current-password">
         </div>
-        <button type="submit" class="btn">로그인</button>
+        <button type="submit" class="btn" id="login-btn">로그인</button>
       </form>
       <div class="tb-row"><span>프로젝트</span><span>KT CI5 민원불패</span></div>
       <div class="tb-row"><span>팀</span><span>FIGTEAM</span></div>
       <div class="tb-row" style="border-bottom:0"><span>도면</span><span>v3.0 하이브리드 토폴로지</span></div>
     </section>
   </div>
+
+  <script>
+    (async function checkCloudStatus() {
+      const form = document.getElementById('login-form');
+      const btn = document.getElementById('login-btn');
+      const alertBox = document.getElementById('all-clouds-off-alert');
+      try {
+        const res = await fetch('/api/session', { method: 'GET', cache: 'no-store' });
+        if (res.status >= 500) throw new Error('Backend down');
+      } catch (err) {
+        if (alertBox) alertBox.style.display = 'block';
+        if (btn) {
+          btn.disabled = true;
+          btn.style.opacity = '0.5';
+          btn.style.cursor = 'not-allowed';
+          btn.textContent = '클라우드 OFF (로그인 비활성화)';
+        }
+        if (form) {
+          form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            alert('모든 클라우드가 OFF 상태입니다. 시스템 복구 후 다시 시도하십시오.');
+          });
+        }
+      }
+    })();
+  </script>
 </body>
 </html>
 """
