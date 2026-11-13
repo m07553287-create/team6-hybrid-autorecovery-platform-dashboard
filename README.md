@@ -1,7 +1,7 @@
 # team6 · 민원불패 하이브리드 자동복구 플랫폼 — 통합 대시보드
 
 `https://figteam.ktci5.kr` 통합 대시보드(CMP · DR 관제 콘솔 v2.5.1)의 소스 저장소입니다.
-화면은 **이 저장소 → Cloudflare Pages**로 배포되고, 로그인 · VM 전원 · Horizon SSO 같은 백엔드 요청만 **온프렘 터널**로 전달됩니다.
+화면은 **이 저장소 → GitHub Actions → Cloudflare Pages(`figteam-dashboard`)**로 배포되고, 로그인 · VM 전원 · Horizon SSO 같은 백엔드 요청만 **온프렘 터널**로 전달됩니다.
 
 ```
 브라우저 ─▶ figteam.ktci5.kr (Cloudflare Pages · 이 저장소 main)
@@ -31,7 +31,7 @@
 ```bash
 # theme/ 또는 backend/server.base.py 수정 후
 tools/build.sh          # backend/server.py, public/ 갱신
-git add -A && git commit -m "..." && git push   # main 푸시 → Pages 자동 배포
+git add -A && git commit -m "..." && git push   # main 푸시 → Actions가 검사 후 Pages 배포
 ```
 
 백엔드(`backend/server.py`)가 바뀌었으면 온프렘에도 반영해야 합니다 (아래 2단계).
@@ -54,11 +54,18 @@ ssh 10.10.10.8 'sudo cp /opt/figteam-portal/server.py /opt/figteam-portal/server
 이 시점에도 기존 `figteam.ktci5.kr`(터널 직결)은 그대로 동작해야 합니다.
 
 ### 3. Cloudflare Tunnel — 백엔드 전용 호스트명
-Zero Trust → Networks → Tunnels → `minwon-tunnel` → Public Hostname 추가
-- `figteam-api.ktci5.kr` → `http://localhost:18088` (기존 figteam과 같은 서비스)
+`minwon-tunnel`은 **로컬 관리형**(서버의 cloudflared 설정 파일이 경로를 결정)이라 대시보드/API가 아니라 서버 설정에 추가합니다.
+- DNS: `figteam-api.ktci5.kr` CNAME → 터널 (생성 완료)
+- 서버 설정: `figteam-api.ktci5.kr` → `http://127.0.0.1:18088` (기존 figteam과 같은 서비스) 규칙 추가 후 cloudflared 재시작
 - 권장: Access 애플리케이션 + 서비스 토큰으로 이 호스트명을 막고, 토큰을 Pages 환경변수에 넣음
 
-### 4. Cloudflare Pages 프로젝트
+### 4. Cloudflare Pages 프로젝트 (설정 완료)
+- 프로젝트 `figteam-dashboard` (직접 업로드형) · 환경변수 `BACKEND_ORIGIN=https://figteam-api.ktci5.kr`
+- 배포: `.github/workflows/deploy-pages.yml` — main 푸시 시 `tools/build.sh` 결과가 커밋과 같은지 확인 후 `wrangler pages deploy`
+- 저장소 Secret: `CLOUDFLARE_API_TOKEN`(Pages: Edit 권한), `CLOUDFLARE_ACCOUNT_ID`
+- 아래는 대시보드 Git 연결 방식을 쓸 때의 참고 절차
+
+### 4-b. (참고) 대시보드 Git 연결 방식
 Workers & Pages → Create → Pages → **Connect to Git** → 이 저장소
 - Production branch `main` · Framework 없음 · Build command 비움 · **Build output `public`**
 - 환경변수: `BACKEND_ORIGIN = https://figteam-api.ktci5.kr` (선택: `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`)

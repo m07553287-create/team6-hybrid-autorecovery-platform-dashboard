@@ -1,0 +1,33 @@
+name: Cloudflare Pages 배포
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 생성 결과가 최신인지 확인 (theme/ · server.base.py → public/ · server.py)
+        run: |
+          tools/build.sh
+          git diff --stat --exit-code -- public backend/server.py || { echo "::error::tools/build.sh 를 실행한 결과를 커밋하세요."; exit 1; }
+
+      - name: Cloudflare Pages 배포 (public/ + functions/)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "3.90.0"
+          command: pages deploy public --project-name=figteam-dashboard --branch=main --commit-dirty=true
