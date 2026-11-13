@@ -40,6 +40,7 @@
 - [🛡️ 통합 운영 대시보드 파트별 상세 명세서 (Notion 임베드 최적화)](docs/dashboard-guide.md): Global Header, 2D 인터랙티브 토폴로지, 7단계 시뮬레이터, 3단 망분리, 시스템 제어 액션 툴바, OpenStack/KT Cloud CMP 및 노션 임베드 활용 가이드
 - [📋 KT Cloud 진입점 2인 분업 가이드 및 통합 검증서 (작업자 A · 작업자 B)](docs/kt-cloud-edge-guide.md): KT Cloud Edge-GW VM(`kt-edge-dr-01`) 구축을 위한 2인 역할 분담, 인터페이스 계약표, 11/12~11/13 작업일지 및 4대 합동 Integration Test 실행 매뉴얼
 - [⚙️ OpenStack & 하이브리드 CI/CD · IaC 자동화 분석 보고서 (Terraform · Ansible · GitHub Actions)](docs/ci-cd-iac-automation-guide.md): Jenkins 설치 필요성 검토, 서버리스/에이전트리스 인프라 자동화 아키텍처 비교
+- [🔄 나의 오픈스택 ↔ 타 팀 VM/K8s 연결 조성안 (Plan C)](docs/plan-c-cross-team-interconnect.md): 크로스 팀 상호 백업(Mutual DR), WireGuard P2P 사설망 가상화, IP 충돌 방지 및 제로트러스트 보안 연동 방안
 
 ## 수정 · 빌드
 
