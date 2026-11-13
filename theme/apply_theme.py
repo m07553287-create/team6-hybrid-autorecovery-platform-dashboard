@@ -137,18 +137,21 @@ hook = 'currentV3Stage = stage;'
 assert body.count(hook) == 1
 body = body.replace(hook, hook + "\n      const isoScene = document.getElementById('iso-scene');\n      if (isoScene) isoScene.setAttribute('data-stage', stage);\n      if (window.Topo2D) window.Topo2D.setStage(stage);")
 
-# 5) 원본 버그 수정: addDrLog 가 정의되지 않아 DR 탭·시나리오마다 예외 발생 → #dr-log-console 로거 추가
+# 5) 원본 버그 수정: addDrLog 가 정의되지 않아 DR 탭·시나리오마다 예외 발생 → #dr-log-console 및 모달 로거 추가
 drlog = """    function addDrLog(msg, type = '') {
       const box = document.getElementById('dr-log-console');
-      if (!box) return;
+      const sBox = document.getElementById('modal-log-stream');
       const now = new Date().toTimeString().split(' ')[0];
-      const div = document.createElement('div');
-      div.className = 'log-line';
-      const t = document.createElement('span'); t.className = 'log-time'; t.textContent = '[' + now + ']';
-      const m = document.createElement('span'); m.className = 'log-msg ' + type; m.textContent = msg;
-      div.append(t, m);
-      box.appendChild(div);
-      box.scrollTop = box.scrollHeight;
+      const createDiv = () => {
+        const div = document.createElement('div');
+        div.className = 'log-line';
+        const t = document.createElement('span'); t.className = 'log-time'; t.textContent = '[' + now + ']';
+        const m = document.createElement('span'); m.className = 'log-msg ' + type; m.textContent = msg;
+        div.append(t, m);
+        return div;
+      };
+      if (box) { box.appendChild(createDiv()); box.scrollTop = box.scrollHeight; }
+      if (sBox) { sBox.appendChild(createDiv()); sBox.scrollTop = sBox.scrollHeight; }
     }
 
     function toggleDrFullscreen() {

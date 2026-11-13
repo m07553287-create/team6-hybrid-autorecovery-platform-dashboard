@@ -1851,26 +1851,16 @@ PORTAL_HTML = """<!DOCTYPE html>
           </div>
         </div>
 
-        <!-- AUTOMATED 5s PLAYBACK & FLOW VELOCITY CONTROLLER -->
+        <!-- CONTROL BAR & FLOW VELOCITY CONTROLLER -->
         <div style="background:#0F2D4F; padding:14px 18px; border-radius:0; border:1px solid #4F739A; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;">
           <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-            <button id="btn-dr-autoplay" class="btn-top" style="background:#3A78B5; color:#fff; font-weight:800; font-size:12.5px; padding:8px 16px; border-radius:0; cursor:pointer; display:flex; align-items:center; gap:6px;" onclick="toggleDrAutoPlay()">
-              <span id="dr-autoplay-icon">▶</span>
-              <span id="dr-autoplay-label">자동 재생 (5초 단위 이동)</span>
+            <button id="btn-open-console" class="btn-top" style="background:#3A78B5; color:#fff; font-weight:800; font-size:12.5px; padding:8px 16px; border-radius:0; cursor:pointer; display:flex; align-items:center; gap:6px;" onclick="openConsoleModal()">
+              <span>📋</span> 콘솔확인
             </button>
             <button id="btn-reach-toggle" class="btn-top" style="background:transparent; color:#9FD3F5; border:1px solid #9FD3F5; font-weight:700; font-size:12px; padding:7px 14px; border-radius:0; cursor:pointer;" onclick="window.toggleReachabilityOverlay && window.toggleReachabilityOverlay()">
               📡 도달 범위 & 격리선 표시
             </button>
-            <div style="display:flex; flex-direction:column; gap:4px;">
-              <div style="display:flex; align-items:center; gap:8px;">
-                <span style="font-size:11px; font-weight:700; color:#B4C6D8;">5초 진행 상태:</span>
-                <span id="dr-timer-count" style="font-size:11px; font-weight:800; color:#9FD3F5;">0.0s / 5.0s (기본 수동 모드)</span>
-              </div>
-              <div style="width:140px; height:6px; background:#1D4A7A; border-radius:0; overflow:hidden;">
-                <div id="dr-timer-progress" style="width:0%; height:100%; background:#9FD3F5; transition:width 0.1s linear;"></div>
-              </div>
-            </div>
-            <div style="font-size:11px; color:#D3E0EC; background:rgba(29,74,122,0.7); padding:4px 10px; border-radius:0; border:1px solid #6A8BAE;">
+            <div style="font-size:11px; color:#D3E0EC; background:rgba(29,74,122,0.7); padding:6px 12px; border-radius:0; border:1px solid #6A8BAE;">
               💡 <b>방어 체계</b>: 1~2단계 <b>자가치유 장애복구</b> (Pod·Ansible) ➔ 3~4단계 <b>광역 DR 절체</b> (AWS Promotion)
             </div>
           </div>
@@ -2383,6 +2373,82 @@ PORTAL_HTML = """<!DOCTYPE html>
         </div>
       </div>
 
+      <!-- 5. LIVE OPERATION CONSOLE MODAL (콘솔 확인 팝업) -->
+      <div id="console-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(10,15,30,0.85); z-index:9999; backdrop-filter:blur(4px); align-items:center; justify-content:center;">
+        <div style="background:#0F2D4F; border:1px solid #3A78B5; width:92%; max-width:920px; max-height:90vh; border-radius:0; overflow-y:auto; box-shadow:0 20px 40px rgba(0,0,0,0.6); display:flex; flex-direction:column;">
+          <!-- Modal Header -->
+          <div style="padding:16px 20px; border-bottom:1px solid #4F739A; display:flex; justify-content:space-between; align-items:center; background:#0F2D4F;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="font-size:22px;">📋</span>
+              <div>
+                <div style="font-size:15px; font-weight:800; color:#fff;">통합 운영 콘솔 (Live Diagnostic & Activity Stream)</div>
+                <div style="font-size:11px; color:#B4C6D8;">오케스트레이터 상태 머신 · WireGuard 터널 헬스 · K8s 파드 이벤트 실시간 스트림</div>
+              </div>
+            </div>
+            <button onclick="closeConsoleModal()" style="background:transparent; border:none; color:#B4C6D8; font-size:20px; cursor:pointer;">✕</button>
+          </div>
+
+          <!-- Modal Body -->
+          <div style="padding:20px; display:flex; flex-direction:column; gap:16px;">
+            <!-- Real-time Diagnostic Grid -->
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:10px;">
+              <div style="background:#0F2D4F; border:1px solid #4F739A; border-radius:0; padding:10px;">
+                <div style="font-size:11px; font-weight:700; color:#9FD3F5; margin-bottom:4px;">🔍 3-Signal 관제 프로브 상태</div>
+                <div style="font-size:11px; color:#D3E0EC; line-height:1.5;">
+                  • <b>S1 (공인 WAF 프로브)</b>: <span style="color:#8FE0B4; font-weight:700;">PASS (HTTP 200)</span><br>
+                  • <b>S2 (터널 B 사설 프로브)</b>: <span style="color:#8FE0B4; font-weight:700;">PASS (RTT 1.8ms)</span><br>
+                  • <b>S3 (터널 A 인그레스)</b>: <span style="color:#8FE0B4; font-weight:700;">PASS (/readyz OK)</span>
+                </div>
+              </div>
+              <div style="background:#0F2D4F; border:1px solid #4F739A; border-radius:0; padding:10px;">
+                <div style="font-size:11px; font-weight:700; color:#F7D684; margin-bottom:4px;">🌐 WireGuard 터널 핸드셰이크</div>
+                <div style="font-size:11px; color:#D3E0EC; line-height:1.5;">
+                  • <b>터널 A (KT↔온프렘)</b>: <span style="color:#8FE0B4; font-weight:700;">ACTIVE (4s ago)</span><br>
+                  • <b>터널 B (AWS↔온프렘)</b>: <span style="color:#8FE0B4; font-weight:700;">ACTIVE (6s ago)</span><br>
+                  • <b>터널 C (KT↔AWS)</b>: <span style="color:#B4C6D8;">STANDBY (대기 중)</span>
+                </div>
+              </div>
+              <div style="background:#0F2D4F; border:1px solid #4F739A; border-radius:0; padding:10px;">
+                <div style="font-size:11px; font-weight:700; color:#8FE0B4; margin-bottom:4px;">💾 MySQL 복제 & K8s 파드 상태</div>
+                <div style="font-size:11px; color:#D3E0EC; line-height:1.5;">
+                  • <b>GTID Replication Lag</b>: <span style="color:#8FE0B4; font-weight:700;">0초 (동기화 완료)</span><br>
+                  • <b>온프렘 파드 (Replicas)</b>: <span style="color:#8FE0B4; font-weight:700;">2/2 RUNNING</span><br>
+                  • <b>AWS Pilot-Light 파드</b>: <span style="color:#B4C6D8;">0/2 (L3 대기)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Terminal Output Box -->
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <span style="font-size:12px; font-weight:700; color:#E6EEF5;">📋 실시간 이벤트 및 명령어 실행 스트림 로그:</span>
+                <button class="btn-top" style="padding:2px 8px; font-size:11px;" onclick="clearConsoleLog()">로그 지우기</button>
+              </div>
+              <div class="kt-log-box" id="modal-log-stream" style="height:260px; font-family:'IBM Plex Mono', monospace; font-size:11.5px; background:#070d17; border:1px solid #4F739A; padding:12px; border-radius:0; overflow-y:auto;">
+                <div class="log-line">
+                  <span class="log-time">[BOOT]</span>
+                  <span class="log-msg">통합 운영 콘솔 로깅 데몬이 활성화되었습니다.</span>
+                </div>
+                <div class="log-line">
+                  <span class="log-time">[DR-INIT]</span>
+                  <span class="log-msg">WireGuard 풀메쉬 6노드 헬스체크 통과: 15쌍 핸드셰이크 RTT &lt; 30s.</span>
+                </div>
+                <div class="log-line">
+                  <span class="log-time">[GITOPS]</span>
+                  <span class="log-msg">Argo CD minwon-service: SyncStatus=Synced, HealthStatus=Healthy.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Modal Footer -->
+          <div style="padding:12px 20px; border-top:1px solid #4F739A; display:flex; justify-content:space-between; align-items:center; background:#0F2D4F;">
+            <span style="font-size:11px; color:#B4C6D8;">💡 각 컴포넌트의 액션 버튼을 클릭하면 여기에 결과가 실시간으로 기록됩니다.</span>
+            <button class="btn-action" style="background:#4F739A; color:#fff;" onclick="closeConsoleModal()">닫기</button>
+          </div>
+        </div>
+      </div>
+
     </main>
   </div>
 
@@ -2437,20 +2503,26 @@ PORTAL_HTML = """<!DOCTYPE html>
 
     // ESC 키로 모달 닫기
     window.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') closeReachabilityModal();
+      if (e.key === 'Escape') {
+        closeReachabilityModal();
+        closeConsoleModal();
+      }
     });
 
     function addDrLog(msg, type = '') {
       const box = document.getElementById('dr-log-console');
-      if (!box) return;
+      const sBox = document.getElementById('modal-log-stream');
       const now = new Date().toTimeString().split(' ')[0];
-      const div = document.createElement('div');
-      div.className = 'log-line';
-      const t = document.createElement('span'); t.className = 'log-time'; t.textContent = '[' + now + ']';
-      const m = document.createElement('span'); m.className = 'log-msg ' + type; m.textContent = msg;
-      div.append(t, m);
-      box.appendChild(div);
-      box.scrollTop = box.scrollHeight;
+      const createDiv = () => {
+        const div = document.createElement('div');
+        div.className = 'log-line';
+        const t = document.createElement('span'); t.className = 'log-time'; t.textContent = '[' + now + ']';
+        const m = document.createElement('span'); m.className = 'log-msg ' + type; m.textContent = msg;
+        div.append(t, m);
+        return div;
+      };
+      if (box) { box.appendChild(createDiv()); box.scrollTop = box.scrollHeight; }
+      if (sBox) { sBox.appendChild(createDiv()); sBox.scrollTop = sBox.scrollHeight; }
     }
 
     function toggleDrFullscreen() {
@@ -3183,49 +3255,24 @@ PORTAL_HTML = """<!DOCTYPE html>
 
 
     // ============================================================
-    // DR AUTOMATED 5s PLAYBACK & FLOW VELOCITY CONTROLLER
+    // LIVE OPERATIONS CONSOLE MODAL CONTROLLER
     // ============================================================
-    const V3_STAGES = ['normal', 'l1', 'l2', 'path', 'l3', 'l4', 'bs'];
-    let isDrAutoPlay = false;
-    let drAutoPlayTimer = null;
-    let drTimerMs = 0;
-
-    function toggleDrAutoPlay() {
-      isDrAutoPlay = !isDrAutoPlay;
-      const btn = document.getElementById('btn-dr-autoplay');
-      const icon = document.getElementById('dr-autoplay-icon');
-      const label = document.getElementById('dr-autoplay-label');
-      const countEl = document.getElementById('dr-timer-count');
-      const progEl = document.getElementById('dr-timer-progress');
-
-      if (isDrAutoPlay) {
-        if (btn) btn.style.background = '#FF6B81';
-        if (icon) icon.innerText = '⏸';
-        if (label) label.innerText = '시뮬레이션 일시정지 (5초 자동 전환)';
-        drTimerMs = 0;
-
-        clearInterval(drAutoPlayTimer);
-        drAutoPlayTimer = setInterval(() => {
-          drTimerMs += 100;
-          const sec = (drTimerMs / 1000).toFixed(1);
-          if (countEl) countEl.innerText = `${sec}s / 5.0s (자동 전환 중...)`;
-          if (progEl) progEl.style.width = `${Math.min(100, (drTimerMs / 5000) * 100)}%`;
-
-          if (drTimerMs >= 5000) {
-            drTimerMs = 0;
-            const nextIdx = (V3_STAGES.indexOf(currentV3Stage) + 1) % V3_STAGES.length;
-            setV3Stage(V3_STAGES[nextIdx]);
-          }
-        }, 100);
-      } else {
-        if (btn) btn.style.background = '#3A78B5';
-        if (icon) icon.innerText = '▶';
-        if (label) label.innerText = '시뮬레이션 시작 (5초 자동 전환)';
-        clearInterval(drAutoPlayTimer);
-        drAutoPlayTimer = null;
-        if (countEl) countEl.innerText = `${(drTimerMs / 1000).toFixed(1)}s / 5.0s (정지 상태)`;
-      }
+    function openConsoleModal() {
+      const m = document.getElementById('console-modal');
+      if (m) m.style.display = 'flex';
     }
+
+    function closeConsoleModal() {
+      const m = document.getElementById('console-modal');
+      if (m) m.style.display = 'none';
+    }
+
+    function clearConsoleLog() {
+      const s = document.getElementById('modal-log-stream');
+      if (s) s.innerHTML = '<div class="log-line"><span class="log-time">[CLEAR]</span><span class="log-msg">로그 스트림이 초기화되었습니다.</span></div>';
+    }
+
+    const V3_STAGES = ['normal', 'l1', 'l2', 'path', 'l3', 'l4', 'bs'];
 
     function updateDrVelocity(stage) {
       const textEl = document.getElementById('dr-velocity-text');
