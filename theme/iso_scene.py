@@ -184,7 +184,7 @@ def build():
 
     # ---- 존 라벨 + 주석 ----
     out.extend(ZONE_LABELS)
-    out.append(label(iso(CF[0] - 2.2, CF[1] - 1.6, CF[2] + 0.7), -30, -20, '시민 민원 접수', 'HTTPS'))
+    out.append(label(iso(CF[0] - 2.2, CF[1] - 1.6, CF[2] + 0.7), -30, -20, '사용자 민원 접수', 'HTTPS'))
     out.append(label(iso(CF[0] + 0.4, CF[1] - 0.4, CF[2] + 1.0), 40, -20, 'Cloudflare', 'Anycast WAF · Worker'))
     out.append(label(iso(edge[0], edge[1] + 0.6, 1.2), -24, 34, 'Edge-GW', 'Nginx WAF · 14.63.213.214'))
     out.append(label(iso(wg[0], wg[1] + 1.0, 0.5), -30, 70, 'WireGuard GW', 'Inbound 0 · 펜싱', id_='iso-c-wg'))

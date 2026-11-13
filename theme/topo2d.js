@@ -22,9 +22,41 @@
 
   var svg = el('svg', { 'class': 't2-svg', role: 'img', 'aria-label': '민원불패 v2.5.1 2D 연결 구성도', preserveAspectRatio: 'xMidYMid meet' });
   host.appendChild(svg);
-  var gZones = el('g', {}, svg), gLinks = el('g', {}, svg), gNodes = el('g', {}, svg), gMarks = el('g', {}, svg), gFx = el('g', {}, svg);
+  var gZones = el('g', {}, svg), gLinks = el('g', {}, svg), gNodes = el('g', {}, svg), gReach = el('g', { id: 't2-reachability', 'class': 't2-reach', style: 'display:none;' }, svg), gMarks = el('g', {}, svg), gFx = el('g', {}, svg);
   function applyVB() { svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h); }
   applyVB();
+
+  // ---------- 폐쇄망/오픈스택 네트워크 격리 및 Argo CD · Grafana 도달 범위 오버레이 ----------
+  // 1) 폐쇄망 DB 격리 경계벽 (붉은색 점선 & 자물쇠)
+  var rIsoBox = el('rect', { x: 994, y: 300, width: 227, height: 412, fill: 'rgba(255, 122, 102, 0.08)', stroke: '#FF7A66', 'stroke-width': '3.5', 'stroke-dasharray': '8 5' }, gReach);
+  var rIsoTag = el('g', {}, gReach);
+  el('rect', { x: 1005, y: 310, width: 205, height: 26, fill: '#FF7A66', rx: 3 }, rIsoTag);
+  txt(rIsoTag, 1107, 327, '🔒 [폐쇄망] 완전 격리 (No-GW)', '', 'middle');
+
+  // 2) Argo CD GitOps 도달 경로 (보라색 네온선)
+  var rArgoPath = el('path', { d: 'M770,742 L770,400 L690,395', fill: 'none', stroke: '#B08CFF', 'stroke-width': '3', 'stroke-dasharray': '6 4' }, gReach);
+  var rArgoTag = el('g', {}, gReach);
+  el('rect', { x: 700, y: 705, width: 170, height: 22, fill: '#B08CFF', rx: 3 }, rArgoTag);
+  txt(rArgoTag, 785, 720, '🚀 Argo CD 배포 (6443 API)', '', 'middle');
+
+  // 3) Grafana 관제 스크랩 도달 경로 (주황색 네온선)
+  var rGrafPath = el('path', { d: 'M1320,360 L970,360 L800,360 L500,464', fill: 'none', stroke: '#F4C95D', 'stroke-width': '2.5', 'stroke-dasharray': '4 4' }, gReach);
+  var rGrafTag = el('g', {}, gReach);
+  el('rect', { x: 1130, y: 345, width: 175, height: 22, fill: '#D9A93A', rx: 3 }, rGrafTag);
+  txt(rGrafTag, 1217, 360, '📈 Grafana 관제 스크랩 (9100)', '', 'middle');
+
+  window.toggleReachabilityOverlay = function (force) {
+    if (!gReach) return;
+    var cur = gReach.style.display !== 'none';
+    var next = typeof force === 'boolean' ? force : !cur;
+    gReach.style.display = next ? 'inline' : 'none';
+    var btn = document.getElementById('btn-reach-toggle');
+    if (btn) {
+      btn.style.background = next ? '#B08CFF' : 'transparent';
+      btn.style.color = next ? '#fff' : '#B4C6D8';
+      btn.innerText = next ? '📡 도달 범위 & 격리선 숨기기' : '📡 도달 범위 & 격리선 표시';
+    }
+  };
 
   // ---------- 구성 요소 ----------
   var nodes = {}, links = {}, zones = {};
@@ -70,22 +102,22 @@
   }
 
   // 존 · 서브넷  (열: 인터넷 30–230 | 통로 | KT 270–480 | 통로 | 온프렘 530–1230 | 통로 | AWS 1290–1730 | 우측 통로)
-  txt(gZones, 40, 150, '인터넷', 't2-zone-t');
-  zone('gh', 20, 600, 210, 200, 'GitHub Pages', '0초 비상 접수');
-  zone('kt', 270, 120, 210, 560, 'KT Cloud', '입구 전용 · VM 1대');
-  zone('on', 530, 120, 700, 700, '온프레미스 OpenStack', 'Primary · K3s · MySQL');
-  zone('aws', 1290, 120, 440, 700, 'AWS', '관제 · DR 대기 · 백업');
-  subnet(285, 186, 180, 480, 'Edge-GW VM · k-vm1');
-  subnet(545, 186, 670, 84, '외부망 서브넷 · Outbound만', 'warm');
-  subnet(545, 306, 440, 400, 'k8s 서브넷 · K3s', 'ok');
-  subnet(705, 340, 265, 236, 'app 네임스페이스', 'violet');
-  subnet(705, 592, 265, 100, 'data 네임스페이스');
-  subnet(1000, 306, 215, 400, 'data 서브넷 · DB 원장', 'ok');
-  subnet(545, 720, 670, 80, 'ops 서브넷');
-  subnet(1305, 186, 410, 84, 'WG 서브넷');
-  subnet(1305, 290, 205, 200, '관제 서브넷', 'warm');
-  subnet(1525, 290, 190, 200, '리전 서비스');
-  subnet(1305, 510, 410, 200, 'DR 서브넷 · Pilot-Light', 'warm');
+  txt(gZones, 40, 150, '인터넷 (WAN)', 't2-zone-t');
+  zone('gh', 20, 600, 210, 200, 'GitHub Pages', '0초 비상 접수 (dr.ktci5.kr)');
+  zone('kt', 270, 120, 210, 560, 'KT Cloud', '입구 전용 · VM 1대 (14.63.213.214)');
+  zone('on', 530, 120, 700, 700, '온프레미스 OpenStack', 'Primary · K3s · MySQL (3단 격리망)');
+  zone('aws', 1290, 120, 440, 700, 'AWS (ap-northeast-2)', '관제 · DR 대기 · S3 백업');
+  subnet(285, 186, 180, 480, 'Edge-GW VM · k-vm1 (Nginx+WAF)');
+  subnet(545, 186, 670, 84, '🌐 [외부망 DMZ] br-ex (FIP 10.11.0.0/24 · WG 터널 종단)', 'warm');
+  subnet(545, 306, 440, 400, '🏢 [내부망 SERVICE] net-k3s (10.10.1.0/24 · K3s 클러스터)', 'ok');
+  subnet(705, 340, 265, 236, 'app 네임스페이스 (web·api 파드)', 'violet');
+  subnet(705, 592, 265, 100, 'data 네임스페이스 (Redis/MQ)');
+  subnet(1000, 306, 215, 400, '🔒 [폐쇄망 ISOLATED] net-data (10.10.2.0/24 · MySQL DB 원장)', 'warm');
+  subnet(545, 720, 670, 80, '🛠️ [관리망 OPS] ops 서브넷 (Harbor · Argo CD)');
+  subnet(1305, 186, 410, 84, 'WG 서브넷 (10.200.0.0/24 풀메쉬)');
+  subnet(1305, 290, 205, 200, '관제 서브넷 (Prometheus·Grafana)', 'warm');
+  subnet(1525, 290, 190, 200, '리전 서비스 (S3 백업)');
+  subnet(1305, 510, 410, 200, 'DR 서브넷 · Pilot-Light (Replica 2)', 'warm');
 
   // 연결 (먼저 그려서 노드 아래로) — 링크마다 전용 통로, 제목 구간을 피해 진입
   link('cit_cf', [[85, 230], [85, 330]], 'req');
@@ -123,7 +155,7 @@
   txt(gLinks, 95, 268, 'minwon.ktci5.kr', 't2-dns');
   txt(gLinks, 95, 286, '프록시 · KT Edge', 't2-dns s');
   // 노드
-  node('citizen', 40, 170, 120, 60, '시민', 'HTTPS 민원 접수', { zone: '인터넷', lines: ['https://minwon.ktci5.kr 접속'] });
+  node('citizen', 40, 170, 120, 60, '사용자', 'HTTPS 민원 접수', { zone: '인터넷', lines: ['https://minwon.ktci5.kr 접속'] });
   node('cf', 40, 330, 170, 74, 'Cloudflare', 'WAF · 봇/IP 제한', { zone: '인터넷 엣지', lines: ['minwon.ktci5.kr → 14.63.213.214 (프록시 · WAF/DDoS)', 'origin-kt.ktci5.kr → 같은 IP (DNS 전용 · 오리진 노출)', '터널 호스트명 8개 → minwon-tunnel', 'Edge 503 · 오리진 장애 시 Worker가 비상 폼 안내'] });
   node('ops', 40, 470, 90, 46, '운영자', '', { zone: '인터넷', lines: ['관리 화면은 Cloudflare Tunnel로만 접속', 'figteam.ktci5.kr 통합 로그인(SSO)'] });
   node('gh', 40, 666, 170, 74, '비상 접수 폼', 'dr.ktci5.kr', { zone: 'GitHub Pages', subnet: 'subnet-gh-fallback', lines: ['폭주 초과분 · Black Sky 시 0초 노출', '민원 데이터 비상 보관'] });
@@ -172,7 +204,7 @@
   // ===== 시나리오별 흐름 =====  [링크 | null, 방향, 설명, 노드]
   var F = {
     normal: { hops: [
-      ['cit_cf', 1, '시민 → Cloudflare · HTTPS, WAF'],
+      ['cit_cf', 1, '사용자 → Cloudflare · HTTPS, WAF'],
       ['cf_ng', 1, 'Cloudflare → KT Edge Nginx · TLS 종료'],
       ['ng_q', 1, 'Nginx → 접수 대기열 (평시엔 즉시 통과)'],
       ['q_wg', 1, '대기열 → WG 종단'],
@@ -211,7 +243,7 @@
       [null, 0, '헬스체크 통과 → NORMAL 복귀 (≤ 3분)', 'web1']
     ], bg: [] },
     path: { hops: [
-      ['cit_cf', 1, '시민 → Cloudflare'],
+      ['cit_cf', 1, '사용자 → Cloudflare'],
       ['cf_ng', 1, 'Cloudflare → KT Edge'],
       ['ng_q', 1, 'Nginx → 접수 대기열'],
       [null, 0, '터널 A 단절 · S1·S3 실패, S2 정상 → 온프렘 생존', 'wgkt'],
@@ -229,7 +261,7 @@
       ['aws_s3', 1, 'S3 binlog와 대조 · 누락 0 검증'],
       [null, 0, 'Replica 승격 · super_read_only = OFF', 'replica'],
       [null, 0, 'Pilot-Light EC2 확장 · 앱 기동', 'ec2'],
-      ['cit_cf', 1, '시민 → Cloudflare'],
+      ['cit_cf', 1, '사용자 → Cloudflare'],
       ['cf_ng', 1, 'Cloudflare → KT Edge (upstream 전환)'],
       ['tC', 1, '터널 C → AWS WG'],
       ['aws_ec2', 1, 'AWS WG → Pilot-Light EC2'],
@@ -248,7 +280,7 @@
       ['api_db', 1, 'intake-api → MySQL Primary (원복 완료)']
     ], bg: [] },
     bs: { hops: [
-      ['cit_cf', 1, '시민 → Cloudflare'],
+      ['cit_cf', 1, '사용자 → Cloudflare'],
       ['cf_ng', 1, 'Origin 502/504 연속 (온프렘 · AWS 전면 두절)'],
       [null, 0, 'Cloudflare Worker가 오류를 가로챔', 'cf'],
       ['cf_gh', 1, 'GitHub Pages 비상 접수 폼 0초 노출 · 민원 비상 보관'],
@@ -510,6 +542,97 @@
       b.addEventListener('click', function () { if (window.showDrDetail) window.showDrDetail(i.subnet); syncDetail(); });
       row.appendChild(b);
     }
+
+    // [추가] 실시간 시스템 제어 액션 버튼 (켜고 끄기 / 절체 / 펜싱 / 크래시)
+    var actBox = document.createElement('div');
+    actBox.style.cssText = 'margin-top:12px; padding:10px; border-radius:4px; background:#0F2D4F; border:1px solid #4F739A; display:flex; flex-direction:column; gap:6px;';
+    var actT = document.createElement('div');
+    actT.style.cssText = 'font-size:11px; font-weight:700; color:#9FD3F5; display:flex; justify-content:space-between; align-items:center;';
+    actT.innerHTML = '<span>⚡ 실시간 시스템 제어 액션</span><span style="font-size:10px; color:#8AA5C2;">클릭 시 즉시 반영</span>';
+    actBox.appendChild(actT);
+
+    var actBtns = document.createElement('div');
+    actBtns.style.cssText = 'display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;';
+
+    if (id === 'nginx' || id === 'wgkt') {
+      var bRoute = document.createElement('button'); bRoute.type = 'button';
+      bRoute.style.cssText = 'background:#3A78B5; color:#fff; font-size:11px; padding:4px 8px; border:none; cursor:pointer;';
+      bRoute.textContent = '🔄 KT Edge 터널 A ↔ C 절체';
+      bRoute.onclick = function() {
+        if (window.setV3Stage) window.setV3Stage(window.currentV3Stage === 'l3' ? 'normal' : 'l3');
+      };
+      actBtns.appendChild(bRoute);
+    } else if (id === 'mysql') {
+      var bFence = document.createElement('button'); bFence.type = 'button';
+      bFence.style.cssText = 'background:#E8604C; color:#fff; font-size:11px; padding:4px 8px; border:none; cursor:pointer;';
+      bFence.textContent = '🛑 Watchdog 펜싱 실행 (Primary 쓰기 차단)';
+      bFence.onclick = function() {
+        if (window.setV3Stage) window.setV3Stage('l3');
+      };
+      actBtns.appendChild(bFence);
+      var bNormal = document.createElement('button'); bNormal.type = 'button';
+      bNormal.style.cssText = 'background:#4CB985; color:#fff; font-size:11px; padding:4px 8px; border:none; cursor:pointer;';
+      bNormal.textContent = '🟢 쓰기 정상화 (복구)';
+      bNormal.onclick = function() {
+        if (window.setV3Stage) window.setV3Stage('normal');
+      };
+      actBtns.appendChild(bNormal);
+    } else if (id === 'replica') {
+      var bPromote = document.createElement('button'); bPromote.type = 'button';
+      bPromote.style.cssText = 'background:#C8962E; color:#fff; font-size:11px; padding:4px 8px; border:none; cursor:pointer;';
+      bPromote.textContent = '⚡ AWS Replica 승격 (super_read_only=OFF)';
+      bPromote.onclick = function() {
+        if (window.setV3Stage) window.setV3Stage('l3');
+      };
+      actBtns.appendChild(bPromote);
+    } else if (id === 'api1' || id === 'api2' || id === 'web1' || id === 'web2') {
+      var bCrash = document.createElement('button'); bCrash.type = 'button';
+      bCrash.style.cssText = 'background:#E8604C; color:#fff; font-size:11px; padding:4px 8px; border:none; cursor:pointer;';
+      bCrash.textContent = '💥 L1 파드 크래시 유발 (/chaos/crash)';
+      bCrash.onclick = function() {
+        if (window.triggerChaosCrash) window.triggerChaosCrash();
+        else if (window.setV3Stage) window.setV3Stage('l1');
+      };
+      actBtns.appendChild(bCrash);
+      var bRestart = document.createElement('button'); bRestart.type = 'button';
+      bRestart.style.cssText = 'background:#3A78B5; color:#fff; font-size:11px; padding:4px 8px; border:none; cursor:pointer;';
+      bRestart.textContent = '↻ K8s 롤링 재시작';
+      bRestart.onclick = function() {
+        if (window.setV3Stage) window.setV3Stage('normal');
+      };
+      actBtns.appendChild(bRestart);
+    } else if (id === 'onwg' || id === 'gpu' || id === 'ingress') {
+      var bStopVm = document.createElement('button'); bStopVm.type = 'button';
+      bStopVm.style.cssText = 'background:#E8604C; color:#fff; font-size:11px; padding:4px 8px; border:none; cursor:pointer;';
+      bStopVm.textContent = '🛑 OpenStack VM 전원 끄기';
+      bStopVm.onclick = function() {
+        if (confirm('온프레미스 VM 전원을 차단하시겠습니까? (L2 장애 시뮬레이션)')) {
+          if (window.setV3Stage) window.setV3Stage('l2');
+        }
+      };
+      actBtns.appendChild(bStopVm);
+      var bStartVm = document.createElement('button'); bStartVm.type = 'button';
+      bStartVm.style.cssText = 'background:#4CB985; color:#fff; font-size:11px; padding:4px 8px; border:none; cursor:pointer;';
+      bStartVm.textContent = '⚡ VM 전원 켜기 (Start)';
+      bStartVm.onclick = function() {
+        if (window.setV3Stage) window.setV3Stage('normal');
+      };
+      actBtns.appendChild(bStartVm);
+    } else if (id === 'ctl') {
+      var bProbe = document.createElement('button'); bProbe.type = 'button';
+      bProbe.style.cssText = 'background:#B08CFF; color:#fff; font-size:11px; padding:4px 8px; border:none; cursor:pointer;';
+      bProbe.textContent = '🔍 3-Signal 관제 즉시 판정';
+      bProbe.onclick = function() {
+        if (window.addDrLog) window.addDrLog('[ORCHESTRATOR] 3-Signal 판정: S1=PASS, S2=PASS, S3=PASS (정상 상태 확인)', 'success');
+      };
+      actBtns.appendChild(bProbe);
+    }
+
+    if (actBtns.children.length > 0) {
+      actBox.appendChild(actBtns);
+      card.appendChild(actBox);
+    }
+
     var x = document.createElement('button'); x.type = 'button'; x.textContent = '닫기';
     x.addEventListener('click', function () { card.hidden = true; });
     row.appendChild(x); card.appendChild(row);

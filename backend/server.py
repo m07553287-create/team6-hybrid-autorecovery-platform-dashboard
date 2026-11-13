@@ -519,9 +519,9 @@ LOGIN_HTML = """<!DOCTYPE html>
     <section class="drawing" aria-hidden="true">
       <h2>민원불패 하이브리드 멀티클라우드 — 평시 트래픽 경로</h2>
       <svg viewBox="0 0 760 520" preserveAspectRatio="xMidYMid meet">
-        <!-- 시민 -->
+        <!-- 사용자 -->
         <circle class="ln draw" cx="70" cy="70" r="18"/>
-        <text x="100" y="66">시민 민원 접수</text>
+        <text x="100" y="66">사용자 민원 접수</text>
         <text class="note" x="100" y="84">Cloudflare 경유</text>
         <path class="thin draw" d="M70 88 V170"/>
 
@@ -1384,11 +1384,11 @@ PORTAL_HTML = """<!DOCTYPE html>
           <span class="menu-badge">Live</span>
         </li>
         
-        <div class="menu-header">DR & 고가용성 (HA)</div>
+        <div class="menu-header">운영 & 고가용성 (HA)</div>
         <li class="menu-item" onclick="switchTab('dr')">
           <span class="icon">🛡️</span>
-          <span>DR 장애복구 관제</span>
-          <span class="menu-badge" style="background:#FF6B81;color:#fff;">Failover</span>
+          <span>운영 대시보드</span>
+          <span class="menu-badge" style="background:#FF6B81;color:#fff;">Live</span>
         </li>
 
         <div class="menu-header">인프라 & 가상화</div>
@@ -1482,15 +1482,15 @@ PORTAL_HTML = """<!DOCTYPE html>
           <div class="svc-card" style="border-color: rgba(255, 107, 129, 0.4);">
             <div class="svc-card-header">
               <div>
-                <div class="svc-title" style="color:#FFC0C9;">🛡️ DR & 장애복구 관제 센터</div>
-                <div style="font-size: 11px; color: #B4C6D8; margin-top: 2px;">L1~L4 다계층 자동복구 & 0초 GitHub Pages Fallback</div>
+                <div class="svc-title" style="color:#FFC0C9;">🛡️ 운영 대시보드</div>
+                <div style="font-size: 11px; color: #B4C6D8; margin-top: 2px;">L1~L4 다계층 자동복구, 실시간 제어 & 0초 비상 접수</div>
               </div>
-              <span class="svc-type" style="background:#FF6B81; color:#fff;">Active-Standby</span>
+              <span class="svc-type" style="background:#FF6B81; color:#fff;">Live Ops</span>
             </div>
             <div class="svc-desc">Cloudflare ➔ KT Cloud Edge ➔ 온프렘 Primary ➔ AWS DR 4단계 장애 대응 흐름 및 실시간 토폴로지 관제.</div>
             <div class="svc-footer">
               <span style="color:#8FE0B4;">현재 경로: On-Prem Primary (RW) 🟢</span>
-              <button class="btn-launch" style="background:#FF6B81;" onclick="switchTab('dr')">DR 관제 열기 →</button>
+              <button class="btn-launch" style="background:#FF6B81;" onclick="switchTab('dr')">대시보드 열기 →</button>
             </div>
           </div>
 
@@ -1835,12 +1835,12 @@ PORTAL_HTML = """<!DOCTYPE html>
         <div class="osx" id="osx"></div>
       </section>
 
-                  <!-- 4. v3.0 DRAWIO TECHNICAL ARCHITECTURE & DR CONTROL PANEL -->
+                  <!-- 4. v3.0 DRAWIO TECHNICAL ARCHITECTURE & OPERATION DASHBOARD -->
       <section id="dr-panel" style="display: none;">
         <div class="overview-hero" style="background: linear-gradient(135deg, rgba(244, 201, 93, 0.2), rgba(15, 45, 79, 0.85)); border: 1px solid rgba(244, 201, 93, 0.4);">
           <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
             <div>
-              <h2 style="color:#FBE6AE;">민원불패 — 전체 아키텍처 v2.5.1 실시간 동적 관제 센터</h2>
+              <h2 style="color:#FBE6AE;">민원불패 — 통합 운영 대시보드 v2.5.1 (실시간 동적 제어 & 관제)</h2>
               <p style="margin-top:4px;"><b>설계문서 v3.0 drawio</b> 명세 100% 구현: KT Cloud Edge-GW(입구) ↔ WireGuard 터널 3개 메쉬 ↔ 온프레미스 K8s MSA & MySQL Primary ↔ AWS DR 관제 스택 & Orchestrator 상태 머신.</p>
             </div>
             <div style="display:flex; gap:8px;">
@@ -1853,17 +1853,20 @@ PORTAL_HTML = """<!DOCTYPE html>
 
         <!-- AUTOMATED 5s PLAYBACK & FLOW VELOCITY CONTROLLER -->
         <div style="background:#0F2D4F; padding:14px 18px; border-radius:0; border:1px solid #4F739A; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;">
-          <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
             <button id="btn-dr-autoplay" class="btn-top" style="background:#3A78B5; color:#fff; font-weight:800; font-size:12.5px; padding:8px 16px; border-radius:0; cursor:pointer; display:flex; align-items:center; gap:6px;" onclick="toggleDrAutoPlay()">
               <span id="dr-autoplay-icon">▶</span>
-              <span id="dr-autoplay-label">시뮬레이션 시작 (5초 자동 전환)</span>
+              <span id="dr-autoplay-label">자동 재생 (5초 단위 이동)</span>
+            </button>
+            <button id="btn-reach-toggle" class="btn-top" style="background:transparent; color:#9FD3F5; border:1px solid #9FD3F5; font-weight:700; font-size:12px; padding:7px 14px; border-radius:0; cursor:pointer;" onclick="window.toggleReachabilityOverlay && window.toggleReachabilityOverlay()">
+              📡 도달 범위 & 격리선 표시
             </button>
             <div style="display:flex; flex-direction:column; gap:4px;">
               <div style="display:flex; align-items:center; gap:8px;">
-                <span style="font-size:11px; font-weight:700; color:#B4C6D8;">5초 전환 진행:</span>
-                <span id="dr-timer-count" style="font-size:11px; font-weight:800; color:#9FD3F5;">0.0s / 5.0s (정지 상태)</span>
+                <span style="font-size:11px; font-weight:700; color:#B4C6D8;">5초 진행 상태:</span>
+                <span id="dr-timer-count" style="font-size:11px; font-weight:800; color:#9FD3F5;">0.0s / 5.0s (기본 수동 모드)</span>
               </div>
-              <div style="width:160px; height:6px; background:#1D4A7A; border-radius:0; overflow:hidden;">
+              <div style="width:140px; height:6px; background:#1D4A7A; border-radius:0; overflow:hidden;">
                 <div id="dr-timer-progress" style="width:0%; height:100%; background:#9FD3F5; transition:width 0.1s linear;"></div>
               </div>
             </div>
@@ -1892,7 +1895,7 @@ PORTAL_HTML = """<!DOCTYPE html>
         <div class="dc-main">
           <div class="iso-stage">
             <div class="iso-stage-head"><h3>민원불패 v2.5.1 — 연결 구성도</h3><p class="dc-hint">휠 확대 · 드래그 이동 · 장비 클릭 시 상세</p><button class="btn-top dc-fs" id="dr-fs-btn" onclick="toggleDrFullscreen()">전체 화면</button></div>
-            <div class="t3-host" id="t3-host"><svg id="iso-scene" data-stage="normal" role="img" aria-label="하이브리드 멀티클라우드 아이소메트릭 토폴로지" viewBox="-480 -386 881 753" preserveAspectRatio="xMidYMid meet"><g class="iso-zone " id="iso-gh"><g class="iso-box platform"><polygon class="f-left" points="162.1,-97.5 229.7,-58.5 229.7,-67.6 162.1,-106.6"/><polygon class="f-right" points="297.2,-97.5 229.7,-58.5 229.7,-67.6 297.2,-106.6"/><polygon class="f-top" points="229.7,-145.6 297.2,-106.6 229.7,-67.6 162.1,-106.6"/></g><line class="floor" x1="252.2" y1="-132.6" x2="184.6" y2="-93.6"/><line class="floor" x1="274.7" y1="-119.6" x2="207.2" y2="-80.6"/><line class="floor" x1="207.2" y1="-132.6" x2="274.7" y2="-93.6"/><line class="floor" x1="184.6" y1="-119.6" x2="252.2" y2="-80.6"/></g><g class="iso-zone " id="iso-kt"><g class="iso-box platform"><polygon class="f-left" points="-331.0,-49.4 -240.9,2.6 -240.9,-6.5 -331.0,-58.5"/><polygon class="f-right" points="-150.9,-49.4 -240.9,2.6 -240.9,-6.5 -150.9,-58.5"/><polygon class="f-top" points="-240.9,-110.5 -150.9,-58.5 -240.9,-6.5 -331.0,-58.5"/></g><line class="floor" x1="-218.4" y1="-97.5" x2="-308.5" y2="-45.5"/><line class="floor" x1="-195.9" y1="-84.5" x2="-286.0" y2="-32.5"/><line class="floor" x1="-173.4" y1="-71.5" x2="-263.4" y2="-19.5"/><line class="floor" x1="-263.4" y1="-97.5" x2="-173.4" y2="-45.5"/><line class="floor" x1="-286.0" y1="-84.5" x2="-195.9" y2="-32.5"/><line class="floor" x1="-308.5" y1="-71.5" x2="-218.4" y2="-19.5"/></g><g class="iso-zone " id="iso-onprem"><g class="iso-box platform"><polygon class="f-left" points="-135.1,87.1 0.0,165.1 0.0,156.0 -135.1,78.0"/><polygon class="f-right" points="135.1,87.1 0.0,165.1 0.0,156.0 135.1,78.0"/><polygon class="f-top" points="0.0,0.0 135.1,78.0 0.0,156.0 -135.1,78.0"/></g><line class="floor" x1="22.5" y1="13.0" x2="-112.6" y2="91.0"/><line class="floor" x1="45.0" y1="26.0" x2="-90.1" y2="104.0"/><line class="floor" x1="67.5" y1="39.0" x2="-67.5" y2="117.0"/><line class="floor" x1="90.1" y1="52.0" x2="-45.0" y2="130.0"/><line class="floor" x1="112.6" y1="65.0" x2="-22.5" y2="143.0"/><line class="floor" x1="-22.5" y1="13.0" x2="112.6" y2="91.0"/><line class="floor" x1="-45.0" y1="26.0" x2="90.1" y2="104.0"/><line class="floor" x1="-67.5" y1="39.0" x2="67.5" y2="117.0"/><line class="floor" x1="-90.1" y1="52.0" x2="45.0" y2="130.0"/><line class="floor" x1="-112.6" y1="65.0" x2="22.5" y2="143.0"/></g><g class="iso-zone " id="iso-aws"><g class="iso-box platform"><polygon class="f-left" points="85.6,245.7 198.1,310.7 198.1,301.6 85.6,236.6"/><polygon class="f-right" points="310.7,245.7 198.1,310.7 198.1,301.6 310.7,236.6"/><polygon class="f-top" points="198.1,171.6 310.7,236.6 198.1,301.6 85.6,236.6"/></g><line class="floor" x1="220.7" y1="184.6" x2="108.1" y2="249.6"/><line class="floor" x1="243.2" y1="197.6" x2="130.6" y2="262.6"/><line class="floor" x1="265.7" y1="210.6" x2="153.1" y2="275.6"/><line class="floor" x1="288.2" y1="223.6" x2="175.6" y2="288.6"/><line class="floor" x1="175.6" y1="184.6" x2="288.2" y2="249.6"/><line class="floor" x1="153.1" y1="197.6" x2="265.7" y2="262.6"/><line class="floor" x1="130.6" y1="210.6" x2="243.2" y2="275.6"/><line class="floor" x1="108.1" y1="223.6" x2="220.7" y2="288.6"/></g><path class="pipe-case" d="M-200.4,-46.8 L-56.3,36.4"/><path id="path-tunnel-a" class="flow-line line-yellow" fill="none" d="M-200.4,-46.8 L-56.3,36.4"/><path class="pipe-case" d="M186.9,195.0 L76.6,131.3 L173.4,75.4 L38.3,-2.6 L-27.0,35.1"/><path id="path-tunnel-b" class="flow-line line-blue" fill="none" d="M186.9,195.0 L76.6,131.3 L173.4,75.4 L38.3,-2.6 L-27.0,35.1"/><path class="pipe-case" d="M-243.2,-55.9 L-331.0,-5.2 L139.6,266.5 L144.1,263.9"/><path id="path-tunnel-c" class="line-inactive" fill="none" d="M-243.2,-55.9 L-331.0,-5.2 L139.6,266.5 L144.1,263.9"/><path class="pipe-case" d="M31.5,120.9 L130.6,178.1 L99.1,196.3 L172.3,238.6"/><path id="path-db-sync" class="flow-line line-yellow" fill="none" d="M31.5,120.9 L130.6,178.1 L99.1,196.3 L172.3,238.6"/><path class="pipe-case" d="M-119.3,-274.3 L-218.4,-89.7"/><path id="iso-path-ingress" class="flow-line line-blue" fill="none" d="M-119.3,-274.3 L-218.4,-89.7"/><path class="pipe-case" id="iso-case-gh" d="M-119.3,-274.3 L231.9,-120.9"/><path id="iso-path-gh" class="line-inactive" fill="none" d="M-119.3,-274.3 L231.9,-120.9"/><g class="iso-box node" id="iso-ghpage"><polygon class="f-left" points="204.9,-107.9 231.9,-92.3 231.9,-105.3 204.9,-120.9"/><polygon class="f-right" points="258.9,-107.9 231.9,-92.3 231.9,-105.3 258.9,-120.9"/><polygon class="f-top" points="231.9,-136.5 258.9,-120.9 231.9,-105.3 204.9,-120.9"/></g><g class="iso-box node" id="iso-edge"><polygon class="f-left" points="-249.9,-53.3 -213.9,-32.5 -213.9,-71.5 -249.9,-92.3"/><polygon class="f-right" points="-186.9,-48.1 -213.9,-32.5 -213.9,-71.5 -186.9,-87.1"/><polygon class="f-top" points="-222.9,-107.9 -186.9,-87.1 -213.9,-71.5 -249.9,-92.3"/><line class="slot" x1="-244.5" y1="-59.9" x2="-219.3" y2="-45.4"/><circle class="led" cx="-217.5" cy="-44.3" r="1.6"/><line class="slot" x1="-244.5" y1="-69.7" x2="-219.3" y2="-55.1"/><circle class="led" cx="-217.5" cy="-54.1" r="1.6"/><line class="slot" x1="-244.5" y1="-79.4" x2="-219.3" y2="-64.9"/><circle class="led" cx="-217.5" cy="-63.8" r="1.6"/></g><g class="iso-box node rack" id="iso-k8s-cp1"><polygon class="f-left" points="20.3,50.7 40.5,62.4 40.5,0.0 20.3,-11.7"/><polygon class="f-right" points="65.3,48.1 40.5,62.4 40.5,0.0 65.3,-14.3"/><polygon class="f-top" points="45.0,-26.0 65.3,-14.3 40.5,0.0 20.3,-11.7"/><line class="slot" x1="23.3" y1="40.0" x2="37.5" y2="48.2"/><circle class="led" cx="38.5" cy="48.8" r="1.6"/><line class="slot" x1="23.3" y1="27.5" x2="37.5" y2="35.7"/><circle class="led" cx="38.5" cy="36.3" r="1.6"/><line class="slot" x1="23.3" y1="15.0" x2="37.5" y2="23.2"/><circle class="led" cx="38.5" cy="23.8" r="1.6"/><line class="slot" x1="23.3" y1="2.5" x2="37.5" y2="10.7"/><circle class="led" cx="38.5" cy="11.3" r="1.6"/></g><g class="iso-box node rack" id="iso-k8s-w1"><polygon class="f-left" points="46.2,65.6 66.4,77.4 66.4,15.0 46.2,3.2"/><polygon class="f-right" points="91.2,63.1 66.4,77.4 66.4,15.0 91.2,0.7"/><polygon class="f-top" points="70.9,-11.1 91.2,0.7 66.4,15.0 46.2,3.2"/><line class="slot" x1="49.2" y1="54.9" x2="63.4" y2="63.1"/><circle class="led" cx="64.4" cy="63.7" r="1.6"/><line class="slot" x1="49.2" y1="42.4" x2="63.4" y2="50.6"/><circle class="led" cx="64.4" cy="51.2" r="1.6"/><line class="slot" x1="49.2" y1="30.0" x2="63.4" y2="38.2"/><circle class="led" cx="64.4" cy="38.7" r="1.6"/><line class="slot" x1="49.2" y1="17.5" x2="63.4" y2="25.7"/><circle class="led" cx="64.4" cy="26.3" r="1.6"/></g><g class="iso-box node rack" id="iso-k8s-w2"><polygon class="f-left" points="72.1,80.6 92.3,92.3 92.3,29.9 72.1,18.2"/><polygon class="f-right" points="117.1,78.0 92.3,92.3 92.3,29.9 117.1,15.6"/><polygon class="f-top" points="96.8,3.9 117.1,15.6 92.3,29.9 72.1,18.2"/><line class="slot" x1="75.1" y1="69.9" x2="89.3" y2="78.1"/><circle class="led" cx="90.3" cy="78.6" r="1.6"/><line class="slot" x1="75.1" y1="57.4" x2="89.3" y2="65.6"/><circle class="led" cx="90.3" cy="66.2" r="1.6"/><line class="slot" x1="75.1" y1="44.9" x2="89.3" y2="53.1"/><circle class="led" cx="90.3" cy="53.7" r="1.6"/><line class="slot" x1="75.1" y1="32.4" x2="89.3" y2="40.6"/><circle class="led" cx="90.3" cy="41.2" r="1.6"/></g><g class="iso-box node" id="iso-wg"><polygon class="f-left" points="-63.0,46.8 -36.0,62.4 -36.0,39.0 -63.0,23.4"/><polygon class="f-right" points="-13.5,49.4 -36.0,62.4 -36.0,39.0 -13.5,26.0"/><polygon class="f-top" points="-40.5,10.4 -13.5,26.0 -36.0,39.0 -63.0,23.4"/><line class="slot" x1="-59.0" y1="37.4" x2="-40.1" y2="48.4"/><circle class="led" cx="-38.7" cy="49.1" r="1.6"/></g><g class="iso-box pod" id="iso-pod-web"><polygon class="f-left" points="-18.0,72.8 -4.5,80.6 -4.5,65.0 -18.0,57.2"/><polygon class="f-right" points="9.0,72.8 -4.5,80.6 -4.5,65.0 9.0,57.2"/><polygon class="f-top" points="-4.5,49.4 9.0,57.2 -4.5,65.0 -18.0,57.2"/></g><g class="iso-box pod" id="iso-pod-api"><polygon class="f-left" points="2.3,84.5 15.8,92.3 15.8,76.7 2.3,68.9"/><polygon class="f-right" points="29.3,84.5 15.8,92.3 15.8,76.7 29.3,68.9"/><polygon class="f-top" points="15.8,61.1 29.3,68.9 15.8,76.7 2.3,68.9"/></g><g class="iso-box pod" id="iso-pod-notify"><polygon class="f-left" points="-38.3,84.5 -24.8,92.3 -24.8,76.7 -38.3,68.9"/><polygon class="f-right" points="-11.3,84.5 -24.8,92.3 -24.8,76.7 -11.3,68.9"/><polygon class="f-top" points="-24.8,61.1 -11.3,68.9 -24.8,76.7 -38.3,68.9"/></g><g class="iso-box pod" id="iso-pod-audit"><polygon class="f-left" points="-18.0,96.2 -4.5,104.0 -4.5,88.4 -18.0,80.6"/><polygon class="f-right" points="9.0,96.2 -4.5,104.0 -4.5,88.4 9.0,80.6"/><polygon class="f-top" points="-4.5,72.8 9.0,80.6 -4.5,88.4 -18.0,80.6"/></g><g class="iso-cyl db" id="iso-db-primary"><path class="f-left" d="M-6.5,79.3 L-6.5,118.3 A22.3,12.9 0 0 0 38.1,118.3 L38.1,79.3 A22.3,12.9 0 0 1 -6.5,79.3 Z"/><path class="slot" d="M-6.5,105.3 A22.3,12.9 0 0 0 38.1,105.3"/><path class="slot" d="M-6.5,92.3 A22.3,12.9 0 0 0 38.1,92.3"/><ellipse class="f-top" cx="15.8" cy="79.3" rx="22.3" ry="12.9"/></g><g class="iso-box node" id="iso-ctl"><polygon class="f-left" points="173.4,209.3 204.9,227.5 204.9,183.3 173.4,165.1"/><polygon class="f-right" points="231.9,211.9 204.9,227.5 204.9,183.3 231.9,167.7"/><polygon class="f-top" points="200.4,149.5 231.9,167.7 204.9,183.3 173.4,165.1"/><line class="slot" x1="178.1" y1="201.0" x2="200.2" y2="213.7"/><circle class="led" cx="201.7" cy="214.6" r="1.6"/><line class="slot" x1="178.1" y1="189.9" x2="200.2" y2="202.7"/><circle class="led" cx="201.7" cy="203.6" r="1.6"/><line class="slot" x1="178.1" y1="178.9" x2="200.2" y2="191.6"/><circle class="led" cx="201.7" cy="192.5" r="1.6"/></g><g class="iso-cyl bucket" id="iso-s3"><path class="f-left" d="M246.9,215.8 L246.9,234.0 A14.3,8.3 0 0 0 275.5,234.0 L275.5,215.8 A14.3,8.3 0 0 1 246.9,215.8 Z"/><path class="slot" d="M246.9,224.9 A14.3,8.3 0 0 0 275.5,224.9"/><ellipse class="f-top" cx="261.2" cy="215.8" rx="14.3" ry="8.3"/></g><g class="iso-cyl db" id="iso-db-replica"><path class="f-left" d="M166.2,217.1 L166.2,253.5 A20.7,12.0 0 0 0 207.6,253.5 L207.6,217.1 A20.7,12.0 0 0 1 166.2,217.1 Z"/><path class="slot" d="M166.2,241.4 A20.7,12.0 0 0 0 207.6,241.4"/><path class="slot" d="M166.2,229.2 A20.7,12.0 0 0 0 207.6,229.2"/><ellipse class="f-top" cx="186.9" cy="217.1" rx="20.7" ry="12.0"/></g><g class="iso-person"><circle class="f-top" cx="-132.8" cy="-336.5" r="6"/><path class="f-left" d="M-143.8,-316.5 q11,-16 22,0 v8 h-22 Z"/></g><g class="iso-cloud" id="iso-cf"><path class="f-top" d="M-157.3,-264.3 a14,14 0 0 1 10,-22 a20,20 0 0 1 36,-8 a16,16 0 0 1 26,10 a12,12 0 0 1 2,20 Z"/></g><text class="tun-t ta" x="-137.4" y="-18.4" text-anchor="middle">터널 A</text><text class="tun-t tb" x="135.1" y="89.5" text-anchor="middle">터널 B</text><text class="tun-t tc" x="-42.8" y="153.2" text-anchor="middle">터널 C · DR 우회</text><text class="tun-t tb" x="58.5" y="128.5" text-anchor="middle">GTID 복제</text><g class="cut" id="iso-cut-a"><path d="M-116.3,-0.8 l12,12 M-104.3,-0.8 l-12,12"/></g><text class="stamp" id="iso-stamp-fenced" x="0.0" y="84.0" text-anchor="middle">FENCED · 쓰기 차단</text><g class="zone-label" id="iso-gh-label"><text class="zone-t" x="229.7" y="-34.5" text-anchor="middle">GitHub Pages</text><text class="zone-s" x="229.7" y="-15.5" text-anchor="middle">0초 비상 접수 (dr.ktci5.kr)</text></g><g class="zone-label" id="iso-kt-label"><text class="zone-t" x="-240.9" y="26.6" text-anchor="middle">KT Cloud</text><text class="zone-s" x="-240.9" y="45.6" text-anchor="middle">입구 전용</text></g><g class="zone-label" id="iso-onprem-label"><text class="zone-t" x="0.0" y="189.1" text-anchor="middle">온프레미스 OpenStack</text><text class="zone-s" x="0.0" y="208.1" text-anchor="middle">Primary · K3s · MySQL</text></g><g class="zone-label" id="iso-aws-label"><text class="zone-t" x="198.1" y="334.7" text-anchor="middle">AWS</text><text class="zone-s" x="198.1" y="353.7" text-anchor="middle">관제 · DR 대기 · S3 백업</text></g><g class="callout "><circle class="pin" cx="-132.8" cy="-341.9" r="2.2"/><polyline class="leader" points="-132.8,-341.9 -162.8,-361.9 -186.8,-361.9"/><text class="c-t" x="-192.8" y="-357.9" text-anchor="end">시민 민원 접수</text><text class="c-s" x="-192.8" y="-339.9" text-anchor="end">HTTPS</text></g><g class="callout "><circle class="pin" cx="-101.3" cy="-300.3" r="2.2"/><polyline class="leader" points="-101.3,-300.3 -61.3,-320.3 -37.3,-320.3"/><text class="c-t" x="-31.3" y="-316.3" text-anchor="start">Cloudflare</text><text class="c-s" x="-31.3" y="-298.3" text-anchor="start">Anycast WAF · Worker</text></g><g class="callout "><circle class="pin" cx="-236.4" cy="-92.3" r="2.2"/><polyline class="leader" points="-236.4,-92.3 -260.4,-58.3 -284.4,-58.3"/><text class="c-t" x="-290.4" y="-54.3" text-anchor="end">Edge-GW</text><text class="c-s" x="-290.4" y="-36.3" text-anchor="end">Nginx WAF · 14.63.213.214</text></g><g class="callout " id="iso-c-wg"><circle class="pin" cx="-63.0" cy="33.8" r="2.2"/><polyline class="leader" points="-63.0,33.8 -93.0,103.8 -117.0,103.8"/><text class="c-t" x="-123.0" y="107.8" text-anchor="end">WireGuard GW</text><text class="c-s" x="-123.0" y="125.8" text-anchor="end">Inbound 0 · 펜싱</text></g><g class="callout "><circle class="pin" cx="45.0" cy="-26.0" r="2.2"/><polyline class="leader" points="45.0,-26.0 15.0,-76.0 -9.0,-76.0"/><text class="c-t" x="-15.0" y="-72.0" text-anchor="end">K3s 노드 3대</text><text class="c-s" x="-15.0" y="-54.0" text-anchor="end">cp1 · w1 · w2</text></g><g class="callout " id="iso-c-pod"><circle class="pin" cx="-31.5" cy="80.6" r="2.2"/><polyline class="leader" points="-31.5,80.6 -161.5,140.6 -185.5,140.6"/><text class="c-t" x="-191.5" y="144.6" text-anchor="end">app 파드</text><text class="c-s" x="-191.5" y="162.6" text-anchor="end">web · api · notify · audit</text></g><g class="callout " id="iso-c-dbp"><circle class="pin" cx="38.3" cy="79.3" r="2.2"/><polyline class="leader" points="38.3,79.3 98.3,39.3 122.3,39.3"/><text class="c-t" x="128.3" y="43.3" text-anchor="start">MySQL 8.4 Primary</text><text class="c-s" x="128.3" y="61.3" text-anchor="start">GTID · Read/Write</text></g><g class="callout " id="iso-c-ctl"><circle class="pin" cx="231.9" cy="167.7" r="2.2"/><polyline class="leader" points="231.9,167.7 261.9,127.7 285.9,127.7"/><text class="c-t" x="291.9" y="131.7" text-anchor="start">Orchestrator</text><text class="c-s" x="291.9" y="149.7" text-anchor="start">3-Signal 판정</text></g><g class="callout " id="iso-c-dbr"><circle class="pin" cx="168.9" cy="240.5" r="2.2"/><polyline class="leader" points="168.9,240.5 128.9,320.5 104.9,320.5"/><text class="c-t" x="98.9" y="324.5" text-anchor="end">MySQL Replica</text><text class="c-s" x="98.9" y="342.5" text-anchor="end">GTID 비동기 수신</text></g><g class="callout " id="iso-c-gh"><circle class="pin" cx="231.9" cy="-136.5" r="2.2"/><polyline class="leader" points="231.9,-136.5 191.9,-166.5 167.9,-166.5"/><text class="c-t" x="161.9" y="-162.5" text-anchor="end">정적 비상 접수 폼</text><text class="c-s" x="161.9" y="-144.5" text-anchor="end">Black Sky 시 0초 노출</text></g></svg></div>
+            <div class="t3-host" id="t3-host"><svg id="iso-scene" data-stage="normal" role="img" aria-label="하이브리드 멀티클라우드 아이소메트릭 토폴로지" viewBox="-480 -386 881 753" preserveAspectRatio="xMidYMid meet"><g class="iso-zone " id="iso-gh"><g class="iso-box platform"><polygon class="f-left" points="162.1,-97.5 229.7,-58.5 229.7,-67.6 162.1,-106.6"/><polygon class="f-right" points="297.2,-97.5 229.7,-58.5 229.7,-67.6 297.2,-106.6"/><polygon class="f-top" points="229.7,-145.6 297.2,-106.6 229.7,-67.6 162.1,-106.6"/></g><line class="floor" x1="252.2" y1="-132.6" x2="184.6" y2="-93.6"/><line class="floor" x1="274.7" y1="-119.6" x2="207.2" y2="-80.6"/><line class="floor" x1="207.2" y1="-132.6" x2="274.7" y2="-93.6"/><line class="floor" x1="184.6" y1="-119.6" x2="252.2" y2="-80.6"/></g><g class="iso-zone " id="iso-kt"><g class="iso-box platform"><polygon class="f-left" points="-331.0,-49.4 -240.9,2.6 -240.9,-6.5 -331.0,-58.5"/><polygon class="f-right" points="-150.9,-49.4 -240.9,2.6 -240.9,-6.5 -150.9,-58.5"/><polygon class="f-top" points="-240.9,-110.5 -150.9,-58.5 -240.9,-6.5 -331.0,-58.5"/></g><line class="floor" x1="-218.4" y1="-97.5" x2="-308.5" y2="-45.5"/><line class="floor" x1="-195.9" y1="-84.5" x2="-286.0" y2="-32.5"/><line class="floor" x1="-173.4" y1="-71.5" x2="-263.4" y2="-19.5"/><line class="floor" x1="-263.4" y1="-97.5" x2="-173.4" y2="-45.5"/><line class="floor" x1="-286.0" y1="-84.5" x2="-195.9" y2="-32.5"/><line class="floor" x1="-308.5" y1="-71.5" x2="-218.4" y2="-19.5"/></g><g class="iso-zone " id="iso-onprem"><g class="iso-box platform"><polygon class="f-left" points="-135.1,87.1 0.0,165.1 0.0,156.0 -135.1,78.0"/><polygon class="f-right" points="135.1,87.1 0.0,165.1 0.0,156.0 135.1,78.0"/><polygon class="f-top" points="0.0,0.0 135.1,78.0 0.0,156.0 -135.1,78.0"/></g><line class="floor" x1="22.5" y1="13.0" x2="-112.6" y2="91.0"/><line class="floor" x1="45.0" y1="26.0" x2="-90.1" y2="104.0"/><line class="floor" x1="67.5" y1="39.0" x2="-67.5" y2="117.0"/><line class="floor" x1="90.1" y1="52.0" x2="-45.0" y2="130.0"/><line class="floor" x1="112.6" y1="65.0" x2="-22.5" y2="143.0"/><line class="floor" x1="-22.5" y1="13.0" x2="112.6" y2="91.0"/><line class="floor" x1="-45.0" y1="26.0" x2="90.1" y2="104.0"/><line class="floor" x1="-67.5" y1="39.0" x2="67.5" y2="117.0"/><line class="floor" x1="-90.1" y1="52.0" x2="45.0" y2="130.0"/><line class="floor" x1="-112.6" y1="65.0" x2="22.5" y2="143.0"/></g><g class="iso-zone " id="iso-aws"><g class="iso-box platform"><polygon class="f-left" points="85.6,245.7 198.1,310.7 198.1,301.6 85.6,236.6"/><polygon class="f-right" points="310.7,245.7 198.1,310.7 198.1,301.6 310.7,236.6"/><polygon class="f-top" points="198.1,171.6 310.7,236.6 198.1,301.6 85.6,236.6"/></g><line class="floor" x1="220.7" y1="184.6" x2="108.1" y2="249.6"/><line class="floor" x1="243.2" y1="197.6" x2="130.6" y2="262.6"/><line class="floor" x1="265.7" y1="210.6" x2="153.1" y2="275.6"/><line class="floor" x1="288.2" y1="223.6" x2="175.6" y2="288.6"/><line class="floor" x1="175.6" y1="184.6" x2="288.2" y2="249.6"/><line class="floor" x1="153.1" y1="197.6" x2="265.7" y2="262.6"/><line class="floor" x1="130.6" y1="210.6" x2="243.2" y2="275.6"/><line class="floor" x1="108.1" y1="223.6" x2="220.7" y2="288.6"/></g><path class="pipe-case" d="M-200.4,-46.8 L-56.3,36.4"/><path id="path-tunnel-a" class="flow-line line-yellow" fill="none" d="M-200.4,-46.8 L-56.3,36.4"/><path class="pipe-case" d="M186.9,195.0 L76.6,131.3 L173.4,75.4 L38.3,-2.6 L-27.0,35.1"/><path id="path-tunnel-b" class="flow-line line-blue" fill="none" d="M186.9,195.0 L76.6,131.3 L173.4,75.4 L38.3,-2.6 L-27.0,35.1"/><path class="pipe-case" d="M-243.2,-55.9 L-331.0,-5.2 L139.6,266.5 L144.1,263.9"/><path id="path-tunnel-c" class="line-inactive" fill="none" d="M-243.2,-55.9 L-331.0,-5.2 L139.6,266.5 L144.1,263.9"/><path class="pipe-case" d="M31.5,120.9 L130.6,178.1 L99.1,196.3 L172.3,238.6"/><path id="path-db-sync" class="flow-line line-yellow" fill="none" d="M31.5,120.9 L130.6,178.1 L99.1,196.3 L172.3,238.6"/><path class="pipe-case" d="M-119.3,-274.3 L-218.4,-89.7"/><path id="iso-path-ingress" class="flow-line line-blue" fill="none" d="M-119.3,-274.3 L-218.4,-89.7"/><path class="pipe-case" id="iso-case-gh" d="M-119.3,-274.3 L231.9,-120.9"/><path id="iso-path-gh" class="line-inactive" fill="none" d="M-119.3,-274.3 L231.9,-120.9"/><g class="iso-box node" id="iso-ghpage"><polygon class="f-left" points="204.9,-107.9 231.9,-92.3 231.9,-105.3 204.9,-120.9"/><polygon class="f-right" points="258.9,-107.9 231.9,-92.3 231.9,-105.3 258.9,-120.9"/><polygon class="f-top" points="231.9,-136.5 258.9,-120.9 231.9,-105.3 204.9,-120.9"/></g><g class="iso-box node" id="iso-edge"><polygon class="f-left" points="-249.9,-53.3 -213.9,-32.5 -213.9,-71.5 -249.9,-92.3"/><polygon class="f-right" points="-186.9,-48.1 -213.9,-32.5 -213.9,-71.5 -186.9,-87.1"/><polygon class="f-top" points="-222.9,-107.9 -186.9,-87.1 -213.9,-71.5 -249.9,-92.3"/><line class="slot" x1="-244.5" y1="-59.9" x2="-219.3" y2="-45.4"/><circle class="led" cx="-217.5" cy="-44.3" r="1.6"/><line class="slot" x1="-244.5" y1="-69.7" x2="-219.3" y2="-55.1"/><circle class="led" cx="-217.5" cy="-54.1" r="1.6"/><line class="slot" x1="-244.5" y1="-79.4" x2="-219.3" y2="-64.9"/><circle class="led" cx="-217.5" cy="-63.8" r="1.6"/></g><g class="iso-box node rack" id="iso-k8s-cp1"><polygon class="f-left" points="20.3,50.7 40.5,62.4 40.5,0.0 20.3,-11.7"/><polygon class="f-right" points="65.3,48.1 40.5,62.4 40.5,0.0 65.3,-14.3"/><polygon class="f-top" points="45.0,-26.0 65.3,-14.3 40.5,0.0 20.3,-11.7"/><line class="slot" x1="23.3" y1="40.0" x2="37.5" y2="48.2"/><circle class="led" cx="38.5" cy="48.8" r="1.6"/><line class="slot" x1="23.3" y1="27.5" x2="37.5" y2="35.7"/><circle class="led" cx="38.5" cy="36.3" r="1.6"/><line class="slot" x1="23.3" y1="15.0" x2="37.5" y2="23.2"/><circle class="led" cx="38.5" cy="23.8" r="1.6"/><line class="slot" x1="23.3" y1="2.5" x2="37.5" y2="10.7"/><circle class="led" cx="38.5" cy="11.3" r="1.6"/></g><g class="iso-box node rack" id="iso-k8s-w1"><polygon class="f-left" points="46.2,65.6 66.4,77.4 66.4,15.0 46.2,3.2"/><polygon class="f-right" points="91.2,63.1 66.4,77.4 66.4,15.0 91.2,0.7"/><polygon class="f-top" points="70.9,-11.1 91.2,0.7 66.4,15.0 46.2,3.2"/><line class="slot" x1="49.2" y1="54.9" x2="63.4" y2="63.1"/><circle class="led" cx="64.4" cy="63.7" r="1.6"/><line class="slot" x1="49.2" y1="42.4" x2="63.4" y2="50.6"/><circle class="led" cx="64.4" cy="51.2" r="1.6"/><line class="slot" x1="49.2" y1="30.0" x2="63.4" y2="38.2"/><circle class="led" cx="64.4" cy="38.7" r="1.6"/><line class="slot" x1="49.2" y1="17.5" x2="63.4" y2="25.7"/><circle class="led" cx="64.4" cy="26.3" r="1.6"/></g><g class="iso-box node rack" id="iso-k8s-w2"><polygon class="f-left" points="72.1,80.6 92.3,92.3 92.3,29.9 72.1,18.2"/><polygon class="f-right" points="117.1,78.0 92.3,92.3 92.3,29.9 117.1,15.6"/><polygon class="f-top" points="96.8,3.9 117.1,15.6 92.3,29.9 72.1,18.2"/><line class="slot" x1="75.1" y1="69.9" x2="89.3" y2="78.1"/><circle class="led" cx="90.3" cy="78.6" r="1.6"/><line class="slot" x1="75.1" y1="57.4" x2="89.3" y2="65.6"/><circle class="led" cx="90.3" cy="66.2" r="1.6"/><line class="slot" x1="75.1" y1="44.9" x2="89.3" y2="53.1"/><circle class="led" cx="90.3" cy="53.7" r="1.6"/><line class="slot" x1="75.1" y1="32.4" x2="89.3" y2="40.6"/><circle class="led" cx="90.3" cy="41.2" r="1.6"/></g><g class="iso-box node" id="iso-wg"><polygon class="f-left" points="-63.0,46.8 -36.0,62.4 -36.0,39.0 -63.0,23.4"/><polygon class="f-right" points="-13.5,49.4 -36.0,62.4 -36.0,39.0 -13.5,26.0"/><polygon class="f-top" points="-40.5,10.4 -13.5,26.0 -36.0,39.0 -63.0,23.4"/><line class="slot" x1="-59.0" y1="37.4" x2="-40.1" y2="48.4"/><circle class="led" cx="-38.7" cy="49.1" r="1.6"/></g><g class="iso-box pod" id="iso-pod-web"><polygon class="f-left" points="-18.0,72.8 -4.5,80.6 -4.5,65.0 -18.0,57.2"/><polygon class="f-right" points="9.0,72.8 -4.5,80.6 -4.5,65.0 9.0,57.2"/><polygon class="f-top" points="-4.5,49.4 9.0,57.2 -4.5,65.0 -18.0,57.2"/></g><g class="iso-box pod" id="iso-pod-api"><polygon class="f-left" points="2.3,84.5 15.8,92.3 15.8,76.7 2.3,68.9"/><polygon class="f-right" points="29.3,84.5 15.8,92.3 15.8,76.7 29.3,68.9"/><polygon class="f-top" points="15.8,61.1 29.3,68.9 15.8,76.7 2.3,68.9"/></g><g class="iso-box pod" id="iso-pod-notify"><polygon class="f-left" points="-38.3,84.5 -24.8,92.3 -24.8,76.7 -38.3,68.9"/><polygon class="f-right" points="-11.3,84.5 -24.8,92.3 -24.8,76.7 -11.3,68.9"/><polygon class="f-top" points="-24.8,61.1 -11.3,68.9 -24.8,76.7 -38.3,68.9"/></g><g class="iso-box pod" id="iso-pod-audit"><polygon class="f-left" points="-18.0,96.2 -4.5,104.0 -4.5,88.4 -18.0,80.6"/><polygon class="f-right" points="9.0,96.2 -4.5,104.0 -4.5,88.4 9.0,80.6"/><polygon class="f-top" points="-4.5,72.8 9.0,80.6 -4.5,88.4 -18.0,80.6"/></g><g class="iso-cyl db" id="iso-db-primary"><path class="f-left" d="M-6.5,79.3 L-6.5,118.3 A22.3,12.9 0 0 0 38.1,118.3 L38.1,79.3 A22.3,12.9 0 0 1 -6.5,79.3 Z"/><path class="slot" d="M-6.5,105.3 A22.3,12.9 0 0 0 38.1,105.3"/><path class="slot" d="M-6.5,92.3 A22.3,12.9 0 0 0 38.1,92.3"/><ellipse class="f-top" cx="15.8" cy="79.3" rx="22.3" ry="12.9"/></g><g class="iso-box node" id="iso-ctl"><polygon class="f-left" points="173.4,209.3 204.9,227.5 204.9,183.3 173.4,165.1"/><polygon class="f-right" points="231.9,211.9 204.9,227.5 204.9,183.3 231.9,167.7"/><polygon class="f-top" points="200.4,149.5 231.9,167.7 204.9,183.3 173.4,165.1"/><line class="slot" x1="178.1" y1="201.0" x2="200.2" y2="213.7"/><circle class="led" cx="201.7" cy="214.6" r="1.6"/><line class="slot" x1="178.1" y1="189.9" x2="200.2" y2="202.7"/><circle class="led" cx="201.7" cy="203.6" r="1.6"/><line class="slot" x1="178.1" y1="178.9" x2="200.2" y2="191.6"/><circle class="led" cx="201.7" cy="192.5" r="1.6"/></g><g class="iso-cyl bucket" id="iso-s3"><path class="f-left" d="M246.9,215.8 L246.9,234.0 A14.3,8.3 0 0 0 275.5,234.0 L275.5,215.8 A14.3,8.3 0 0 1 246.9,215.8 Z"/><path class="slot" d="M246.9,224.9 A14.3,8.3 0 0 0 275.5,224.9"/><ellipse class="f-top" cx="261.2" cy="215.8" rx="14.3" ry="8.3"/></g><g class="iso-cyl db" id="iso-db-replica"><path class="f-left" d="M166.2,217.1 L166.2,253.5 A20.7,12.0 0 0 0 207.6,253.5 L207.6,217.1 A20.7,12.0 0 0 1 166.2,217.1 Z"/><path class="slot" d="M166.2,241.4 A20.7,12.0 0 0 0 207.6,241.4"/><path class="slot" d="M166.2,229.2 A20.7,12.0 0 0 0 207.6,229.2"/><ellipse class="f-top" cx="186.9" cy="217.1" rx="20.7" ry="12.0"/></g><g class="iso-person"><circle class="f-top" cx="-132.8" cy="-336.5" r="6"/><path class="f-left" d="M-143.8,-316.5 q11,-16 22,0 v8 h-22 Z"/></g><g class="iso-cloud" id="iso-cf"><path class="f-top" d="M-157.3,-264.3 a14,14 0 0 1 10,-22 a20,20 0 0 1 36,-8 a16,16 0 0 1 26,10 a12,12 0 0 1 2,20 Z"/></g><text class="tun-t ta" x="-137.4" y="-18.4" text-anchor="middle">터널 A</text><text class="tun-t tb" x="135.1" y="89.5" text-anchor="middle">터널 B</text><text class="tun-t tc" x="-42.8" y="153.2" text-anchor="middle">터널 C · DR 우회</text><text class="tun-t tb" x="58.5" y="128.5" text-anchor="middle">GTID 복제</text><g class="cut" id="iso-cut-a"><path d="M-116.3,-0.8 l12,12 M-104.3,-0.8 l-12,12"/></g><text class="stamp" id="iso-stamp-fenced" x="0.0" y="84.0" text-anchor="middle">FENCED · 쓰기 차단</text><g class="zone-label" id="iso-gh-label"><text class="zone-t" x="229.7" y="-34.5" text-anchor="middle">GitHub Pages</text><text class="zone-s" x="229.7" y="-15.5" text-anchor="middle">0초 비상 접수 (dr.ktci5.kr)</text></g><g class="zone-label" id="iso-kt-label"><text class="zone-t" x="-240.9" y="26.6" text-anchor="middle">KT Cloud</text><text class="zone-s" x="-240.9" y="45.6" text-anchor="middle">입구 전용</text></g><g class="zone-label" id="iso-onprem-label"><text class="zone-t" x="0.0" y="189.1" text-anchor="middle">온프레미스 OpenStack</text><text class="zone-s" x="0.0" y="208.1" text-anchor="middle">Primary · K3s · MySQL</text></g><g class="zone-label" id="iso-aws-label"><text class="zone-t" x="198.1" y="334.7" text-anchor="middle">AWS</text><text class="zone-s" x="198.1" y="353.7" text-anchor="middle">관제 · DR 대기 · S3 백업</text></g><g class="callout "><circle class="pin" cx="-132.8" cy="-341.9" r="2.2"/><polyline class="leader" points="-132.8,-341.9 -162.8,-361.9 -186.8,-361.9"/><text class="c-t" x="-192.8" y="-357.9" text-anchor="end">사용자 민원 접수</text><text class="c-s" x="-192.8" y="-339.9" text-anchor="end">HTTPS</text></g><g class="callout "><circle class="pin" cx="-101.3" cy="-300.3" r="2.2"/><polyline class="leader" points="-101.3,-300.3 -61.3,-320.3 -37.3,-320.3"/><text class="c-t" x="-31.3" y="-316.3" text-anchor="start">Cloudflare</text><text class="c-s" x="-31.3" y="-298.3" text-anchor="start">Anycast WAF · Worker</text></g><g class="callout "><circle class="pin" cx="-236.4" cy="-92.3" r="2.2"/><polyline class="leader" points="-236.4,-92.3 -260.4,-58.3 -284.4,-58.3"/><text class="c-t" x="-290.4" y="-54.3" text-anchor="end">Edge-GW</text><text class="c-s" x="-290.4" y="-36.3" text-anchor="end">Nginx WAF · 14.63.213.214</text></g><g class="callout " id="iso-c-wg"><circle class="pin" cx="-63.0" cy="33.8" r="2.2"/><polyline class="leader" points="-63.0,33.8 -93.0,103.8 -117.0,103.8"/><text class="c-t" x="-123.0" y="107.8" text-anchor="end">WireGuard GW</text><text class="c-s" x="-123.0" y="125.8" text-anchor="end">Inbound 0 · 펜싱</text></g><g class="callout "><circle class="pin" cx="45.0" cy="-26.0" r="2.2"/><polyline class="leader" points="45.0,-26.0 15.0,-76.0 -9.0,-76.0"/><text class="c-t" x="-15.0" y="-72.0" text-anchor="end">K3s 노드 3대</text><text class="c-s" x="-15.0" y="-54.0" text-anchor="end">cp1 · w1 · w2</text></g><g class="callout " id="iso-c-pod"><circle class="pin" cx="-31.5" cy="80.6" r="2.2"/><polyline class="leader" points="-31.5,80.6 -161.5,140.6 -185.5,140.6"/><text class="c-t" x="-191.5" y="144.6" text-anchor="end">app 파드</text><text class="c-s" x="-191.5" y="162.6" text-anchor="end">web · api · notify · audit</text></g><g class="callout " id="iso-c-dbp"><circle class="pin" cx="38.3" cy="79.3" r="2.2"/><polyline class="leader" points="38.3,79.3 98.3,39.3 122.3,39.3"/><text class="c-t" x="128.3" y="43.3" text-anchor="start">MySQL 8.4 Primary</text><text class="c-s" x="128.3" y="61.3" text-anchor="start">GTID · Read/Write</text></g><g class="callout " id="iso-c-ctl"><circle class="pin" cx="231.9" cy="167.7" r="2.2"/><polyline class="leader" points="231.9,167.7 261.9,127.7 285.9,127.7"/><text class="c-t" x="291.9" y="131.7" text-anchor="start">Orchestrator</text><text class="c-s" x="291.9" y="149.7" text-anchor="start">3-Signal 판정</text></g><g class="callout " id="iso-c-dbr"><circle class="pin" cx="168.9" cy="240.5" r="2.2"/><polyline class="leader" points="168.9,240.5 128.9,320.5 104.9,320.5"/><text class="c-t" x="98.9" y="324.5" text-anchor="end">MySQL Replica</text><text class="c-s" x="98.9" y="342.5" text-anchor="end">GTID 비동기 수신</text></g><g class="callout " id="iso-c-gh"><circle class="pin" cx="231.9" cy="-136.5" r="2.2"/><polyline class="leader" points="231.9,-136.5 191.9,-166.5 167.9,-166.5"/><text class="c-t" x="161.9" y="-162.5" text-anchor="end">정적 비상 접수 폼</text><text class="c-s" x="161.9" y="-144.5" text-anchor="end">Black Sky 시 0초 노출</text></g></svg></div>
           </div>
           <div class="dc-detail" id="dc-detail">
             <div class="dc-detail-head">상세 구성 — 서브넷 · 파드 · DB</div>
@@ -1956,7 +1959,7 @@ PORTAL_HTML = """<!DOCTYPE html>
 
             <!-- 외부망 서브넷: WG GW -->
             <div class="arch-subnet" id="subnet-onprem-wg">
-              <div class="subnet-label" style="color:#F7D684;">외부망 서브넷 (공인 IP 없음 · Outbound만)</div>
+              <div class="subnet-label" style="color:#F7D684; font-weight:800;">🌐 [외부망 DMZ] br-ex (FIP 10.11.0.0/24 · WG 터널 종단)</div>
               <div style="display:flex; justify-content:space-between; align-items:center;">
                 <div style="font-size:12px; font-weight:800; color:#fff;">🔐 WireGuard 게이트웨이</div>
                 <span style="font-size:10px; color:#5FD39A;">터널 A·B 발신 · Watchdog</span>
@@ -1966,7 +1969,7 @@ PORTAL_HTML = """<!DOCTYPE html>
 
             <!-- k8s 서브넷: K3s MSA -->
             <div class="arch-subnet" id="subnet-onprem-k8s" style="border-color:#5FD39A;">
-              <div class="subnet-label" style="color:#8FE0B4;">k8s 서브넷 (프라이빗 K3s 클러스터)</div>
+              <div class="subnet-label" style="color:#8FE0B4; font-weight:800;">🏢 [내부망 SERVICE] net-k3s (10.10.1.0/24 · K3s 클러스터)</div>
               <div style="font-size:11px; font-weight:700; color:#9FD3F5; margin-bottom:2px;">
                 ingress-nginx (MetalLB VIP · 경로 라우팅)
               </div>
@@ -1998,16 +2001,16 @@ PORTAL_HTML = """<!DOCTYPE html>
             </div>
 
             <!-- data 서브넷: MySQL Primary -->
-            <div class="arch-subnet" id="subnet-onprem-db" style="border-color:#5FD39A;">
-              <div class="subnet-label" style="color:#8FE0B4;">data 서브넷 (프라이빗 DB 원장)</div>
+            <div class="arch-subnet" id="subnet-onprem-db" style="border-color:#FF7A66; background:rgba(255, 122, 102, 0.05);">
+              <div class="subnet-label" style="color:#FF9E8C; font-weight:800;">🔒 [폐쇄망 ISOLATED] net-data (10.10.2.0/24 · No-Gateway 완전 격리)</div>
               <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="font-size:13px; font-weight:800; color:#fff;">🗄️ MySQL 8.4 Primary</div>
+                <div style="font-size:13px; font-weight:800; color:#fff;">🗄️ MySQL 8.4 Primary (Cinder 영속 볼륨)</div>
                 <span class="menu-badge" id="badge-db-rw" style="background:#5FD39A; color:#fff;">Read / Write</span>
               </div>
               <div style="font-size:11px; color:#D3E0EC; line-height:1.4;">
                 • 스키마: <code>minwon</code> · <code>notify</code> · <code>audit</code><br>
-                • <b>GTID 활성화</b> (유일한 DR 상태 유지 대상)<br>
-                • 복제 전송 ➔ 터널 B (AWS Replica)
+                • <b>L3 인터넷 단절</b> (외부 직접 인바운드/아웃바운드 100% 차단)<br>
+                • 허용: 오직 내부망 <code>10.10.1.0/24:3306</code> 및 터널 B 복제만 허용
               </div>
             </div>
 
@@ -2111,11 +2114,12 @@ PORTAL_HTML = """<!DOCTYPE html>
         <div class="dc-side">
         <!-- 7-STAGE SCENARIO CONTROLLER BUTTONS (v3.0 drawio Page 03 반영) -->
         <div style="background:#0F2D4F; padding:14px; border-radius:0; border:1px solid #4F739A;">
-          <div style="font-size:11px; font-weight:700; color:#B4C6D8; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">
-            장애대응 사다리 — 시나리오 선택
+          <div style="font-size:11px; font-weight:700; color:#B4C6D8; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px; display:flex; justify-content:space-between;">
+            <span>🎮 단계별 시뮬레이션 (미선택 시 기본 전체 흐름 작동 ➔ 단계 선택 시 해당 단계 우선 작동):</span>
+            <span style="color:#9FD3F5; font-size:11px;">구성도의 각 컴포넌트를 클릭하면 실시간 제어 액션이 작동합니다.</span>
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;" id="dr-v3-btns">
-            <button class="btn-top" id="btn-v3-normal" style="background:#5FD39A; color:#fff; font-weight:700;" onclick="setV3Stage('normal')" title="🟢 1. NORMAL (평시 온프렘 Primary)">🟢 1 · 평시 NORMAL</button>
+            <button class="btn-top" id="btn-v3-normal" style="background:#5FD39A; color:#fff; font-weight:700;" onclick="setV3Stage('normal')" title="🌐 전체 통합 흐름 (기본 정상)">🟢 1 · 평시 NORMAL</button>
             <button class="btn-top" id="btn-v3-l1" onclick="setV3Stage('l1')" title="🟡 2. L1: Pod 크래시 자가치유 (초 단위)">🟡 2 · L1 Pod 자가치유</button>
             <button class="btn-top" id="btn-v3-l2" onclick="setV3Stage('l2')" title="🟠 3. L2: 서비스 1분 무응답 ➔ 터널 B Ansible 재기동 (≤3분)">🟠 3 · L2 Ansible 재기동</button>
             <button class="btn-top" id="btn-v3-path" onclick="setV3Stage('path')" title="🔵 4. 경로장애: 터널 A 단절 (S1·S3 실패, S2 정상) ➔ 터널 C·B 우회 (DB 승격 금지)">🔵 4 · 경로장애 우회</button>
@@ -2387,7 +2391,7 @@ PORTAL_HTML = """<!DOCTYPE html>
       overview: { title: "📊 통합 인프라 개요", url: "" },
       ktvm: { title: "⚡ KT Cloud VM 전원 및 자원 관리", url: "" },
       osvm: { title: "🖥️ 온프레미스 OpenStack VM 전원 및 자원 관리", url: "" },
-      dr: { title: "🛡️ 하이브리드 멀티클라우드 DR & 장애복구 관제 센터", url: "" },
+      dr: { title: "🛡️ 하이브리드 멀티클라우드 운영 대시보드", url: "" },
       horizon: { title: "☁️ OpenStack Horizon IaaS 콘솔", url: "https://horizon.ktci5.kr/dashboard/project/" },
       grafana: { title: "📈 Grafana 통합 관제 대시보드", url: "https://grafana.ktci5.kr" },
       argocd: { title: "🚀 Argo CD GitOps 배포 콘솔", url: "https://argocd.ktci5.kr" },
@@ -3707,9 +3711,41 @@ PORTAL_HTML = """<!DOCTYPE html>
 
   var svg = el('svg', { 'class': 't2-svg', role: 'img', 'aria-label': '민원불패 v2.5.1 2D 연결 구성도', preserveAspectRatio: 'xMidYMid meet' });
   host.appendChild(svg);
-  var gZones = el('g', {}, svg), gLinks = el('g', {}, svg), gNodes = el('g', {}, svg), gMarks = el('g', {}, svg), gFx = el('g', {}, svg);
+  var gZones = el('g', {}, svg), gLinks = el('g', {}, svg), gNodes = el('g', {}, svg), gReach = el('g', { id: 't2-reachability', 'class': 't2-reach', style: 'display:none;' }, svg), gMarks = el('g', {}, svg), gFx = el('g', {}, svg);
   function applyVB() { svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h); }
   applyVB();
+
+  // ---------- 폐쇄망/오픈스택 네트워크 격리 및 Argo CD · Grafana 도달 범위 오버레이 ----------
+  // 1) 폐쇄망 DB 격리 경계벽 (붉은색 점선 & 자물쇠)
+  var rIsoBox = el('rect', { x: 994, y: 300, width: 227, height: 412, fill: 'rgba(255, 122, 102, 0.08)', stroke: '#FF7A66', 'stroke-width': '3.5', 'stroke-dasharray': '8 5' }, gReach);
+  var rIsoTag = el('g', {}, gReach);
+  el('rect', { x: 1005, y: 310, width: 205, height: 26, fill: '#FF7A66', rx: 3 }, rIsoTag);
+  txt(rIsoTag, 1107, 327, '🔒 [폐쇄망] 완전 격리 (No-GW)', '', 'middle');
+
+  // 2) Argo CD GitOps 도달 경로 (보라색 네온선)
+  var rArgoPath = el('path', { d: 'M770,742 L770,400 L690,395', fill: 'none', stroke: '#B08CFF', 'stroke-width': '3', 'stroke-dasharray': '6 4' }, gReach);
+  var rArgoTag = el('g', {}, gReach);
+  el('rect', { x: 700, y: 705, width: 170, height: 22, fill: '#B08CFF', rx: 3 }, rArgoTag);
+  txt(rArgoTag, 785, 720, '🚀 Argo CD 배포 (6443 API)', '', 'middle');
+
+  // 3) Grafana 관제 스크랩 도달 경로 (주황색 네온선)
+  var rGrafPath = el('path', { d: 'M1320,360 L970,360 L800,360 L500,464', fill: 'none', stroke: '#F4C95D', 'stroke-width': '2.5', 'stroke-dasharray': '4 4' }, gReach);
+  var rGrafTag = el('g', {}, gReach);
+  el('rect', { x: 1130, y: 345, width: 175, height: 22, fill: '#D9A93A', rx: 3 }, rGrafTag);
+  txt(rGrafTag, 1217, 360, '📈 Grafana 관제 스크랩 (9100)', '', 'middle');
+
+  window.toggleReachabilityOverlay = function (force) {
+    if (!gReach) return;
+    var cur = gReach.style.display !== 'none';
+    var next = typeof force === 'boolean' ? force : !cur;
+    gReach.style.display = next ? 'inline' : 'none';
+    var btn = document.getElementById('btn-reach-toggle');
+    if (btn) {
+      btn.style.background = next ? '#B08CFF' : 'transparent';
+      btn.style.color = next ? '#fff' : '#B4C6D8';
+      btn.innerText = next ? '📡 도달 범위 & 격리선 숨기기' : '📡 도달 범위 & 격리선 표시';
+    }
+  };
 
   // ---------- 구성 요소 ----------
   var nodes = {}, links = {}, zones = {};
@@ -3755,22 +3791,22 @@ PORTAL_HTML = """<!DOCTYPE html>
   }
 
   // 존 · 서브넷  (열: 인터넷 30–230 | 통로 | KT 270–480 | 통로 | 온프렘 530–1230 | 통로 | AWS 1290–1730 | 우측 통로)
-  txt(gZones, 40, 150, '인터넷', 't2-zone-t');
-  zone('gh', 20, 600, 210, 200, 'GitHub Pages', '0초 비상 접수');
-  zone('kt', 270, 120, 210, 560, 'KT Cloud', '입구 전용 · VM 1대');
-  zone('on', 530, 120, 700, 700, '온프레미스 OpenStack', 'Primary · K3s · MySQL');
-  zone('aws', 1290, 120, 440, 700, 'AWS', '관제 · DR 대기 · 백업');
-  subnet(285, 186, 180, 480, 'Edge-GW VM · k-vm1');
-  subnet(545, 186, 670, 84, '외부망 서브넷 · Outbound만', 'warm');
-  subnet(545, 306, 440, 400, 'k8s 서브넷 · K3s', 'ok');
-  subnet(705, 340, 265, 236, 'app 네임스페이스', 'violet');
-  subnet(705, 592, 265, 100, 'data 네임스페이스');
-  subnet(1000, 306, 215, 400, 'data 서브넷 · DB 원장', 'ok');
-  subnet(545, 720, 670, 80, 'ops 서브넷');
-  subnet(1305, 186, 410, 84, 'WG 서브넷');
-  subnet(1305, 290, 205, 200, '관제 서브넷', 'warm');
-  subnet(1525, 290, 190, 200, '리전 서비스');
-  subnet(1305, 510, 410, 200, 'DR 서브넷 · Pilot-Light', 'warm');
+  txt(gZones, 40, 150, '인터넷 (WAN)', 't2-zone-t');
+  zone('gh', 20, 600, 210, 200, 'GitHub Pages', '0초 비상 접수 (dr.ktci5.kr)');
+  zone('kt', 270, 120, 210, 560, 'KT Cloud', '입구 전용 · VM 1대 (14.63.213.214)');
+  zone('on', 530, 120, 700, 700, '온프레미스 OpenStack', 'Primary · K3s · MySQL (3단 격리망)');
+  zone('aws', 1290, 120, 440, 700, 'AWS (ap-northeast-2)', '관제 · DR 대기 · S3 백업');
+  subnet(285, 186, 180, 480, 'Edge-GW VM · k-vm1 (Nginx+WAF)');
+  subnet(545, 186, 670, 84, '🌐 [외부망 DMZ] br-ex (FIP 10.11.0.0/24 · WG 터널 종단)', 'warm');
+  subnet(545, 306, 440, 400, '🏢 [내부망 SERVICE] net-k3s (10.10.1.0/24 · K3s 클러스터)', 'ok');
+  subnet(705, 340, 265, 236, 'app 네임스페이스 (web·api 파드)', 'violet');
+  subnet(705, 592, 265, 100, 'data 네임스페이스 (Redis/MQ)');
+  subnet(1000, 306, 215, 400, '🔒 [폐쇄망 ISOLATED] net-data (10.10.2.0/24 · MySQL DB 원장)', 'warm');
+  subnet(545, 720, 670, 80, '🛠️ [관리망 OPS] ops 서브넷 (Harbor · Argo CD)');
+  subnet(1305, 186, 410, 84, 'WG 서브넷 (10.200.0.0/24 풀메쉬)');
+  subnet(1305, 290, 205, 200, '관제 서브넷 (Prometheus·Grafana)', 'warm');
+  subnet(1525, 290, 190, 200, '리전 서비스 (S3 백업)');
+  subnet(1305, 510, 410, 200, 'DR 서브넷 · Pilot-Light (Replica 2)', 'warm');
 
   // 연결 (먼저 그려서 노드 아래로) — 링크마다 전용 통로, 제목 구간을 피해 진입
   link('cit_cf', [[85, 230], [85, 330]], 'req');
@@ -3808,7 +3844,7 @@ PORTAL_HTML = """<!DOCTYPE html>
   txt(gLinks, 95, 268, 'minwon.ktci5.kr', 't2-dns');
   txt(gLinks, 95, 286, '프록시 · KT Edge', 't2-dns s');
   // 노드
-  node('citizen', 40, 170, 120, 60, '시민', 'HTTPS 민원 접수', { zone: '인터넷', lines: ['https://minwon.ktci5.kr 접속'] });
+  node('citizen', 40, 170, 120, 60, '사용자', 'HTTPS 민원 접수', { zone: '인터넷', lines: ['https://minwon.ktci5.kr 접속'] });
   node('cf', 40, 330, 170, 74, 'Cloudflare', 'WAF · 봇/IP 제한', { zone: '인터넷 엣지', lines: ['minwon.ktci5.kr → 14.63.213.214 (프록시 · WAF/DDoS)', 'origin-kt.ktci5.kr → 같은 IP (DNS 전용 · 오리진 노출)', '터널 호스트명 8개 → minwon-tunnel', 'Edge 503 · 오리진 장애 시 Worker가 비상 폼 안내'] });
   node('ops', 40, 470, 90, 46, '운영자', '', { zone: '인터넷', lines: ['관리 화면은 Cloudflare Tunnel로만 접속', 'figteam.ktci5.kr 통합 로그인(SSO)'] });
   node('gh', 40, 666, 170, 74, '비상 접수 폼', 'dr.ktci5.kr', { zone: 'GitHub Pages', subnet: 'subnet-gh-fallback', lines: ['폭주 초과분 · Black Sky 시 0초 노출', '민원 데이터 비상 보관'] });
@@ -3857,7 +3893,7 @@ PORTAL_HTML = """<!DOCTYPE html>
   // ===== 시나리오별 흐름 =====  [링크 | null, 방향, 설명, 노드]
   var F = {
     normal: { hops: [
-      ['cit_cf', 1, '시민 → Cloudflare · HTTPS, WAF'],
+      ['cit_cf', 1, '사용자 → Cloudflare · HTTPS, WAF'],
       ['cf_ng', 1, 'Cloudflare → KT Edge Nginx · TLS 종료'],
       ['ng_q', 1, 'Nginx → 접수 대기열 (평시엔 즉시 통과)'],
       ['q_wg', 1, '대기열 → WG 종단'],
@@ -3896,7 +3932,7 @@ PORTAL_HTML = """<!DOCTYPE html>
       [null, 0, '헬스체크 통과 → NORMAL 복귀 (≤ 3분)', 'web1']
     ], bg: [] },
     path: { hops: [
-      ['cit_cf', 1, '시민 → Cloudflare'],
+      ['cit_cf', 1, '사용자 → Cloudflare'],
       ['cf_ng', 1, 'Cloudflare → KT Edge'],
       ['ng_q', 1, 'Nginx → 접수 대기열'],
       [null, 0, '터널 A 단절 · S1·S3 실패, S2 정상 → 온프렘 생존', 'wgkt'],
@@ -3914,7 +3950,7 @@ PORTAL_HTML = """<!DOCTYPE html>
       ['aws_s3', 1, 'S3 binlog와 대조 · 누락 0 검증'],
       [null, 0, 'Replica 승격 · super_read_only = OFF', 'replica'],
       [null, 0, 'Pilot-Light EC2 확장 · 앱 기동', 'ec2'],
-      ['cit_cf', 1, '시민 → Cloudflare'],
+      ['cit_cf', 1, '사용자 → Cloudflare'],
       ['cf_ng', 1, 'Cloudflare → KT Edge (upstream 전환)'],
       ['tC', 1, '터널 C → AWS WG'],
       ['aws_ec2', 1, 'AWS WG → Pilot-Light EC2'],
@@ -3933,7 +3969,7 @@ PORTAL_HTML = """<!DOCTYPE html>
       ['api_db', 1, 'intake-api → MySQL Primary (원복 완료)']
     ], bg: [] },
     bs: { hops: [
-      ['cit_cf', 1, '시민 → Cloudflare'],
+      ['cit_cf', 1, '사용자 → Cloudflare'],
       ['cf_ng', 1, 'Origin 502/504 연속 (온프렘 · AWS 전면 두절)'],
       [null, 0, 'Cloudflare Worker가 오류를 가로챔', 'cf'],
       ['cf_gh', 1, 'GitHub Pages 비상 접수 폼 0초 노출 · 민원 비상 보관'],
@@ -4195,6 +4231,97 @@ PORTAL_HTML = """<!DOCTYPE html>
       b.addEventListener('click', function () { if (window.showDrDetail) window.showDrDetail(i.subnet); syncDetail(); });
       row.appendChild(b);
     }
+
+    // [추가] 실시간 시스템 제어 액션 버튼 (켜고 끄기 / 절체 / 펜싱 / 크래시)
+    var actBox = document.createElement('div');
+    actBox.style.cssText = 'margin-top:12px; padding:10px; border-radius:4px; background:#0F2D4F; border:1px solid #4F739A; display:flex; flex-direction:column; gap:6px;';
+    var actT = document.createElement('div');
+    actT.style.cssText = 'font-size:11px; font-weight:700; color:#9FD3F5; display:flex; justify-content:space-between; align-items:center;';
+    actT.innerHTML = '<span>⚡ 실시간 시스템 제어 액션</span><span style="font-size:10px; color:#8AA5C2;">클릭 시 즉시 반영</span>';
+    actBox.appendChild(actT);
+
+    var actBtns = document.createElement('div');
+    actBtns.style.cssText = 'display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;';
+
+    if (id === 'nginx' || id === 'wgkt') {
+      var bRoute = document.createElement('button'); bRoute.type = 'button';
+      bRoute.style.cssText = 'background:#3A78B5; color:#fff; font-size:11px; padding:4px 8px; border:none; cursor:pointer;';
+      bRoute.textContent = '🔄 KT Edge 터널 A ↔ C 절체';
+      bRoute.onclick = function() {
+        if (window.setV3Stage) window.setV3Stage(window.currentV3Stage === 'l3' ? 'normal' : 'l3');
+      };
+      actBtns.appendChild(bRoute);
+    } else if (id === 'mysql') {
+      var bFence = document.createElement('button'); bFence.type = 'button';
+      bFence.style.cssText = 'background:#E8604C; color:#fff; font-size:11px; padding:4px 8px; border:none; cursor:pointer;';
+      bFence.textContent = '🛑 Watchdog 펜싱 실행 (Primary 쓰기 차단)';
+      bFence.onclick = function() {
+        if (window.setV3Stage) window.setV3Stage('l3');
+      };
+      actBtns.appendChild(bFence);
+      var bNormal = document.createElement('button'); bNormal.type = 'button';
+      bNormal.style.cssText = 'background:#4CB985; color:#fff; font-size:11px; padding:4px 8px; border:none; cursor:pointer;';
+      bNormal.textContent = '🟢 쓰기 정상화 (복구)';
+      bNormal.onclick = function() {
+        if (window.setV3Stage) window.setV3Stage('normal');
+      };
+      actBtns.appendChild(bNormal);
+    } else if (id === 'replica') {
+      var bPromote = document.createElement('button'); bPromote.type = 'button';
+      bPromote.style.cssText = 'background:#C8962E; color:#fff; font-size:11px; padding:4px 8px; border:none; cursor:pointer;';
+      bPromote.textContent = '⚡ AWS Replica 승격 (super_read_only=OFF)';
+      bPromote.onclick = function() {
+        if (window.setV3Stage) window.setV3Stage('l3');
+      };
+      actBtns.appendChild(bPromote);
+    } else if (id === 'api1' || id === 'api2' || id === 'web1' || id === 'web2') {
+      var bCrash = document.createElement('button'); bCrash.type = 'button';
+      bCrash.style.cssText = 'background:#E8604C; color:#fff; font-size:11px; padding:4px 8px; border:none; cursor:pointer;';
+      bCrash.textContent = '💥 L1 파드 크래시 유발 (/chaos/crash)';
+      bCrash.onclick = function() {
+        if (window.triggerChaosCrash) window.triggerChaosCrash();
+        else if (window.setV3Stage) window.setV3Stage('l1');
+      };
+      actBtns.appendChild(bCrash);
+      var bRestart = document.createElement('button'); bRestart.type = 'button';
+      bRestart.style.cssText = 'background:#3A78B5; color:#fff; font-size:11px; padding:4px 8px; border:none; cursor:pointer;';
+      bRestart.textContent = '↻ K8s 롤링 재시작';
+      bRestart.onclick = function() {
+        if (window.setV3Stage) window.setV3Stage('normal');
+      };
+      actBtns.appendChild(bRestart);
+    } else if (id === 'onwg' || id === 'gpu' || id === 'ingress') {
+      var bStopVm = document.createElement('button'); bStopVm.type = 'button';
+      bStopVm.style.cssText = 'background:#E8604C; color:#fff; font-size:11px; padding:4px 8px; border:none; cursor:pointer;';
+      bStopVm.textContent = '🛑 OpenStack VM 전원 끄기';
+      bStopVm.onclick = function() {
+        if (confirm('온프레미스 VM 전원을 차단하시겠습니까? (L2 장애 시뮬레이션)')) {
+          if (window.setV3Stage) window.setV3Stage('l2');
+        }
+      };
+      actBtns.appendChild(bStopVm);
+      var bStartVm = document.createElement('button'); bStartVm.type = 'button';
+      bStartVm.style.cssText = 'background:#4CB985; color:#fff; font-size:11px; padding:4px 8px; border:none; cursor:pointer;';
+      bStartVm.textContent = '⚡ VM 전원 켜기 (Start)';
+      bStartVm.onclick = function() {
+        if (window.setV3Stage) window.setV3Stage('normal');
+      };
+      actBtns.appendChild(bStartVm);
+    } else if (id === 'ctl') {
+      var bProbe = document.createElement('button'); bProbe.type = 'button';
+      bProbe.style.cssText = 'background:#B08CFF; color:#fff; font-size:11px; padding:4px 8px; border:none; cursor:pointer;';
+      bProbe.textContent = '🔍 3-Signal 관제 즉시 판정';
+      bProbe.onclick = function() {
+        if (window.addDrLog) window.addDrLog('[ORCHESTRATOR] 3-Signal 판정: S1=PASS, S2=PASS, S3=PASS (정상 상태 확인)', 'success');
+      };
+      actBtns.appendChild(bProbe);
+    }
+
+    if (actBtns.children.length > 0) {
+      actBox.appendChild(actBtns);
+      card.appendChild(actBox);
+    }
+
     var x = document.createElement('button'); x.type = 'button'; x.textContent = '닫기';
     x.addEventListener('click', function () { card.hidden = true; });
     row.appendChild(x); card.appendChild(row);

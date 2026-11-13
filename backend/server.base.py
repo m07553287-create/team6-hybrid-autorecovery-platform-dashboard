@@ -927,11 +927,11 @@ PORTAL_HTML = """<!DOCTYPE html>
           <span class="menu-badge">Live</span>
         </li>
         
-        <div class="menu-header">DR & 고가용성 (HA)</div>
+        <div class="menu-header">운영 & 고가용성 (HA)</div>
         <li class="menu-item" onclick="switchTab('dr')">
           <span class="icon">🛡️</span>
-          <span>DR 장애복구 관제</span>
-          <span class="menu-badge" style="background:#e11d48;color:#fff;">Failover</span>
+          <span>운영 대시보드</span>
+          <span class="menu-badge" style="background:#e11d48;color:#fff;">Live</span>
         </li>
 
         <div class="menu-header">인프라 & 가상화</div>
@@ -1025,15 +1025,15 @@ PORTAL_HTML = """<!DOCTYPE html>
           <div class="svc-card" style="border-color: rgba(225, 29, 72, 0.4);">
             <div class="svc-card-header">
               <div>
-                <div class="svc-title" style="color:#fda4af;">🛡️ DR & 장애복구 관제 센터</div>
-                <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">L1~L4 다계층 자동복구 & 0초 GitHub Pages Fallback</div>
+                <div class="svc-title" style="color:#fda4af;">🛡️ 운영 대시보드</div>
+                <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">L1~L4 다계층 자동복구, 실시간 제어 & 0초 비상 접수</div>
               </div>
-              <span class="svc-type" style="background:#e11d48; color:#fff;">Active-Standby</span>
+              <span class="svc-type" style="background:#e11d48; color:#fff;">Live Ops</span>
             </div>
             <div class="svc-desc">Cloudflare ➔ KT Cloud Edge ➔ 온프렘 Primary ➔ AWS DR 4단계 장애 대응 흐름 및 실시간 토폴로지 관제.</div>
             <div class="svc-footer">
               <span style="color:#34d399;">현재 경로: On-Prem Primary (RW) 🟢</span>
-              <button class="btn-launch" style="background:#e11d48;" onclick="switchTab('dr')">DR 관제 열기 →</button>
+              <button class="btn-launch" style="background:#e11d48;" onclick="switchTab('dr')">대시보드 열기 →</button>
             </div>
           </div>
 
@@ -1377,12 +1377,12 @@ PORTAL_HTML = """<!DOCTYPE html>
         </div>
       </section>
 
-                  <!-- 4. v3.0 DRAWIO TECHNICAL ARCHITECTURE & DR CONTROL PANEL -->
+                  <!-- 4. v3.0 DRAWIO TECHNICAL ARCHITECTURE & OPERATION DASHBOARD -->
       <section id="dr-panel" style="display: none;">
         <div class="overview-hero" style="background: linear-gradient(135deg, rgba(212, 147, 15, 0.2), rgba(15, 23, 42, 0.85)); border: 1px solid rgba(212, 147, 15, 0.4);">
           <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
             <div>
-              <h2 style="color:#fde68a;">민원불패 — 전체 아키텍처 v3.0 실시간 동적 관제 센터</h2>
+              <h2 style="color:#fde68a;">민원불패 — 통합 운영 대시보드 (실시간 동적 제어 & 관제)</h2>
               <p style="margin-top:4px;"><b>설계문서 v3.0 drawio</b> 명세 100% 구현: KT Cloud Edge-GW(입구) ↔ WireGuard 터널 3개 메쉬 ↔ 온프레미스 K8s MSA & MySQL Primary ↔ AWS DR 관제 스택 & Orchestrator 상태 머신.</p>
             </div>
             <div style="display:flex; gap:8px;">
@@ -1395,17 +1395,20 @@ PORTAL_HTML = """<!DOCTYPE html>
 
         <!-- AUTOMATED 5s PLAYBACK & FLOW VELOCITY CONTROLLER -->
         <div style="background:#0f172a; padding:14px 18px; border-radius:12px; border:1px solid #334155; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;">
-          <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
             <button id="btn-dr-autoplay" class="btn-top" style="background:#0284c7; color:#fff; font-weight:800; font-size:12.5px; padding:8px 16px; border-radius:6px; cursor:pointer; display:flex; align-items:center; gap:6px;" onclick="toggleDrAutoPlay()">
               <span id="dr-autoplay-icon">▶</span>
-              <span id="dr-autoplay-label">시뮬레이션 시작 (5초 자동 전환)</span>
+              <span id="dr-autoplay-label">자동 재생 (5초 단위 이동)</span>
+            </button>
+            <button id="btn-reach-toggle" class="btn-top" style="background:transparent; color:#38bdf8; border:1px solid #38bdf8; font-weight:700; font-size:12px; padding:7px 14px; border-radius:6px; cursor:pointer;" onclick="window.toggleReachabilityOverlay && window.toggleReachabilityOverlay()">
+              📡 도달 범위 & 격리선 표시
             </button>
             <div style="display:flex; flex-direction:column; gap:4px;">
               <div style="display:flex; align-items:center; gap:8px;">
-                <span style="font-size:11px; font-weight:700; color:#94a3b8;">5초 전환 진행:</span>
-                <span id="dr-timer-count" style="font-size:11px; font-weight:800; color:#38bdf8;">0.0s / 5.0s (정지 상태)</span>
+                <span style="font-size:11px; font-weight:700; color:#94a3b8;">5초 진행 상태:</span>
+                <span id="dr-timer-count" style="font-size:11px; font-weight:800; color:#38bdf8;">0.0s / 5.0s (기본 수동 모드)</span>
               </div>
-              <div style="width:160px; height:6px; background:#1e293b; border-radius:3px; overflow:hidden;">
+              <div style="width:140px; height:6px; background:#1e293b; border-radius:3px; overflow:hidden;">
                 <div id="dr-timer-progress" style="width:0%; height:100%; background:#38bdf8; transition:width 0.1s linear;"></div>
               </div>
             </div>
@@ -1431,12 +1434,13 @@ PORTAL_HTML = """<!DOCTYPE html>
 
         <!-- 7-STAGE SCENARIO CONTROLLER BUTTONS (v3.0 drawio Page 03 반영) -->
         <div style="background:#131c2e; padding:14px; border-radius:12px; border:1px solid #334155;">
-          <div style="font-size:11px; font-weight:700; color:#94a3b8; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">
-            🎮 v3.0 장애대응 사다리 & 상태 머신 시뮬레이션 (시나리오를 클릭하세요):
+          <div style="font-size:11px; font-weight:700; color:#94a3b8; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px; display:flex; justify-content:space-between;">
+            <span>🎮 단계별 시뮬레이션 (미선택 시 기본 전체 흐름 작동 ➔ 단계 선택 시 해당 단계 우선 작동):</span>
+            <span style="color:#38bdf8; font-size:11px;">구성도의 각 컴포넌트를 클릭하면 실시간 제어 액션이 작동합니다.</span>
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;" id="dr-v3-btns">
             <button class="btn-top" id="btn-v3-normal" style="background:#10b981; color:#fff; font-weight:700;" onclick="setV3Stage('normal')">
-              🟢 1. NORMAL (평시 온프렘 Primary)
+              🌐 전체 통합 흐름 (기본 정상)
             </button>
             <button class="btn-top" id="btn-v3-l1" onclick="setV3Stage('l1')">
               🟡 2. L1: Pod 크래시 자가치유 (초 단위)
@@ -1519,7 +1523,7 @@ PORTAL_HTML = """<!DOCTYPE html>
 
             <!-- 외부망 서브넷: WG GW -->
             <div class="arch-subnet" id="subnet-onprem-wg">
-              <div class="subnet-label" style="color:#fbbf24;">외부망 서브넷 (공인 IP 없음 · Outbound만)</div>
+              <div class="subnet-label" style="color:#fbbf24; font-weight:800;">🌐 [외부망 DMZ] br-ex (FIP 10.11.0.0/24 · WG 터널 종단)</div>
               <div style="display:flex; justify-content:space-between; align-items:center;">
                 <div style="font-size:12px; font-weight:800; color:#fff;">🔐 WireGuard 게이트웨이</div>
                 <span style="font-size:10px; color:#10b981;">터널 A·B 발신 · Watchdog</span>
@@ -1529,7 +1533,7 @@ PORTAL_HTML = """<!DOCTYPE html>
 
             <!-- k8s 서브넷: K3s MSA -->
             <div class="arch-subnet" id="subnet-onprem-k8s" style="border-color:#10b981;">
-              <div class="subnet-label" style="color:#34d399;">k8s 서브넷 (프라이빗 K3s 클러스터)</div>
+              <div class="subnet-label" style="color:#34d399; font-weight:800;">🏢 [내부망 SERVICE] net-k3s (10.10.1.0/24 · K3s 클러스터)</div>
               <div style="font-size:11px; font-weight:700; color:#38bdf8; margin-bottom:2px;">
                 ingress-nginx (MetalLB VIP · 경로 라우팅)
               </div>
@@ -1561,16 +1565,16 @@ PORTAL_HTML = """<!DOCTYPE html>
             </div>
 
             <!-- data 서브넷: MySQL Primary -->
-            <div class="arch-subnet" id="subnet-onprem-db" style="border-color:#10b981;">
-              <div class="subnet-label" style="color:#34d399;">data 서브넷 (프라이빗 DB 원장)</div>
+            <div class="arch-subnet" id="subnet-onprem-db" style="border-color:#ef4444; background:rgba(239, 68, 68, 0.05);">
+              <div class="subnet-label" style="color:#f87171; font-weight:800;">🔒 [폐쇄망 ISOLATED] net-data (10.10.2.0/24 · No-Gateway 완전 격리)</div>
               <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="font-size:13px; font-weight:800; color:#fff;">🗄️ MySQL 8.4 Primary</div>
+                <div style="font-size:13px; font-weight:800; color:#fff;">🗄️ MySQL 8.4 Primary (Cinder 영속 볼륨)</div>
                 <span class="menu-badge" id="badge-db-rw" style="background:#10b981; color:#fff;">Read / Write</span>
               </div>
               <div style="font-size:11px; color:#cbd5e1; line-height:1.4;">
                 • 스키마: <code>minwon</code> · <code>notify</code> · <code>audit</code><br>
-                • <b>GTID 활성화</b> (유일한 DR 상태 유지 대상)<br>
-                • 복제 전송 ➔ 터널 B (AWS Replica)
+                • <b>L3 인터넷 단절</b> (외부 직접 인바운드/아웃바운드 100% 차단)<br>
+                • 허용: 오직 내부망 <code>10.10.1.0/24:3306</code> 및 터널 B 복제만 허용
               </div>
             </div>
 
@@ -1933,7 +1937,7 @@ PORTAL_HTML = """<!DOCTYPE html>
       overview: { title: "📊 통합 인프라 개요", url: "" },
       ktvm: { title: "⚡ KT Cloud VM 전원 및 자원 관리", url: "" },
       osvm: { title: "🖥️ 온프레미스 OpenStack VM 전원 및 자원 관리", url: "" },
-      dr: { title: "🛡️ 하이브리드 멀티클라우드 DR & 장애복구 관제 센터", url: "" },
+      dr: { title: "🛡️ 하이브리드 멀티클라우드 운영 대시보드", url: "" },
       horizon: { title: "☁️ OpenStack Horizon IaaS 콘솔", url: "https://horizon.ktci5.kr/dashboard/project/" },
       grafana: { title: "📈 Grafana 통합 관제 대시보드", url: "https://grafana.ktci5.kr" },
       argocd: { title: "🚀 Argo CD GitOps 배포 콘솔", url: "https://argocd.ktci5.kr" },

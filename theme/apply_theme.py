@@ -130,9 +130,9 @@ console = ('<div class="dr-console" id="dr-console">\n'
            '        </div>\n')
 body = body.replace(arch, '        ' + console, 1)
 # 제목 버전
-t_old = '민원불패 — 전체 아키텍처 v3.0 실시간 동적 관제 센터'
+t_old = '민원불패 — 통합 운영 대시보드 (실시간 동적 제어 & 관제)'
 assert body.count(t_old) == 1
-body = body.replace(t_old, '민원불패 — 전체 아키텍처 v2.5.1 실시간 동적 관제 센터')
+body = body.replace(t_old, '민원불패 — 통합 운영 대시보드 v2.5.1 (실시간 동적 제어 & 관제)')
 hook = 'currentV3Stage = stage;'
 assert body.count(hook) == 1
 body = body.replace(hook, hook + "\n      const isoScene = document.getElementById('iso-scene');\n      if (isoScene) isoScene.setAttribute('data-stage', stage);\n      if (window.Topo2D) window.Topo2D.setStage(stage);")
