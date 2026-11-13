@@ -40,7 +40,7 @@ FIGTEAM 포털은 **3대 하이브리드 거점(KT Cloud · 온프렘 OpenStack 
 
 * **브랜드 로고 & 플랫폼 태그**: `FIGTEAM CMP` / `HYBRID CLOUD`
 * **3대 거점 실시간 헬스 칩 (Health Chips)**:
-  * 🟢 **KT Cloud**: `14.63.212.190` (Edge-GW Nginx+WAF 정상)
+  * 🟢 **KT Cloud**: `<KT_EDGE_PUBLIC_IP>` (Edge-GW Nginx+WAF 정상)
   * 🟢 **온프레미스 (OpenStack)**: `10.10.10.8` (K3s 4노드 및 MySQL Primary 활성)
   * 🟡 **AWS DR 리전**: `ap-northeast-2` (Pilot-Light 대기 중)
 * **로그인 사용자 및 세션 제어**: 접속자 권한(Admin) 표시 및 원클릭 안전 로그아웃
@@ -128,7 +128,7 @@ FIGTEAM 포털은 **3대 하이브리드 거점(KT Cloud · 온프렘 OpenStack 
 KT Cloud KOR-Central A 존에 프로비저닝된 진입점 가상머신의 실시간 스펙을 조회합니다.
 
 * **인스턴스명**: `kt-edge-dr-01`
-* **공인 IP / 사설 IP**: `14.63.212.190` / `172.27.0.160`
+* **공인 IP / 사설 IP**: `<KT_EDGE_PUBLIC_IP>` / `172.27.0.160`
 * **스펙**: 1 vCPU / 2,048 MB RAM / 20 GB 루트 디스크 (Rocky Linux 8.10)
 * **포트포워딩 매핑**:
   * SSH (`22000 ➔ 22`), HTTP (`80 ➔ 80`), HTTPS (`443 ➔ 443`), WireGuard (`51820/udp ➔ 51820/udp`)
