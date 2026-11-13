@@ -37,6 +37,7 @@
 
 ## 팀 협업 및 인프라 가이드
 
+- [🛡️ 통합 운영 대시보드 파트별 상세 명세서 (Notion 임베드 최적화)](docs/dashboard-guide.md): Global Header, 2D 인터랙티브 토폴로지, 7단계 시뮬레이터, 3단 망분리, 시스템 제어 액션 툴바, OpenStack/KT Cloud CMP 및 노션 임베드 활용 가이드
 - [📋 KT Cloud 진입점 2인 분업 가이드 및 통합 검증서 (이근규 · 최진태)](docs/kt-cloud-edge-guide.md): KT Cloud Edge-GW VM(`kt-edge-dr-01`) 구축을 위한 2인 역할 분담, 인터페이스 계약표, 11/12~11/13 작업일지 및 4대 합동 Integration Test 실행 매뉴얼
 
 ## 수정 · 빌드
