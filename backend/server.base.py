@@ -3202,7 +3202,6 @@ PORTAL_HTML = """<!DOCTYPE html>
     // ============================================================
     // 5초 자동 시뮬레이션 순환 제어 (Auto-Play / Manual Priority)
     // ============================================================
-    const V3_STAGES = ['normal', 'l1', 'l2', 'path', 'l3', 'l4', 'bs'];
     let drAutoTimer = null;
     let drCountdownTimer = null;
     let drRemainSec = 5;
