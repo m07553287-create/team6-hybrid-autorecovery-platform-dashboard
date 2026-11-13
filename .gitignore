@@ -1,0 +1,13 @@
+# 비밀값 — 저장소에 올리지 않음
+portal_config.json
+ktc_config.json
+openstack_config.json
+*.orig
+.env
+.dev.vars
+# 빌드 부산물
+__pycache__/
+*.pyc
+.wrangler/
+node_modules/
+.DS_Store
