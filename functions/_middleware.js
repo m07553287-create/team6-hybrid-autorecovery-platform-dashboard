@@ -19,13 +19,13 @@ function backendHeaders(request, env) {
   return h;
 }
 
-async function render502(env, request, message) {
+async function renderGatewayError(env, request, message, code = 503) {
   if (env.ASSETS) {
     try {
-      const pageRes = await env.ASSETS.fetch(new URL('/502.html', request.url));
+      const pageRes = await env.ASSETS.fetch(new URL('/503.html', request.url));
       if (pageRes.status === 200) {
         return new Response(pageRes.body, {
-          status: 502,
+          status: code,
           headers: {
             'Content-Type': 'text/html; charset=utf-8',
             'Cache-Control': 'no-store'
@@ -34,8 +34,8 @@ async function render502(env, request, message) {
       }
     } catch (_) {}
   }
-  return new Response(`502 Bad Gateway: ${message || '온프렘 백엔드 연결 불가'}`, {
-    status: 502,
+  return new Response(`503 Service Unavailable: ${message || '온프렘 백엔드 연결 불가'}`, {
+    status: code,
     headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }
   });
 }
@@ -70,10 +70,10 @@ async function toBackend(request, url, env) {
 
   try {
     const res = await fetch(origin + url.pathname + url.search, init);
-    // 백엔드 게이트웨이 에러(502/503/504) 시 HTML 요청이면 커스텀 502 페이지 제공
+    // 백엔드 게이트웨이 에러(502/503/504) 시 HTML 요청이면 커스텀 503 페이지 제공
     if (res.status >= 502 && res.status <= 504) {
       if (isHtml) {
-        return await render502(env, request, `백엔드 상태 코드 ${res.status}`);
+        return await renderGatewayError(env, request, `백엔드 상태 코드 ${res.status}`);
       }
     }
     const out = new Response(res.body, res);
@@ -83,14 +83,14 @@ async function toBackend(request, url, env) {
     return out;
   } catch (err) {
     if (isHtml) {
-      return await render502(env, request, `온프렘 터널 연결 실패 (${err.message})`);
+      return await renderGatewayError(env, request, `온프렘 터널 연결 실패 (${err.message})`);
     }
     return new Response(JSON.stringify({
-      error: 'Bad Gateway',
+      error: 'Service Unavailable',
       message: '온프렘 백엔드 또는 터널 데몬에 연결할 수 없습니다.',
       detail: String(err)
     }), {
-      status: 502,
+      status: 503,
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
     });
   }
@@ -119,7 +119,7 @@ export async function onRequest(context) {
 
   // 1. 에러 페이지 직접 접근은 바로 서빙
   if (p === '/404' || p === '/404.html') return render404(env, request);
-  if (p === '/502' || p === '/502.html') return render502(env, request);
+  if (p === '/502' || p === '/502.html' || p === '/503' || p === '/503.html') return renderGatewayError(env, request, '시스템 점검 및 복구 안내', 200);
 
   // 2. 백엔드 API/SSO 및 로그인 POST 처리
   if (BACKEND_PATH.test(p) || p === '/logout' || (p === '/login' && request.method === 'POST')) {
@@ -140,9 +140,9 @@ export async function onRequest(context) {
   if (p === '/' || p === '/index' || p === '/index.html') {
     const session = await checkSession(request, env);
     if (!session.ok) {
-      // 만약 백엔드 연결 자체가 터널 다운으로 실패한 경우 502 안내
+      // 만약 백엔드 연결 자체가 터널 다운으로 실패한 경우 503 안내
       if (session.error) {
-        return render502(env, request, '온프렘 백엔드 연결 실패로 세션을 확인할 수 없습니다.');
+        return renderGatewayError(env, request, '온프렘 백엔드 연결 실패로 세션을 확인할 수 없습니다.');
       }
       return Response.redirect(new URL('/login', url).toString(), 302);
     }
