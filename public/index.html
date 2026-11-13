@@ -1186,6 +1186,9 @@
             <button class="btn-action btn-refresh" id="btn-os-refresh" onclick="fetchOsVmStatus(true)">
               <span>🔍</span> 상태 새로고침
             </button>
+            <button class="btn-action" id="btn-os-reachability" style="background:#3A78B5; color:#fff; font-weight:700;" onclick="openReachabilityModal()">
+              <span>📡</span> Argo CD · Grafana 도달 범위 확인
+            </button>
             <span id="os-action-spinner" style="display:none; font-size:12px; color:#C3A6FF; margin-left:auto; font-weight:600;">
               ⏳ OpenStack Nova API 작업 처리 중...
             </span>
@@ -1256,6 +1259,42 @@
               <span class="tunnel-badge tunnel-a">터널 A: 평시 요청 (KT↔온프렘)</span>
               <span class="tunnel-badge tunnel-b">터널 B: 복제·관측·L2복구 (AWS↔온프렘)</span>
               <span class="tunnel-badge tunnel-c">터널 C: DR 전환 (KT↔AWS)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- AUTOMATED 5s PLAYBACK & FLOW VELOCITY CONTROLLER -->
+        <div style="background:#0F2D4F; padding:14px 18px; border-radius:0; border:1px solid #4F739A; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;">
+          <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+            <button id="btn-dr-autoplay" class="btn-top" style="background:#3A78B5; color:#fff; font-weight:800; font-size:12.5px; padding:8px 16px; border-radius:0; cursor:pointer; display:flex; align-items:center; gap:6px;" onclick="toggleDrAutoPlay()">
+              <span id="dr-autoplay-icon">▶</span>
+              <span id="dr-autoplay-label">시뮬레이션 시작 (5초 자동 전환)</span>
+            </button>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:11px; font-weight:700; color:#B4C6D8;">5초 전환 진행:</span>
+                <span id="dr-timer-count" style="font-size:11px; font-weight:800; color:#9FD3F5;">0.0s / 5.0s (정지 상태)</span>
+              </div>
+              <div style="width:160px; height:6px; background:#1D4A7A; border-radius:0; overflow:hidden;">
+                <div id="dr-timer-progress" style="width:0%; height:100%; background:#9FD3F5; transition:width 0.1s linear;"></div>
+              </div>
+            </div>
+            <div style="font-size:11px; color:#D3E0EC; background:rgba(29,74,122,0.7); padding:4px 10px; border-radius:0; border:1px solid #6A8BAE;">
+              💡 <b>방어 체계</b>: 1~2단계 <b>자가치유 장애복구</b> (Pod·Ansible) ➔ 3~4단계 <b>광역 DR 절체</b> (AWS Promotion)
+            </div>
+          </div>
+
+          <!-- 동적 트래픽 흐름 속도 인디케이터 (Flow Velocity Gauge) -->
+          <div style="display:flex; align-items:center; gap:16px;">
+            <div style="text-align:right;">
+              <div style="font-size:10px; color:#B4C6D8; font-weight:700; text-transform:uppercase;">트래픽 흐름 속도 (Flow Velocity)</div>
+              <div id="dr-velocity-text" style="font-size:12.5px; font-weight:800; color:#8FE0B4;">⚡ 180 req/s · RTT 4.2ms [VERY FAST]</div>
+            </div>
+            <div id="dr-velocity-meter" style="display:flex; gap:3px; align-items:flex-end; height:24px;">
+              <div class="meter-bar" id="v-bar-1" style="width:4px; height:8px; background:#8FE0B4; border-radius:0;"></div>
+              <div class="meter-bar" id="v-bar-2" style="width:4px; height:14px; background:#8FE0B4; border-radius:0;"></div>
+              <div class="meter-bar" id="v-bar-3" style="width:4px; height:20px; background:#8FE0B4; border-radius:0;"></div>
+              <div class="meter-bar" id="v-bar-4" style="width:4px; height:24px; background:#8FE0B4; border-radius:0;"></div>
             </div>
           </div>
         </div>
@@ -1522,6 +1561,63 @@
             • <b>터널 A 전송</b>: 온프렘 WireGuard 게이트웨이로 단방향 요청 전달 ➔ ingress-nginx ➔ <code>web ×2</code> ➔ <code>minwon-api ×2</code> ➔ <code>MySQL Primary</code> 커밋.<br>
             • <b>터널 B 복제</b>: MySQL GTID 이벤트가 터널 B를 타고 AWS Replica(super_read_only=ON)로 semi-sync 복제(ACK 후 커밋 확정)되고 binlog는 S3로 실시간 백업됩니다.
           </div>
+
+          <!-- INDIVIDUAL POD & COMPONENT LEVEL DRILL-DOWN (개별/파드단위 상세 뷰) -->
+          <div style="margin-top:14px; background:#0C2542; padding:14px; border-radius:0; border:1px solid #4F739A;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <span style="font-size:13px; font-weight:800; color:#E6EEF5;">🔍 개별 인스턴스 및 파드 단위(Pod Level) 실시간 상태</span>
+              <span style="font-size:11px; color:#B4C6D8;">자가치유 장애복구(L1·L2) vs 광역 DR(L3·L4) 단위별 추적</span>
+            </div>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px;">
+              <!-- Pod 1 -->
+              <div style="background:#0F2D4F; border:1px solid #4F739A; padding:10px; border-radius:0;" id="pod-card-w1">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span style="font-size:11px; font-weight:700; color:#9FD3F5;">os-a: k8s-w1 (Pod #1)</span>
+                  <span class="menu-badge" id="badge-pod-w1" style="background:#5FD39A; color:#fff;">RUNNING 🟢</span>
+                </div>
+                <div style="font-size:11px; color:#B4C6D8; margin-top:6px;">
+                  • 역할: 민원 웹/API 컨테이너 #1<br>
+                  • 상태: <span id="txt-pod-w1-status" style="color:#8FE0B4;">정상 처리 중 (0 restart)</span>
+                </div>
+              </div>
+
+              <!-- Pod 2 -->
+              <div style="background:#0F2D4F; border:1px solid #4F739A; padding:10px; border-radius:0;" id="pod-card-w2">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span style="font-size:11px; font-weight:700; color:#9FD3F5;">os-a: k8s-w2 (Pod #2)</span>
+                  <span class="menu-badge" id="badge-pod-w2" style="background:#5FD39A; color:#fff;">RUNNING 🟢</span>
+                </div>
+                <div style="font-size:11px; color:#B4C6D8; margin-top:6px;">
+                  • 역할: 민원 웹/API 컨테이너 #2<br>
+                  • 상태: <span id="txt-pod-w2-status" style="color:#8FE0B4;">정상 트래픽 분산 (0 restart)</span>
+                </div>
+              </div>
+
+              <!-- DB Primary -->
+              <div style="background:#0F2D4F; border:1px solid #4F739A; padding:10px; border-radius:0;" id="pod-card-db">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span style="font-size:11px; font-weight:700; color:#8FE0B4;">os-a: a-db-01 (MySQL)</span>
+                  <span class="menu-badge" id="badge-pod-db" style="background:#5FD39A; color:#fff;">PRIMARY RW 🟢</span>
+                </div>
+                <div style="font-size:11px; color:#B4C6D8; margin-top:6px;">
+                  • 스토리지: Cinder 영속 볼륨 바인딩<br>
+                  • 복제: <span id="txt-pod-db-status" style="color:#8FE0B4;">GTID 스트리밍 송출 (Lag: 0s)</span>
+                </div>
+              </div>
+
+              <!-- AWS DR Replica -->
+              <div style="background:#0F2D4F; border:1px solid #4F739A; padding:10px; border-radius:0;" id="pod-card-aws">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span style="font-size:11px; font-weight:700; color:#F7D684;">aws-dr-01 (Pilot-Light)</span>
+                  <span class="menu-badge" id="badge-pod-aws" style="background:#6A8BAE; color:#fff;">STANDBY RO 🟡</span>
+                </div>
+                <div style="font-size:11px; color:#B4C6D8; margin-top:6px;">
+                  • 파드 상태: <span id="txt-pod-aws-pods" style="color:#B4C6D8;">Replicas: 0 (L3 승격 대기)</span><br>
+                  • DB 복제: <span id="txt-pod-aws-db" style="color:#9FD3F5;">Semi-sync 수신 (ACK 확정)</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
           <div class="dc-tabpanel dc-drill" id="dc-tab-drill" hidden><p class="dc-drill-note">실제 클러스터에 영향을 주는 명령입니다. 실행 전 확인 창이 뜹니다.</p>
 
@@ -1558,15 +1654,142 @@
             <span id="frame-title-text">콘솔 로딩 중...</span>
           </div>
           <div class="frame-actions">
+            <button class="tool-btn" onclick="toggleSetupGuide()">📋 설정 & 접근 가이드</button>
             <button class="tool-btn" onclick="reloadFrame()">↻ 새로고침</button>
             <button class="tool-btn" onclick="toggleFullscreen()">⛶ 전체화면</button>
             <a id="external-link-btn" href="#" target="_blank" class="tool-btn">↗ 새 탭으로 열기</a>
           </div>
         </div>
+
+        <!-- DEFAULT SETUP & REACHABILITY GUIDE PANEL (폐쇄망 표준 설정 및 대체 뷰) -->
+        <div id="frame-setup-guide" style="display:none; background:#0F2D4F; border-bottom:1px solid #4F739A; padding:14px 20px; font-size:12px; color:#D3E0EC;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+            <div>
+              <span style="font-size:14px; font-weight:800; color:#fff;" id="guide-service-title">폐쇄망 서비스 기본 설정</span>
+              <span class="menu-badge" id="guide-service-badge" style="background:#3A78B5; color:#fff; margin-left:8px;">CLOSED-NETWORK</span>
+            </div>
+            <button class="btn-top" style="padding:2px 8px; font-size:11px;" onclick="toggleSetupGuide(false)">✕ 접기</button>
+          </div>
+          <div id="guide-service-body" style="line-height:1.6;">
+            <!-- 동적 삽입 내용 -->
+          </div>
+        </div>
+
         <div class="iframe-wrapper">
           <iframe id="console-frame" src="about:blank" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
         </div>
       </section>
+
+      <!-- 4. REACHABILITY MATRIX MODAL POPUP (#osvm 도달 범위 확인) -->
+      <div id="reachability-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(10,15,30,0.85); z-index:9999; backdrop-filter:blur(4px); align-items:center; justify-content:center;">
+        <div style="background:#0F2D4F; border:1px solid #9FD3F5; width:92%; max-width:880px; max-height:90vh; border-radius:0; overflow-y:auto; box-shadow:0 20px 40px rgba(0,0,0,0.6); display:flex; flex-direction:column;">
+          <!-- Modal Header -->
+          <div style="padding:16px 20px; border-bottom:1px solid #4F739A; display:flex; justify-content:space-between; align-items:center; background:#0F2D4F;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="font-size:22px;">📡</span>
+              <div>
+                <div style="font-size:15px; font-weight:800; color:#fff;">폐쇄망·오픈스택 네트워크 격리 및 Argo CD · Grafana 도달 범위 검증</div>
+                <div style="font-size:11px; color:#B4C6D8;">WireGuard 10.200.0.0/24 풀메쉬 & OpenStack OVN (외부망·내부망·폐쇄망) 경로 추적</div>
+              </div>
+            </div>
+            <button onclick="closeReachabilityModal()" style="background:transparent; border:none; color:#B4C6D8; font-size:20px; cursor:pointer;">✕</button>
+          </div>
+
+          <!-- Modal Body -->
+          <div style="padding:20px; display:flex; flex-direction:column; gap:18px;">
+            <!-- Top Diagram Card -->
+            <div style="background:#0C2542; border:1px solid #4F739A; border-radius:0; padding:16px;">
+              <div style="font-size:13px; font-weight:700; color:#9FD3F5; margin-bottom:10px;">🗺️ 영역별 도달 범위 토폴로지 (L2/L3 OVN & WireGuard 터널)</div>
+              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:12px;">
+                <!-- Argo CD Reachability -->
+                <div style="background:#0F2D4F; border:1px solid #4F739A; border-radius:0; padding:12px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:12px; font-weight:800; color:#f43f5e;">🚀 Argo CD Hub (b-k3s-01)</span>
+                    <span class="menu-badge" style="background:#FF6B81; color:#fff;">GitOps Hub</span>
+                  </div>
+                  <div style="font-size:11px; color:#D3E0EC; margin-top:8px; line-height:1.6;">
+                    • <b>출발지 IP</b>: <code>10.21.0.10:8080</code> (os-b FIP)<br>
+                    • ➔ <b>os-a k3s 마스터</b> (<code>10.10.1.10:6443</code>): <span style="color:#8FE0B4; font-weight:700;">도달 가능 ✅</span> (파드 자동 배포)<br>
+                    • ➔ <b>aws-dr k3s</b> (<code>10.200.0.22:6443</code>): <span style="color:#8FE0B4; font-weight:700;">도달 가능 ✅</span> (DR 파드 동기화)<br>
+                    • ➔ <b>폐쇄망 MySQL</b> (<code>10.10.2.10:3306</code>): <span style="color:#FF7A66; font-weight:700;">도달 차단 🚫</span> (L3 No-Gateway)
+                  </div>
+                </div>
+
+                <!-- Grafana Reachability -->
+                <div style="background:#0F2D4F; border:1px solid #4F739A; border-radius:0; padding:12px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:12px; font-weight:800; color:#F4C95D;">📈 Grafana 관제 (aws-ctl-01)</span>
+                    <span class="menu-badge" style="background:#D9A93A; color:#fff;">Observability</span>
+                  </div>
+                  <div style="font-size:11px; color:#D3E0EC; margin-top:8px; line-height:1.6;">
+                    • <b>출발지 IP</b>: <code>10.200.0.21:3000</code> (AWS WG IP)<br>
+                    • ➔ <b>6노드 Node Exporter</b> (<code>:9100</code>): <span style="color:#8FE0B4; font-weight:700;">도달 가능 ✅</span> (WG 풀메쉬 수집)<br>
+                    • ➔ <b>k3s API & cAdvisor</b> (<code>:10250</code>): <span style="color:#8FE0B4; font-weight:700;">도달 가능 ✅</span> (Pod 메트릭)<br>
+                    • ➔ <b>폐쇄망 MySQL 포트</b> (<code>:3306</code>): <span style="color:#F4C95D; font-weight:700;">경유 수집 🟡</span> (mysqld_exporter 경유)
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Reachability Matrix Table -->
+            <div>
+              <div style="font-size:13px; font-weight:700; color:#D3E0EC; margin-bottom:8px;">📊 오픈스택 망분리별 통신 허용 / 차단 매트릭스 (Security Group & OVN ACL)</div>
+              <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; font-size:11.5px; text-align:left; color:#D3E0EC;">
+                  <thead>
+                    <tr style="background:#1D4A7A; color:#B4C6D8; border-bottom:1px solid #6A8BAE;">
+                      <th style="padding:8px 10px;">망 구분</th>
+                      <th style="padding:8px 10px;">서브넷 대역</th>
+                      <th style="padding:8px 10px;">배치 컴포넌트</th>
+                      <th style="padding:8px 10px;">Argo CD 도달</th>
+                      <th style="padding:8px 10px;">Grafana 도달</th>
+                      <th style="padding:8px 10px;">외부 인터넷 (WAN)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style="border-bottom:1px solid #4F739A;">
+                      <td style="padding:8px 10px; font-weight:700; color:#9FD3F5;">1. 외부망 (br-ex)</td>
+                      <td style="padding:8px 10px;"><code>10.11.0.0/24</code></td>
+                      <td style="padding:8px 10px;">WG GW, Ingress VIP (MetalLB)</td>
+                      <td style="padding:8px 10px; color:#8FE0B4;">허용 (FIP 접근)</td>
+                      <td style="padding:8px 10px; color:#8FE0B4;">허용 (WG 터널)</td>
+                      <td style="padding:8px 10px; color:#8FE0B4;">NAT 허용</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #4F739A;">
+                      <td style="padding:8px 10px; font-weight:700; color:#8FE0B4;">2. 내부망 (net-k3s)</td>
+                      <td style="padding:8px 10px;"><code>10.10.1.0/24</code></td>
+                      <td style="padding:8px 10px;">k3s Master/Worker, MSA 웹/API Pods</td>
+                      <td style="padding:8px 10px; color:#8FE0B4; font-weight:700;">허용 (6443 API)</td>
+                      <td style="padding:8px 10px; color:#8FE0B4; font-weight:700;">허용 (9100/10250)</td>
+                      <td style="padding:8px 10px; color:#F4C95D;">아웃바운드만 허용</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #4F739A; background:rgba(255, 122, 102, 0.08);">
+                      <td style="padding:8px 10px; font-weight:700; color:#FF7A66;">3. 폐쇄망 (net-data)</td>
+                      <td style="padding:8px 10px;"><code>10.10.2.0/24</code></td>
+                      <td style="padding:8px 10px;">MySQL Primary (Cinder 영속 볼륨)</td>
+                      <td style="padding:8px 10px; color:#FF7A66; font-weight:700;">완전 차단 🚫</td>
+                      <td style="padding:8px 10px; color:#F4C95D; font-weight:700;">직접 접근 차단 🚫</td>
+                      <td style="padding:8px 10px; color:#FF7A66; font-weight:700;">완전 단절 (No GW)</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- SSH Command Helper -->
+            <div style="background:#0C2542; padding:10px 14px; border-radius:0; font-size:11px; color:#B4C6D8; border:1px solid #4F739A;">
+              <span style="font-weight:700; color:#D3E0EC;">💡 Mac 로컬에서 폐쇄망 콘솔 직접 터널링:</span><br>
+              • Argo CD: <code>ssh -L 8080:10.21.0.10:8080 user@10.10.10.8</code> ➔ <code>http://localhost:8080</code><br>
+              • Grafana: <code>ssh -L 3000:10.200.0.21:3000 user@10.10.10.8</code> ➔ <code>http://localhost:3000</code>
+            </div>
+          </div>
+
+          <!-- Modal Footer -->
+          <div style="padding:12px 20px; border-top:1px solid #4F739A; display:flex; justify-content:flex-end; background:#0F2D4F;">
+            <button class="btn-action" style="background:#4F739A; color:#fff;" onclick="closeReachabilityModal()">닫기</button>
+          </div>
+        </div>
+      </div>
 
     </main>
   </div>
@@ -1599,6 +1822,31 @@
       box.appendChild(div);
       box.scrollTop = box.scrollHeight;
     }
+
+    function toggleSetupGuide(force) {
+      const el = document.getElementById('frame-setup-guide');
+      if (!el) return;
+      if (typeof force === 'boolean') {
+        el.style.display = force ? 'block' : 'none';
+      } else {
+        el.style.display = (el.style.display === 'none' || !el.style.display) ? 'block' : 'none';
+      }
+    }
+
+    function openReachabilityModal() {
+      const m = document.getElementById('reachability-modal');
+      if (m) m.style.display = 'flex';
+    }
+
+    function closeReachabilityModal() {
+      const m = document.getElementById('reachability-modal');
+      if (m) m.style.display = 'none';
+    }
+
+    // ESC 키로 모달 닫기
+    window.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeReachabilityModal();
+    });
 
     function addDrLog(msg, type = '') {
       const box = document.getElementById('dr-log-console');
@@ -1691,6 +1939,11 @@
       const titleText = document.getElementById('frame-title-text');
       const extBtn = document.getElementById('external-link-btn');
 
+      const setupGuide = document.getElementById('frame-setup-guide');
+      const guideTitle = document.getElementById('guide-service-title');
+      const guideBadge = document.getElementById('guide-service-badge');
+      const guideBody = document.getElementById('guide-service-body');
+
       if (key === 'overview') {
         iframePanel.style.display = 'none';
         ktvmPanel.style.display = 'none';
@@ -1731,6 +1984,61 @@
         titleText.innerText = SERVICES[key].title;
         extBtn.href = SERVICES[key].url;
         history.replaceState(null, '', '#' + key);
+
+        // 폐쇄망 서비스 가이드 배너 동적 주입
+        if (key === 'grafana') {
+          guideTitle.innerText = "📈 Grafana 관제 메트릭 — 폐쇄망 Prometheus 통합 대시보드";
+          guideBadge.innerText = "METRICS / OBSERVABILITY";
+          guideBadge.style.background = "#D9A93A";
+          guideBody.innerHTML = `
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px; margin-top:6px;">
+              <div style="background:#0F2D4F; padding:10px 14px; border-radius:0; border:1px solid #4F739A;">
+                <div style="font-weight:700; color:#9FD3F5;">🌐 접속 및 엔드포인트</div>
+                • 폐쇄망 사설 IP: <code>http://10.200.0.21:3000</code><br>
+                • 외부 도메인: <code>https://grafana.ktci5.kr</code><br>
+                • 인증 계정: <code>admin</code> (익명 뷰어 Anonymous Viewer 기본 활성화)
+              </div>
+              <div style="background:#0F2D4F; padding:10px 14px; border-radius:0; border:1px solid #4F739A;">
+                <div style="font-weight:700; color:#8FE0B4;">🔑 로컬 SSH 터널링 (Mac 접속 가이드)</div>
+                <code>ssh -L 3000:10.200.0.21:3000 user@10.10.10.8</code><br>
+                터미널 실행 후 브라우저에서 <b>http://localhost:3000</b> 접속
+              </div>
+              <div style="background:#0F2D4F; padding:10px 14px; border-radius:0; border:1px solid #4F739A;">
+                <div style="font-weight:700; color:#F7D684;">📊 프로비저닝된 표준 대시보드</div>
+                • 대시보드 UID: <code>minwon-standard</code><br>
+                • 주요 지표: WireGuard 6노드 Handshake, k3s 파드 상태, MySQL Lag, Ingress QPS
+              </div>
+            </div>
+          `;
+          toggleSetupGuide(true);
+        } else if (key === 'argocd') {
+          guideTitle.innerText = "🚀 Argo CD GitOps 배포 콘솔 — 폐쇄망 K3s 배포 파이프라인";
+          guideBadge.innerText = "GITOPS / CD";
+          guideBadge.style.background = "#FF6B81";
+          guideBody.innerHTML = `
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px; margin-top:6px;">
+              <div style="background:#0F2D4F; padding:10px 14px; border-radius:0; border:1px solid #4F739A;">
+                <div style="font-weight:700; color:#9FD3F5;">🌐 접속 및 엔드포인트</div>
+                • 폐쇄망 사설 IP: <code>http://10.21.0.10:8080</code> (b-k3s-01 FIP)<br>
+                • 외부 도메인: <code>https://argocd.ktci5.kr</code><br>
+                • 인증 계정: <code>admin</code> (기본 역할 <b>role:readonly</b> 적용됨)
+              </div>
+              <div style="background:#0F2D4F; padding:10px 14px; border-radius:0; border:1px solid #4F739A;">
+                <div style="font-weight:700; color:#8FE0B4;">🔑 로컬 SSH 터널링 (Mac 접속 가이드)</div>
+                <code>ssh -L 8080:10.21.0.10:8080 user@10.10.10.8</code><br>
+                터미널 실행 후 브라우저에서 <b>http://localhost:8080</b> 접속
+              </div>
+              <div style="background:#0F2D4F; padding:10px 14px; border-radius:0; border:1px solid #4F739A;">
+                <div style="font-weight:700; color:#F7D684;">📦 등록된 GitOps Application</div>
+                • Application: <code>minwon-service</code> (Kustomize 배포)<br>
+                • 대상 클러스터: <code>https://kubernetes.default.svc:443</code> (os-a 온프렘)
+              </div>
+            </div>
+          `;
+          toggleSetupGuide(true);
+        } else {
+          toggleSetupGuide(false);
+        }
 
         if (key === 'horizon') {
           fetch('/sso/horizon-api')
@@ -2284,6 +2592,166 @@
 
 
     // ============================================================
+    // DR AUTOMATED 5s PLAYBACK & FLOW VELOCITY CONTROLLER
+    // ============================================================
+    const V3_STAGES = ['normal', 'l1', 'l2', 'path', 'l3', 'l4', 'bs'];
+    let isDrAutoPlay = false;
+    let drAutoPlayTimer = null;
+    let drTimerMs = 0;
+
+    function toggleDrAutoPlay() {
+      isDrAutoPlay = !isDrAutoPlay;
+      const btn = document.getElementById('btn-dr-autoplay');
+      const icon = document.getElementById('dr-autoplay-icon');
+      const label = document.getElementById('dr-autoplay-label');
+      const countEl = document.getElementById('dr-timer-count');
+      const progEl = document.getElementById('dr-timer-progress');
+
+      if (isDrAutoPlay) {
+        if (btn) btn.style.background = '#FF6B81';
+        if (icon) icon.innerText = '⏸';
+        if (label) label.innerText = '시뮬레이션 일시정지 (5초 자동 전환)';
+        drTimerMs = 0;
+
+        clearInterval(drAutoPlayTimer);
+        drAutoPlayTimer = setInterval(() => {
+          drTimerMs += 100;
+          const sec = (drTimerMs / 1000).toFixed(1);
+          if (countEl) countEl.innerText = `${sec}s / 5.0s (자동 전환 중...)`;
+          if (progEl) progEl.style.width = `${Math.min(100, (drTimerMs / 5000) * 100)}%`;
+
+          if (drTimerMs >= 5000) {
+            drTimerMs = 0;
+            const nextIdx = (V3_STAGES.indexOf(currentV3Stage) + 1) % V3_STAGES.length;
+            setV3Stage(V3_STAGES[nextIdx]);
+          }
+        }, 100);
+      } else {
+        if (btn) btn.style.background = '#3A78B5';
+        if (icon) icon.innerText = '▶';
+        if (label) label.innerText = '시뮬레이션 시작 (5초 자동 전환)';
+        clearInterval(drAutoPlayTimer);
+        drAutoPlayTimer = null;
+        if (countEl) countEl.innerText = `${(drTimerMs / 1000).toFixed(1)}s / 5.0s (정지 상태)`;
+      }
+    }
+
+    function updateDrVelocity(stage) {
+      const textEl = document.getElementById('dr-velocity-text');
+      const b1 = document.getElementById('v-bar-1');
+      const b2 = document.getElementById('v-bar-2');
+      const b3 = document.getElementById('v-bar-3');
+      const b4 = document.getElementById('v-bar-4');
+      if (!textEl || !b1) return;
+
+      const setBars = (color, heights, opacities) => {
+        const bars = [b1, b2, b3, b4];
+        bars.forEach((b, i) => {
+          b.style.background = color;
+          b.style.height = heights[i] + 'px';
+          b.style.opacity = opacities[i];
+        });
+      };
+
+      if (stage === 'normal') {
+        textEl.innerText = '⚡ 180 req/s · RTT 4.2ms [VERY FAST 🟢]';
+        textEl.style.color = '#8FE0B4';
+        setBars('#8FE0B4', [8, 14, 20, 24], [1, 1, 1, 1]);
+      } else if (stage === 'l1') {
+        textEl.innerText = '⚠️ 135 req/s · RTT 42ms [FAST / RESTARTING 🟡]';
+        textEl.style.color = '#F7D684';
+        setBars('#F7D684', [8, 14, 20, 10], [1, 1, 1, 0.4]);
+      } else if (stage === 'l2') {
+        textEl.innerText = '⏱️ 45 req/s · RTT 920ms [SLOW / TIMEOUT 🟠]';
+        textEl.style.color = '#f97316';
+        setBars('#f97316', [8, 14, 6, 6], [1, 1, 0.3, 0.2]);
+      } else if (stage === 'path') {
+        textEl.innerText = '⚠️ 우회 중 · RTT 18ms [MODERATE 🔵]';
+        textEl.style.color = '#9FD3F5';
+        setBars('#9FD3F5', [8, 14, 18, 10], [1, 1, 1, 0.5]);
+      } else if (stage === 'l3') {
+        textEl.innerText = '⚡ 160 req/s · RTT 11ms [FAILOVER FAST 🔴]';
+        textEl.style.color = '#f43f5e';
+        setBars('#f43f5e', [8, 14, 20, 24], [1, 1, 1, 1]);
+      } else if (stage === 'l4') {
+        textEl.innerText = '🔄 복구 동기화 · RTT 8ms [SYNCING 🟣]';
+        textEl.style.color = '#B08CFF';
+        setBars('#B08CFF', [8, 14, 18, 22], [1, 1, 1, 1]);
+      } else if (stage === 'bs') {
+        textEl.innerText = '🛡️ 320 req/s · RTT 2ms [EDGE CACHED ⚫]';
+        textEl.style.color = '#B4C6D8';
+        setBars('#B4C6D8', [8, 14, 20, 24], [1, 1, 1, 1]);
+      }
+    }
+
+    function updatePodDetailView(stage) {
+      const bW1 = document.getElementById('badge-pod-w1');
+      const tW1 = document.getElementById('txt-pod-w1-status');
+      const bW2 = document.getElementById('badge-pod-w2');
+      const tW2 = document.getElementById('txt-pod-w2-status');
+      const bDb = document.getElementById('badge-pod-db');
+      const tDb = document.getElementById('txt-pod-db-status');
+      const bAws = document.getElementById('badge-pod-aws');
+      const tAwsPods = document.getElementById('txt-pod-aws-pods');
+      const tAwsDb = document.getElementById('txt-pod-aws-db');
+      if (!bW1) return;
+
+      if (stage === 'normal') {
+        bW1.innerText = 'RUNNING 🟢'; bW1.style.background = '#5FD39A';
+        tW1.innerText = '정상 처리 중 (0 restart)'; tW1.style.color = '#8FE0B4';
+        bW2.innerText = 'RUNNING 🟢'; bW2.style.background = '#5FD39A';
+        tW2.innerText = '정상 트래픽 분산 (0 restart)'; tW2.style.color = '#8FE0B4';
+        bDb.innerText = 'PRIMARY RW 🟢'; bDb.style.background = '#5FD39A';
+        tDb.innerText = 'GTID 스트리밍 송출 (Lag: 0s)'; tDb.style.color = '#8FE0B4';
+        bAws.innerText = 'STANDBY RO 🟡'; bAws.style.background = '#6A8BAE';
+        tAwsPods.innerText = 'Replicas: 0 (L3 대기)'; tAwsPods.style.color = '#B4C6D8';
+        tAwsDb.innerText = 'Semi-sync 수신 (ACK 확정)'; tAwsDb.style.color = '#9FD3F5';
+      } else if (stage === 'l1') {
+        bW1.innerText = 'CRASHED 💥'; bW1.style.background = '#FF7A66';
+        tW1.innerText = 'Pod #1 OOM 크래시 ➔ K8s 자동 재시작 중 (Restart +1)'; tW1.style.color = '#FF9E8C';
+        bW2.innerText = 'ABSORBING 🟡'; bW2.style.background = '#F4C95D';
+        tW2.innerText = 'Pod #2가 전체 민원 트래픽 100% 임시 흡수 처리'; tW2.style.color = '#F7D684';
+      } else if (stage === 'l2') {
+        bW1.innerText = 'FROZEN 🟠'; bW1.style.background = '#f97316';
+        tW1.innerText = '1분간 무응답 ➔ 터널 B Ansible이 systemd 재가동 중'; tW1.style.color = '#f97316';
+        bW2.innerText = 'RESTARTING 🟠'; bW2.style.background = '#f97316';
+        tW2.innerText = 'Ansible 플레이북 자동 실행 (≤ 3분 이내 복구 목표)'; tW2.style.color = '#f97316';
+      } else if (stage === 'path') {
+        tW1.innerText = '터널 A 단절로 직접 수신 불가 ➔ 터널 B·C 우회 수신 중';
+        tW2.innerText = '온프렘 인스턴스는 100% 정상이므로 DB 승격 금지!';
+      } else if (stage === 'l3') {
+        bW1.innerText = 'FENCED 🛑'; bW1.style.background = '#6A8BAE';
+        tW1.innerText = '온프렘 전면 마비 ➔ Nova Stop으로 스플릿 브레인 차단'; tW1.style.color = '#FF7A66';
+        bW2.innerText = 'DOWN 🔴'; bW2.style.background = '#6A8BAE';
+        tW2.innerText = 'Compute 노드 응답 불가 (인스턴스 전원 차단됨)'; tW2.style.color = '#FF7A66';
+        bDb.innerText = 'ISOLATED 🛑'; bDb.style.background = '#FF7A66';
+        tDb.innerText = 'Watchdog 펜싱 완료 (Primary 쓰기 차단)'; tDb.style.color = '#FF7A66';
+        bAws.innerText = 'ACTIVE RW 🔴'; bAws.style.background = '#5FD39A';
+        tAwsPods.innerText = 'Replicas: 2 (EC2 확장 및 웹/API 기동 완료)'; tAwsPods.style.color = '#5FD39A';
+        tAwsDb.innerText = 'super_read_only = OFF (AWS Replica 승격!)'; tAwsDb.style.color = '#5FD39A';
+      } else if (stage === 'l4') {
+        bW1.innerText = 'RECOVERED 🟢'; bW1.style.background = '#5FD39A';
+        tW1.innerText = '온프렘 하드웨어 복구 및 k3s 클러스터 재가동 완료'; tW1.style.color = '#8FE0B4';
+        bW2.innerText = 'RECOVERED 🟢'; bW2.style.background = '#5FD39A';
+        tW2.innerText = '역방향 GTID 복제 수신 완료 (무손실 동기화)'; tW2.style.color = '#8FE0B4';
+        bDb.innerText = 'PRIMARY RW 🟢'; bDb.style.background = '#5FD39A';
+        tDb.innerText = '온프렘 Primary 재승격 완료 (정상 수용 재개)'; tDb.style.color = '#8FE0B4';
+        bAws.innerText = 'STANDBY RO 🟡'; bAws.style.background = '#6A8BAE';
+        tAwsPods.innerText = 'Replicas: 0 (AWS 서비스 대기 강등)'; tAwsPods.style.color = '#B4C6D8';
+        tAwsDb.innerText = 'super_read_only = ON (Replica 2 원복)'; tAwsDb.style.color = '#9FD3F5';
+      } else if (stage === 'bs') {
+        bW1.innerText = 'OFFLINE ⚫'; bW1.style.background = '#1D4A7A';
+        tW1.innerText = '온프렘 전체 파괴 (Black Sky 재난)'; tW1.style.color = '#8AA5C2';
+        bW2.innerText = 'OFFLINE ⚫'; bW2.style.background = '#1D4A7A';
+        tW2.innerText = 'Cloudflare 0초 폴백 작동 중'; tW2.style.color = '#8AA5C2';
+        bDb.innerText = 'OFFLINE ⚫'; bDb.style.background = '#1D4A7A';
+        tDb.innerText = 'AWS 및 온프렘 DB 전체 통신 두절'; tDb.style.color = '#8AA5C2';
+        bAws.innerText = 'OFFLINE ⚫'; bAws.style.background = '#1D4A7A';
+        tAwsPods.innerText = 'GitHub Pages(dr.ktci5.kr)로 대민 비상 접수 중'; tAwsPods.style.color = '#9FD3F5';
+      }
+    }
+
+    // ============================================================
     // v3.0 DRAWIO TECHNICAL ARCHITECTURE STAGE CONTROLLER
     // ============================================================
     let currentV3Stage = 'normal';
@@ -2597,6 +3065,10 @@
 
         addDrLog("[v3.0-FLOW] 7단계: 🚨 Black Sky 전면 단절 발생! Cloudflare ➔ GitHub Pages 0초 비상 접수 가동!", "err");
       }
+
+      // 동적 트래픽 흐름 속도계 및 하단 파드 단위 상세 상태 동기화
+      updateDrVelocity(stage);
+      updatePodDetailView(stage);
     }
 
     window.addEventListener('DOMContentLoaded', () => {
