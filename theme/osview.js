@@ -30,15 +30,49 @@
   var refresh = h('button', 'btn-top', '새로고침', head); refresh.type = 'button';
   var tabs = h('div', 'osx-tabs', null, root); tabs.setAttribute('role', 'tablist');
   var panes = {};
-  [['map', '구성도 · 경로'], ['svc', '서비스 상태'], ['res', '자원 현황'], ['ops', 'VM 도구']].forEach(function (t, i) {
+  // 재배치: 작은 정보는 좁게, 큰 구성도는 한 화면에
+  var panel = document.getElementById('osvm-panel');
+  var mapPane = h('div', 'osx-mappane', null, null);
+  panes.map = mapPane;
+  (function layout() {
+    if (!panel) return;
+    var hero = panel.querySelector('.overview-hero'), stats = panel.querySelector('.stats-grid');
+    var focused = document.getElementById('os-focused-box');
+    var selector = focused ? focused.previousElementSibling : null;
+    var grid = document.getElementById('os-vm-grid');
+    var invTitle = grid ? grid.previousElementSibling : null;
+    var host = grid ? grid.nextElementSibling : null;
+    while (host && !(host.classList && host.classList.contains('kt-vm-box'))) host = host.nextElementSibling;
+    panel.classList.add('osv-on');
+    var top = document.createElement('div'); top.className = 'osv-top';
+    if (hero) top.appendChild(hero);
+    if (stats) top.appendChild(stats);
+    top.appendChild(head);
+    var main = document.createElement('div'); main.className = 'osv-main';
+    var mapCol = h('div', 'osv-mapcol', null, main);
+    mapCol.appendChild(mapPane);
+    var side = h('div', 'osv-side', null, main);
+    if (selector) side.appendChild(selector);
+    if (focused) side.appendChild(focused);
+    panel.insertBefore(top, panel.firstChild);
+    panel.insertBefore(main, top.nextSibling);
+    panel.appendChild(root);
+    panes.inv = h('div', 'osx-pane', null, null); panes.inv.dataset.p = 'inv'; panes.inv.hidden = true;
+    if (invTitle && invTitle.classList.contains('section-title')) invTitle.remove();
+    if (grid) panes.inv.appendChild(grid);
+    panes.host = h('div', 'osx-pane', null, null); panes.host.dataset.p = 'host'; panes.host.hidden = true;
+    if (host) panes.host.appendChild(host);
+  })();
+  [['svc', '서비스 상태'], ['res', '자원 현황'], ['ops', 'VM 도구'], ['inv', 'VM 인벤토리'], ['host', '물리 호스트']].forEach(function (t, i) {
     var b = h('button', 'osx-tab' + (i ? '' : ' on'), t[1], tabs); b.type = 'button'; b.dataset.p = t[0]; b.setAttribute('role', 'tab');
-    var p = h('div', 'osx-pane', null, root); p.dataset.p = t[0]; if (i) p.hidden = true;
+    var p = panes[t[0]] || h('div', 'osx-pane', null, null);
+    p.dataset.p = t[0]; p.hidden = !!i; root.appendChild(p);
     panes[t[0]] = p;
   });
   tabs.addEventListener('click', function (e) {
     var k = e.target.dataset && e.target.dataset.p; if (!k) return;
     Array.prototype.forEach.call(tabs.children, function (b) { b.classList.toggle('on', b.dataset.p === k); });
-    Object.keys(panes).forEach(function (p) { panes[p].hidden = p !== k; });
+    Object.keys(panes).forEach(function (p) { if (p !== 'map') panes[p].hidden = p !== k; });
   });
   refresh.addEventListener('click', function () { load(true); });
 
@@ -97,21 +131,21 @@
     var y = TOP, frames = [];
     hosts.forEach(function (hn) {
       var list = byHost[hn] || [];
-      var hgt = 46 + Math.max(1, list.length) * ROW;
+      var hgt = 54 + Math.max(1, list.length) * ROW;
       frames.push({ host: hn, y: y, h: hgt, vms: list });
       y += hgt + 24;
     });
-    var H = Math.max(y, 520), W = X_HOST + HOST_W + 40;
+    var H = Math.max(y, TOP + 4 * 90 + 30), W = X_HOST + HOST_W + 120;
     mapWrap = h('div', 'osx-map', null, p);
-    svg = s('svg', { viewBox: '0 0 ' + W + ' ' + H, 'class': 'osx-svg', role: 'img', 'aria-label': 'OpenStack 네트워크 구성도' }, mapWrap);
+    svg = s('svg', { viewBox: '0 0 ' + W + ' ' + H, 'class': 'osx-svg', role: 'img', 'aria-label': 'OpenStack 네트워크 구성도', preserveAspectRatio: 'xMidYMid meet' }, mapWrap);
     var gL = s('g', {}, svg), gN = s('g', {}, svg);
     var el = {};
 
     function box(id, x, y0, w, hh, title, sub, cls) {
       var g = s('g', { 'class': 'osx-node ' + (cls || ''), 'data-id': id }, gN);
       s('rect', { x: x, y: y0, width: w, height: hh }, g);
-      s('text', { x: x + w / 2, y: y0 + (sub ? hh / 2 - 2 : hh / 2 + 5), 'text-anchor': 'middle', 'class': 't' }, g, title);
-      if (sub) s('text', { x: x + w / 2, y: y0 + hh / 2 + 15, 'text-anchor': 'middle', 'class': 's' }, g, sub);
+      s('text', { x: x + w / 2, y: y0 + (sub ? hh / 2 - 5 : hh / 2 + 5), 'text-anchor': 'middle', 'class': 't' }, g, title);
+      if (sub) s('text', { x: x + w / 2, y: y0 + hh / 2 + 16, 'text-anchor': 'middle', 'class': 's' }, g, sub);
       el[id] = g; return g;
     }
     function line(id, pts, cls, label, lx, ly, anchor) {
@@ -140,7 +174,7 @@
       el['net-' + n.id] = g;
     });
     var firstExt = extList[0].id;
-    line('l-host-ext', [[X_EXTCHAIN + 150, TOP + 3 * 90 + 28], [extBars[firstExt] - 5, TOP + 3 * 90 + 28]], 'ext', 'VMware 브리지', X_EXTCHAIN + 156, TOP + 3 * 90 + 22);
+    line('l-host-ext', [[X_EXTCHAIN + 150, TOP + 3 * 90 + 28], [extBars[firstExt] - 5, TOP + 3 * 90 + 28]], 'ext', '브리지', X_EXTCHAIN + 156, TOP + 3 * 90 + 22);
     // 내부망 막대
     var intBars = {};
     intn.forEach(function (n, i) {
@@ -175,10 +209,10 @@
       s('rect', { x: X_HOST, y: f.y, width: HOST_W, height: f.h }, g);
       var hv = (d.hypervisors || []).filter(function (x) { return x.hypervisor_hostname === f.host; })[0];
       s('text', { x: X_HOST + 10, y: f.y + 20, 'class': 'b' }, g, f.host);
-      if (hv) s('text', { x: X_HOST + 10, y: f.y + 36, 'class': 's' }, g, (hv.host_ip || '') + ' · vCPU ' + hv.vcpus_used + '/' + hv.vcpus + ' · RAM ' + Math.round(hv.memory_mb_used / 1024) + '/' + Math.round(hv.memory_mb / 1024) + 'G');
+      if (hv) s('text', { x: X_HOST + 10, y: f.y + 42, 'class': 's' }, g, (hv.host_ip || '') + ' · vCPU ' + hv.vcpus_used + '/' + hv.vcpus + ' · RAM ' + Math.round(hv.memory_mb_used / 1024) + '/' + Math.round(hv.memory_mb / 1024) + 'G');
       el['host-' + f.host] = g;
       f.vms.forEach(function (v, i) {
-        var vy = f.y + 46 + i * ROW;
+        var vy = f.y + 54 + i * ROW;
         var ips = [];
         Object.keys(v.addresses || {}).forEach(function (nn) { (v.addresses[nn] || []).forEach(function (a) { ips.push({ net: nn, ip: a.addr, type: a['OS-EXT-IPS:type'] }); }); });
         var fixed = ips.filter(function (a) { return a.type !== 'floating'; });
@@ -203,7 +237,7 @@
       });
       if (fi > 0) {
         var prev = frames[fi - 1];
-        line('l-geneve-' + fi, [[X_HOST + HOST_W + 14, prev.y + prev.h / 2], [X_HOST + HOST_W + 14, f.y + f.h / 2]], 'geneve', 'OVN Geneve', X_HOST + HOST_W + 8, (prev.y + prev.h / 2 + f.y + f.h / 2) / 2, 'end');
+        line('l-geneve-' + fi, [[X_HOST + HOST_W + 14, prev.y + prev.h / 2], [X_HOST + HOST_W + 14, f.y + f.h / 2]], 'geneve', 'OVN Geneve', X_HOST + HOST_W + 22, (prev.y + prev.h / 2 + f.y + f.h / 2) / 2 + 4, 'start');
       }
     });
     s('text', { x: X_HOST, y: TOP - 20, 'class': 'osx-col' }, gN, 'Compute 노드 · VM (Nova 배치)');
@@ -216,7 +250,7 @@
     traceCap = h('span', 'osx-tcap', '단계를 고르거나 재생하세요', bar);
     var bPrev = h('button', 'btn-top', '◀ 이전', bar), bPlay = h('button', 'btn-top', '재생', bar), bNext = h('button', 'btn-top', '다음 ▶', bar);
     [bPrev, bPlay, bNext].forEach(function (b) { b.type = 'button'; });
-    traceList = h('ol', 'osx-tlist', null, trace);
+    traceList = h('ol', 'osx-tlist compact', null, trace);
     var target = servers.filter(function (v) { return el['fip-' + v.id]; })[0] || servers[0];
     var rt = routers[0];
     var tNet = target ? intn.filter(function (n) { return (target.addresses || {})[n.name]; })[0] : null;
@@ -233,8 +267,9 @@
     ];
     if (frames.length > 1) HOPS.push(['다른 Compute의 VM과는 OVN Geneve 터널로 통신', ['l-geneve-1']]);
     HOPS.forEach(function (hp, i) {
-      var li = h('li', null, null, traceList); li.dataset.i = i;
+      var li = h('li', null, null, traceList); li.dataset.i = i; li.title = hp[0]; li.tabIndex = 0;
       h('i', null, String(i + 1), li); h('span', null, hp[0], li);
+      li.addEventListener('keydown', function (e) { if (e.key === 'Enter') { stop(); go(i); } });
       li.addEventListener('click', function () { stop(); go(i); });
     });
     function go(i) {

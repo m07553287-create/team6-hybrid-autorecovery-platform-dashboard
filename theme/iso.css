@@ -232,20 +232,20 @@
     .t2-svg.grabbing { cursor: grabbing; }
     .t2-svg text { font-family: var(--font); }
     .t2-zone rect { fill: rgba(230,238,245,.025); stroke: var(--bp-ink); stroke-width: 2; }
-    .t2-zone-t { fill: var(--bp-ink); font-size: 18px; font-weight: 600; }
-    .t2-zone-s { fill: var(--bp-ink-3); font-size: 12.5px; }
+    .t2-zone-t { fill: var(--bp-ink); font-size: 19px; font-weight: 600; }
+    .t2-zone-s { fill: var(--bp-ink-3); font-size: 13px; }
     .t2-zone.dim { opacity: .35; }
     .t2-zone.fenced rect { stroke: var(--bp-redline); stroke-dasharray: 10 6; fill: rgba(255,122,102,.05); }
     .t2-subnet rect { fill: rgba(230,238,245,.03); stroke: var(--bp-ink-3); stroke-width: 1; stroke-dasharray: 5 4; }
     .t2-subnet.warm rect { stroke: rgba(244,201,93,.7); } .t2-subnet.ok rect { stroke: rgba(95,211,154,.7); } .t2-subnet.violet rect { stroke: rgba(195,166,255,.7); }
-    .t2-subnet-t { fill: var(--bp-ink-3); font-size: 12.5px; }
+    .t2-subnet-t { fill: var(--bp-ink-3); font-size: 13px; }
 
     .t2-node { cursor: pointer; }
     .t2-node .body, .t2-node .top { fill: rgba(29,74,122,.92); stroke: var(--bp-ink); stroke-width: 1.4; }
     .t2-node .top { fill: rgba(230,238,245,.2); }
     .t2-node .ring { fill: none; stroke: var(--bp-ink-3); }
-    .t2-node-t { fill: var(--bp-ink); font-size: 15.5px; font-weight: 600; pointer-events: none; }
-    .t2-node-s { fill: var(--bp-ink-3); font-size: 12.5px; pointer-events: none; }
+    .t2-node-t { fill: var(--bp-ink); font-size: 16.5px; font-weight: 600; pointer-events: none; }
+    .t2-node-s { fill: var(--bp-ink-3); font-size: 13px; pointer-events: none; }
     .t2-node:hover .body, .t2-node:focus .body { stroke: var(--bp-pencil); stroke-width: 2; }
     .t2-node:focus { outline: none; }
     .t2-node.st-warn .body, .t2-node.st-warn .top { stroke: var(--bp-pencil); stroke-width: 2.2; fill: rgba(244,201,93,.18); }
@@ -272,7 +272,7 @@
     .t2-link.tun-fail .line { stroke: var(--bp-redline); opacity: .8; stroke-dasharray: 4 6; }
     .t2-link.tun-fail .band { stroke: var(--bp-redline); opacity: .12; }
     .t2-link.tunnel.active .line { opacity: 1; stroke-width: 3.5; }
-    .t2-tun-t { font-size: 13.5px; font-weight: 600; paint-order: stroke; stroke: var(--bp-deep); stroke-width: 5px; }
+    .t2-tun-t { font-size: 14.5px; font-weight: 600; paint-order: stroke; stroke: var(--bp-deep); stroke-width: 5px; }
     .t2-tun-t.k-ta { fill: var(--bp-pencil); } .t2-tun-t.k-tb { fill: #9FD3F5; } .t2-tun-t.k-tc { fill: var(--bp-violet); }
     .t2-link.tun-fail .t2-tun-t { fill: var(--bp-redline); }
 
@@ -286,7 +286,7 @@
     .t2-cap.show { display: inline; }
     .t2-cap rect { fill: var(--bp-ink); stroke: var(--bp-deep); stroke-width: 1.5; }
     .t2-cap rect.n { fill: var(--bp-pencil); }
-    .t2-cap text { fill: var(--bp-deep); font-size: 16px; font-weight: 600; }
+    .t2-cap text { fill: var(--bp-deep); font-size: 17px; font-weight: 600; }
     .t2-cap .nt { font-size: 13px; }
 
     .t2-cut, .t2-fence, .t2-note { display: none; }
@@ -297,7 +297,9 @@
     .t2-note rect { fill: var(--bp-deep); stroke: var(--bp-ok); }
     .t2-note text { fill: var(--bp-ok-2); font-size: 13px; font-weight: 600; }
     @media (prefers-reduced-motion: reduce) { .t2-link.bg .line, .t2-node.pulse .body { animation: none !important; } }
-    .dr-console:fullscreen.show-detail .dc-main, .dr-console.is-fs.show-detail .dc-main { grid-template-rows: minmax(0, 1.9fr) minmax(0, 1fr) auto; }
+    .dr-console:fullscreen.show-detail .dc-main, .dr-console.is-fs.show-detail .dc-main { grid-template-rows: minmax(0, 2.4fr) minmax(0, 1fr) auto; }
+    .dr-console:fullscreen .dc-strip .kt-log-box, .dr-console.is-fs .dc-strip .kt-log-box { max-height: 92px; }
+    .dr-console:fullscreen .dc-strip .prop-item, .dr-console.is-fs .dc-strip .prop-item { padding: 7px 12px; }
     .iso-stage.has-2d .t3-bar { top: auto; bottom: 8px; }
     .iso-stage.has-2d .t3-card { bottom: 56px; }
     /* Cloudflare Tunnel(관리 경로) · origin-kt 우회 위험 · DNS 라벨 */
@@ -376,3 +378,56 @@
     .btn-top.primary { background: var(--bp-ink); color: var(--bp-deep); border-color: var(--bp-ink); }
     .osx-log { margin-top: 10px; background: var(--bp-sunk); border: 1px solid var(--bp-line); padding: 12px; font: 12px/1.5 var(--mono); color: var(--bp-ink-2); max-height: 320px; overflow: auto; white-space: pre-wrap; }
     .osx-note { font-size: 12px; color: var(--bp-ink-3); margin-top: 8px; }
+
+    /* ===== #osvm 재배치: 작은 정보는 좁게, 구성도는 한 화면에 ===== */
+    #osvm-panel.osv-on { gap: 14px; padding-top: 18px; }
+    .osv-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border: 1px solid var(--bp-ink); background: var(--bp-deep); padding: 10px 14px; }
+    .osv-top .overview-hero { border: 0 !important; background: none !important; padding: 0; flex: 0 1 auto; }
+    .osv-top .overview-hero h2 { font-size: 17px !important; margin: 0; white-space: nowrap; }
+    .osv-top .overview-hero p { display: none; }
+    .osv-top .stats-grid { display: flex; border: 0; background: none; gap: 6px; flex-wrap: wrap; }
+    .osv-top .stat-card { display: flex; align-items: baseline; gap: 6px; padding: 4px 10px; border: 1px solid var(--bp-line); margin: 0; }
+    .osv-top .stat-card .label { margin: 0; font-size: 12px; }
+    .osv-top .stat-card .value { font-size: 15px; }
+    .osv-top .stat-card .subtext { display: none; }
+    .osv-top .osx-head { margin-left: auto; gap: 10px; }
+    .osv-top .osx-head h3 { display: none; }
+    .osv-top .osx-meta { margin-right: 0; }
+
+    .osv-main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; align-items: start; }
+    .osv-mapcol { border: 2px solid var(--bp-ink); background: var(--bp-deep); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+    .osv-mapcol .osx-map { height: auto; max-height: none; overflow: hidden; }
+    .osv-mapcol .osx-svg { min-width: 0; width: 100%; height: auto; max-height: calc(100vh - 56px - 230px); }
+    .osv-mapcol .osx-trace { margin-top: 0; }
+    .osv-mapcol .osx-tbar { padding: 6px 8px; }
+    .osx-tlist.compact { display: flex; gap: 4px; padding: 6px 8px; flex-wrap: wrap; }
+    .osx-tlist.compact li { display: block; padding: 0; border: 0; }
+    .osx-tlist.compact li span { display: none; }
+    .osx-tlist.compact li i { display: block; width: 28px; height: 26px; line-height: 24px; font-size: 12px; }
+    .osx-tlist.compact li.active { background: none; } .osx-tlist.compact li.active i { background: var(--bp-pencil); color: var(--bp-deep); border-color: var(--bp-pencil); }
+    .osx-tlist.compact li.done i { color: var(--bp-ok-2); }
+    .osx-tlist.compact li:focus-visible { outline: 2px solid var(--bp-pencil); }
+
+    .osv-side { display: flex; flex-direction: column; gap: 10px; }
+    .osv-side > div:first-child { flex-wrap: wrap; margin: 0 !important; gap: 6px !important; }
+    .osv-side > div:first-child .btn-top { padding: 4px 9px; font-size: 12px; }
+    .osv-side #os-focused-box { padding: 12px; gap: 10px; }
+    .osv-side #os-focused-box .kt-vm-header { flex-direction: column; align-items: flex-start; gap: 8px; padding-bottom: 10px; }
+    .osv-side #os-focused-box .kt-vm-name { font-size: 18px; }
+    .osv-side #os-focused-box .kt-props-grid { grid-template-columns: 1fr 1fr !important; }
+    .osv-side #os-focused-box .prop-item { padding: 7px 9px; }
+    .osv-side #os-focused-box .prop-label { font-size: 11px; }
+    .osv-side #os-focused-box .prop-val { font-size: 12px; }
+    .osv-side #os-focused-box .kt-ctrl-bar { gap: 6px; padding-top: 10px; }
+    .osv-side #os-focused-box .kt-ctrl-bar > span, .osv-side #os-focused-box .kt-ctrl-bar > div:first-child { width: 100%; font-size: 12px; }
+    .osv-side #os-focused-box .btn-action { padding: 6px 9px; font-size: 12px; }
+    .osv-side #os-focused-box .kt-log-box { height: 110px; font-size: 11px; }
+    .osv-side #os-focused-box .section-title, .osv-side #os-focused-box [style*="justify-content:space-between"] { font-size: 12px; }
+    #osvm-panel.osv-on .osx { padding: 12px 14px 14px; }
+    #osvm-panel.osv-on .osx > .osx-head { display: none; }
+
+    @media (max-width: 1500px) {
+      .osv-main { grid-template-columns: minmax(0, 1fr); }
+      .osv-side { display: grid; grid-template-columns: minmax(0, 1fr); }
+      .osv-mapcol .osx-svg { max-height: calc(100vh - 56px - 200px); }
+    }

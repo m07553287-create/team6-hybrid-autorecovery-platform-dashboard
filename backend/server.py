@@ -1032,20 +1032,20 @@ PORTAL_HTML = """<!DOCTYPE html>
     .t2-svg.grabbing { cursor: grabbing; }
     .t2-svg text { font-family: var(--font); }
     .t2-zone rect { fill: rgba(230,238,245,.025); stroke: var(--bp-ink); stroke-width: 2; }
-    .t2-zone-t { fill: var(--bp-ink); font-size: 18px; font-weight: 600; }
-    .t2-zone-s { fill: var(--bp-ink-3); font-size: 12.5px; }
+    .t2-zone-t { fill: var(--bp-ink); font-size: 19px; font-weight: 600; }
+    .t2-zone-s { fill: var(--bp-ink-3); font-size: 13px; }
     .t2-zone.dim { opacity: .35; }
     .t2-zone.fenced rect { stroke: var(--bp-redline); stroke-dasharray: 10 6; fill: rgba(255,122,102,.05); }
     .t2-subnet rect { fill: rgba(230,238,245,.03); stroke: var(--bp-ink-3); stroke-width: 1; stroke-dasharray: 5 4; }
     .t2-subnet.warm rect { stroke: rgba(244,201,93,.7); } .t2-subnet.ok rect { stroke: rgba(95,211,154,.7); } .t2-subnet.violet rect { stroke: rgba(195,166,255,.7); }
-    .t2-subnet-t { fill: var(--bp-ink-3); font-size: 12.5px; }
+    .t2-subnet-t { fill: var(--bp-ink-3); font-size: 13px; }
 
     .t2-node { cursor: pointer; }
     .t2-node .body, .t2-node .top { fill: rgba(29,74,122,.92); stroke: var(--bp-ink); stroke-width: 1.4; }
     .t2-node .top { fill: rgba(230,238,245,.2); }
     .t2-node .ring { fill: none; stroke: var(--bp-ink-3); }
-    .t2-node-t { fill: var(--bp-ink); font-size: 15.5px; font-weight: 600; pointer-events: none; }
-    .t2-node-s { fill: var(--bp-ink-3); font-size: 12.5px; pointer-events: none; }
+    .t2-node-t { fill: var(--bp-ink); font-size: 16.5px; font-weight: 600; pointer-events: none; }
+    .t2-node-s { fill: var(--bp-ink-3); font-size: 13px; pointer-events: none; }
     .t2-node:hover .body, .t2-node:focus .body { stroke: var(--bp-pencil); stroke-width: 2; }
     .t2-node:focus { outline: none; }
     .t2-node.st-warn .body, .t2-node.st-warn .top { stroke: var(--bp-pencil); stroke-width: 2.2; fill: rgba(244,201,93,.18); }
@@ -1072,7 +1072,7 @@ PORTAL_HTML = """<!DOCTYPE html>
     .t2-link.tun-fail .line { stroke: var(--bp-redline); opacity: .8; stroke-dasharray: 4 6; }
     .t2-link.tun-fail .band { stroke: var(--bp-redline); opacity: .12; }
     .t2-link.tunnel.active .line { opacity: 1; stroke-width: 3.5; }
-    .t2-tun-t { font-size: 13.5px; font-weight: 600; paint-order: stroke; stroke: var(--bp-deep); stroke-width: 5px; }
+    .t2-tun-t { font-size: 14.5px; font-weight: 600; paint-order: stroke; stroke: var(--bp-deep); stroke-width: 5px; }
     .t2-tun-t.k-ta { fill: var(--bp-pencil); } .t2-tun-t.k-tb { fill: #9FD3F5; } .t2-tun-t.k-tc { fill: var(--bp-violet); }
     .t2-link.tun-fail .t2-tun-t { fill: var(--bp-redline); }
 
@@ -1086,7 +1086,7 @@ PORTAL_HTML = """<!DOCTYPE html>
     .t2-cap.show { display: inline; }
     .t2-cap rect { fill: var(--bp-ink); stroke: var(--bp-deep); stroke-width: 1.5; }
     .t2-cap rect.n { fill: var(--bp-pencil); }
-    .t2-cap text { fill: var(--bp-deep); font-size: 16px; font-weight: 600; }
+    .t2-cap text { fill: var(--bp-deep); font-size: 17px; font-weight: 600; }
     .t2-cap .nt { font-size: 13px; }
 
     .t2-cut, .t2-fence, .t2-note { display: none; }
@@ -1097,7 +1097,9 @@ PORTAL_HTML = """<!DOCTYPE html>
     .t2-note rect { fill: var(--bp-deep); stroke: var(--bp-ok); }
     .t2-note text { fill: var(--bp-ok-2); font-size: 13px; font-weight: 600; }
     @media (prefers-reduced-motion: reduce) { .t2-link.bg .line, .t2-node.pulse .body { animation: none !important; } }
-    .dr-console:fullscreen.show-detail .dc-main, .dr-console.is-fs.show-detail .dc-main { grid-template-rows: minmax(0, 1.9fr) minmax(0, 1fr) auto; }
+    .dr-console:fullscreen.show-detail .dc-main, .dr-console.is-fs.show-detail .dc-main { grid-template-rows: minmax(0, 2.4fr) minmax(0, 1fr) auto; }
+    .dr-console:fullscreen .dc-strip .kt-log-box, .dr-console.is-fs .dc-strip .kt-log-box { max-height: 92px; }
+    .dr-console:fullscreen .dc-strip .prop-item, .dr-console.is-fs .dc-strip .prop-item { padding: 7px 12px; }
     .iso-stage.has-2d .t3-bar { top: auto; bottom: 8px; }
     .iso-stage.has-2d .t3-card { bottom: 56px; }
     /* Cloudflare Tunnel(관리 경로) · origin-kt 우회 위험 · DNS 라벨 */
@@ -1176,6 +1178,59 @@ PORTAL_HTML = """<!DOCTYPE html>
     .btn-top.primary { background: var(--bp-ink); color: var(--bp-deep); border-color: var(--bp-ink); }
     .osx-log { margin-top: 10px; background: var(--bp-sunk); border: 1px solid var(--bp-line); padding: 12px; font: 12px/1.5 var(--mono); color: var(--bp-ink-2); max-height: 320px; overflow: auto; white-space: pre-wrap; }
     .osx-note { font-size: 12px; color: var(--bp-ink-3); margin-top: 8px; }
+
+    /* ===== #osvm 재배치: 작은 정보는 좁게, 구성도는 한 화면에 ===== */
+    #osvm-panel.osv-on { gap: 14px; padding-top: 18px; }
+    .osv-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border: 1px solid var(--bp-ink); background: var(--bp-deep); padding: 10px 14px; }
+    .osv-top .overview-hero { border: 0 !important; background: none !important; padding: 0; flex: 0 1 auto; }
+    .osv-top .overview-hero h2 { font-size: 17px !important; margin: 0; white-space: nowrap; }
+    .osv-top .overview-hero p { display: none; }
+    .osv-top .stats-grid { display: flex; border: 0; background: none; gap: 6px; flex-wrap: wrap; }
+    .osv-top .stat-card { display: flex; align-items: baseline; gap: 6px; padding: 4px 10px; border: 1px solid var(--bp-line); margin: 0; }
+    .osv-top .stat-card .label { margin: 0; font-size: 12px; }
+    .osv-top .stat-card .value { font-size: 15px; }
+    .osv-top .stat-card .subtext { display: none; }
+    .osv-top .osx-head { margin-left: auto; gap: 10px; }
+    .osv-top .osx-head h3 { display: none; }
+    .osv-top .osx-meta { margin-right: 0; }
+
+    .osv-main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; align-items: start; }
+    .osv-mapcol { border: 2px solid var(--bp-ink); background: var(--bp-deep); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+    .osv-mapcol .osx-map { height: auto; max-height: none; overflow: hidden; }
+    .osv-mapcol .osx-svg { min-width: 0; width: 100%; height: auto; max-height: calc(100vh - 56px - 230px); }
+    .osv-mapcol .osx-trace { margin-top: 0; }
+    .osv-mapcol .osx-tbar { padding: 6px 8px; }
+    .osx-tlist.compact { display: flex; gap: 4px; padding: 6px 8px; flex-wrap: wrap; }
+    .osx-tlist.compact li { display: block; padding: 0; border: 0; }
+    .osx-tlist.compact li span { display: none; }
+    .osx-tlist.compact li i { display: block; width: 28px; height: 26px; line-height: 24px; font-size: 12px; }
+    .osx-tlist.compact li.active { background: none; } .osx-tlist.compact li.active i { background: var(--bp-pencil); color: var(--bp-deep); border-color: var(--bp-pencil); }
+    .osx-tlist.compact li.done i { color: var(--bp-ok-2); }
+    .osx-tlist.compact li:focus-visible { outline: 2px solid var(--bp-pencil); }
+
+    .osv-side { display: flex; flex-direction: column; gap: 10px; }
+    .osv-side > div:first-child { flex-wrap: wrap; margin: 0 !important; gap: 6px !important; }
+    .osv-side > div:first-child .btn-top { padding: 4px 9px; font-size: 12px; }
+    .osv-side #os-focused-box { padding: 12px; gap: 10px; }
+    .osv-side #os-focused-box .kt-vm-header { flex-direction: column; align-items: flex-start; gap: 8px; padding-bottom: 10px; }
+    .osv-side #os-focused-box .kt-vm-name { font-size: 18px; }
+    .osv-side #os-focused-box .kt-props-grid { grid-template-columns: 1fr 1fr !important; }
+    .osv-side #os-focused-box .prop-item { padding: 7px 9px; }
+    .osv-side #os-focused-box .prop-label { font-size: 11px; }
+    .osv-side #os-focused-box .prop-val { font-size: 12px; }
+    .osv-side #os-focused-box .kt-ctrl-bar { gap: 6px; padding-top: 10px; }
+    .osv-side #os-focused-box .kt-ctrl-bar > span, .osv-side #os-focused-box .kt-ctrl-bar > div:first-child { width: 100%; font-size: 12px; }
+    .osv-side #os-focused-box .btn-action { padding: 6px 9px; font-size: 12px; }
+    .osv-side #os-focused-box .kt-log-box { height: 110px; font-size: 11px; }
+    .osv-side #os-focused-box .section-title, .osv-side #os-focused-box [style*="justify-content:space-between"] { font-size: 12px; }
+    #osvm-panel.osv-on .osx { padding: 12px 14px 14px; }
+    #osvm-panel.osv-on .osx > .osx-head { display: none; }
+
+    @media (max-width: 1500px) {
+      .osv-main { grid-template-columns: minmax(0, 1fr); }
+      .osv-side { display: grid; grid-template-columns: minmax(0, 1fr); }
+      .osv-mapcol .osx-svg { max-height: calc(100vh - 56px - 200px); }
+    }
   </style>
 </head>
 <body>
@@ -3057,7 +3112,7 @@ PORTAL_HTML = """<!DOCTYPE html>
   var stageEl = document.querySelector('.dc-main .iso-stage');
   if (!host || !stageEl) return;
   var NS = 'http://www.w3.org/2000/svg';
-  var VB0 = { x: 10, y: 46, w: 1600, h: 716 };
+  var VB0 = { x: 0, y: 14, w: 1760, h: 866 };
   var vb = { x: VB0.x, y: VB0.y, w: VB0.w, h: VB0.h };
 
   function el(tag, attrs, parent) {
@@ -3083,15 +3138,15 @@ PORTAL_HTML = """<!DOCTYPE html>
   function zone(id, x, y, w, h, title, sub) {
     var g = el('g', { 'class': 't2-zone', id: 't2-' + id }, gZones);
     el('rect', { x: x, y: y, width: w, height: h }, g);
-    txt(g, x + 12, y + 24, title, 't2-zone-t');
-    if (sub) txt(g, x + 12, y + 42, sub, 't2-zone-s');
+    txt(g, x + 12, y + 28, title, 't2-zone-t');
+    if (sub) txt(g, x + 12, y + 54, sub, 't2-zone-s');
     zones[id] = g;
     return g;
   }
   function subnet(x, y, w, h, title, tone) {
     var g = el('g', { 'class': 't2-subnet ' + (tone || '') }, gZones);
     el('rect', { x: x, y: y, width: w, height: h }, g);
-    txt(g, x + 8, y + 16, title, 't2-subnet-t');
+    txt(g, x + 8, y + 18, title, 't2-subnet-t');
   }
   function node(id, x, y, w, h, title, sub, info, kind) {
     var g = el('g', { 'class': 't2-node' + (kind ? ' ' + kind : ''), id: 't2n-' + id, tabindex: '0' }, gNodes);
@@ -3103,9 +3158,9 @@ PORTAL_HTML = """<!DOCTYPE html>
     } else {
       el('rect', { 'class': 'body', x: x, y: y, width: w, height: h }, g);
     }
-    var cy = y + h / 2 + (sub && h >= 52 ? -3 : 5);
+    var cy = y + h / 2 + (sub && h >= 52 ? -6 : 6);
     txt(g, x + w / 2, cy, title, 't2-node-t', 'middle');
-    if (sub && h >= 52) txt(g, x + w / 2, cy + 18, sub, 't2-node-s', 'middle');
+    if (sub && h >= 52) txt(g, x + w / 2, cy + 23, sub, 't2-node-s', 'middle');
     nodes[id] = { g: g, x: x, y: y, w: w, h: h, info: Object.assign({ title: title, sub: sub }, info || {}) };
     g.addEventListener('click', function (e) { e.stopPropagation(); showCard(id); });
     g.addEventListener('keydown', function (e) { if (e.key === 'Enter') showCard(id); });
@@ -3121,95 +3176,95 @@ PORTAL_HTML = """<!DOCTYPE html>
     return links[id];
   }
 
-  // 존 · 서브넷
-  txt(gZones, 40, 66, '인터넷', 't2-zone-t');
-  zone('gh', 20, 560, 190, 185, 'GitHub Pages', '0초 비상 접수');
-  zone('kt', 235, 190, 200, 400, 'KT Cloud', '입구 전용 · VM 1대');
-  zone('on', 475, 90, 640, 620, '온프레미스 OpenStack', 'Primary · K3s · MySQL');
-  zone('aws', 1160, 90, 420, 620, 'AWS', '관제 · DR 대기 · 백업');
-  subnet(250, 232, 170, 345, 'Edge-GW VM · k-vm1');
-  subnet(490, 124, 610, 84, '외부망 서브넷 · Outbound만', 'warm');
-  subnet(490, 224, 405, 384, 'k8s 서브넷 · K3s', 'ok');
-  subnet(635, 252, 245, 222, 'app 네임스페이스', 'violet');
-  subnet(635, 490, 245, 108, 'data 네임스페이스');
-  subnet(910, 224, 190, 384, 'data 서브넷 · DB 원장', 'ok');
-  subnet(490, 624, 610, 72, 'ops 서브넷');
-  subnet(1175, 124, 390, 84, 'WG 서브넷');
-  subnet(1175, 224, 190, 190, '관제 서브넷 · aws-ctl-01', 'warm');
-  subnet(1380, 224, 185, 190, '리전 서비스');
-  subnet(1175, 430, 390, 180, 'DR 서브넷 · Pilot-Light', 'warm');
+  // 존 · 서브넷  (열: 인터넷 30–230 | 통로 | KT 270–480 | 통로 | 온프렘 530–1230 | 통로 | AWS 1290–1730 | 우측 통로)
+  txt(gZones, 40, 150, '인터넷', 't2-zone-t');
+  zone('gh', 20, 600, 210, 200, 'GitHub Pages', '0초 비상 접수');
+  zone('kt', 270, 120, 210, 560, 'KT Cloud', '입구 전용 · VM 1대');
+  zone('on', 530, 120, 700, 700, '온프레미스 OpenStack', 'Primary · K3s · MySQL');
+  zone('aws', 1290, 120, 440, 700, 'AWS', '관제 · DR 대기 · 백업');
+  subnet(285, 186, 180, 480, 'Edge-GW VM · k-vm1');
+  subnet(545, 186, 670, 84, '외부망 서브넷 · Outbound만', 'warm');
+  subnet(545, 306, 440, 400, 'k8s 서브넷 · K3s', 'ok');
+  subnet(705, 340, 265, 236, 'app 네임스페이스', 'violet');
+  subnet(705, 592, 265, 100, 'data 네임스페이스');
+  subnet(1000, 306, 215, 400, 'data 서브넷 · DB 원장', 'ok');
+  subnet(545, 720, 670, 80, 'ops 서브넷');
+  subnet(1305, 186, 410, 84, 'WG 서브넷');
+  subnet(1305, 290, 205, 200, '관제 서브넷', 'warm');
+  subnet(1525, 290, 190, 200, '리전 서비스');
+  subnet(1305, 510, 410, 200, 'DR 서브넷 · Pilot-Light', 'warm');
 
-  // 터널 · 연결 (먼저 그려서 노드 아래로)
-  link('cit_cf', [[115, 136], [115, 290]], 'req');
-  link('cf_ng', [[190, 325], [222, 325], [222, 294], [265, 294]], 'req');
-  link('cf_gh', [[115, 360], [115, 615]], 'fb');
-  link('q_cf', [[265, 384], [230, 384], [230, 345], [190, 345]], 'warn');
-  link('ng_q', [[335, 323], [335, 355]], 'req');
-  link('q_wg', [[335, 413], [335, 445]], 'req');
-  link('tA', [[405, 474], [452, 474], [452, 216], [708, 216], [708, 168], [720, 168]], 'ta', [460, 330, '터널 A']);
-  link('tB', [[1190, 152], [880, 152]], 'tb', [1035, 142, '터널 B', 'middle']);
-  link('tC', [[335, 503], [335, 752], [1598, 752], [1598, 165], [1330, 165]], 'tc', [900, 742, '터널 C · KT ↔ AWS', 'middle']);
-  link('wg_ing', [[745, 190], [745, 240], [562, 240], [562, 270]], 'req');
-  link('ing_web', [[620, 304], [650, 304]], 'req');
-  link('web_api', [[750, 304], [765, 304]], 'req');
-  link('web_api2', [[750, 318], [757, 318], [757, 362], [765, 362]], 'req');
-  link('api_db', [[865, 298], [930, 298]], 'data');
-  link('api2_db', [[865, 358], [930, 358]], 'data');
-  link('api_mq', [[865, 314], [886, 314], [886, 547], [865, 547]], 'req');
-  link('mq_worker', [[765, 540], [757, 540], [757, 432], [750, 432]], 'req');
-  link('worker_db', [[700, 454], [700, 474], [1005, 474], [1005, 366]], 'data');
-  link('mq_na', [[815, 525], [815, 454]], 'req');
-  link('db_wg', [[1005, 270], [1005, 180], [880, 180]], 'repl');
-  link('aws_rep', [[1300, 190], [1300, 214], [1372, 214], [1372, 448], [1472, 448], [1472, 468]], 'repl');
-  link('aws_s3', [[1330, 180], [1472, 180], [1472, 262]], 'backup');
-  link('aws_ctl', [[1222, 190], [1222, 262]], 'ctrl');
-  link('aws_ec2', [[1190, 176], [1168, 176], [1168, 511], [1190, 511]], 'req');
-  link('ec2_rep', [[1340, 511], [1395, 511]], 'data');
-  link('ctl_cf', [[1355, 262], [1355, 58], [205, 58], [205, 300], [190, 300]], 'ctrl');
-  link('cf_cfd', [[590, 140], [590, 76], [28, 76], [28, 322], [40, 322]], 'cft', [300, 70, 'minwon-tunnel · Cloudflare Tunnel (아웃바운드)', 'middle']);
-  link('cfd_wg', [[680, 152], [720, 152]], 'cft');
-  link('cfd_argocd', [[505, 182], [482, 182], [482, 690], [700, 690], [700, 680]], 'cft');
-  link('ops_cf', [[162, 440], [162, 360]], 'cft');
-  link('bypass', [[190, 108], [335, 108], [335, 265]], 'risk', [262, 100, 'origin-kt · DNS 전용', 'middle']);
+  // 연결 (먼저 그려서 노드 아래로) — 링크마다 전용 통로, 제목 구간을 피해 진입
+  link('cit_cf', [[85, 230], [85, 330]], 'req');
+  link('cf_ng', [[210, 352], [250, 352], [250, 256], [300, 256]], 'req');
+  link('cf_gh', [[180, 404], [180, 666]], 'fb');
+  link('q_cf', [[300, 372], [258, 372], [258, 390], [210, 390]], 'warn');
+  link('ng_q', [[375, 286], [375, 330]], 'req');
+  link('q_wg', [[375, 390], [375, 434]], 'req');
+  link('tA', [[450, 464], [500, 464], [500, 280], [780, 280], [780, 248], [800, 248]], 'ta', [640, 298, '터널 A', 'middle']);
+  link('tB', [[1320, 224], [970, 224]], 'tb', [1260, 214, '터널 B', 'middle']);
+  link('tC', [[375, 494], [375, 850], [1745, 850], [1745, 216], [1470, 216]], 'tc', [960, 840, '터널 C · KT ↔ AWS', 'middle']);
+  link('wg_ing', [[840, 260], [840, 294], [670, 294], [670, 350]], 'req');
+  link('ing_web', [[690, 395], [720, 395]], 'req');
+  link('web_api', [[835, 395], [845, 395]], 'req');
+  link('web_api2', [[835, 408], [840, 408], [840, 455], [845, 455]], 'req');
+  link('api_db', [[960, 380], [1030, 380]], 'data');
+  link('api2_db', [[960, 446], [1030, 446]], 'data');
+  link('api_mq', [[960, 402], [978, 402], [978, 647], [960, 647]], 'req');
+  link('mq_worker', [[845, 640], [840, 640], [840, 515], [835, 515]], 'req');
+  link('worker_db', [[777, 538], [777, 584], [1110, 584], [1110, 460]], 'data');
+  link('mq_na', [[902, 624], [902, 538]], 'req');
+  link('db_wg', [[1160, 360], [1160, 248], [970, 248]], 'repl');
+  link('aws_rep', [[1400, 260], [1400, 280], [1517, 280], [1517, 500], [1620, 500], [1620, 546]], 'repl');
+  link('aws_s3', [[1470, 236], [1620, 236], [1620, 330]], 'backup');
+  link('aws_ctl', [[1440, 260], [1440, 330]], 'ctrl');
+  link('aws_ec2', [[1320, 248], [1298, 248], [1298, 587], [1320, 587]], 'req');
+  link('ec2_rep', [[1480, 587], [1540, 587]], 'data');
+  link('ctl_cf', [[1480, 330], [1480, 40], [18, 40], [18, 384], [40, 384]], 'ctrl', [900, 34, 'S1 공인 프로브 (Orchestrator → Cloudflare)', 'middle']);
+  link('cf_cfd', [[735, 212], [735, 66], [30, 66], [30, 348], [40, 348]], 'cft', [900, 60, 'minwon-tunnel · Cloudflare Tunnel (아웃바운드)', 'middle']);
+  link('cfd_wg', [[745, 224], [800, 224]], 'cft');
+  link('cfd_argocd', [[565, 236], [538, 236], [538, 810], [770, 810], [770, 782]], 'cft');
+  link('ops_cf', [[85, 470], [85, 404]], 'cft');
+  link('bypass', [[160, 200], [242, 200], [242, 240], [300, 240]], 'risk', [166, 193, 'origin-kt DNS 전용']);
 
-  txt(gLinks, 122, 214, 'minwon.ktci5.kr', 't2-dns');
-  txt(gLinks, 122, 230, '프록시 → 14.63.213.214', 't2-dns s');
+  txt(gLinks, 95, 268, 'minwon.ktci5.kr', 't2-dns');
+  txt(gLinks, 95, 286, '프록시 · KT Edge', 't2-dns s');
   // 노드
-  node('citizen', 40, 80, 150, 56, '시민', 'HTTPS 민원 접수', { zone: '인터넷', lines: ['https://minwon.ktci5.kr 접속'] });
-  node('cf', 40, 290, 150, 70, 'Cloudflare', 'WAF · 봇/IP 제한', { zone: '인터넷 엣지', lines: ['minwon.ktci5.kr → 14.63.213.214 (프록시 · WAF/DDoS)', 'origin-kt.ktci5.kr → 같은 IP (DNS 전용 · 오리진 노출)', '터널 호스트명 8개 → minwon-tunnel', 'Edge 503 · 오리진 장애 시 Worker가 비상 폼 안내'] });
-  node('ops', 125, 440, 75, 44, '운영자', '', { zone: '인터넷', lines: ['관리 화면은 Cloudflare Tunnel로만 접속', 'figteam.ktci5.kr 통합 로그인(SSO)'] });
-  node('gh', 40, 615, 150, 70, '비상 접수 폼', 'dr.ktci5.kr', { zone: 'GitHub Pages', subnet: 'subnet-gh-fallback', lines: ['폭주 초과분 · Black Sky 시 0초 노출', '민원 데이터 비상 보관'] });
-  node('nginx', 265, 265, 140, 58, 'Nginx TLS·WAF', '10초 마이크로캐시', { zone: 'KT Cloud', subnet: 'subnet-kt-edge', lines: ['TLS 종료 · ModSecurity WAF', 'GET 응답 10초 캐시 (무상태)'] });
-  node('queue', 265, 355, 140, 58, '접수 대기열', 'limit_req 버스트', { zone: 'KT Cloud', subnet: 'subnet-kt-edge', lines: ['총량 제한: 허용 속도로만 온프렘 전달', '버스트 내 요청은 순서대로 지연', '초과분 503 + Retry-After → 비상 폼'] });
-  node('wgkt', 265, 445, 140, 58, 'WG 종단', '터널 A · C', { zone: 'KT Cloud', subnet: 'subnet-kt-edge', lines: ['WireGuard 터널 A (온프렘) · C (AWS)'] });
-  node('gpu', 505, 140, 175, 50, 'cloudflared · 포털', '', { zone: '온프레미스 · GPU 서버 ktci5 (10.10.10.8)', lines: ['minwon-tunnel 커넥터 (아웃바운드만 · 인바운드 0)', 'figteam 통합 포털 :18088', '호스트명 라우팅: figteam · app · argocd · grafana · horizon · openstack', 'aws-ctl → WG 터널 B · kt-edge → WG 터널 A'] });
-  node('onwg', 720, 140, 160, 50, 'WireGuard GW', '', { zone: '온프레미스', subnet: 'subnet-onprem-wg', lines: ['공인 IP 없음 · Outbound만', '터널 A · B 종단', '자가 펜싱 Watchdog'] });
-  node('ingress', 505, 270, 115, 50, 'ingress-nginx', '', { zone: '온프레미스', subnet: 'subnet-onprem-k8s', lines: ['MetalLB VIP · 경로 라우팅'] });
-  node('web1', 650, 282, 100, 44, 'web-1', '', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['web Deployment 1/2'] });
-  node('web2', 650, 340, 100, 44, 'web-2', '', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['web Deployment 2/2'] });
-  node('api1', 765, 282, 100, 44, 'intake-api-1', '', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['접수 테이블 INSERT 1건 → 202 접수번호', 'livenessProbe /healthz?live=1'] });
-  node('api2', 765, 340, 100, 44, 'intake-api-2', '', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['HPA replica 2'] });
-  node('worker', 650, 410, 100, 44, 'intake-worker', '', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['접수 테이블 미처리 건을 순차 처리 (Outbox)', '큐 길이 기반 확장'] });
-  node('na', 765, 410, 100, 44, 'notify·audit', '', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['알림 · 감사 로그 워커'] });
-  node('redis', 650, 525, 100, 44, 'Redis', '', { zone: '온프레미스 · data', subnet: 'subnet-onprem-k8s', lines: ['로컬 캐시 (DR 복제 안 함)'] });
-  node('rabbit', 765, 525, 100, 44, 'RabbitMQ', '', { zone: '온프레미스 · data', subnet: 'subnet-onprem-k8s', lines: ['처리 알림만 전달 — 원본은 MySQL 접수 테이블'] });
-  node('mysql', 930, 270, 150, 96, 'MySQL Primary', 'semi-sync · GTID', { zone: '온프레미스', subnet: 'subnet-onprem-db', lines: ['minwon · intake(Outbox) · notify · audit', 'AFTER_SYNC: AWS ACK 후 커밋 확정', 'binlog 실시간 스트림 → S3'] }, 'db');
-  node('harbor', 505, 640, 120, 40, 'Harbor', '', { zone: '온프레미스 · ops', lines: ['이미지 레지스트리'] });
-  node('argocd', 640, 640, 120, 40, 'Argo CD', '', { zone: '온프레미스 · ops', lines: ['GitOps 배포'] });
-  node('awswg', 1190, 140, 140, 50, 'AWS WG', '', { zone: 'AWS', lines: ['WireGuard 터널 B · C 종단'] });
-  node('ctl', 1190, 262, 160, 62, 'Orchestrator', '3-Signal 판정', { zone: 'AWS', subnet: 'subnet-aws-ctl', lines: ['Prometheus · Grafana · Loki', 'S1/S2 프로브 · semi-sync 강등 경보', 'L2 Ansible · L3 승격 통제'] });
-  node('lambda', 1190, 345, 160, 44, 'Dead-man 스위치', '', { zone: 'AWS', lines: ['관제 끊김 → Slack 호출'] });
-  node('s3', 1395, 262, 155, 72, 'S3 백업', 'binlog 실시간', { zone: 'AWS', lines: ['binlog 실시간 스트림 + 일일 스냅샷', 'Object Lock · 버전관리 · KMS', '시점 복원(PITR) 소스'] });
-  node('ec2', 1190, 480, 150, 62, 'Pilot-Light EC2', 'L3 시 확장', { zone: 'AWS', subnet: 'subnet-aws-dr', lines: ['평소 최소 사양 대기', 'L3 시 확장 · k3s 앱 기동'] });
-  node('replica', 1395, 468, 155, 96, 'MySQL Replica', 'semi-sync ACK', { zone: 'AWS', subnet: 'subnet-aws-dr', lines: ['relay log 기록 후 ACK 반환', '사이트 장애 시 RPO 0 (ACK된 커밋 보유)', 'L3 승격: super_read_only = OFF'] }, 'db');
+  node('citizen', 40, 170, 120, 60, '시민', 'HTTPS 민원 접수', { zone: '인터넷', lines: ['https://minwon.ktci5.kr 접속'] });
+  node('cf', 40, 330, 170, 74, 'Cloudflare', 'WAF · 봇/IP 제한', { zone: '인터넷 엣지', lines: ['minwon.ktci5.kr → 14.63.213.214 (프록시 · WAF/DDoS)', 'origin-kt.ktci5.kr → 같은 IP (DNS 전용 · 오리진 노출)', '터널 호스트명 8개 → minwon-tunnel', 'Edge 503 · 오리진 장애 시 Worker가 비상 폼 안내'] });
+  node('ops', 40, 470, 90, 46, '운영자', '', { zone: '인터넷', lines: ['관리 화면은 Cloudflare Tunnel로만 접속', 'figteam.ktci5.kr 통합 로그인(SSO)'] });
+  node('gh', 40, 666, 170, 74, '비상 접수 폼', 'dr.ktci5.kr', { zone: 'GitHub Pages', subnet: 'subnet-gh-fallback', lines: ['폭주 초과분 · Black Sky 시 0초 노출', '민원 데이터 비상 보관'] });
+  node('nginx', 300, 226, 150, 60, 'Nginx TLS·WAF', '10초 마이크로캐시', { zone: 'KT Cloud', subnet: 'subnet-kt-edge', lines: ['TLS 종료 · ModSecurity WAF', 'GET 응답 10초 캐시 (무상태)'] });
+  node('queue', 300, 330, 150, 60, '접수 대기열', 'limit_req 버스트', { zone: 'KT Cloud', subnet: 'subnet-kt-edge', lines: ['총량 제한: 허용 속도로만 온프렘 전달', '버스트 내 요청은 순서대로 지연', '초과분 503 + Retry-After → 비상 폼'] });
+  node('wgkt', 300, 434, 150, 60, 'WG 종단', '터널 A · C', { zone: 'KT Cloud', subnet: 'subnet-kt-edge', lines: ['WireGuard 터널 A (온프렘) · C (AWS)'] });
+  node('gpu', 565, 212, 180, 48, 'cloudflared · 포털', '', { zone: '온프레미스 · GPU 서버 ktci5 (10.10.10.8)', lines: ['minwon-tunnel 커넥터 (아웃바운드만 · 인바운드 0)', 'figteam 통합 포털 :18088', '호스트명 라우팅: figteam · app · argocd · grafana · horizon · openstack', 'aws-ctl → WG 터널 B · kt-edge → WG 터널 A'] });
+  node('onwg', 800, 212, 170, 48, 'WireGuard GW', '', { zone: '온프레미스', subnet: 'subnet-onprem-wg', lines: ['공인 IP 없음 · Outbound만', '터널 A · B 종단', '자가 펜싱 Watchdog'] });
+  node('ingress', 560, 350, 130, 52, 'ingress-nginx', '', { zone: '온프레미스', subnet: 'subnet-onprem-k8s', lines: ['MetalLB VIP · 경로 라우팅'] });
+  node('web1', 720, 372, 115, 46, 'web-1', '', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['web Deployment 1/2'] });
+  node('web2', 720, 432, 115, 46, 'web-2', '', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['web Deployment 2/2'] });
+  node('api1', 845, 372, 115, 46, 'intake-api-1', '', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['접수 테이블 INSERT 1건 → 202 접수번호', 'livenessProbe /healthz?live=1'] });
+  node('api2', 845, 432, 115, 46, 'intake-api-2', '', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['HPA replica 2'] });
+  node('worker', 720, 492, 115, 46, 'intake-worker', '', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['접수 테이블 미처리 건을 순차 처리 (Outbox)', '큐 길이 기반 확장'] });
+  node('na', 845, 492, 115, 46, 'notify·audit', '', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['알림 · 감사 로그 워커'] });
+  node('redis', 720, 624, 115, 46, 'Redis', '', { zone: '온프레미스 · data', subnet: 'subnet-onprem-k8s', lines: ['로컬 캐시 (DR 복제 안 함)'] });
+  node('rabbit', 845, 624, 115, 46, 'RabbitMQ', '', { zone: '온프레미스 · data', subnet: 'subnet-onprem-k8s', lines: ['처리 알림만 전달 — 원본은 MySQL 접수 테이블'] });
+  node('mysql', 1030, 360, 160, 100, 'MySQL Primary', 'semi-sync · GTID', { zone: '온프레미스', subnet: 'subnet-onprem-db', lines: ['minwon · intake(Outbox) · notify · audit', 'AFTER_SYNC: AWS ACK 후 커밋 확정', 'binlog 실시간 스트림 → S3'] }, 'db');
+  node('harbor', 560, 742, 130, 40, 'Harbor', '', { zone: '온프레미스 · ops', lines: ['이미지 레지스트리'] });
+  node('argocd', 705, 742, 130, 40, 'Argo CD', '', { zone: '온프레미스 · ops', lines: ['GitOps 배포'] });
+  node('awswg', 1320, 212, 150, 48, 'AWS WG', '', { zone: 'AWS', lines: ['WireGuard 터널 B · C 종단'] });
+  node('ctl', 1320, 330, 170, 62, 'Orchestrator', '3-Signal 판정', { zone: 'AWS', subnet: 'subnet-aws-ctl', lines: ['Prometheus · Grafana · Loki', 'S1/S2 프로브 · semi-sync 강등 경보', 'L2 Ansible · L3 승격 통제'] });
+  node('lambda', 1320, 410, 170, 44, 'Dead-man 스위치', '', { zone: 'AWS', lines: ['관제 끊김 → Slack 호출'] });
+  node('s3', 1540, 330, 160, 72, 'S3 백업', 'binlog 실시간', { zone: 'AWS', lines: ['binlog 실시간 스트림 + 일일 스냅샷', 'Object Lock · 버전관리 · KMS', '시점 복원(PITR) 소스'] });
+  node('ec2', 1320, 556, 160, 62, 'Pilot-Light EC2', 'L3 시 확장', { zone: 'AWS', subnet: 'subnet-aws-dr', lines: ['평소 최소 사양 대기', 'L3 시 확장 · k3s 앱 기동'] });
+  node('replica', 1540, 546, 160, 100, 'MySQL Replica', 'semi-sync ACK', { zone: 'AWS', subnet: 'subnet-aws-dr', lines: ['relay log 기록 후 ACK 반환', '사이트 장애 시 RPO 0 (ACK된 커밋 보유)', 'L3 승격: super_read_only = OFF'] }, 'db');
 
   Object.keys(links).forEach(function (k) { links[k].len = links[k].path.getTotalLength(); });
 
   // 표시 마크
-  var cut = el('g', { 'class': 't2-cut', transform: 'translate(452,330)' }, gMarks);
+  var cut = el('g', { 'class': 't2-cut', transform: 'translate(600,280)' }, gMarks);
   el('path', { d: 'M-9,-9 L9,9 M9,-9 L-9,9' }, cut);
-  txt(cut, 14, 5, '단절', 't2-cut-t');
-  var fence = txt(gMarks, 795, 690, 'FENCED · 쓰기 차단', 't2-fence', 'middle');
+  txt(cut, 14, -8, '단절', 't2-cut-t');
+  var fence = txt(gMarks, 880, 714, 'FENCED · 쓰기 차단', 't2-fence', 'middle');
   var note = el('g', { 'class': 't2-note' }, gMarks);
   var noteR = el('rect', {}, note), noteT = txt(note, 0, 0, '', '', 'middle');
 
@@ -3694,15 +3749,49 @@ PORTAL_HTML = """<!DOCTYPE html>
   var refresh = h('button', 'btn-top', '새로고침', head); refresh.type = 'button';
   var tabs = h('div', 'osx-tabs', null, root); tabs.setAttribute('role', 'tablist');
   var panes = {};
-  [['map', '구성도 · 경로'], ['svc', '서비스 상태'], ['res', '자원 현황'], ['ops', 'VM 도구']].forEach(function (t, i) {
+  // 재배치: 작은 정보는 좁게, 큰 구성도는 한 화면에
+  var panel = document.getElementById('osvm-panel');
+  var mapPane = h('div', 'osx-mappane', null, null);
+  panes.map = mapPane;
+  (function layout() {
+    if (!panel) return;
+    var hero = panel.querySelector('.overview-hero'), stats = panel.querySelector('.stats-grid');
+    var focused = document.getElementById('os-focused-box');
+    var selector = focused ? focused.previousElementSibling : null;
+    var grid = document.getElementById('os-vm-grid');
+    var invTitle = grid ? grid.previousElementSibling : null;
+    var host = grid ? grid.nextElementSibling : null;
+    while (host && !(host.classList && host.classList.contains('kt-vm-box'))) host = host.nextElementSibling;
+    panel.classList.add('osv-on');
+    var top = document.createElement('div'); top.className = 'osv-top';
+    if (hero) top.appendChild(hero);
+    if (stats) top.appendChild(stats);
+    top.appendChild(head);
+    var main = document.createElement('div'); main.className = 'osv-main';
+    var mapCol = h('div', 'osv-mapcol', null, main);
+    mapCol.appendChild(mapPane);
+    var side = h('div', 'osv-side', null, main);
+    if (selector) side.appendChild(selector);
+    if (focused) side.appendChild(focused);
+    panel.insertBefore(top, panel.firstChild);
+    panel.insertBefore(main, top.nextSibling);
+    panel.appendChild(root);
+    panes.inv = h('div', 'osx-pane', null, null); panes.inv.dataset.p = 'inv'; panes.inv.hidden = true;
+    if (invTitle && invTitle.classList.contains('section-title')) invTitle.remove();
+    if (grid) panes.inv.appendChild(grid);
+    panes.host = h('div', 'osx-pane', null, null); panes.host.dataset.p = 'host'; panes.host.hidden = true;
+    if (host) panes.host.appendChild(host);
+  })();
+  [['svc', '서비스 상태'], ['res', '자원 현황'], ['ops', 'VM 도구'], ['inv', 'VM 인벤토리'], ['host', '물리 호스트']].forEach(function (t, i) {
     var b = h('button', 'osx-tab' + (i ? '' : ' on'), t[1], tabs); b.type = 'button'; b.dataset.p = t[0]; b.setAttribute('role', 'tab');
-    var p = h('div', 'osx-pane', null, root); p.dataset.p = t[0]; if (i) p.hidden = true;
+    var p = panes[t[0]] || h('div', 'osx-pane', null, null);
+    p.dataset.p = t[0]; p.hidden = !!i; root.appendChild(p);
     panes[t[0]] = p;
   });
   tabs.addEventListener('click', function (e) {
     var k = e.target.dataset && e.target.dataset.p; if (!k) return;
     Array.prototype.forEach.call(tabs.children, function (b) { b.classList.toggle('on', b.dataset.p === k); });
-    Object.keys(panes).forEach(function (p) { panes[p].hidden = p !== k; });
+    Object.keys(panes).forEach(function (p) { if (p !== 'map') panes[p].hidden = p !== k; });
   });
   refresh.addEventListener('click', function () { load(true); });
 
@@ -3761,21 +3850,21 @@ PORTAL_HTML = """<!DOCTYPE html>
     var y = TOP, frames = [];
     hosts.forEach(function (hn) {
       var list = byHost[hn] || [];
-      var hgt = 46 + Math.max(1, list.length) * ROW;
+      var hgt = 54 + Math.max(1, list.length) * ROW;
       frames.push({ host: hn, y: y, h: hgt, vms: list });
       y += hgt + 24;
     });
-    var H = Math.max(y, 520), W = X_HOST + HOST_W + 40;
+    var H = Math.max(y, TOP + 4 * 90 + 30), W = X_HOST + HOST_W + 120;
     mapWrap = h('div', 'osx-map', null, p);
-    svg = s('svg', { viewBox: '0 0 ' + W + ' ' + H, 'class': 'osx-svg', role: 'img', 'aria-label': 'OpenStack 네트워크 구성도' }, mapWrap);
+    svg = s('svg', { viewBox: '0 0 ' + W + ' ' + H, 'class': 'osx-svg', role: 'img', 'aria-label': 'OpenStack 네트워크 구성도', preserveAspectRatio: 'xMidYMid meet' }, mapWrap);
     var gL = s('g', {}, svg), gN = s('g', {}, svg);
     var el = {};
 
     function box(id, x, y0, w, hh, title, sub, cls) {
       var g = s('g', { 'class': 'osx-node ' + (cls || ''), 'data-id': id }, gN);
       s('rect', { x: x, y: y0, width: w, height: hh }, g);
-      s('text', { x: x + w / 2, y: y0 + (sub ? hh / 2 - 2 : hh / 2 + 5), 'text-anchor': 'middle', 'class': 't' }, g, title);
-      if (sub) s('text', { x: x + w / 2, y: y0 + hh / 2 + 15, 'text-anchor': 'middle', 'class': 's' }, g, sub);
+      s('text', { x: x + w / 2, y: y0 + (sub ? hh / 2 - 5 : hh / 2 + 5), 'text-anchor': 'middle', 'class': 't' }, g, title);
+      if (sub) s('text', { x: x + w / 2, y: y0 + hh / 2 + 16, 'text-anchor': 'middle', 'class': 's' }, g, sub);
       el[id] = g; return g;
     }
     function line(id, pts, cls, label, lx, ly, anchor) {
@@ -3804,7 +3893,7 @@ PORTAL_HTML = """<!DOCTYPE html>
       el['net-' + n.id] = g;
     });
     var firstExt = extList[0].id;
-    line('l-host-ext', [[X_EXTCHAIN + 150, TOP + 3 * 90 + 28], [extBars[firstExt] - 5, TOP + 3 * 90 + 28]], 'ext', 'VMware 브리지', X_EXTCHAIN + 156, TOP + 3 * 90 + 22);
+    line('l-host-ext', [[X_EXTCHAIN + 150, TOP + 3 * 90 + 28], [extBars[firstExt] - 5, TOP + 3 * 90 + 28]], 'ext', '브리지', X_EXTCHAIN + 156, TOP + 3 * 90 + 22);
     // 내부망 막대
     var intBars = {};
     intn.forEach(function (n, i) {
@@ -3839,10 +3928,10 @@ PORTAL_HTML = """<!DOCTYPE html>
       s('rect', { x: X_HOST, y: f.y, width: HOST_W, height: f.h }, g);
       var hv = (d.hypervisors || []).filter(function (x) { return x.hypervisor_hostname === f.host; })[0];
       s('text', { x: X_HOST + 10, y: f.y + 20, 'class': 'b' }, g, f.host);
-      if (hv) s('text', { x: X_HOST + 10, y: f.y + 36, 'class': 's' }, g, (hv.host_ip || '') + ' · vCPU ' + hv.vcpus_used + '/' + hv.vcpus + ' · RAM ' + Math.round(hv.memory_mb_used / 1024) + '/' + Math.round(hv.memory_mb / 1024) + 'G');
+      if (hv) s('text', { x: X_HOST + 10, y: f.y + 42, 'class': 's' }, g, (hv.host_ip || '') + ' · vCPU ' + hv.vcpus_used + '/' + hv.vcpus + ' · RAM ' + Math.round(hv.memory_mb_used / 1024) + '/' + Math.round(hv.memory_mb / 1024) + 'G');
       el['host-' + f.host] = g;
       f.vms.forEach(function (v, i) {
-        var vy = f.y + 46 + i * ROW;
+        var vy = f.y + 54 + i * ROW;
         var ips = [];
         Object.keys(v.addresses || {}).forEach(function (nn) { (v.addresses[nn] || []).forEach(function (a) { ips.push({ net: nn, ip: a.addr, type: a['OS-EXT-IPS:type'] }); }); });
         var fixed = ips.filter(function (a) { return a.type !== 'floating'; });
@@ -3867,7 +3956,7 @@ PORTAL_HTML = """<!DOCTYPE html>
       });
       if (fi > 0) {
         var prev = frames[fi - 1];
-        line('l-geneve-' + fi, [[X_HOST + HOST_W + 14, prev.y + prev.h / 2], [X_HOST + HOST_W + 14, f.y + f.h / 2]], 'geneve', 'OVN Geneve', X_HOST + HOST_W + 8, (prev.y + prev.h / 2 + f.y + f.h / 2) / 2, 'end');
+        line('l-geneve-' + fi, [[X_HOST + HOST_W + 14, prev.y + prev.h / 2], [X_HOST + HOST_W + 14, f.y + f.h / 2]], 'geneve', 'OVN Geneve', X_HOST + HOST_W + 22, (prev.y + prev.h / 2 + f.y + f.h / 2) / 2 + 4, 'start');
       }
     });
     s('text', { x: X_HOST, y: TOP - 20, 'class': 'osx-col' }, gN, 'Compute 노드 · VM (Nova 배치)');
@@ -3880,7 +3969,7 @@ PORTAL_HTML = """<!DOCTYPE html>
     traceCap = h('span', 'osx-tcap', '단계를 고르거나 재생하세요', bar);
     var bPrev = h('button', 'btn-top', '◀ 이전', bar), bPlay = h('button', 'btn-top', '재생', bar), bNext = h('button', 'btn-top', '다음 ▶', bar);
     [bPrev, bPlay, bNext].forEach(function (b) { b.type = 'button'; });
-    traceList = h('ol', 'osx-tlist', null, trace);
+    traceList = h('ol', 'osx-tlist compact', null, trace);
     var target = servers.filter(function (v) { return el['fip-' + v.id]; })[0] || servers[0];
     var rt = routers[0];
     var tNet = target ? intn.filter(function (n) { return (target.addresses || {})[n.name]; })[0] : null;
@@ -3897,8 +3986,9 @@ PORTAL_HTML = """<!DOCTYPE html>
     ];
     if (frames.length > 1) HOPS.push(['다른 Compute의 VM과는 OVN Geneve 터널로 통신', ['l-geneve-1']]);
     HOPS.forEach(function (hp, i) {
-      var li = h('li', null, null, traceList); li.dataset.i = i;
+      var li = h('li', null, null, traceList); li.dataset.i = i; li.title = hp[0]; li.tabIndex = 0;
       h('i', null, String(i + 1), li); h('span', null, hp[0], li);
+      li.addEventListener('keydown', function (e) { if (e.key === 'Enter') { stop(); go(i); } });
       li.addEventListener('click', function () { stop(); go(i); });
     });
     function go(i) {
