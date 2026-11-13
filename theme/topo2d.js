@@ -334,7 +334,7 @@
     mgmt: { tun: { tA: 'on', tB: 'on', tC: 'idle' }, ok: ['gpu', 'ops'] }
   };
   var ON_IDS = ['gpu', 'onwg', 'ingress', 'web1', 'web2', 'api1', 'api2', 'worker', 'na', 'redis', 'rabbit', 'mysql', 'harbor', 'argocd'];
-  var stage = 'normal', hopIdx = 0, hopT = 0, playing = true, pauseT = 0;
+  var stage = 'normal', hopIdx = 0, hopT = 0, playing = false, pauseT = 0;
   var HOP = 1.15, NODE_T = 1.4, END = 1.0;
   var flowList = document.getElementById('dc-flow');
 
@@ -662,9 +662,9 @@
         if (r[4]) e.style.background = r[4];
       });
     }
-    window.setV3Stage = function (s, fromAuto) {
+    window.setV3Stage = function (s) {
       resetDetail();
-      origSet(s, fromAuto);
+      origSet(s);
       [['btn-v3-surge', 'surge', '#C8962E'], ['btn-v3-mgmt', 'mgmt', '#C9874F']].forEach(function (b) {
         var e = document.getElementById(b[0]); if (!e) return;
         var on = s === b[1];
@@ -722,7 +722,7 @@
   }
   function setStage(s) {
     if (!F[s]) s = 'normal';
-    stage = s; hopIdx = 0; hopT = 0; pauseT = 0; playing = true;
+    stage = s; hopIdx = 0; hopT = 0; pauseT = 0; playing = false;
     card.hidden = true;
     applyState(); renderFlowList(); markFlow(); syncPlay();
   }

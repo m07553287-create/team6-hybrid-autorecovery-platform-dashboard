@@ -1857,9 +1857,6 @@ PORTAL_HTML = """<!DOCTYPE html>
         <!-- CONTROL BAR & FLOW VELOCITY CONTROLLER -->
         <div style="background:#0F2D4F; padding:14px 18px; border-radius:0; border:1px solid #4F739A; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;">
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-            <button id="btn-dr-autoplay" class="btn-top" style="background:#5FD39A; color:#fff; font-weight:800; font-size:12.5px; padding:8px 16px; border-radius:0; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:0 0 12px rgba(95,211,154,0.35); transition:all .2s;" onclick="toggleDrAutoPlay()">
-              <span id="dr-autoplay-icon">▶️</span> <span id="dr-autoplay-text">5초 자동 시뮬레이션</span>
-            </button>
             <button id="btn-open-console" class="btn-top" style="background:#3A78B5; color:#fff; font-weight:800; font-size:12.5px; padding:8px 16px; border-radius:0; cursor:pointer; display:flex; align-items:center; gap:6px;" onclick="openConsoleModal()">
               <span>📋</span> 콘솔확인
             </button>
@@ -3403,10 +3400,7 @@ PORTAL_HTML = """<!DOCTYPE html>
     // ============================================================
     let currentV3Stage = 'normal';
 
-    function setV3Stage(stage, fromAuto) {
-      if (!fromAuto && typeof drAutoTimer !== 'undefined' && drAutoTimer) {
-        stopDrAutoPlay('manual');
-      }
+    function setV3Stage(stage) {
       currentV3Stage = stage;
       const isoScene = document.getElementById('iso-scene');
       if (isoScene) isoScene.setAttribute('data-stage', stage);
@@ -3719,80 +3713,6 @@ PORTAL_HTML = """<!DOCTYPE html>
       // 동적 트래픽 흐름 속도계 및 하단 파드 단위 상세 상태 동기화
       updateDrVelocity(stage);
       updatePodDetailView(stage);
-    }
-
-    // ============================================================
-    // 5초 자동 시뮬레이션 순환 제어 (Auto-Play / Manual Priority)
-    // ============================================================
-    let drAutoTimer = null;
-    let drCountdownTimer = null;
-    let drRemainSec = 5;
-
-    function toggleDrAutoPlay() {
-      if (drAutoTimer) {
-        stopDrAutoPlay();
-      } else {
-        startDrAutoPlay();
-      }
-    }
-
-    function startDrAutoPlay() {
-      if (drAutoTimer) clearInterval(drAutoTimer);
-      if (drCountdownTimer) clearInterval(drCountdownTimer);
-      drRemainSec = 5;
-
-      const btn = document.getElementById('btn-dr-autoplay');
-      const icon = document.getElementById('dr-autoplay-icon');
-      const text = document.getElementById('dr-autoplay-text');
-      if (btn) {
-        btn.style.background = '#F4C95D';
-        btn.style.boxShadow = '0 0 15px rgba(244,201,93,0.5)';
-      }
-      if (icon) icon.innerText = '⏸️';
-      if (text) text.innerText = '자동 순환 중 (5s)';
-
-      addDrLog("[v3.0-AUTOPLAY] ▶️ 5초 자동 시뮬레이션 순환이 시작되었습니다. (수동 단계 클릭 시 자동 일시정지)", "info");
-
-      // 1초 단위 카운트다운
-      drCountdownTimer = setInterval(() => {
-        drRemainSec--;
-        if (drRemainSec <= 0) drRemainSec = 5;
-        const t = document.getElementById('dr-autoplay-text');
-        if (t) t.innerText = `자동 순환 중 (${drRemainSec}s)`;
-      }, 1000);
-
-      // 5초 주기 다음 단계로 자동 이동
-      drAutoTimer = setInterval(() => {
-        let curIdx = V3_STAGES.indexOf(currentV3Stage);
-        let nextIdx = (curIdx + 1) % V3_STAGES.length;
-        let nextStage = V3_STAGES[nextIdx];
-        setV3Stage(nextStage, true);
-        drRemainSec = 5;
-      }, 5000);
-    }
-
-    function stopDrAutoPlay(reason) {
-      if (drAutoTimer) {
-        clearInterval(drAutoTimer);
-        drAutoTimer = null;
-      }
-      if (drCountdownTimer) {
-        clearInterval(drCountdownTimer);
-        drCountdownTimer = null;
-      }
-      const btn = document.getElementById('btn-dr-autoplay');
-      const icon = document.getElementById('dr-autoplay-icon');
-      const text = document.getElementById('dr-autoplay-text');
-      if (btn) {
-        btn.style.background = '#5FD39A';
-        btn.style.boxShadow = '0 0 12px rgba(95,211,154,0.35)';
-      }
-      if (icon) icon.innerText = '▶️';
-      if (text) text.innerText = '5초 자동 시뮬레이션';
-
-      if (reason === 'manual') {
-        addDrLog(`[v3.0-AUTOPLAY] ⏸️ 수동 단계(${currentV3Stage})가 선택되어 자동 시뮬레이션이 일시정지되었습니다.`, "warn");
-      }
     }
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -4156,7 +4076,7 @@ PORTAL_HTML = """<!DOCTYPE html>
     mgmt: { tun: { tA: 'on', tB: 'on', tC: 'idle' }, ok: ['gpu', 'ops'] }
   };
   var ON_IDS = ['gpu', 'onwg', 'ingress', 'web1', 'web2', 'api1', 'api2', 'worker', 'na', 'redis', 'rabbit', 'mysql', 'harbor', 'argocd'];
-  var stage = 'normal', hopIdx = 0, hopT = 0, playing = true, pauseT = 0;
+  var stage = 'normal', hopIdx = 0, hopT = 0, playing = false, pauseT = 0;
   var HOP = 1.15, NODE_T = 1.4, END = 1.0;
   var flowList = document.getElementById('dc-flow');
 
@@ -4484,9 +4404,9 @@ PORTAL_HTML = """<!DOCTYPE html>
         if (r[4]) e.style.background = r[4];
       });
     }
-    window.setV3Stage = function (s, fromAuto) {
+    window.setV3Stage = function (s) {
       resetDetail();
-      origSet(s, fromAuto);
+      origSet(s);
       [['btn-v3-surge', 'surge', '#C8962E'], ['btn-v3-mgmt', 'mgmt', '#C9874F']].forEach(function (b) {
         var e = document.getElementById(b[0]); if (!e) return;
         var on = s === b[1];
@@ -4544,7 +4464,7 @@ PORTAL_HTML = """<!DOCTYPE html>
   }
   function setStage(s) {
     if (!F[s]) s = 'normal';
-    stage = s; hopIdx = 0; hopT = 0; pauseT = 0; playing = true;
+    stage = s; hopIdx = 0; hopT = 0; pauseT = 0; playing = false;
     card.hidden = true;
     applyState(); renderFlowList(); markFlow(); syncPlay();
   }
