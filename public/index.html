@@ -2234,12 +2234,16 @@
       currentVmId = vm.id || '100c3a42-ca1e-4a06-bae5-61f14693e479';
       currentVmState = vm.state || 'Running';
 
-      document.getElementById('kt-display-name').innerText = 'kt-edge-dr-01';
+      document.getElementById('kt-display-name').innerText = vm.name || 'kt-edge-dr-01';
       document.getElementById('kt-display-id').innerText = 'ID: ' + currentVmId;
-      document.getElementById('kt-private-ip').innerText = '172.27.0.160';
-      document.getElementById('kt-spec').innerText = '1 vCPU · 2048 MB RAM';
+      if (vm.nic && vm.nic.length > 0 && vm.nic[0].ipaddress) {
+        document.getElementById('kt-private-ip').innerText = vm.nic[0].ipaddress;
+      } else {
+        document.getElementById('kt-private-ip').innerText = '172.27.0.160';
+      }
+      document.getElementById('kt-spec').innerText = (vm.cpunumber || 1) + ' vCPU · ' + (vm.memory || 2048) + ' MB RAM';
       document.getElementById('kt-os').innerText = 'Rocky Linux 8.10 (XenServer)';
-      document.getElementById('kt-zone').innerText = 'kr-1 (KOR-Central A)';
+      document.getElementById('kt-zone').innerText = (vm.zonename || 'kr-1') + ' (KOR-Central A)';
 
       const badge = document.getElementById('kt-status-badge');
       const text = document.getElementById('kt-status-text');
@@ -2467,6 +2471,16 @@
       if (!ok) return;
 
       executeVmAction(action);
+    }
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
 
     async function execKtTerminal(cmd, pwd = '') {

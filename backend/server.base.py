@@ -2305,12 +2305,16 @@ PORTAL_HTML = """<!DOCTYPE html>
       currentVmId = vm.id || '100c3a42-ca1e-4a06-bae5-61f14693e479';
       currentVmState = vm.state || 'Running';
 
-      document.getElementById('kt-display-name').innerText = 'kt-edge-dr-01';
+      document.getElementById('kt-display-name').innerText = vm.name || 'kt-edge-dr-01';
       document.getElementById('kt-display-id').innerText = 'ID: ' + currentVmId;
-      document.getElementById('kt-private-ip').innerText = '172.27.0.160';
-      document.getElementById('kt-spec').innerText = '1 vCPU · 2048 MB RAM';
+      if (vm.nic && vm.nic.length > 0 && vm.nic[0].ipaddress) {
+        document.getElementById('kt-private-ip').innerText = vm.nic[0].ipaddress;
+      } else {
+        document.getElementById('kt-private-ip').innerText = '172.27.0.160';
+      }
+      document.getElementById('kt-spec').innerText = (vm.cpunumber || 1) + ' vCPU · ' + (vm.memory || 2048) + ' MB RAM';
       document.getElementById('kt-os').innerText = 'Rocky Linux 8.10 (XenServer)';
-      document.getElementById('kt-zone').innerText = 'kr-1 (KOR-Central A)';
+      document.getElementById('kt-zone').innerText = (vm.zonename || 'kr-1') + ' (KOR-Central A)';
 
       const badge = document.getElementById('kt-status-badge');
       const text = document.getElementById('kt-status-text');
@@ -2533,6 +2537,16 @@ PORTAL_HTML = """<!DOCTYPE html>
       if (!ok) return;
 
       executeVmAction(action);
+    }
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
 
     async function execKtTerminal(cmd, pwd = '') {
@@ -3618,20 +3632,43 @@ class PortalHandler(http.server.BaseHTTPRequestHandler):
         # KT Cloud API: List Virtual Machines
         if path == '/api/ktcloud/vms':
             try:
-                # Real-time connectivity check to kt-edge-dr-01 (WireGuard 10.200.0.1:22 or Public 14.63.212.190:22)
+                # Real-time connectivity & dynamic private IP discovery (WireGuard 10.200.0.1:22 or Public 14.63.212.190:22)
                 is_running = False
+                connected_target = None
                 for check_ip in ["10.200.0.1", "14.63.212.190"]:
                     try:
                         with socket.create_connection((check_ip, 22), timeout=1.2):
                             is_running = True
+                            connected_target = check_ip
                             break
+                    except Exception:
+                        pass
+
+                live_hostname = "kt-edge-dr-01"
+                live_private_ip = "172.27.0.160"
+                live_wg_ip = "10.200.0.1"
+
+                if is_running and connected_target:
+                    try:
+                        ssh_probe = ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=2", "-o", "BatchMode=yes", f"root@{connected_target}", "hostname && hostname -I"]
+                        probe_res = subprocess.run(ssh_probe, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=3)
+                        out_lines = [l.strip() for l in probe_res.stdout.splitlines() if l.strip()]
+                        if len(out_lines) > 0 and out_lines[0]:
+                            live_hostname = out_lines[0]
+                        if len(out_lines) > 1:
+                            probe_ips = out_lines[1].split()
+                            for pip in probe_ips:
+                                if pip.startswith("172."):
+                                    live_private_ip = pip
+                                elif pip.startswith("10.200."):
+                                    live_wg_ip = pip
                     except Exception:
                         pass
 
                 edge_vm = {
                     "id": "100c3a42-ca1e-4a06-bae5-61f14693e479",
-                    "name": "kt-edge-dr-01",
-                    "displayname": "kt-edge-dr-01",
+                    "name": live_hostname,
+                    "displayname": live_hostname,
                     "state": "Running" if is_running else "Stopped",
                     "zonename": "kr-1",
                     "templatename": "rocky8.10-20260515",
@@ -3640,10 +3677,10 @@ class PortalHandler(http.server.BaseHTTPRequestHandler):
                     "memory": 2048,
                     "nic": [
                         {
-                            "ipaddress": "172.27.0.160",
+                            "ipaddress": live_private_ip,
                             "networkname": "EPC_G1_Default_Network",
                             "publicip": "14.63.212.190",
-                            "wg_ip": "10.200.0.1"
+                            "wg_ip": live_wg_ip
                         }
                     ]
                 }
