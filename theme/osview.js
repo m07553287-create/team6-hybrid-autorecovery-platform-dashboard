@@ -155,7 +155,7 @@
       el[id] = g; return g;
     }
     // 외부 경로 체인
-    var chain = [['ext-cf', 'Cloudflare', 'Anycast · WAF'], ['ext-kt', 'KT Edge', '14.63.213.214'], ['ext-wg', 'WG 터널 A', 'KT ↔ 온프렘'], ['ext-host', '온프렘 호스트', '10.10.10.8 · VMware']];
+    var chain = [['ext-cf', 'Cloudflare', 'Anycast · WAF'], ['ext-kt', 'KT Edge', '14.63.212.190'], ['ext-wg', 'WG 터널 A', 'KT ↔ 온프렘'], ['ext-host', '온프렘 호스트', '10.10.10.8 · VMware']];
     chain.forEach(function (c, i) {
       box(c[0], X_EXTCHAIN, TOP + i * 90, 150, 56, c[1], c[2], 'ext');
       if (i) line('l-' + c[0], [[X_EXTCHAIN + 75, TOP + (i - 1) * 90 + 56], [X_EXTCHAIN + 75, TOP + i * 90]], 'ext');
@@ -258,7 +258,7 @@
     var tFip = target && el['fip-' + target.id] ? el['fip-' + target.id].textContent : '';
     HOPS = [
       ['Cloudflare 애니캐스트: 가장 가까운 엣지가 요청 수신 (WAF)', ['ext-cf']],
-      ['KT Edge(14.63.213.214): TLS 종료 · 접수 대기열', ['ext-kt', 'l-ext-kt']],
+      ['KT Edge(14.63.212.190): TLS 종료 · 접수 대기열', ['ext-kt', 'l-ext-kt']],
       ['WireGuard 터널 A → 온프렘 호스트', ['ext-wg', 'l-ext-wg']],
       ['온프렘 호스트(10.10.10.8) → VMware 브리지 → 외부망', ['ext-host', 'l-ext-host', 'l-host-ext', 'net-' + firstExt]],
       [tFip ? 'Floating IP ' + tFip + ' → 라우터 (OVN NAT)' : '외부망 → 라우터 게이트웨이 (OVN NAT)', rt ? ['l-gw-' + rt.id, 'rt-' + rt.id].concat(target ? ['fip-' + target.id] : []) : []],
