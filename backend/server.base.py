@@ -897,7 +897,7 @@ PORTAL_HTML = """<!DOCTYPE html>
     <div class="status-group">
       <div class="chip">
         <span id="header-kt-dot" class="dot green"></span>
-        <span id="header-kt-text">KT Edge: k-vm1 (Running)</span>
+        <span id="header-kt-text">KT Edge: kt-edge-dr-01 (Running)</span>
       </div>
       <div class="chip">
         <span class="dot green"></span>
@@ -998,8 +998,8 @@ PORTAL_HTML = """<!DOCTYPE html>
         <div class="stats-grid">
           <div class="stat-card">
             <div class="label">KT Cloud VM 상태</div>
-            <div class="value" id="stat-kt-state">k-vm1 : Running</div>
-            <div class="subtext" id="stat-kt-sub">14.63.213.214 (공인 엣지)</div>
+            <div class="value" id="stat-kt-state">kt-edge-dr-01 : Running</div>
+            <div class="subtext" id="stat-kt-sub">14.63.212.190 (공인 엣지)</div>
           </div>
           <div class="stat-card">
             <div class="label">SSO 통합 인증</div>
@@ -1065,7 +1065,7 @@ PORTAL_HTML = """<!DOCTYPE html>
               </div>
               <span class="svc-type type-iaas" style="background:#0284c7;">KT Edge</span>
             </div>
-            <div class="svc-desc">KT Cloud OpenAPI를 직접 호출하여 Edge Gateway VM(k-vm1) 전원 켜기·끄기·재부팅 및 과금 최적화.</div>
+            <div class="svc-desc">KT Cloud OpenAPI를 직접 호출하여 Edge Gateway VM(kt-edge-dr-01) 전원 켜기·끄기·재부팅 및 과금 최적화.</div>
             <div class="svc-footer">
               <span id="card-kt-state-text">상태: Running 🟢</span>
               <button class="btn-launch" onclick="switchTab('ktvm')">VM 관리하기 →</button>
@@ -1134,7 +1134,7 @@ PORTAL_HTML = """<!DOCTYPE html>
             <div class="kt-vm-title">
               <span style="font-size:24px;">🖥️</span>
               <div>
-                <div class="kt-vm-name" id="kt-display-name">k-vm1</div>
+                <div class="kt-vm-name" id="kt-display-name">kt-edge-dr-01</div>
                 <div style="font-size: 11px; color: #94a3b8; font-family: monospace;" id="kt-display-id">ID: 100c3a42-ca1e-4a06-bae5-61f14693e479</div>
               </div>
             </div>
@@ -1149,11 +1149,11 @@ PORTAL_HTML = """<!DOCTYPE html>
           <div class="kt-props-grid">
             <div class="prop-item">
               <div class="prop-label">공인 진입점 IP (Edge)</div>
-              <div class="prop-val" style="color:#38bdf8;">14.63.213.214</div>
+              <div class="prop-val" style="color:#38bdf8;">14.63.212.190</div>
             </div>
             <div class="prop-item">
               <div class="prop-label">사설 IP (Guest Network)</div>
-              <div class="prop-val" id="kt-private-ip">172.27.0.185</div>
+              <div class="prop-val" id="kt-private-ip">172.27.0.160</div>
             </div>
             <div class="prop-item">
               <div class="prop-label">인스턴스 스펙</div>
@@ -1173,21 +1173,106 @@ PORTAL_HTML = """<!DOCTYPE html>
             </div>
           </div>
 
+          <!-- DETAILED INTERNAL NETWORK & SECURITY CONFIG (GIT C2 STANDARD) -->
+          <div style="margin-top:16px; border:1px solid rgba(56, 189, 248, 0.3); background:rgba(15, 23, 42, 0.6); padding:14px; border-radius:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:8px;">
+              <span style="font-size:13px; font-weight:800; color:#fbbf24;">🔧 KT Cloud Edge 내부 설정 및 인프라 연동 명세</span>
+              <span class="menu-badge" style="background:#0284c7; color:#fff;">C2 Interface Standard</span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
+              <div style="background:rgba(30, 41, 59, 0.6); padding:10px 14px; border:1px solid rgba(255,255,255,0.08); border-radius:6px;">
+                <div style="font-weight:700; color:#38bdf8; margin-bottom:6px;">🛡️ 5대 포트포워딩 & 방화벽 개방 규칙</div>
+                <div style="font-size:11.5px; color:#cbd5e1; line-height:1.7;">
+                  • <b>22/TCP</b>: SSH 관리 & Ansible 자동화 (공인 22 포워딩)<br>
+                  • <b>80/TCP</b>: HTTP 리버스 프록시 (ModSecurity WAF)<br>
+                  • <b>443/TCP</b>: HTTPS TLS 종료 및 10s 마이크로캐시<br>
+                  • <b>51820/UDP</b>: WireGuard 사이트 간 VPN 터널<br>
+                  • <b>30080/TCP</b>: AWS DR NodePort 비상 라우팅
+                </div>
+              </div>
+              <div style="background:rgba(30, 41, 59, 0.6); padding:10px 14px; border:1px solid rgba(255,255,255,0.08); border-radius:6px;">
+                <div style="font-weight:700; color:#34d399; margin-bottom:6px;">🌐 WireGuard 4노드 터널 허브 구성</div>
+                <div style="font-size:11.5px; color:#cbd5e1; line-height:1.7;">
+                  • <b>Hub (kt-edge)</b>: <code>10.200.0.1/24</code> (14.63.212.190)<br>
+                  • <b>Peer 1 (온프렘)</b>: <code>10.200.0.2</code> (MetalLB 10.10.1.100)<br>
+                  • <b>Peer 2 (AWS ctl)</b>: <code>10.200.0.3</code> (Orchestrator · 관제)<br>
+                  • <b>Peer 3 (AWS dr)</b>: <code>10.200.0.4</code> (Pilot-Light DR K3s)
+                </div>
+              </div>
+              <div style="background:rgba(30, 41, 59, 0.6); padding:10px 14px; border:1px solid rgba(255,255,255,0.08); border-radius:6px;">
+                <div style="font-weight:700; color:#f59e0b; margin-bottom:6px;">⚡ Nginx WAF & L3 Upstream 절체 정책</div>
+                <div style="font-size:11.5px; color:#cbd5e1; line-height:1.7;">
+                  • <b>평시 백엔드 (onprem)</b>: <code>10.10.1.100:80</code> (온프렘 VIP)<br>
+                  • <b>재해복구 (dr)</b>: <code>10.200.0.4:30080</code> (AWS dr NodePort)<br>
+                  • <b>자동 절체 스크립트</b>: <code>switch_edge.yml</code> 연동<br>
+                  • <b>마이크로캐시</b>: <code>proxy_cache_valid 200 10s;</code>
+                </div>
+              </div>
+            </div>
+
+            <!-- INTERACTIVE LIVE TERMINAL CONSOLE -->
+            <div style="margin-top:16px; border-top:1px solid rgba(255,255,255,0.1); padding-top:14px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:13px; font-weight:800; color:#34d399;">💻 KT Edge 라이브 상태 확인 터미널</span>
+                  <span style="font-size:11px; color:#64748b; font-family:monospace;">[root@kt-edge-dr-01 ~]#</span>
+                </div>
+                <span class="menu-badge" style="background:#10b981; color:#fff; font-size:10.5px;">WG 10.200.0.1 Direct / 14.63.212.190 Dual Link</span>
+              </div>
+
+              <!-- PRESET COMMAND BUTTONS TOOLBAR -->
+              <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
+                <span style="font-size:11.5px; font-weight:700; color:#94a3b8; margin-right:4px;">대표 상태 확인:</span>
+                <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtTerminal('wg show')">🔍 wg show</button>
+                <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtTerminal('wg show wg0 dump')">🌐 wg dump</button>
+                <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtTerminal('nginx -t')">🌐 nginx -t</button>
+                <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtTerminal('cat /etc/nginx/conf.d/upstream.conf')">🔀 upstream 확인</button>
+                <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtTerminal('ping -c 3 10.200.0.2')">📡 온프렘 Ping (10.200.0.2)</button>
+                <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtTerminal('curl -k -s -I https://127.0.0.1/')">🛡️ 로컬 WAF 헬스체크</button>
+                <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtTerminal('systemctl status nginx wg-quick@wg0 --no-pager')">📊 서비스 상태</button>
+                <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtTerminal('ip -brief addr show && ip route')">🔌 IP/라우팅</button>
+                
+                <span id="kt-term-ctrl-label" style="font-size:11.5px; font-weight:700; color:#64748b; margin:0 4px 0 10px;">🔒 제어/재시작 (기본 비활성):</span>
+                <button class="btn-top kt-ctrl-btn" id="btn-term-reload" disabled style="font-size:11px; padding:4px 9px; border-color:#f59e0b; color:#f59e0b; opacity:0.35; cursor:not-allowed;" onclick="handleKtControlClick('term', 'nginx -s reload')">⚡ Nginx 리로드</button>
+                <button class="btn-top kt-ctrl-btn" id="btn-term-wgrestart" disabled style="font-size:11px; padding:4px 9px; border-color:#ef4444; color:#ef4444; opacity:0.35; cursor:not-allowed;" onclick="handleKtControlClick('term', 'systemctl restart wg-quick@wg0')">🔄 WG 재기동</button>
+                <button class="btn-top kt-ctrl-btn" id="btn-term-nginxrestart" disabled style="font-size:11px; padding:4px 9px; border-color:#ef4444; color:#ef4444; opacity:0.35; cursor:not-allowed;" onclick="handleKtControlClick('term', 'systemctl restart nginx')">🛑 Nginx 재시작</button>
+                <button class="btn-top" id="btn-kt-unlock-toggle" style="font-size:11px; padding:4px 10px; background:#f59e0b; color:#000; font-weight:800; border:none; margin-left:4px; cursor:pointer;" onclick="toggleKtControlLock()">🔑 활성화 (figteam)</button>
+              </div>
+
+              <!-- CLI INPUT BAR -->
+              <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
+                <span style="font-family:monospace; font-size:12px; color:#10b981; font-weight:700;">[root@kt-edge-dr-01 ~]#</span>
+                <input type="text" id="kt-terminal-input" placeholder="명령어 입력 (예: wg show, uptime, df -h, systemctl status nginx)" 
+                       style="flex:1; background:#0f172a; border:1px solid #334155; color:#f8fafc; padding:6px 10px; font-family:monospace; font-size:12px; border-radius:4px;"
+                       onkeydown="if(event.key==='Enter') submitKtTerminalInput()">
+                <button class="btn-top" style="background:#0284c7; color:#fff; font-size:11.5px; padding:6px 14px;" onclick="submitKtTerminalInput()">실행 (Enter)</button>
+                <button class="btn-top" style="font-size:11.5px; padding:6px 10px;" onclick="clearKtTerminal()">지우기</button>
+              </div>
+
+              <!-- TERMINAL SCREEN -->
+              <div id="kt-terminal-screen" style="background:#020617; border:1px solid #1e293b; padding:12px; font-family:'Courier New', monospace; font-size:12px; color:#34d399; line-height:1.5; min-height:180px; max-height:300px; overflow-y:auto; white-space:pre-wrap; border-radius:4px; box-shadow:inset 0 2px 10px rgba(0,0,0,0.5);">[SYSTEM] KT Cloud Edge 원격 터미널 준비 완료. WireGuard 및 Nginx 상태 확인 명령어는 즉시 실행 가능합니다.
+(보안 안내: 전원 on/off, 재부팅, 서비스 제어 명령은 기본 비활성화되어 있으며, 상단 '🔑 활성화 (figteam)' 버튼 또는 관리자 비밀번호 입력 후 활성화됩니다.)</div>
+            </div>
+          </div>
+
           <!-- CONTROL ACTION BUTTONS -->
-          <div class="kt-ctrl-bar">
+          <div class="kt-ctrl-bar" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
             <span style="font-size:12px; font-weight:700; color:#94a3b8; margin-right:6px;">전원 및 자원 명령:</span>
-            <button class="btn-action btn-stop" id="btn-kt-stop" onclick="confirmVmAction('stop')">
+            <button class="btn-action btn-stop" id="btn-kt-stop" disabled style="opacity:0.35; cursor:not-allowed;" onclick="handleKtControlClick('vm', 'stop')">
               <span>🛑</span> 전원 끄기 (Stop)
             </button>
-            <button class="btn-action btn-start" id="btn-kt-start" onclick="confirmVmAction('start')">
+            <button class="btn-action btn-start" id="btn-kt-start" disabled style="opacity:0.35; cursor:not-allowed;" onclick="handleKtControlClick('vm', 'start')">
               <span>⚡</span> 전원 켜기 (Start)
             </button>
-            <button class="btn-action btn-reboot" id="btn-kt-reboot" onclick="confirmVmAction('reboot')">
+            <button class="btn-action btn-reboot" id="btn-kt-reboot" disabled style="opacity:0.35; cursor:not-allowed;" onclick="handleKtControlClick('vm', 'reboot')">
               <span>↻</span> 재부팅 (Reboot)
             </button>
             <button class="btn-action btn-refresh" id="btn-kt-refresh" onclick="fetchKtVmStatus(true)">
               <span>🔍</span> 상태 새로고침
             </button>
+            <span id="kt-auth-badge" style="font-size:11.5px; padding:4px 8px; background:#334155; color:#94a3b8; font-weight:600; border-radius:4px; border:1px solid #475569;">
+              🔒 제어 잠김 (읽기 전용 모드)
+            </span>
             <span id="kt-action-spinner" style="display:none; font-size:12px; color:#38bdf8; margin-left:auto;">
               ⏳ KT Cloud API 작업 처리 중...
             </span>
@@ -1480,7 +1565,7 @@ PORTAL_HTML = """<!DOCTYPE html>
 
             <!-- Edge-GW VM -->
             <div class="arch-subnet" id="subnet-kt-edge" style="background:rgba(2, 132, 199, 0.1); border-color:#0284c7;">
-              <div class="subnet-label" style="color:#38bdf8;">Edge-GW VM (k-vm1 · 공인 14.63.213.214)</div>
+              <div class="subnet-label" style="color:#38bdf8;">Edge-GW VM (kt-edge-dr-01 · 공인 14.63.212.190)</div>
               <div style="font-size:11px; color:#cbd5e1; line-height:1.5;">
                 • <b>Nginx TLS·WAF (ModSecurity)</b><br>
                 • <b>10초 마이크로캐시</b> (무상태)<br>
@@ -1688,7 +1773,7 @@ PORTAL_HTML = """<!DOCTYPE html>
           <!-- DETAILED SOP ACTIONS -->
           <div style="background:#090e17; padding:12px 16px; border-radius:8px; border:1px solid #334155; font-size:12px; color:#cbd5e1; line-height:1.6;" id="v3-sop-text">
             <b>[v3.0 정상 가동 트래픽 & 보안 흐름]</b><br>
-            • <b>대민 진입</b>: HTTPS 요청이 KT Edge-GW(14.63.213.214)에 도착하여 TLS 종료 및 Nginx WAF 검사를 받습니다.<br>
+            • <b>대민 진입</b>: HTTPS 요청이 KT Edge-GW(14.63.212.190)에 도착하여 TLS 종료 및 Nginx WAF 검사를 받습니다.<br>
             • <b>터널 A 전송</b>: 온프렘 WireGuard 게이트웨이로 단방향 요청 전달 ➔ ingress-nginx ➔ <code>web ×2</code> ➔ <code>minwon-api ×2</code> ➔ <code>MySQL Primary</code> 커밋.<br>
             • <b>터널 B 복제</b>: MySQL GTID 이벤트가 터널 B를 타고 AWS Replica(super_read_only=ON)로 비동기 복제되고 관제 메트릭이 수집됩니다.
           </div>
@@ -2209,7 +2294,7 @@ PORTAL_HTML = """<!DOCTYPE html>
       currentVmId = vm.id;
       currentVmState = vm.state;
 
-      document.getElementById('kt-display-name').innerText = vm.name || 'k-vm1';
+      document.getElementById('kt-display-name').innerText = vm.name || 'kt-edge-dr-01';
       document.getElementById('kt-display-id').innerText = 'ID: ' + vm.id;
       if (vm.nic && vm.nic.length > 0) {
         document.getElementById('kt-private-ip').innerText = vm.nic[0].ipaddress;
@@ -2230,49 +2315,39 @@ PORTAL_HTML = """<!DOCTYPE html>
       const btnStart = document.getElementById('btn-kt-start');
       const btnReboot = document.getElementById('btn-kt-reboot');
 
+      currentKtVmState = vm.state || 'Unknown';
       if (vm.state === 'Running') {
         badge.className = 'kt-vm-badge state-running';
         badge.innerHTML = '<span class="dot green"></span><span>Running (가동 중)</span>';
         costInfo.style.color = '#34d399';
         costInfo.innerText = '정상 과금 중 (연산 활성)';
         headerDot.className = 'dot green';
-        headerText.innerText = 'KT Edge: k-vm1 (Running)';
-        statState.innerText = 'k-vm1 : Running';
+        headerText.innerText = 'KT Edge: kt-edge-dr-01 (Running)';
+        statState.innerText = 'kt-edge-dr-01 : Running';
         statState.style.color = '#34d399';
         cardStateText.innerText = '상태: Running 🟢';
-
-        btnStop.disabled = false;
-        btnStart.disabled = true;
-        btnReboot.disabled = false;
       } else if (vm.state === 'Stopped') {
         badge.className = 'kt-vm-badge state-stopped';
         badge.innerHTML = '<span class="dot red"></span><span>Stopped (전원 꺼짐)</span>';
         costInfo.style.color = '#f87171';
         costInfo.innerText = '비용 절감 중 (vCPU/RAM 미과금)';
         headerDot.className = 'dot red';
-        headerText.innerText = 'KT Edge: k-vm1 (Stopped)';
-        statState.innerText = 'k-vm1 : Stopped';
+        headerText.innerText = 'KT Edge: kt-edge-dr-01 (Stopped)';
+        statState.innerText = 'kt-edge-dr-01 : Stopped';
         statState.style.color = '#f87171';
         cardStateText.innerText = '상태: Stopped 🔴';
-
-        btnStop.disabled = true;
-        btnStart.disabled = false;
-        btnReboot.disabled = true;
       } else {
         badge.className = 'kt-vm-badge state-transition';
         badge.innerHTML = `<span class="dot yellow"></span><span>${vm.state} (전환 중)</span>`;
         costInfo.style.color = '#fbbf24';
         costInfo.innerText = '상태 전환 작업 진행 중...';
         headerDot.className = 'dot yellow';
-        headerText.innerText = `KT Edge: k-vm1 (${vm.state})`;
-        statState.innerText = `k-vm1 : ${vm.state}`;
+        headerText.innerText = `KT Edge: kt-edge-dr-01 (${vm.state})`;
+        statState.innerText = `kt-edge-dr-01 : ${vm.state}`;
         statState.style.color = '#fbbf24';
         cardStateText.innerText = `상태: ${vm.state} 🟡`;
-
-        btnStop.disabled = true;
-        btnStart.disabled = true;
-        btnReboot.disabled = true;
       }
+      applyKtControlState();
     }
 
     async function fetchKtVmStatus(showLog = false) {
@@ -2292,14 +2367,240 @@ PORTAL_HTML = """<!DOCTYPE html>
       }
     }
 
+    let isKtControlUnlocked = false;
+    let currentKtVmState = 'Unknown';
+
+    function toggleKtControlLock() {
+      if (!isKtControlUnlocked) {
+        const pwd = prompt("[KT Cloud 제어 권한 활성화]\n전원 On/Off, 재부팅 및 터미널 관리 명령은 보호되어 있습니다.\n관리자 비밀번호(figteam)를 입력하세요:", "");
+        if (pwd === null) return;
+        if (pwd === 'figteam') {
+          isKtControlUnlocked = true;
+          applyKtControlState();
+          alert('인증 성공: KT Edge 제어 권한이 활성화되었습니다.');
+        } else {
+          alert('비밀번호가 일치하지 않습니다. (올바른 비밀번호: figteam)');
+        }
+      } else {
+        isKtControlUnlocked = false;
+        applyKtControlState();
+        alert('안내: KT Edge 제어 권한이 다시 잠겼습니다.');
+      }
+    }
+
+    function applyKtControlState() {
+      const toggleBtn = document.getElementById('btn-kt-unlock-toggle');
+      const authBadge = document.getElementById('kt-auth-badge');
+      const termLabel = document.getElementById('kt-term-ctrl-label');
+      const termBtns = [
+        document.getElementById('btn-term-reload'),
+        document.getElementById('btn-term-wgrestart'),
+        document.getElementById('btn-term-nginxrestart')
+      ];
+
+      const btnStop = document.getElementById('btn-kt-stop');
+      const btnStart = document.getElementById('btn-kt-start');
+      const btnReboot = document.getElementById('btn-kt-reboot');
+
+      if (!isKtControlUnlocked) {
+        if (toggleBtn) {
+          toggleBtn.innerHTML = '🔑 활성화 (figteam)';
+          toggleBtn.style.background = '#f59e0b';
+          toggleBtn.style.color = '#000';
+        }
+        if (authBadge) {
+          authBadge.innerHTML = '🔒 제어 잠김 (읽기 전용 모드)';
+          authBadge.style.background = '#334155';
+          authBadge.style.color = '#94a3b8';
+          authBadge.style.borderColor = '#475569';
+        }
+        if (termLabel) {
+          termLabel.innerHTML = '🔒 제어/재시작 (기본 비활성):';
+          termLabel.style.color = '#94a3b8';
+        }
+
+        termBtns.forEach(btn => {
+          if (btn) {
+            btn.disabled = true;
+            btn.style.opacity = '0.35';
+            btn.style.cursor = 'not-allowed';
+            btn.title = '기본 비활성화됨: figteam 비밀번호 입력 후 활성화';
+          }
+        });
+
+        if (btnStop) {
+          btnStop.disabled = true;
+          btnStop.style.opacity = '0.35';
+          btnStop.style.cursor = 'not-allowed';
+          btnStop.title = '기본 비활성화됨: figteam 비밀번호 입력 후 활성화';
+        }
+        if (btnStart) {
+          btnStart.disabled = true;
+          btnStart.style.opacity = '0.35';
+          btnStart.style.cursor = 'not-allowed';
+          btnStart.title = '기본 비활성화됨: figteam 비밀번호 입력 후 활성화';
+        }
+        if (btnReboot) {
+          btnReboot.disabled = true;
+          btnReboot.style.opacity = '0.35';
+          btnReboot.style.cursor = 'not-allowed';
+          btnReboot.title = '기본 비활성화됨: figteam 비밀번호 입력 후 활성화';
+        }
+      } else {
+        if (toggleBtn) {
+          toggleBtn.innerHTML = '🔒 다시 잠그기';
+          toggleBtn.style.background = '#10b981';
+          toggleBtn.style.color = '#fff';
+        }
+        if (authBadge) {
+          authBadge.innerHTML = '🔓 제어 활성화됨 (관리자 모드)';
+          authBadge.style.background = '#064e3b';
+          authBadge.style.color = '#6ee7b7';
+          authBadge.style.borderColor = '#059669';
+        }
+        if (termLabel) {
+          termLabel.innerHTML = '🔓 제어/재시작 (활성화됨):';
+          termLabel.style.color = '#f59e0b';
+        }
+
+        termBtns.forEach(btn => {
+          if (btn) {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
+            btn.title = '클릭하여 즉시 실행';
+          }
+        });
+
+        if (currentKtVmState === 'Running') {
+          if (btnStop) { btnStop.disabled = false; btnStop.style.opacity = '1'; btnStop.style.cursor = 'pointer'; btnStop.title = '전원 끄기 실행'; }
+          if (btnStart) { btnStart.disabled = true; btnStart.style.opacity = '0.35'; btnStart.style.cursor = 'not-allowed'; btnStart.title = '이미 가동 중입니다'; }
+          if (btnReboot) { btnReboot.disabled = false; btnReboot.style.opacity = '1'; btnReboot.style.cursor = 'pointer'; btnReboot.title = '가상머신 재부팅'; }
+        } else if (currentKtVmState === 'Stopped') {
+          if (btnStop) { btnStop.disabled = true; btnStop.style.opacity = '0.35'; btnStop.style.cursor = 'not-allowed'; btnStop.title = '이미 중지된 상태입니다'; }
+          if (btnStart) { btnStart.disabled = false; btnStart.style.opacity = '1'; btnStart.style.cursor = 'pointer'; btnStart.title = '전원 켜기 실행'; }
+          if (btnReboot) { btnReboot.disabled = true; btnReboot.style.opacity = '0.35'; btnReboot.style.cursor = 'not-allowed'; btnReboot.title = '중지 상태에서는 재부팅 불가'; }
+        } else {
+          if (btnStop) { btnStop.disabled = true; btnStop.style.opacity = '0.35'; }
+          if (btnStart) { btnStart.disabled = true; btnStart.style.opacity = '0.35'; }
+          if (btnReboot) { btnReboot.disabled = true; btnReboot.style.opacity = '0.35'; }
+        }
+      }
+    }
+
+    function handleKtControlClick(type, param) {
+      if (!isKtControlUnlocked) {
+        const pwd = prompt("[KT Cloud 제어 보안 인증]\n해당 명령(전원/재시작/제어)은 기본 비활성화되어 있습니다.\n활성화하려면 관리자 비밀번호(figteam)를 입력하세요:", "");
+        if (pwd === null) return;
+        if (pwd === 'figteam') {
+          isKtControlUnlocked = true;
+          applyKtControlState();
+          alert('인증 성공: 제어 권한이 활성화되었습니다. 요청하신 작업을 진행합니다.');
+        } else {
+          alert('비밀번호가 일치하지 않습니다. (올바른 비밀번호: figteam)');
+          return;
+        }
+      }
+
+      if (type === 'term') {
+        execKtTerminal(param, 'figteam');
+      } else if (type === 'vm') {
+        confirmVmAction(param);
+      }
+    }
+
     function confirmVmAction(action) {
+      if (!isKtControlUnlocked) {
+        handleKtControlClick('vm', action);
+        return;
+      }
+
       let actionKr = "";
       if (action === 'stop') actionKr = "전원을 끄시겠습니까? (vCPU/RAM 과금이 중단되며 대민 진입점이 대기 상태로 전환됩니다)";
       if (action === 'start') actionKr = "전원을 켜시겠습니까? (부팅 후 약 1분 이내에 Nginx 및 WireGuard가 자동 가동됩니다)";
       if (action === 'reboot') actionKr = "가상머신을 재부팅하시겠습니까?";
 
-      if (confirm(`[KT Cloud VM 제어]\n정말 '${document.getElementById('kt-display-name').innerText}'의 ${actionKr}`)) {
-        executeVmAction(action);
+      const ok = confirm(`[KT Cloud VM 전원 제어]\n정말 '${document.getElementById('kt-display-name').innerText}'의 ${actionKr}`);
+      if (!ok) return;
+
+      executeVmAction(action);
+    }
+
+    async function execKtTerminal(cmd, pwd = '') {
+      const screen = document.getElementById('kt-terminal-screen');
+      if (!screen) return;
+
+      screen.innerHTML += `\n<span style="color:#38bdf8;">[root@kt-edge-dr-01 ~]# ${escapeHtml(cmd)}</span>\n<span style="color:#94a3b8;" class="kt-term-loading">⏳ WireGuard / SSH 원격 터널 실행 중...</span>\n`;
+      screen.scrollTop = screen.scrollHeight;
+
+      try {
+        const res = await fetch('/api/kt/terminal/exec', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cmd: cmd, password: pwd })
+        });
+        const data = await res.json();
+        
+        const loadingEls = screen.querySelectorAll('.kt-term-loading');
+        loadingEls.forEach(el => el.remove());
+
+        if (data.status === 'ok') {
+          const color = data.code === 0 ? '#34d399' : '#f87171';
+          const targetBadge = data.target ? `<span style="color:#38bdf8; font-size:11px;">[연결 경로: ${escapeHtml(data.target)}]</span>\n` : '';
+          screen.innerHTML += `${targetBadge}<span style="color:${color};">${escapeHtml(data.output)}</span>\n`;
+        } else {
+          screen.innerHTML += `<span style="color:#ef4444;">[오류] ${escapeHtml(data.message || '실행 실패')}</span>\n`;
+        }
+      } catch (err) {
+        const loadingEls = screen.querySelectorAll('.kt-term-loading');
+        loadingEls.forEach(el => el.remove());
+        screen.innerHTML += `<span style="color:#ef4444;">[통신 오류] ${escapeHtml(err.message)}</span>\n`;
+      }
+      screen.scrollTop = screen.scrollHeight;
+    }
+
+    function promptAndExecKtTerminal(cmd) {
+      const pwd = prompt(`[KT Edge 제어 인증]\n'${cmd}' 명령을 실행하려면 관리자 비밀번호(figteam)를 입력하세요:`, '');
+      if (pwd === null) return;
+      if (!pwd) {
+        alert('비밀번호를 입력해야 실행할 수 있습니다.');
+        return;
+      }
+      execKtTerminal(cmd, pwd);
+    }
+
+    function submitKtTerminalInput() {
+      const input = document.getElementById('kt-terminal-input');
+      if (!input) return;
+      const cmd = input.value.trim();
+      if (!cmd) return;
+
+      const isDangerous = /restart|stop|poweroff|reboot|reload|kill|rm\s|systemctl\s+(start|stop|restart|reload)/i.test(cmd);
+      if (isDangerous) {
+        if (!isKtControlUnlocked) {
+          const pwd = prompt(`[KT Edge 제어 인증]\n'${cmd}' 명령은 기본 비활성화되어 있습니다.\n실행하려면 관리자 비밀번호(figteam)를 입력하세요:`, '');
+          if (pwd === null) return;
+          if (pwd === 'figteam') {
+            isKtControlUnlocked = true;
+            applyKtControlState();
+            execKtTerminal(cmd, 'figteam');
+          } else {
+            alert('비밀번호가 일치하지 않습니다. (올바른 비밀번호: figteam)');
+            return;
+          }
+        } else {
+          execKtTerminal(cmd, 'figteam');
+        }
+      } else {
+        execKtTerminal(cmd);
+      }
+      input.value = '';
+    }
+
+    function clearKtTerminal() {
+      const screen = document.getElementById('kt-terminal-screen');
+      if (screen) {
+        screen.innerHTML = '[SYSTEM] KT Cloud Edge 원격 터미널 화면이 초기화되었습니다.\n';
       }
     }
 
@@ -2988,7 +3289,7 @@ PORTAL_HTML = """<!DOCTYPE html>
         pathDbSync.className.baseVal = "flow-line line-yellow";
 
         sopText.innerHTML = "<b>[v3.0 정상 가동 트래픽 & 보안 흐름]</b><br>" +
-          "• <b>대민 진입</b>: HTTPS 요청이 KT Edge-GW(14.63.213.214)에 도착하여 TLS 종료 및 Nginx WAF 검사를 받습니다.<br>" +
+          "• <b>대민 진입</b>: HTTPS 요청이 KT Edge-GW(14.63.212.190)에 도착하여 TLS 종료 및 Nginx WAF 검사를 받습니다.<br>" +
           "• <b>터널 A 전송</b>: 온프렘 WireGuard 게이트웨이로 단방향 요청 전달 ➔ ingress-nginx ➔ <code>web ×2</code> ➔ <code>minwon-api ×2</code> ➔ <code>MySQL Primary</code> 커밋.<br>" +
           "• <b>터널 B 복제</b>: MySQL GTID 이벤트가 터널 B를 타고 AWS Replica(super_read_only=ON)로 비동기 복제되고 관제 메트릭이 수집됩니다.";
 
@@ -3423,6 +3724,79 @@ class PortalHandler(http.server.BaseHTTPRequestHandler):
                     self.send_json({"status": "error", "message": "Nova API 액션 처리에 실패했습니다."}, status=500)
             except Exception as e:
                 self.send_json({"status": "error", "message": str(e)}, status=500)
+            return
+
+        # KT Cloud Edge Live Terminal Execution
+        if path == '/api/kt/terminal/exec':
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length).decode('utf-8')
+            try:
+                data = json.loads(body)
+                cmd = data.get('cmd', '').strip()
+                pwd = data.get('password', '').strip()
+
+                if not cmd:
+                    self.send_json({"status": "error", "message": "명령어가 입력되지 않았습니다."}, status=400)
+                    return
+
+                dangerous_tokens = ['restart', 'stop', 'poweroff', 'reboot', 'kill', 'rm ', 'dd ', 'shutdown', 'reload']
+                is_dangerous = any(token in cmd.lower() for token in dangerous_tokens)
+
+                if is_dangerous and pwd != "figteam":
+                    self.send_json({"status": "error", "message": "인증 실패: 제어/재시작 명령은 비밀번호(figteam)가 필요합니다."}, status=403)
+                    return
+
+                # Dual target execution: 1. WireGuard Mesh IP (10.200.0.1) -> 2. Public IP (14.63.212.190:22)
+                ssh_targets = [
+                    ("WireGuard (10.200.0.1:22)", ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=3", "-o", "BatchMode=yes", "root@10.200.0.1", cmd]),
+                    ("KT Public (14.63.212.190:22)", ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=3", "-o", "BatchMode=yes", "root@14.63.212.190", cmd])
+                ]
+
+                proc = None
+                used_target = ""
+                last_err = ""
+
+                for target_label, ssh_cmd in ssh_targets:
+                    try:
+                        res = subprocess.run(ssh_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=12)
+                        if res.returncode == 255 and ("Connection timed out" in res.stderr or "No route to host" in res.stderr or "Operation timed out" in res.stderr):
+                            last_err = res.stderr
+                            continue
+                        proc = res
+                        used_target = target_label
+                        break
+                    except subprocess.TimeoutExpired:
+                        last_err = f"{target_label} 타임아웃 (12초 초과)"
+                        continue
+                    except Exception as e:
+                        last_err = str(e)
+                        continue
+
+                if proc is None:
+                    self.send_json({"status": "error", "message": f"SSH 터널 연결 실패: {last_err or '모든 연결 경로 응답 없음'}"}, status=504)
+                    return
+
+                output = proc.stdout or ""
+                if proc.stderr:
+                    lines = [l for l in proc.stderr.splitlines() if not l.strip().startswith('**')]
+                    cleaned_err = "\n".join(lines).strip()
+                    if cleaned_err:
+                        if output:
+                            output += "\n[stderr]\n" + cleaned_err
+                        else:
+                            output = cleaned_err
+
+                self.send_json({
+                    "status": "ok",
+                    "cmd": cmd,
+                    "target": used_target,
+                    "code": proc.returncode,
+                    "output": output or "(명령어가 정상 실행되었으며 출력 내용이 없습니다.)"
+                })
+            except subprocess.TimeoutExpired:
+                self.send_json({"status": "error", "message": "명령어 실행 시간 초과 (12초 초과)"}, status=504)
+            except Exception as e:
+                self.send_json({"status": "error", "message": f"실행 오류: {str(e)}"}, status=500)
             return
 
         # KT Cloud API: VM Action (start / stop / reboot)

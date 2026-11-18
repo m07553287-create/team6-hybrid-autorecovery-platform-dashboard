@@ -1,4 +1,3 @@
-import subprocess
 #!/usr/bin/env python3
 import http.server
 import socketserver
@@ -57,7 +56,7 @@ def call_kt_api(service, command, **params):
     if not api_key or not secret_key:
         raise Exception("KT Cloud API Key / Secret Key가 설정되지 않았습니다.")
         
-    full_params = {**params, "command": command, "apikey": api_key, "response": "json"}
+    full_params = {**params, "command": command, "apiKey": api_key, "response": "json"}
     query = "&".join(
         f"{k}={urllib.parse.quote(str(v), safe='')}"
         for k, v in sorted(full_params.items(), key=lambda kv: kv[0].lower())
@@ -531,7 +530,7 @@ LOGIN_HTML = """<!DOCTYPE html>
         <text x="36" y="198">KT Cloud</text>
         <text class="note" x="36" y="220">입구 · Edge-GW</text>
         <text class="note" x="36" y="240">Nginx TLS / WAF</text>
-        <text class="ip"   x="36" y="282">14.63.212.190</text>
+        <text class="ip"   x="36" y="282">14.63.213.214</text>
 
         <!-- Zone 2 온프렘 -->
         <rect class="ln draw d2" x="300" y="130" width="250" height="260"/>
@@ -566,7 +565,11 @@ LOGIN_HTML = """<!DOCTYPE html>
         <h1>클라우드 통합 콘솔</h1>
         <p>OpenStack, KT Cloud, K8s, Argo CD, Grafana를 한 계정으로 관리합니다.</p>
       </div>
-      <form method="POST" action="/login">
+      <div id="all-clouds-off-alert" style="display:none; margin:16px 20px 0; padding:12px; border:1px dashed var(--bp-redline); background:rgba(255,138,115,0.15); color:var(--bp-redline); font-size:12px; line-height:1.5;">
+        <strong style="display:block; font-size:13px; margin-bottom:4px;">🚨 모든 클라우드 OFF 상태</strong>
+        현재 온프렘 및 하이브리드 인프라가 OFF/절전 상태이므로 로그인이 일시 차단되었습니다.
+      </div>
+      <form method="POST" action="/login" id="login-form">
         %%ERROR%%
         <div class="field">
           <label for="u">통합 계정 ID</label>
@@ -576,13 +579,39 @@ LOGIN_HTML = """<!DOCTYPE html>
           <label for="p">비밀번호</label>
           <input id="p" type="password" name="password" placeholder="••••••••" required autocomplete="current-password">
         </div>
-        <button type="submit" class="btn">로그인</button>
+        <button type="submit" class="btn" id="login-btn">로그인</button>
       </form>
       <div class="tb-row"><span>프로젝트</span><span>KT CI5 민원불패</span></div>
       <div class="tb-row"><span>팀</span><span>FIGTEAM</span></div>
       <div class="tb-row" style="border-bottom:0"><span>도면</span><span>v3.0 하이브리드 토폴로지</span></div>
     </section>
   </div>
+
+  <script>
+    (async function checkCloudStatus() {
+      const form = document.getElementById('login-form');
+      const btn = document.getElementById('login-btn');
+      const alertBox = document.getElementById('all-clouds-off-alert');
+      try {
+        const res = await fetch('/api/session', { method: 'GET', cache: 'no-store' });
+        if (res.status >= 500) throw new Error('Backend down');
+      } catch (err) {
+        if (alertBox) alertBox.style.display = 'block';
+        if (btn) {
+          btn.disabled = true;
+          btn.style.opacity = '0.5';
+          btn.style.cursor = 'not-allowed';
+          btn.textContent = '클라우드 OFF (로그인 비활성화)';
+        }
+        if (form) {
+          form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            alert('모든 클라우드가 OFF 상태입니다. 시스템 복구 후 다시 시도하십시오.');
+          });
+        }
+      }
+    })();
+  </script>
 </body>
 </html>
 """
@@ -1395,19 +1424,12 @@ PORTAL_HTML = """<!DOCTYPE html>
           <span class="menu-badge" style="background:#FF6B81;color:#fff;">Live</span>
         </li>
 
-        <div class="menu-header">클라우드 컴퓨팅 관리</div>
+        <div class="menu-header">인프라 & 가상화</div>
         <li class="menu-item" onclick="switchTab('ktvm')">
           <span class="icon">⚡</span>
-          <span>KT Cloud</span>
-          <span class="menu-badge" style="background:#3A78B5;color:#fff;">Edge-GW</span>
+          <span>KT Cloud VM 관리</span>
+          <span class="menu-badge" style="background:#3A78B5;color:#fff;">Admin</span>
         </li>
-        <li class="menu-item" onclick="switchTab('awsctl')">
-          <span class="icon">☁️</span>
-          <span>AWS</span>
-          <span class="menu-badge" style="background:#F4C95D;color:#000;">DR·ctl</span>
-        </li>
-
-        <div class="menu-header">온프레미스 인프라 & 가상화</div>
         <li class="menu-item" onclick="switchTab('osvm')">
           <span class="icon">🖥️</span>
           <span>OpenStack VM 관리</span>
@@ -1442,7 +1464,6 @@ PORTAL_HTML = """<!DOCTYPE html>
           <span>KT Cloud Edge 웹</span>
           <span class="menu-badge">Edge</span>
         </li>
-
       </ul>
       
       <div class="sidebar-footer">
@@ -1601,7 +1622,7 @@ PORTAL_HTML = """<!DOCTYPE html>
               <span style="font-size:24px;">🖥️</span>
               <div>
                 <div class="kt-vm-name" id="kt-display-name">kt-edge-dr-01</div>
-                <div style="font-size: 11px; color: #B4C6D8; font-family: monospace;" id="kt-display-id">ID: 78c8baf1-05f7-4844-84d8-37df78b2688d</div>
+                <div style="font-size: 11px; color: #B4C6D8; font-family: monospace;" id="kt-display-id">ID: 100c3a42-ca1e-4a06-bae5-61f14693e479</div>
               </div>
             </div>
             <div id="kt-badge-container">
@@ -1615,19 +1636,15 @@ PORTAL_HTML = """<!DOCTYPE html>
           <div class="kt-props-grid">
             <div class="prop-item">
               <div class="prop-label">공인 진입점 IP (Edge)</div>
-              <div class="prop-val" id="kt-public-ip" style="color:#9FD3F5;">14.63.212.190</div>
+              <div class="prop-val" style="color:#9FD3F5;">14.63.212.190</div>
             </div>
             <div class="prop-item">
               <div class="prop-label">사설 IP (Guest Network)</div>
               <div class="prop-val" id="kt-private-ip">172.27.0.160</div>
             </div>
             <div class="prop-item">
-              <div class="prop-label">WireGuard 허브 IP</div>
-              <div class="prop-val" id="kt-wg-ip" style="color:#5FD39A;">10.200.0.1/24 (Port: 51820)</div>
-            </div>
-            <div class="prop-item">
               <div class="prop-label">인스턴스 스펙</div>
-              <div class="prop-val" id="kt-spec">1 vCPU · 2048 MB RAM (XS71)</div>
+              <div class="prop-val" id="kt-spec">1 vCPU · 1024 MB RAM</div>
             </div>
             <div class="prop-item">
               <div class="prop-label">운영체제 & 하이퍼바이저</div>
@@ -1637,28 +1654,30 @@ PORTAL_HTML = """<!DOCTYPE html>
               <div class="prop-label">가용 구역 (Zone)</div>
               <div class="prop-val" id="kt-zone">kr-1 (KOR-Central A)</div>
             </div>
+            <div class="prop-item">
+              <div class="prop-label">과금 상태 안내</div>
+              <div class="prop-val" id="kt-cost-info" style="color:#8FE0B4;">정상 과금 중 (연산 활성)</div>
+            </div>
           </div>
 
           <!-- DETAILED INTERNAL NETWORK & SECURITY CONFIG (GIT C2 STANDARD) -->
-          <div style="margin-top:16px; border:1px solid #2B527A; background:#0B1F38; padding:14px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid #1B3D63; padding-bottom:8px;">
+          <div style="margin-top:16px; border:1px solid rgba(159, 211, 245, 0.3); background:rgba(15, 45, 79, 0.6); padding:14px; border-radius:0;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:8px;">
               <span style="font-size:13px; font-weight:800; color:#F7D684;">🔧 KT Cloud Edge 내부 설정 및 인프라 연동 명세</span>
-              <span class="menu-badge" style="background:#0284C7; color:#fff;">C2 Interface Standard</span>
+              <span class="menu-badge" style="background:#3A78B5; color:#fff;">C2 Interface Standard</span>
             </div>
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
-              <!-- 1. Firewall / PortForwarding -->
-              <div style="background:#0F2D4F; padding:10px 14px; border:1px solid #3A5F85;">
+              <div style="background:rgba(29, 74, 122, 0.6); padding:10px 14px; border:1px solid rgba(255,255,255,0.08); border-radius:0;">
                 <div style="font-weight:700; color:#9FD3F5; margin-bottom:6px;">🛡️ 5대 포트포워딩 & 방화벽 개방 규칙</div>
                 <div style="font-size:11.5px; color:#D3E0EC; line-height:1.7;">
-                  • <b>22/TCP</b>: SSH 관리 & Ansible 자동화<br>
+                  • <b>22/TCP</b>: SSH 관리 & Ansible 자동화 (공인 22 포워딩)<br>
                   • <b>80/TCP</b>: HTTP 리버스 프록시 (ModSecurity WAF)<br>
                   • <b>443/TCP</b>: HTTPS TLS 종료 및 10s 마이크로캐시<br>
                   • <b>51820/UDP</b>: WireGuard 사이트 간 VPN 터널<br>
                   • <b>30080/TCP</b>: AWS DR NodePort 비상 라우팅
                 </div>
               </div>
-              <!-- 2. WireGuard Mesh -->
-              <div style="background:#0F2D4F; padding:10px 14px; border:1px solid #3A5F85;">
+              <div style="background:rgba(29, 74, 122, 0.6); padding:10px 14px; border:1px solid rgba(255,255,255,0.08); border-radius:0;">
                 <div style="font-weight:700; color:#8FE0B4; margin-bottom:6px;">🌐 WireGuard 4노드 터널 허브 구성</div>
                 <div style="font-size:11.5px; color:#D3E0EC; line-height:1.7;">
                   • <b>Hub (kt-edge)</b>: <code>10.200.0.1/24</code> (14.63.212.190)<br>
@@ -1667,8 +1686,7 @@ PORTAL_HTML = """<!DOCTYPE html>
                   • <b>Peer 3 (AWS dr)</b>: <code>10.200.0.4</code> (Pilot-Light DR K3s)
                 </div>
               </div>
-              <!-- 3. Nginx Upstream DR -->
-              <div style="background:#0F2D4F; padding:10px 14px; border:1px solid #3A5F85;">
+              <div style="background:rgba(29, 74, 122, 0.6); padding:10px 14px; border:1px solid rgba(255,255,255,0.08); border-radius:0;">
                 <div style="font-weight:700; color:#F4C95D; margin-bottom:6px;">⚡ Nginx WAF & L3 Upstream 절체 정책</div>
                 <div style="font-size:11.5px; color:#D3E0EC; line-height:1.7;">
                   • <b>평시 백엔드 (onprem)</b>: <code>10.10.1.100:80</code> (온프렘 VIP)<br>
@@ -1680,44 +1698,46 @@ PORTAL_HTML = """<!DOCTYPE html>
             </div>
 
             <!-- INTERACTIVE LIVE TERMINAL CONSOLE -->
-            <div style="margin-top:16px; border-top:1px solid #1B3D63; padding-top:14px;">
+            <div style="margin-top:16px; border-top:1px solid rgba(255,255,255,0.1); padding-top:14px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                 <div style="display:flex; align-items:center; gap:8px;">
                   <span style="font-size:13px; font-weight:800; color:#8FE0B4;">💻 KT Edge 라이브 상태 확인 터미널</span>
                   <span style="font-size:11px; color:#8AA5C2; font-family:monospace;">[root@kt-edge-dr-01 ~]#</span>
                 </div>
-                <span class="menu-badge" style="background:#10B981; color:#fff; font-size:10.5px;">WG 10.200.0.1 Direct SSH</span>
+                <span class="menu-badge" style="background:#5FD39A; color:#fff; font-size:10.5px;">WG 10.200.0.1 Direct / 14.63.212.190 Dual Link</span>
               </div>
 
               <!-- PRESET COMMAND BUTTONS TOOLBAR -->
               <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
                 <span style="font-size:11.5px; font-weight:700; color:#B4C6D8; margin-right:4px;">대표 상태 확인:</span>
                 <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtTerminal('wg show')">🔍 wg show</button>
+                <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtTerminal('wg show wg0 dump')">🌐 wg dump</button>
                 <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtTerminal('nginx -t')">🌐 nginx -t</button>
                 <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtTerminal('cat /etc/nginx/conf.d/upstream.conf')">🔀 upstream 확인</button>
                 <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtTerminal('ping -c 3 10.200.0.2')">📡 온프렘 Ping (10.200.0.2)</button>
                 <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtTerminal('curl -k -s -I https://127.0.0.1/')">🛡️ 로컬 WAF 헬스체크</button>
                 <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtTerminal('systemctl status nginx wg-quick@wg0 --no-pager')">📊 서비스 상태</button>
+                <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtTerminal('ip -brief addr show && ip route')">🔌 IP/라우팅</button>
                 
-                <span id="kt-term-ctrl-label" style="font-size:11.5px; font-weight:700; color:#94A3B8; margin:0 4px 0 10px;">🔒 제어/재시작 (기본 비활성):</span>
+                <span id="kt-term-ctrl-label" style="font-size:11.5px; font-weight:700; color:#8AA5C2; margin:0 4px 0 10px;">🔒 제어/재시작 (기본 비활성):</span>
                 <button class="btn-top kt-ctrl-btn" id="btn-term-reload" disabled style="font-size:11px; padding:4px 9px; border-color:#F4C95D; color:#F4C95D; opacity:0.35; cursor:not-allowed;" onclick="handleKtControlClick('term', 'nginx -s reload')">⚡ Nginx 리로드</button>
-                <button class="btn-top kt-ctrl-btn" id="btn-term-wgrestart" disabled style="font-size:11px; padding:4px 9px; border-color:#FF6B81; color:#FF6B81; opacity:0.35; cursor:not-allowed;" onclick="handleKtControlClick('term', 'systemctl restart wg-quick@wg0')">🔄 WG 재기동</button>
-                <button class="btn-top kt-ctrl-btn" id="btn-term-nginxrestart" disabled style="font-size:11px; padding:4px 9px; border-color:#FF6B81; color:#FF6B81; opacity:0.35; cursor:not-allowed;" onclick="handleKtControlClick('term', 'systemctl restart nginx')">🛑 Nginx 재시작</button>
-                <button class="btn-top" id="btn-kt-unlock-toggle" style="font-size:11px; padding:4px 10px; background:#F59E0B; color:#000; font-weight:800; border:none; margin-left:4px; cursor:pointer;" onclick="toggleKtControlLock()">🔑 활성화 (figteam)</button>
+                <button class="btn-top kt-ctrl-btn" id="btn-term-wgrestart" disabled style="font-size:11px; padding:4px 9px; border-color:#FF7A66; color:#FF7A66; opacity:0.35; cursor:not-allowed;" onclick="handleKtControlClick('term', 'systemctl restart wg-quick@wg0')">🔄 WG 재기동</button>
+                <button class="btn-top kt-ctrl-btn" id="btn-term-nginxrestart" disabled style="font-size:11px; padding:4px 9px; border-color:#FF7A66; color:#FF7A66; opacity:0.35; cursor:not-allowed;" onclick="handleKtControlClick('term', 'systemctl restart nginx')">🛑 Nginx 재시작</button>
+                <button class="btn-top" id="btn-kt-unlock-toggle" style="font-size:11px; padding:4px 10px; background:#F4C95D; color:#000; font-weight:800; border:none; margin-left:4px; cursor:pointer;" onclick="toggleKtControlLock()">🔑 활성화 (figteam)</button>
               </div>
 
               <!-- CLI INPUT BAR -->
               <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
-                <span style="font-family:monospace; font-size:12px; color:#5FD39A; font-weight:700;">[root@kt-edge ~]#</span>
+                <span style="font-family:monospace; font-size:12px; color:#5FD39A; font-weight:700;">[root@kt-edge-dr-01 ~]#</span>
                 <input type="text" id="kt-terminal-input" placeholder="명령어 입력 (예: wg show, uptime, df -h, systemctl status nginx)" 
-                       style="flex:1; background:#061426; border:1px solid #2B527A; color:#E2E8F0; padding:6px 10px; font-family:monospace; font-size:12px; border-radius:0;"
+                       style="flex:1; background:#0F2D4F; border:1px solid #4F739A; color:#E6EEF5; padding:6px 10px; font-family:monospace; font-size:12px; border-radius:0;"
                        onkeydown="if(event.key==='Enter') submitKtTerminalInput()">
-                <button class="btn-top" style="background:#0284C7; color:#fff; font-size:11.5px; padding:6px 14px;" onclick="submitKtTerminalInput()">실행 (Enter)</button>
+                <button class="btn-top" style="background:#3A78B5; color:#fff; font-size:11.5px; padding:6px 14px;" onclick="submitKtTerminalInput()">실행 (Enter)</button>
                 <button class="btn-top" style="font-size:11.5px; padding:6px 10px;" onclick="clearKtTerminal()">지우기</button>
               </div>
 
               <!-- TERMINAL SCREEN -->
-              <div id="kt-terminal-screen" style="background:#040B14; border:1px solid #1E3A5F; padding:12px; font-family:'Courier New', monospace; font-size:12px; color:#A7F3D0; line-height:1.5; min-height:180px; max-height:300px; overflow-y:auto; white-space:pre-wrap; border-radius:0; box-shadow:inset 0 2px 10px rgba(0,0,0,0.5);">[SYSTEM] KT Cloud Edge 원격 터미널 준비 완료. 대표 상태 확인 명령어는 즉시 확인 가능합니다.
+              <div id="kt-terminal-screen" style="background:#020617; border:1px solid #1D4A7A; padding:12px; font-family:'Courier New', monospace; font-size:12px; color:#8FE0B4; line-height:1.5; min-height:180px; max-height:300px; overflow-y:auto; white-space:pre-wrap; border-radius:0; box-shadow:inset 0 2px 10px rgba(0,0,0,0.5);">[SYSTEM] KT Cloud Edge 원격 터미널 준비 완료. WireGuard 및 Nginx 상태 확인 명령어는 즉시 실행 가능합니다.
 (보안 안내: 전원 on/off, 재부팅, 서비스 제어 명령은 기본 비활성화되어 있으며, 상단 '🔑 활성화 (figteam)' 버튼 또는 관리자 비밀번호 입력 후 활성화됩니다.)</div>
             </div>
           </div>
@@ -1737,8 +1757,8 @@ PORTAL_HTML = """<!DOCTYPE html>
             <button class="btn-action btn-refresh" id="btn-kt-refresh" onclick="fetchKtVmStatus(true)">
               <span>🔍</span> 상태 새로고침
             </button>
-            <span id="kt-auth-badge" style="font-size:11.5px; padding:4px 8px; background:#334155; color:#94A3B8; font-weight:600; border-radius:2px; border:1px solid #475569;">
-              🔒 on/off/재시작 비활성화 (보안 잠금)
+            <span id="kt-auth-badge" style="font-size:11.5px; padding:4px 8px; background:#4F739A; color:#B4C6D8; font-weight:600; border-radius:0; border:1px solid #6A8BAE;">
+              🔒 제어 잠김 (읽기 전용 모드)
             </span>
             <span id="kt-action-spinner" style="display:none; font-size:12px; color:#9FD3F5; margin-left:auto;">
               ⏳ KT Cloud API 작업 처리 중...
@@ -1986,7 +2006,7 @@ PORTAL_HTML = """<!DOCTYPE html>
         <div class="dc-main">
           <div class="iso-stage">
             <div class="iso-stage-head"><h3>민원불패 v2.5.1 — 연결 구성도</h3><p class="dc-hint">휠 확대 · 드래그 이동 · 장비 클릭 시 상세</p><button class="btn-top dc-fs" id="dr-fs-btn" onclick="toggleDrFullscreen()">전체 화면</button></div>
-            <div class="t3-host" id="t3-host"><svg id="iso-scene" data-stage="normal" role="img" aria-label="하이브리드 멀티클라우드 아이소메트릭 토폴로지" viewBox="-480 -386 881 753" preserveAspectRatio="xMidYMid meet"><g class="iso-zone " id="iso-gh"><g class="iso-box platform"><polygon class="f-left" points="162.1,-97.5 229.7,-58.5 229.7,-67.6 162.1,-106.6"/><polygon class="f-right" points="297.2,-97.5 229.7,-58.5 229.7,-67.6 297.2,-106.6"/><polygon class="f-top" points="229.7,-145.6 297.2,-106.6 229.7,-67.6 162.1,-106.6"/></g><line class="floor" x1="252.2" y1="-132.6" x2="184.6" y2="-93.6"/><line class="floor" x1="274.7" y1="-119.6" x2="207.2" y2="-80.6"/><line class="floor" x1="207.2" y1="-132.6" x2="274.7" y2="-93.6"/><line class="floor" x1="184.6" y1="-119.6" x2="252.2" y2="-80.6"/></g><g class="iso-zone " id="iso-kt"><g class="iso-box platform"><polygon class="f-left" points="-331.0,-49.4 -240.9,2.6 -240.9,-6.5 -331.0,-58.5"/><polygon class="f-right" points="-150.9,-49.4 -240.9,2.6 -240.9,-6.5 -150.9,-58.5"/><polygon class="f-top" points="-240.9,-110.5 -150.9,-58.5 -240.9,-6.5 -331.0,-58.5"/></g><line class="floor" x1="-218.4" y1="-97.5" x2="-308.5" y2="-45.5"/><line class="floor" x1="-195.9" y1="-84.5" x2="-286.0" y2="-32.5"/><line class="floor" x1="-173.4" y1="-71.5" x2="-263.4" y2="-19.5"/><line class="floor" x1="-263.4" y1="-97.5" x2="-173.4" y2="-45.5"/><line class="floor" x1="-286.0" y1="-84.5" x2="-195.9" y2="-32.5"/><line class="floor" x1="-308.5" y1="-71.5" x2="-218.4" y2="-19.5"/></g><g class="iso-zone " id="iso-onprem"><g class="iso-box platform"><polygon class="f-left" points="-135.1,87.1 0.0,165.1 0.0,156.0 -135.1,78.0"/><polygon class="f-right" points="135.1,87.1 0.0,165.1 0.0,156.0 135.1,78.0"/><polygon class="f-top" points="0.0,0.0 135.1,78.0 0.0,156.0 -135.1,78.0"/></g><line class="floor" x1="22.5" y1="13.0" x2="-112.6" y2="91.0"/><line class="floor" x1="45.0" y1="26.0" x2="-90.1" y2="104.0"/><line class="floor" x1="67.5" y1="39.0" x2="-67.5" y2="117.0"/><line class="floor" x1="90.1" y1="52.0" x2="-45.0" y2="130.0"/><line class="floor" x1="112.6" y1="65.0" x2="-22.5" y2="143.0"/><line class="floor" x1="-22.5" y1="13.0" x2="112.6" y2="91.0"/><line class="floor" x1="-45.0" y1="26.0" x2="90.1" y2="104.0"/><line class="floor" x1="-67.5" y1="39.0" x2="67.5" y2="117.0"/><line class="floor" x1="-90.1" y1="52.0" x2="45.0" y2="130.0"/><line class="floor" x1="-112.6" y1="65.0" x2="22.5" y2="143.0"/></g><g class="iso-zone " id="iso-aws"><g class="iso-box platform"><polygon class="f-left" points="85.6,245.7 198.1,310.7 198.1,301.6 85.6,236.6"/><polygon class="f-right" points="310.7,245.7 198.1,310.7 198.1,301.6 310.7,236.6"/><polygon class="f-top" points="198.1,171.6 310.7,236.6 198.1,301.6 85.6,236.6"/></g><line class="floor" x1="220.7" y1="184.6" x2="108.1" y2="249.6"/><line class="floor" x1="243.2" y1="197.6" x2="130.6" y2="262.6"/><line class="floor" x1="265.7" y1="210.6" x2="153.1" y2="275.6"/><line class="floor" x1="288.2" y1="223.6" x2="175.6" y2="288.6"/><line class="floor" x1="175.6" y1="184.6" x2="288.2" y2="249.6"/><line class="floor" x1="153.1" y1="197.6" x2="265.7" y2="262.6"/><line class="floor" x1="130.6" y1="210.6" x2="243.2" y2="275.6"/><line class="floor" x1="108.1" y1="223.6" x2="220.7" y2="288.6"/></g><path class="pipe-case" d="M-200.4,-46.8 L-56.3,36.4"/><path id="path-tunnel-a" class="flow-line line-yellow" fill="none" d="M-200.4,-46.8 L-56.3,36.4"/><path class="pipe-case" d="M186.9,195.0 L76.6,131.3 L173.4,75.4 L38.3,-2.6 L-27.0,35.1"/><path id="path-tunnel-b" class="flow-line line-blue" fill="none" d="M186.9,195.0 L76.6,131.3 L173.4,75.4 L38.3,-2.6 L-27.0,35.1"/><path class="pipe-case" d="M-243.2,-55.9 L-331.0,-5.2 L139.6,266.5 L144.1,263.9"/><path id="path-tunnel-c" class="line-inactive" fill="none" d="M-243.2,-55.9 L-331.0,-5.2 L139.6,266.5 L144.1,263.9"/><path class="pipe-case" d="M31.5,120.9 L130.6,178.1 L99.1,196.3 L172.3,238.6"/><path id="path-db-sync" class="flow-line line-yellow" fill="none" d="M31.5,120.9 L130.6,178.1 L99.1,196.3 L172.3,238.6"/><path class="pipe-case" d="M-119.3,-274.3 L-218.4,-89.7"/><path id="iso-path-ingress" class="flow-line line-blue" fill="none" d="M-119.3,-274.3 L-218.4,-89.7"/><path class="pipe-case" id="iso-case-gh" d="M-119.3,-274.3 L231.9,-120.9"/><path id="iso-path-gh" class="line-inactive" fill="none" d="M-119.3,-274.3 L231.9,-120.9"/><g class="iso-box node" id="iso-ghpage"><polygon class="f-left" points="204.9,-107.9 231.9,-92.3 231.9,-105.3 204.9,-120.9"/><polygon class="f-right" points="258.9,-107.9 231.9,-92.3 231.9,-105.3 258.9,-120.9"/><polygon class="f-top" points="231.9,-136.5 258.9,-120.9 231.9,-105.3 204.9,-120.9"/></g><g class="iso-box node" id="iso-edge"><polygon class="f-left" points="-249.9,-53.3 -213.9,-32.5 -213.9,-71.5 -249.9,-92.3"/><polygon class="f-right" points="-186.9,-48.1 -213.9,-32.5 -213.9,-71.5 -186.9,-87.1"/><polygon class="f-top" points="-222.9,-107.9 -186.9,-87.1 -213.9,-71.5 -249.9,-92.3"/><line class="slot" x1="-244.5" y1="-59.9" x2="-219.3" y2="-45.4"/><circle class="led" cx="-217.5" cy="-44.3" r="1.6"/><line class="slot" x1="-244.5" y1="-69.7" x2="-219.3" y2="-55.1"/><circle class="led" cx="-217.5" cy="-54.1" r="1.6"/><line class="slot" x1="-244.5" y1="-79.4" x2="-219.3" y2="-64.9"/><circle class="led" cx="-217.5" cy="-63.8" r="1.6"/></g><g class="iso-box node rack" id="iso-k8s-cp1"><polygon class="f-left" points="20.3,50.7 40.5,62.4 40.5,0.0 20.3,-11.7"/><polygon class="f-right" points="65.3,48.1 40.5,62.4 40.5,0.0 65.3,-14.3"/><polygon class="f-top" points="45.0,-26.0 65.3,-14.3 40.5,0.0 20.3,-11.7"/><line class="slot" x1="23.3" y1="40.0" x2="37.5" y2="48.2"/><circle class="led" cx="38.5" cy="48.8" r="1.6"/><line class="slot" x1="23.3" y1="27.5" x2="37.5" y2="35.7"/><circle class="led" cx="38.5" cy="36.3" r="1.6"/><line class="slot" x1="23.3" y1="15.0" x2="37.5" y2="23.2"/><circle class="led" cx="38.5" cy="23.8" r="1.6"/><line class="slot" x1="23.3" y1="2.5" x2="37.5" y2="10.7"/><circle class="led" cx="38.5" cy="11.3" r="1.6"/></g><g class="iso-box node rack" id="iso-k8s-w1"><polygon class="f-left" points="46.2,65.6 66.4,77.4 66.4,15.0 46.2,3.2"/><polygon class="f-right" points="91.2,63.1 66.4,77.4 66.4,15.0 91.2,0.7"/><polygon class="f-top" points="70.9,-11.1 91.2,0.7 66.4,15.0 46.2,3.2"/><line class="slot" x1="49.2" y1="54.9" x2="63.4" y2="63.1"/><circle class="led" cx="64.4" cy="63.7" r="1.6"/><line class="slot" x1="49.2" y1="42.4" x2="63.4" y2="50.6"/><circle class="led" cx="64.4" cy="51.2" r="1.6"/><line class="slot" x1="49.2" y1="30.0" x2="63.4" y2="38.2"/><circle class="led" cx="64.4" cy="38.7" r="1.6"/><line class="slot" x1="49.2" y1="17.5" x2="63.4" y2="25.7"/><circle class="led" cx="64.4" cy="26.3" r="1.6"/></g><g class="iso-box node rack" id="iso-k8s-w2"><polygon class="f-left" points="72.1,80.6 92.3,92.3 92.3,29.9 72.1,18.2"/><polygon class="f-right" points="117.1,78.0 92.3,92.3 92.3,29.9 117.1,15.6"/><polygon class="f-top" points="96.8,3.9 117.1,15.6 92.3,29.9 72.1,18.2"/><line class="slot" x1="75.1" y1="69.9" x2="89.3" y2="78.1"/><circle class="led" cx="90.3" cy="78.6" r="1.6"/><line class="slot" x1="75.1" y1="57.4" x2="89.3" y2="65.6"/><circle class="led" cx="90.3" cy="66.2" r="1.6"/><line class="slot" x1="75.1" y1="44.9" x2="89.3" y2="53.1"/><circle class="led" cx="90.3" cy="53.7" r="1.6"/><line class="slot" x1="75.1" y1="32.4" x2="89.3" y2="40.6"/><circle class="led" cx="90.3" cy="41.2" r="1.6"/></g><g class="iso-box node" id="iso-wg"><polygon class="f-left" points="-63.0,46.8 -36.0,62.4 -36.0,39.0 -63.0,23.4"/><polygon class="f-right" points="-13.5,49.4 -36.0,62.4 -36.0,39.0 -13.5,26.0"/><polygon class="f-top" points="-40.5,10.4 -13.5,26.0 -36.0,39.0 -63.0,23.4"/><line class="slot" x1="-59.0" y1="37.4" x2="-40.1" y2="48.4"/><circle class="led" cx="-38.7" cy="49.1" r="1.6"/></g><g class="iso-box pod" id="iso-pod-web"><polygon class="f-left" points="-18.0,72.8 -4.5,80.6 -4.5,65.0 -18.0,57.2"/><polygon class="f-right" points="9.0,72.8 -4.5,80.6 -4.5,65.0 9.0,57.2"/><polygon class="f-top" points="-4.5,49.4 9.0,57.2 -4.5,65.0 -18.0,57.2"/></g><g class="iso-box pod" id="iso-pod-api"><polygon class="f-left" points="2.3,84.5 15.8,92.3 15.8,76.7 2.3,68.9"/><polygon class="f-right" points="29.3,84.5 15.8,92.3 15.8,76.7 29.3,68.9"/><polygon class="f-top" points="15.8,61.1 29.3,68.9 15.8,76.7 2.3,68.9"/></g><g class="iso-box pod" id="iso-pod-notify"><polygon class="f-left" points="-38.3,84.5 -24.8,92.3 -24.8,76.7 -38.3,68.9"/><polygon class="f-right" points="-11.3,84.5 -24.8,92.3 -24.8,76.7 -11.3,68.9"/><polygon class="f-top" points="-24.8,61.1 -11.3,68.9 -24.8,76.7 -38.3,68.9"/></g><g class="iso-box pod" id="iso-pod-audit"><polygon class="f-left" points="-18.0,96.2 -4.5,104.0 -4.5,88.4 -18.0,80.6"/><polygon class="f-right" points="9.0,96.2 -4.5,104.0 -4.5,88.4 9.0,80.6"/><polygon class="f-top" points="-4.5,72.8 9.0,80.6 -4.5,88.4 -18.0,80.6"/></g><g class="iso-cyl db" id="iso-db-primary"><path class="f-left" d="M-6.5,79.3 L-6.5,118.3 A22.3,12.9 0 0 0 38.1,118.3 L38.1,79.3 A22.3,12.9 0 0 1 -6.5,79.3 Z"/><path class="slot" d="M-6.5,105.3 A22.3,12.9 0 0 0 38.1,105.3"/><path class="slot" d="M-6.5,92.3 A22.3,12.9 0 0 0 38.1,92.3"/><ellipse class="f-top" cx="15.8" cy="79.3" rx="22.3" ry="12.9"/></g><g class="iso-box node" id="iso-ctl"><polygon class="f-left" points="173.4,209.3 204.9,227.5 204.9,183.3 173.4,165.1"/><polygon class="f-right" points="231.9,211.9 204.9,227.5 204.9,183.3 231.9,167.7"/><polygon class="f-top" points="200.4,149.5 231.9,167.7 204.9,183.3 173.4,165.1"/><line class="slot" x1="178.1" y1="201.0" x2="200.2" y2="213.7"/><circle class="led" cx="201.7" cy="214.6" r="1.6"/><line class="slot" x1="178.1" y1="189.9" x2="200.2" y2="202.7"/><circle class="led" cx="201.7" cy="203.6" r="1.6"/><line class="slot" x1="178.1" y1="178.9" x2="200.2" y2="191.6"/><circle class="led" cx="201.7" cy="192.5" r="1.6"/></g><g class="iso-cyl bucket" id="iso-s3"><path class="f-left" d="M246.9,215.8 L246.9,234.0 A14.3,8.3 0 0 0 275.5,234.0 L275.5,215.8 A14.3,8.3 0 0 1 246.9,215.8 Z"/><path class="slot" d="M246.9,224.9 A14.3,8.3 0 0 0 275.5,224.9"/><ellipse class="f-top" cx="261.2" cy="215.8" rx="14.3" ry="8.3"/></g><g class="iso-cyl db" id="iso-db-replica"><path class="f-left" d="M166.2,217.1 L166.2,253.5 A20.7,12.0 0 0 0 207.6,253.5 L207.6,217.1 A20.7,12.0 0 0 1 166.2,217.1 Z"/><path class="slot" d="M166.2,241.4 A20.7,12.0 0 0 0 207.6,241.4"/><path class="slot" d="M166.2,229.2 A20.7,12.0 0 0 0 207.6,229.2"/><ellipse class="f-top" cx="186.9" cy="217.1" rx="20.7" ry="12.0"/></g><g class="iso-person"><circle class="f-top" cx="-132.8" cy="-336.5" r="6"/><path class="f-left" d="M-143.8,-316.5 q11,-16 22,0 v8 h-22 Z"/></g><g class="iso-cloud" id="iso-cf"><path class="f-top" d="M-157.3,-264.3 a14,14 0 0 1 10,-22 a20,20 0 0 1 36,-8 a16,16 0 0 1 26,10 a12,12 0 0 1 2,20 Z"/></g><text class="tun-t ta" x="-137.4" y="-18.4" text-anchor="middle">터널 A</text><text class="tun-t tb" x="135.1" y="89.5" text-anchor="middle">터널 B</text><text class="tun-t tc" x="-42.8" y="153.2" text-anchor="middle">터널 C · DR 우회</text><text class="tun-t tb" x="58.5" y="128.5" text-anchor="middle">GTID 복제</text><g class="cut" id="iso-cut-a"><path d="M-116.3,-0.8 l12,12 M-104.3,-0.8 l-12,12"/></g><text class="stamp" id="iso-stamp-fenced" x="0.0" y="84.0" text-anchor="middle">FENCED · 쓰기 차단</text><g class="zone-label" id="iso-gh-label"><text class="zone-t" x="229.7" y="-34.5" text-anchor="middle">GitHub Pages</text><text class="zone-s" x="229.7" y="-15.5" text-anchor="middle">0초 비상 접수 (dr.ktci5.kr)</text></g><g class="zone-label" id="iso-kt-label"><text class="zone-t" x="-240.9" y="26.6" text-anchor="middle">KT Cloud</text><text class="zone-s" x="-240.9" y="45.6" text-anchor="middle">입구 전용</text></g><g class="zone-label" id="iso-onprem-label"><text class="zone-t" x="0.0" y="189.1" text-anchor="middle">온프레미스 OpenStack</text><text class="zone-s" x="0.0" y="208.1" text-anchor="middle">Primary · K3s · MySQL</text></g><g class="zone-label" id="iso-aws-label"><text class="zone-t" x="198.1" y="334.7" text-anchor="middle">AWS</text><text class="zone-s" x="198.1" y="353.7" text-anchor="middle">관제 · DR 대기 · S3 백업</text></g><g class="callout "><circle class="pin" cx="-132.8" cy="-341.9" r="2.2"/><polyline class="leader" points="-132.8,-341.9 -162.8,-361.9 -186.8,-361.9"/><text class="c-t" x="-192.8" y="-357.9" text-anchor="end">사용자 민원 접수</text><text class="c-s" x="-192.8" y="-339.9" text-anchor="end">HTTPS</text></g><g class="callout "><circle class="pin" cx="-101.3" cy="-300.3" r="2.2"/><polyline class="leader" points="-101.3,-300.3 -61.3,-320.3 -37.3,-320.3"/><text class="c-t" x="-31.3" y="-316.3" text-anchor="start">Cloudflare</text><text class="c-s" x="-31.3" y="-298.3" text-anchor="start">Anycast WAF · Worker</text></g><g class="callout "><circle class="pin" cx="-236.4" cy="-92.3" r="2.2"/><polyline class="leader" points="-236.4,-92.3 -260.4,-58.3 -284.4,-58.3"/><text class="c-t" x="-290.4" y="-54.3" text-anchor="end">Edge-GW</text><text class="c-s" x="-290.4" y="-36.3" text-anchor="end">Nginx WAF · 14.63.212.190</text></g><g class="callout " id="iso-c-wg"><circle class="pin" cx="-63.0" cy="33.8" r="2.2"/><polyline class="leader" points="-63.0,33.8 -93.0,103.8 -117.0,103.8"/><text class="c-t" x="-123.0" y="107.8" text-anchor="end">WireGuard GW</text><text class="c-s" x="-123.0" y="125.8" text-anchor="end">Inbound 0 · 펜싱</text></g><g class="callout "><circle class="pin" cx="45.0" cy="-26.0" r="2.2"/><polyline class="leader" points="45.0,-26.0 15.0,-76.0 -9.0,-76.0"/><text class="c-t" x="-15.0" y="-72.0" text-anchor="end">K3s 노드 3대</text><text class="c-s" x="-15.0" y="-54.0" text-anchor="end">cp1 · w1 · w2</text></g><g class="callout " id="iso-c-pod"><circle class="pin" cx="-31.5" cy="80.6" r="2.2"/><polyline class="leader" points="-31.5,80.6 -161.5,140.6 -185.5,140.6"/><text class="c-t" x="-191.5" y="144.6" text-anchor="end">app 파드</text><text class="c-s" x="-191.5" y="162.6" text-anchor="end">web · api · notify · audit</text></g><g class="callout " id="iso-c-dbp"><circle class="pin" cx="38.3" cy="79.3" r="2.2"/><polyline class="leader" points="38.3,79.3 98.3,39.3 122.3,39.3"/><text class="c-t" x="128.3" y="43.3" text-anchor="start">MySQL 8.4 Primary</text><text class="c-s" x="128.3" y="61.3" text-anchor="start">GTID · Read/Write</text></g><g class="callout " id="iso-c-ctl"><circle class="pin" cx="231.9" cy="167.7" r="2.2"/><polyline class="leader" points="231.9,167.7 261.9,127.7 285.9,127.7"/><text class="c-t" x="291.9" y="131.7" text-anchor="start">Orchestrator</text><text class="c-s" x="291.9" y="149.7" text-anchor="start">3-Signal 판정</text></g><g class="callout " id="iso-c-dbr"><circle class="pin" cx="168.9" cy="240.5" r="2.2"/><polyline class="leader" points="168.9,240.5 128.9,320.5 104.9,320.5"/><text class="c-t" x="98.9" y="324.5" text-anchor="end">MySQL Replica</text><text class="c-s" x="98.9" y="342.5" text-anchor="end">GTID 비동기 수신</text></g><g class="callout " id="iso-c-gh"><circle class="pin" cx="231.9" cy="-136.5" r="2.2"/><polyline class="leader" points="231.9,-136.5 191.9,-166.5 167.9,-166.5"/><text class="c-t" x="161.9" y="-162.5" text-anchor="end">정적 비상 접수 폼</text><text class="c-s" x="161.9" y="-144.5" text-anchor="end">Black Sky 시 0초 노출</text></g></svg></div>
+            <div class="t3-host" id="t3-host"><svg id="iso-scene" data-stage="normal" role="img" aria-label="하이브리드 멀티클라우드 아이소메트릭 토폴로지" viewBox="-480 -386 881 753" preserveAspectRatio="xMidYMid meet"><g class="iso-zone " id="iso-gh"><g class="iso-box platform"><polygon class="f-left" points="162.1,-97.5 229.7,-58.5 229.7,-67.6 162.1,-106.6"/><polygon class="f-right" points="297.2,-97.5 229.7,-58.5 229.7,-67.6 297.2,-106.6"/><polygon class="f-top" points="229.7,-145.6 297.2,-106.6 229.7,-67.6 162.1,-106.6"/></g><line class="floor" x1="252.2" y1="-132.6" x2="184.6" y2="-93.6"/><line class="floor" x1="274.7" y1="-119.6" x2="207.2" y2="-80.6"/><line class="floor" x1="207.2" y1="-132.6" x2="274.7" y2="-93.6"/><line class="floor" x1="184.6" y1="-119.6" x2="252.2" y2="-80.6"/></g><g class="iso-zone " id="iso-kt"><g class="iso-box platform"><polygon class="f-left" points="-331.0,-49.4 -240.9,2.6 -240.9,-6.5 -331.0,-58.5"/><polygon class="f-right" points="-150.9,-49.4 -240.9,2.6 -240.9,-6.5 -150.9,-58.5"/><polygon class="f-top" points="-240.9,-110.5 -150.9,-58.5 -240.9,-6.5 -331.0,-58.5"/></g><line class="floor" x1="-218.4" y1="-97.5" x2="-308.5" y2="-45.5"/><line class="floor" x1="-195.9" y1="-84.5" x2="-286.0" y2="-32.5"/><line class="floor" x1="-173.4" y1="-71.5" x2="-263.4" y2="-19.5"/><line class="floor" x1="-263.4" y1="-97.5" x2="-173.4" y2="-45.5"/><line class="floor" x1="-286.0" y1="-84.5" x2="-195.9" y2="-32.5"/><line class="floor" x1="-308.5" y1="-71.5" x2="-218.4" y2="-19.5"/></g><g class="iso-zone " id="iso-onprem"><g class="iso-box platform"><polygon class="f-left" points="-135.1,87.1 0.0,165.1 0.0,156.0 -135.1,78.0"/><polygon class="f-right" points="135.1,87.1 0.0,165.1 0.0,156.0 135.1,78.0"/><polygon class="f-top" points="0.0,0.0 135.1,78.0 0.0,156.0 -135.1,78.0"/></g><line class="floor" x1="22.5" y1="13.0" x2="-112.6" y2="91.0"/><line class="floor" x1="45.0" y1="26.0" x2="-90.1" y2="104.0"/><line class="floor" x1="67.5" y1="39.0" x2="-67.5" y2="117.0"/><line class="floor" x1="90.1" y1="52.0" x2="-45.0" y2="130.0"/><line class="floor" x1="112.6" y1="65.0" x2="-22.5" y2="143.0"/><line class="floor" x1="-22.5" y1="13.0" x2="112.6" y2="91.0"/><line class="floor" x1="-45.0" y1="26.0" x2="90.1" y2="104.0"/><line class="floor" x1="-67.5" y1="39.0" x2="67.5" y2="117.0"/><line class="floor" x1="-90.1" y1="52.0" x2="45.0" y2="130.0"/><line class="floor" x1="-112.6" y1="65.0" x2="22.5" y2="143.0"/></g><g class="iso-zone " id="iso-aws"><g class="iso-box platform"><polygon class="f-left" points="85.6,245.7 198.1,310.7 198.1,301.6 85.6,236.6"/><polygon class="f-right" points="310.7,245.7 198.1,310.7 198.1,301.6 310.7,236.6"/><polygon class="f-top" points="198.1,171.6 310.7,236.6 198.1,301.6 85.6,236.6"/></g><line class="floor" x1="220.7" y1="184.6" x2="108.1" y2="249.6"/><line class="floor" x1="243.2" y1="197.6" x2="130.6" y2="262.6"/><line class="floor" x1="265.7" y1="210.6" x2="153.1" y2="275.6"/><line class="floor" x1="288.2" y1="223.6" x2="175.6" y2="288.6"/><line class="floor" x1="175.6" y1="184.6" x2="288.2" y2="249.6"/><line class="floor" x1="153.1" y1="197.6" x2="265.7" y2="262.6"/><line class="floor" x1="130.6" y1="210.6" x2="243.2" y2="275.6"/><line class="floor" x1="108.1" y1="223.6" x2="220.7" y2="288.6"/></g><path class="pipe-case" d="M-200.4,-46.8 L-56.3,36.4"/><path id="path-tunnel-a" class="flow-line line-yellow" fill="none" d="M-200.4,-46.8 L-56.3,36.4"/><path class="pipe-case" d="M186.9,195.0 L76.6,131.3 L173.4,75.4 L38.3,-2.6 L-27.0,35.1"/><path id="path-tunnel-b" class="flow-line line-blue" fill="none" d="M186.9,195.0 L76.6,131.3 L173.4,75.4 L38.3,-2.6 L-27.0,35.1"/><path class="pipe-case" d="M-243.2,-55.9 L-331.0,-5.2 L139.6,266.5 L144.1,263.9"/><path id="path-tunnel-c" class="line-inactive" fill="none" d="M-243.2,-55.9 L-331.0,-5.2 L139.6,266.5 L144.1,263.9"/><path class="pipe-case" d="M31.5,120.9 L130.6,178.1 L99.1,196.3 L172.3,238.6"/><path id="path-db-sync" class="flow-line line-yellow" fill="none" d="M31.5,120.9 L130.6,178.1 L99.1,196.3 L172.3,238.6"/><path class="pipe-case" d="M-119.3,-274.3 L-218.4,-89.7"/><path id="iso-path-ingress" class="flow-line line-blue" fill="none" d="M-119.3,-274.3 L-218.4,-89.7"/><path class="pipe-case" id="iso-case-gh" d="M-119.3,-274.3 L231.9,-120.9"/><path id="iso-path-gh" class="line-inactive" fill="none" d="M-119.3,-274.3 L231.9,-120.9"/><g class="iso-box node" id="iso-ghpage"><polygon class="f-left" points="204.9,-107.9 231.9,-92.3 231.9,-105.3 204.9,-120.9"/><polygon class="f-right" points="258.9,-107.9 231.9,-92.3 231.9,-105.3 258.9,-120.9"/><polygon class="f-top" points="231.9,-136.5 258.9,-120.9 231.9,-105.3 204.9,-120.9"/></g><g class="iso-box node" id="iso-edge"><polygon class="f-left" points="-249.9,-53.3 -213.9,-32.5 -213.9,-71.5 -249.9,-92.3"/><polygon class="f-right" points="-186.9,-48.1 -213.9,-32.5 -213.9,-71.5 -186.9,-87.1"/><polygon class="f-top" points="-222.9,-107.9 -186.9,-87.1 -213.9,-71.5 -249.9,-92.3"/><line class="slot" x1="-244.5" y1="-59.9" x2="-219.3" y2="-45.4"/><circle class="led" cx="-217.5" cy="-44.3" r="1.6"/><line class="slot" x1="-244.5" y1="-69.7" x2="-219.3" y2="-55.1"/><circle class="led" cx="-217.5" cy="-54.1" r="1.6"/><line class="slot" x1="-244.5" y1="-79.4" x2="-219.3" y2="-64.9"/><circle class="led" cx="-217.5" cy="-63.8" r="1.6"/></g><g class="iso-box node rack" id="iso-k8s-cp1"><polygon class="f-left" points="20.3,50.7 40.5,62.4 40.5,0.0 20.3,-11.7"/><polygon class="f-right" points="65.3,48.1 40.5,62.4 40.5,0.0 65.3,-14.3"/><polygon class="f-top" points="45.0,-26.0 65.3,-14.3 40.5,0.0 20.3,-11.7"/><line class="slot" x1="23.3" y1="40.0" x2="37.5" y2="48.2"/><circle class="led" cx="38.5" cy="48.8" r="1.6"/><line class="slot" x1="23.3" y1="27.5" x2="37.5" y2="35.7"/><circle class="led" cx="38.5" cy="36.3" r="1.6"/><line class="slot" x1="23.3" y1="15.0" x2="37.5" y2="23.2"/><circle class="led" cx="38.5" cy="23.8" r="1.6"/><line class="slot" x1="23.3" y1="2.5" x2="37.5" y2="10.7"/><circle class="led" cx="38.5" cy="11.3" r="1.6"/></g><g class="iso-box node rack" id="iso-k8s-w1"><polygon class="f-left" points="46.2,65.6 66.4,77.4 66.4,15.0 46.2,3.2"/><polygon class="f-right" points="91.2,63.1 66.4,77.4 66.4,15.0 91.2,0.7"/><polygon class="f-top" points="70.9,-11.1 91.2,0.7 66.4,15.0 46.2,3.2"/><line class="slot" x1="49.2" y1="54.9" x2="63.4" y2="63.1"/><circle class="led" cx="64.4" cy="63.7" r="1.6"/><line class="slot" x1="49.2" y1="42.4" x2="63.4" y2="50.6"/><circle class="led" cx="64.4" cy="51.2" r="1.6"/><line class="slot" x1="49.2" y1="30.0" x2="63.4" y2="38.2"/><circle class="led" cx="64.4" cy="38.7" r="1.6"/><line class="slot" x1="49.2" y1="17.5" x2="63.4" y2="25.7"/><circle class="led" cx="64.4" cy="26.3" r="1.6"/></g><g class="iso-box node rack" id="iso-k8s-w2"><polygon class="f-left" points="72.1,80.6 92.3,92.3 92.3,29.9 72.1,18.2"/><polygon class="f-right" points="117.1,78.0 92.3,92.3 92.3,29.9 117.1,15.6"/><polygon class="f-top" points="96.8,3.9 117.1,15.6 92.3,29.9 72.1,18.2"/><line class="slot" x1="75.1" y1="69.9" x2="89.3" y2="78.1"/><circle class="led" cx="90.3" cy="78.6" r="1.6"/><line class="slot" x1="75.1" y1="57.4" x2="89.3" y2="65.6"/><circle class="led" cx="90.3" cy="66.2" r="1.6"/><line class="slot" x1="75.1" y1="44.9" x2="89.3" y2="53.1"/><circle class="led" cx="90.3" cy="53.7" r="1.6"/><line class="slot" x1="75.1" y1="32.4" x2="89.3" y2="40.6"/><circle class="led" cx="90.3" cy="41.2" r="1.6"/></g><g class="iso-box node" id="iso-wg"><polygon class="f-left" points="-63.0,46.8 -36.0,62.4 -36.0,39.0 -63.0,23.4"/><polygon class="f-right" points="-13.5,49.4 -36.0,62.4 -36.0,39.0 -13.5,26.0"/><polygon class="f-top" points="-40.5,10.4 -13.5,26.0 -36.0,39.0 -63.0,23.4"/><line class="slot" x1="-59.0" y1="37.4" x2="-40.1" y2="48.4"/><circle class="led" cx="-38.7" cy="49.1" r="1.6"/></g><g class="iso-box pod" id="iso-pod-web"><polygon class="f-left" points="-18.0,72.8 -4.5,80.6 -4.5,65.0 -18.0,57.2"/><polygon class="f-right" points="9.0,72.8 -4.5,80.6 -4.5,65.0 9.0,57.2"/><polygon class="f-top" points="-4.5,49.4 9.0,57.2 -4.5,65.0 -18.0,57.2"/></g><g class="iso-box pod" id="iso-pod-api"><polygon class="f-left" points="2.3,84.5 15.8,92.3 15.8,76.7 2.3,68.9"/><polygon class="f-right" points="29.3,84.5 15.8,92.3 15.8,76.7 29.3,68.9"/><polygon class="f-top" points="15.8,61.1 29.3,68.9 15.8,76.7 2.3,68.9"/></g><g class="iso-box pod" id="iso-pod-notify"><polygon class="f-left" points="-38.3,84.5 -24.8,92.3 -24.8,76.7 -38.3,68.9"/><polygon class="f-right" points="-11.3,84.5 -24.8,92.3 -24.8,76.7 -11.3,68.9"/><polygon class="f-top" points="-24.8,61.1 -11.3,68.9 -24.8,76.7 -38.3,68.9"/></g><g class="iso-box pod" id="iso-pod-audit"><polygon class="f-left" points="-18.0,96.2 -4.5,104.0 -4.5,88.4 -18.0,80.6"/><polygon class="f-right" points="9.0,96.2 -4.5,104.0 -4.5,88.4 9.0,80.6"/><polygon class="f-top" points="-4.5,72.8 9.0,80.6 -4.5,88.4 -18.0,80.6"/></g><g class="iso-cyl db" id="iso-db-primary"><path class="f-left" d="M-6.5,79.3 L-6.5,118.3 A22.3,12.9 0 0 0 38.1,118.3 L38.1,79.3 A22.3,12.9 0 0 1 -6.5,79.3 Z"/><path class="slot" d="M-6.5,105.3 A22.3,12.9 0 0 0 38.1,105.3"/><path class="slot" d="M-6.5,92.3 A22.3,12.9 0 0 0 38.1,92.3"/><ellipse class="f-top" cx="15.8" cy="79.3" rx="22.3" ry="12.9"/></g><g class="iso-box node" id="iso-ctl"><polygon class="f-left" points="173.4,209.3 204.9,227.5 204.9,183.3 173.4,165.1"/><polygon class="f-right" points="231.9,211.9 204.9,227.5 204.9,183.3 231.9,167.7"/><polygon class="f-top" points="200.4,149.5 231.9,167.7 204.9,183.3 173.4,165.1"/><line class="slot" x1="178.1" y1="201.0" x2="200.2" y2="213.7"/><circle class="led" cx="201.7" cy="214.6" r="1.6"/><line class="slot" x1="178.1" y1="189.9" x2="200.2" y2="202.7"/><circle class="led" cx="201.7" cy="203.6" r="1.6"/><line class="slot" x1="178.1" y1="178.9" x2="200.2" y2="191.6"/><circle class="led" cx="201.7" cy="192.5" r="1.6"/></g><g class="iso-cyl bucket" id="iso-s3"><path class="f-left" d="M246.9,215.8 L246.9,234.0 A14.3,8.3 0 0 0 275.5,234.0 L275.5,215.8 A14.3,8.3 0 0 1 246.9,215.8 Z"/><path class="slot" d="M246.9,224.9 A14.3,8.3 0 0 0 275.5,224.9"/><ellipse class="f-top" cx="261.2" cy="215.8" rx="14.3" ry="8.3"/></g><g class="iso-cyl db" id="iso-db-replica"><path class="f-left" d="M166.2,217.1 L166.2,253.5 A20.7,12.0 0 0 0 207.6,253.5 L207.6,217.1 A20.7,12.0 0 0 1 166.2,217.1 Z"/><path class="slot" d="M166.2,241.4 A20.7,12.0 0 0 0 207.6,241.4"/><path class="slot" d="M166.2,229.2 A20.7,12.0 0 0 0 207.6,229.2"/><ellipse class="f-top" cx="186.9" cy="217.1" rx="20.7" ry="12.0"/></g><g class="iso-person"><circle class="f-top" cx="-132.8" cy="-336.5" r="6"/><path class="f-left" d="M-143.8,-316.5 q11,-16 22,0 v8 h-22 Z"/></g><g class="iso-cloud" id="iso-cf"><path class="f-top" d="M-157.3,-264.3 a14,14 0 0 1 10,-22 a20,20 0 0 1 36,-8 a16,16 0 0 1 26,10 a12,12 0 0 1 2,20 Z"/></g><text class="tun-t ta" x="-137.4" y="-18.4" text-anchor="middle">터널 A</text><text class="tun-t tb" x="135.1" y="89.5" text-anchor="middle">터널 B</text><text class="tun-t tc" x="-42.8" y="153.2" text-anchor="middle">터널 C · DR 우회</text><text class="tun-t tb" x="58.5" y="128.5" text-anchor="middle">GTID 복제</text><g class="cut" id="iso-cut-a"><path d="M-116.3,-0.8 l12,12 M-104.3,-0.8 l-12,12"/></g><text class="stamp" id="iso-stamp-fenced" x="0.0" y="84.0" text-anchor="middle">FENCED · 쓰기 차단</text><g class="zone-label" id="iso-gh-label"><text class="zone-t" x="229.7" y="-34.5" text-anchor="middle">GitHub Pages</text><text class="zone-s" x="229.7" y="-15.5" text-anchor="middle">0초 비상 접수 (dr.ktci5.kr)</text></g><g class="zone-label" id="iso-kt-label"><text class="zone-t" x="-240.9" y="26.6" text-anchor="middle">KT Cloud</text><text class="zone-s" x="-240.9" y="45.6" text-anchor="middle">입구 전용</text></g><g class="zone-label" id="iso-onprem-label"><text class="zone-t" x="0.0" y="189.1" text-anchor="middle">온프레미스 OpenStack</text><text class="zone-s" x="0.0" y="208.1" text-anchor="middle">Primary · K3s · MySQL</text></g><g class="zone-label" id="iso-aws-label"><text class="zone-t" x="198.1" y="334.7" text-anchor="middle">AWS</text><text class="zone-s" x="198.1" y="353.7" text-anchor="middle">관제 · DR 대기 · S3 백업</text></g><g class="callout "><circle class="pin" cx="-132.8" cy="-341.9" r="2.2"/><polyline class="leader" points="-132.8,-341.9 -162.8,-361.9 -186.8,-361.9"/><text class="c-t" x="-192.8" y="-357.9" text-anchor="end">사용자 민원 접수</text><text class="c-s" x="-192.8" y="-339.9" text-anchor="end">HTTPS</text></g><g class="callout "><circle class="pin" cx="-101.3" cy="-300.3" r="2.2"/><polyline class="leader" points="-101.3,-300.3 -61.3,-320.3 -37.3,-320.3"/><text class="c-t" x="-31.3" y="-316.3" text-anchor="start">Cloudflare</text><text class="c-s" x="-31.3" y="-298.3" text-anchor="start">Anycast WAF · Worker</text></g><g class="callout "><circle class="pin" cx="-236.4" cy="-92.3" r="2.2"/><polyline class="leader" points="-236.4,-92.3 -260.4,-58.3 -284.4,-58.3"/><text class="c-t" x="-290.4" y="-54.3" text-anchor="end">Edge-GW</text><text class="c-s" x="-290.4" y="-36.3" text-anchor="end">Nginx WAF · 14.63.213.214</text></g><g class="callout " id="iso-c-wg"><circle class="pin" cx="-63.0" cy="33.8" r="2.2"/><polyline class="leader" points="-63.0,33.8 -93.0,103.8 -117.0,103.8"/><text class="c-t" x="-123.0" y="107.8" text-anchor="end">WireGuard GW</text><text class="c-s" x="-123.0" y="125.8" text-anchor="end">Inbound 0 · 펜싱</text></g><g class="callout "><circle class="pin" cx="45.0" cy="-26.0" r="2.2"/><polyline class="leader" points="45.0,-26.0 15.0,-76.0 -9.0,-76.0"/><text class="c-t" x="-15.0" y="-72.0" text-anchor="end">K3s 노드 3대</text><text class="c-s" x="-15.0" y="-54.0" text-anchor="end">cp1 · w1 · w2</text></g><g class="callout " id="iso-c-pod"><circle class="pin" cx="-31.5" cy="80.6" r="2.2"/><polyline class="leader" points="-31.5,80.6 -161.5,140.6 -185.5,140.6"/><text class="c-t" x="-191.5" y="144.6" text-anchor="end">app 파드</text><text class="c-s" x="-191.5" y="162.6" text-anchor="end">web · api · notify · audit</text></g><g class="callout " id="iso-c-dbp"><circle class="pin" cx="38.3" cy="79.3" r="2.2"/><polyline class="leader" points="38.3,79.3 98.3,39.3 122.3,39.3"/><text class="c-t" x="128.3" y="43.3" text-anchor="start">MySQL 8.4 Primary</text><text class="c-s" x="128.3" y="61.3" text-anchor="start">GTID · Read/Write</text></g><g class="callout " id="iso-c-ctl"><circle class="pin" cx="231.9" cy="167.7" r="2.2"/><polyline class="leader" points="231.9,167.7 261.9,127.7 285.9,127.7"/><text class="c-t" x="291.9" y="131.7" text-anchor="start">Orchestrator</text><text class="c-s" x="291.9" y="149.7" text-anchor="start">3-Signal 판정</text></g><g class="callout " id="iso-c-dbr"><circle class="pin" cx="168.9" cy="240.5" r="2.2"/><polyline class="leader" points="168.9,240.5 128.9,320.5 104.9,320.5"/><text class="c-t" x="98.9" y="324.5" text-anchor="end">MySQL Replica</text><text class="c-s" x="98.9" y="342.5" text-anchor="end">GTID 비동기 수신</text></g><g class="callout " id="iso-c-gh"><circle class="pin" cx="231.9" cy="-136.5" r="2.2"/><polyline class="leader" points="231.9,-136.5 191.9,-166.5 167.9,-166.5"/><text class="c-t" x="161.9" y="-162.5" text-anchor="end">정적 비상 접수 폼</text><text class="c-s" x="161.9" y="-144.5" text-anchor="end">Black Sky 시 0초 노출</text></g></svg></div>
           </div>
           <div class="dc-detail" id="dc-detail">
             <div class="dc-detail-head">상세 구성 — 서브넷 · 파드 · DB</div>
@@ -2393,7 +2413,7 @@ PORTAL_HTML = """<!DOCTYPE html>
                   <div style="font-size:11px; color:#D3E0EC; margin-top:8px; line-height:1.6;">
                     • <b>출발지 IP</b>: <code>10.21.0.10:8080</code> (os-b FIP)<br>
                     • ➔ <b>os-a k3s 마스터</b> (<code>10.10.1.10:6443</code>): <span style="color:#8FE0B4; font-weight:700;">도달 가능 ✅</span> (파드 자동 배포)<br>
-                    • ➔ <b>aws-dr k3s</b> (<code>10.200.0.4:6443</code>): <span style="color:#8FE0B4; font-weight:700;">도달 가능 ✅</span> (DR 파드 동기화)<br>
+                    • ➔ <b>aws-dr k3s</b> (<code>10.200.0.22:6443</code>): <span style="color:#8FE0B4; font-weight:700;">도달 가능 ✅</span> (DR 파드 동기화)<br>
                     • ➔ <b>폐쇄망 MySQL</b> (<code>10.10.2.10:3306</code>): <span style="color:#FF7A66; font-weight:700;">도달 차단 🚫</span> (L3 No-Gateway)
                   </div>
                 </div>
@@ -2405,7 +2425,7 @@ PORTAL_HTML = """<!DOCTYPE html>
                     <span class="menu-badge" style="background:#D9A93A; color:#fff;">Observability</span>
                   </div>
                   <div style="font-size:11px; color:#D3E0EC; margin-top:8px; line-height:1.6;">
-                    • <b>출발지 IP</b>: <code>10.200.0.3:3000</code> (AWS WG IP)<br>
+                    • <b>출발지 IP</b>: <code>10.200.0.21:3000</code> (AWS WG IP)<br>
                     • ➔ <b>6노드 Node Exporter</b> (<code>:9100</code>): <span style="color:#8FE0B4; font-weight:700;">도달 가능 ✅</span> (WG 풀메쉬 수집)<br>
                     • ➔ <b>k3s API & cAdvisor</b> (<code>:10250</code>): <span style="color:#8FE0B4; font-weight:700;">도달 가능 ✅</span> (Pod 메트릭)<br>
                     • ➔ <b>폐쇄망 MySQL 포트</b> (<code>:3306</code>): <span style="color:#F4C95D; font-weight:700;">경유 수집 🟡</span> (mysqld_exporter 경유)
@@ -2463,7 +2483,7 @@ PORTAL_HTML = """<!DOCTYPE html>
             <div style="background:#0C2542; padding:10px 14px; border-radius:0; font-size:11px; color:#B4C6D8; border:1px solid #4F739A;">
               <span style="font-weight:700; color:#D3E0EC;">💡 Mac 로컬에서 폐쇄망 콘솔 직접 터널링:</span><br>
               • Argo CD: <code>ssh -L 8080:10.21.0.10:8080 user@10.10.10.8</code> ➔ <code>http://localhost:8080</code><br>
-              • Grafana: <code>ssh -L 3000:10.200.0.3:3000 user@10.10.10.8</code> ➔ <code>http://localhost:3000</code>
+              • Grafana: <code>ssh -L 3000:10.200.0.21:3000 user@10.10.10.8</code> ➔ <code>http://localhost:3000</code>
             </div>
           </div>
 
@@ -2563,12 +2583,11 @@ PORTAL_HTML = """<!DOCTYPE html>
       grafana: { title: "📈 Grafana 통합 관제 대시보드", url: "https://grafana.ktci5.kr" },
       argocd: { title: "🚀 Argo CD GitOps 배포 콘솔", url: "https://argocd.ktci5.kr" },
       minwon: { title: "🏛️ 민원청구 24시 센터 (대민 서비스)", url: "https://openstack.ktci5.kr" },
-      ktedge: { title: "🌐 KT Cloud Edge 관리 콘솔", url: "https://kt-edge.ktci5.kr" },
-      awsctl: { title: "☁️ AWS DR & Orchestrator 콘솔", url: "https://aws-ctl.ktci5.kr" }
+      ktedge: { title: "🌐 KT Cloud Edge 관리 콘솔", url: "https://kt-edge.ktci5.kr" }
     };
 
     let currentTab = 'overview';
-    let currentVmId = '78c8baf1-05f7-4844-84d8-37df78b2688d';
+    let currentVmId = '100c3a42-ca1e-4a06-bae5-61f14693e479';
     let currentVmState = 'Running';
     let pollTimer = null;
 
@@ -2685,7 +2704,6 @@ PORTAL_HTML = """<!DOCTYPE html>
         const text = el.innerText.toLowerCase();
         if (key === 'overview' && text.includes('개요')) return true;
         if (key === 'ktvm' && text.includes('kt cloud')) return true;
-        if (key === 'awsctl' && text.includes('aws')) return true;
         if (key === 'osvm' && (text.includes('openstack') || text.includes('오픈스택'))) return true;
         if (key === 'dr' && text.includes('dr')) return true;
         if (key === 'horizon' && text.includes('horizon')) return true;
@@ -2761,45 +2779,19 @@ PORTAL_HTML = """<!DOCTYPE html>
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px; margin-top:6px;">
               <div style="background:#0F2D4F; padding:10px 14px; border-radius:0; border:1px solid #4F739A;">
                 <div style="font-weight:700; color:#9FD3F5;">🌐 접속 및 엔드포인트</div>
-                • 폐쇄망 사설 IP: <code>http://10.200.0.3:3000</code><br>
+                • 폐쇄망 사설 IP: <code>http://10.200.0.21:3000</code><br>
                 • 외부 도메인: <code>https://grafana.ktci5.kr</code><br>
                 • 인증 계정: <code>admin</code> (익명 뷰어 Anonymous Viewer 기본 활성화)
               </div>
               <div style="background:#0F2D4F; padding:10px 14px; border-radius:0; border:1px solid #4F739A;">
                 <div style="font-weight:700; color:#8FE0B4;">🔑 로컬 SSH 터널링 (Mac 접속 가이드)</div>
-                <code>ssh -L 3000:10.200.0.3:3000 user@10.10.10.8</code><br>
+                <code>ssh -L 3000:10.200.0.21:3000 user@10.10.10.8</code><br>
                 터미널 실행 후 브라우저에서 <b>http://localhost:3000</b> 접속
               </div>
               <div style="background:#0F2D4F; padding:10px 14px; border-radius:0; border:1px solid #4F739A;">
                 <div style="font-weight:700; color:#F7D684;">📊 프로비저닝된 표준 대시보드</div>
                 • 대시보드 UID: <code>minwon-standard</code><br>
                 • 주요 지표: WireGuard 6노드 Handshake, k3s 파드 상태, MySQL Lag, Ingress QPS
-              </div>
-            </div>
-          `;
-          toggleSetupGuide(true);
-        } else if (key === 'awsctl') {
-          guideTitle.innerText = "☁️ AWS DR & Orchestrator — 관제 및 Pilot-Light DR 제어";
-          guideBadge.innerText = "AWS HYBRID DR";
-          guideBadge.style.background = "#F4C95D";
-          guideBadge.style.color = "#000";
-          guideBody.innerHTML = `
-            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px; margin-top:6px;">
-              <div style="background:#0F2D4F; padding:10px 14px; border-radius:0; border:1px solid #4F739A;">
-                <div style="font-weight:700; color:#9FD3F5;">🌐 접속 및 엔드포인트</div>
-                • 관제(ctl) WireGuard IP: <code>http://10.200.0.3:8080</code> (Orchestrator) / <code>:3000</code> (Grafana)<br>
-                • 외부 도메인: <code>https://aws-ctl.ktci5.kr</code><br>
-                • DR(dr) WireGuard IP: <code>10.200.0.4</code> (비상 NodePort <code>:30080</code>)
-              </div>
-              <div style="background:#0F2D4F; padding:10px 14px; border-radius:0; border:1px solid #4F739A;">
-                <div style="font-weight:700; color:#8FE0B4;">🛡️ 하이브리드 자동 복구 역할</div>
-                • <b>Orchestrator</b>: 3-Signal 관측 판정, L2 Ansible 자동복구, L3 DR 승격<br>
-                • <b>MySQL Replica</b>: GTID semi-sync 비동기 수신, S3 binlog 백업 보관
-              </div>
-              <div style="background:#0F2D4F; padding:10px 14px; border-radius:0; border:1px solid #F7D684;">
-                <div style="font-weight:700; color:#F7D684;">⚡ 빠른 콘솔 이동</div>
-                • Grafana 관제: <code>#grafana</code><br>
-                • 비상 재해복구 대시보드: <code>#dr</code>
               </div>
             </div>
           `;
@@ -2851,22 +2843,13 @@ PORTAL_HTML = """<!DOCTYPE html>
       currentVmId = vm.id;
       currentVmState = vm.state;
 
-      const isGitVm = (vm.name === 'kt-edge-dr-01' || vm.id === '78c8baf1-05f7-4844-84d8-37df78b2688d');
-      const displayName = isGitVm ? 'kt-edge-dr-01' : (vm.name || 'kt-edge-dr-01');
-      const displayId = isGitVm ? '78c8baf1-05f7-4844-84d8-37df78b2688d' : vm.id;
-      const displayPubIp = isGitVm ? '14.63.212.190' : (vm.public_ip || '14.63.212.190');
-      const displayPrivIp = isGitVm ? '172.27.0.160' : (vm.nic && vm.nic.length > 0 ? vm.nic[0].ipaddress : '172.27.0.160');
-      const displaySpec = isGitVm ? '1 vCPU · 2048 MB RAM (XS71)' : `${vm.cpunumber} vCPU · ${vm.memory} MB RAM`;
-      const displayOs = isGitVm ? 'rocky8.10 (XenServer)' : `${vm.templatename || 'rocky8'} (${vm.hypervisor || 'Xen'})`;
-      const displayState = isGitVm ? 'Running' : vm.state;
-
-      document.getElementById('kt-display-name').innerText = displayName;
-      document.getElementById('kt-display-id').innerText = 'ID: ' + displayId;
-      const pubEl = document.getElementById('kt-public-ip');
-      if (pubEl) pubEl.innerText = displayPubIp;
-      document.getElementById('kt-private-ip').innerText = displayPrivIp;
-      document.getElementById('kt-spec').innerText = displaySpec;
-      document.getElementById('kt-os').innerText = displayOs;
+      document.getElementById('kt-display-name').innerText = vm.name || 'kt-edge-dr-01';
+      document.getElementById('kt-display-id').innerText = 'ID: ' + vm.id;
+      if (vm.nic && vm.nic.length > 0) {
+        document.getElementById('kt-private-ip').innerText = vm.nic[0].ipaddress;
+      }
+      document.getElementById('kt-spec').innerText = `${vm.cpunumber} vCPU · ${vm.memory} MB RAM`;
+      document.getElementById('kt-os').innerText = `${vm.templatename || 'rocky8'} (${vm.hypervisor || 'Xen'})`;
       document.getElementById('kt-zone').innerText = `${vm.zonename || 'kr-1'} (KOR-Central A)`;
 
       const badge = document.getElementById('kt-status-badge');
@@ -2881,7 +2864,7 @@ PORTAL_HTML = """<!DOCTYPE html>
       const btnStart = document.getElementById('btn-kt-start');
       const btnReboot = document.getElementById('btn-kt-reboot');
 
-      currentKtVmState = vm.state;
+      currentKtVmState = vm.state || 'Unknown';
       if (vm.state === 'Running') {
         badge.className = 'kt-vm-badge state-running';
         badge.innerHTML = '<span class="dot green"></span><span>Running (가동 중)</span>';
@@ -2921,52 +2904,36 @@ PORTAL_HTML = """<!DOCTYPE html>
         if (showLog) addLog("KT Cloud OpenAPI listVirtualMachines 조회 요청 중...");
         const res = await fetch('/api/ktcloud/vms');
         const data = await res.json();
-        let targetVm = null;
         if (data.status === 'ok' && data.vms && data.vms.length > 0) {
-          targetVm = data.vms.find(v => v.id === '78c8baf1-05f7-4844-84d8-37df78b2688d' || v.name === 'kt-edge-dr-01');
-        }
-        if (!targetVm) {
-          targetVm = {
-            id: '78c8baf1-05f7-4844-84d8-37df78b2688d',
-            name: 'kt-edge-dr-01',
-            state: 'Running',
-            public_ip: '14.63.212.190',
-            nic: [{ ipaddress: '172.27.0.160' }],
-            cpunumber: 1,
-            memory: 2048,
-            templatename: 'rocky8.10',
-            hypervisor: 'XenServer',
-            zonename: 'kr-1'
-          };
-          updateVmUI(targetVm);
-          if (showLog) addLog("Git 확정 표준 Edge-GW 'kt-edge-dr-01' (14.63.212.190) 내부 설정 동기화 완료 (Running 🟢)", 'success');
+          const vm = data.vms[0];
+          updateVmUI(vm);
+          if (showLog) addLog(`VM '${vm.name}' 상태: ${vm.state} (IP: ${vm.nic[0].ipaddress})`, 'success');
         } else {
-          updateVmUI(targetVm);
-          if (showLog) addLog(`VM '${targetVm.name}' 상태: ${targetVm.state} (IP: ${targetVm.nic[0].ipaddress})`, 'success');
+          if (showLog) addLog("VM 목록을 찾을 수 없습니다: " + JSON.stringify(data), 'err');
         }
       } catch (err) {
-        if (showLog) addLog("API 통신 예외 (Git 표준 유지): " + err.message, 'warn');
+        if (showLog) addLog("API 통신 실패: " + err.message, 'err');
       }
     }
 
     let isKtControlUnlocked = false;
-    let currentKtVmState = 'Running';
+    let currentKtVmState = 'Unknown';
 
     function toggleKtControlLock() {
-      if (isKtControlUnlocked) {
-        isKtControlUnlocked = false;
-        applyKtControlState();
-        alert('KT Cloud 제어 기능이 다시 비활성화(보안 잠금)되었습니다.');
-      } else {
-        const pwd = prompt(`[KT Cloud 제어 보안 인증]\n기타 제어 명령어 및 전원(ON/OFF/재시작) 기능을 활성화하려면 관리자 비밀번호(figteam)를 입력하세요:`, '');
+      if (!isKtControlUnlocked) {
+        const pwd = prompt("[KT Cloud 제어 권한 활성화]\n전원 On/Off, 재부팅 및 터미널 관리 명령은 보호되어 있습니다.\n관리자 비밀번호(figteam)를 입력하세요:", "");
         if (pwd === null) return;
         if (pwd === 'figteam') {
           isKtControlUnlocked = true;
           applyKtControlState();
-          alert('인증 완료: 기타 명령어 및 전원 ON/OFF/재시작 제어 기능이 활성화되었습니다.');
+          alert('인증 성공: KT Edge 제어 권한이 활성화되었습니다.');
         } else {
           alert('비밀번호가 일치하지 않습니다. (올바른 비밀번호: figteam)');
         }
+      } else {
+        isKtControlUnlocked = false;
+        applyKtControlState();
+        alert('안내: KT Edge 제어 권한이 다시 잠겼습니다.');
       }
     }
 
@@ -2974,7 +2941,6 @@ PORTAL_HTML = """<!DOCTYPE html>
       const toggleBtn = document.getElementById('btn-kt-unlock-toggle');
       const authBadge = document.getElementById('kt-auth-badge');
       const termLabel = document.getElementById('kt-term-ctrl-label');
-
       const termBtns = [
         document.getElementById('btn-term-reload'),
         document.getElementById('btn-term-wgrestart'),
@@ -2988,18 +2954,18 @@ PORTAL_HTML = """<!DOCTYPE html>
       if (!isKtControlUnlocked) {
         if (toggleBtn) {
           toggleBtn.innerHTML = '🔑 활성화 (figteam)';
-          toggleBtn.style.background = '#F59E0B';
+          toggleBtn.style.background = '#F4C95D';
           toggleBtn.style.color = '#000';
         }
         if (authBadge) {
-          authBadge.innerHTML = '🔒 on/off/재시작 비활성화 (보안 잠금)';
-          authBadge.style.background = '#334155';
-          authBadge.style.color = '#94A3B8';
-          authBadge.style.borderColor = '#475569';
+          authBadge.innerHTML = '🔒 제어 잠김 (읽기 전용 모드)';
+          authBadge.style.background = '#4F739A';
+          authBadge.style.color = '#B4C6D8';
+          authBadge.style.borderColor = '#6A8BAE';
         }
         if (termLabel) {
           termLabel.innerHTML = '🔒 제어/재시작 (기본 비활성):';
-          termLabel.style.color = '#94A3B8';
+          termLabel.style.color = '#B4C6D8';
         }
 
         termBtns.forEach(btn => {
@@ -3032,14 +2998,14 @@ PORTAL_HTML = """<!DOCTYPE html>
       } else {
         if (toggleBtn) {
           toggleBtn.innerHTML = '🔒 다시 잠그기';
-          toggleBtn.style.background = '#10B981';
+          toggleBtn.style.background = '#5FD39A';
           toggleBtn.style.color = '#fff';
         }
         if (authBadge) {
           authBadge.innerHTML = '🔓 제어 활성화됨 (관리자 모드)';
-          authBadge.style.background = '#064E3B';
-          authBadge.style.color = '#6EE7B7';
-          authBadge.style.borderColor = '#059669';
+          authBadge.style.background = '#064e3b';
+          authBadge.style.color = '#6ee7b7';
+          authBadge.style.borderColor = '#4CB985';
         }
         if (termLabel) {
           termLabel.innerHTML = '🔓 제어/재시작 (활성화됨):';
@@ -3073,7 +3039,7 @@ PORTAL_HTML = """<!DOCTYPE html>
 
     function handleKtControlClick(type, param) {
       if (!isKtControlUnlocked) {
-        const pwd = prompt(`[KT Cloud 제어 보안 인증]\n해당 명령(전원/재시작/제어)은 기본 비활성화되어 있습니다.\n활성화하려면 관리자 비밀번호(figteam)를 입력하세요:`, '');
+        const pwd = prompt("[KT Cloud 제어 보안 인증]\n해당 명령(전원/재시작/제어)은 기본 비활성화되어 있습니다.\n활성화하려면 관리자 비밀번호(figteam)를 입력하세요:", "");
         if (pwd === null) return;
         if (pwd === 'figteam') {
           isKtControlUnlocked = true;
@@ -3113,7 +3079,7 @@ PORTAL_HTML = """<!DOCTYPE html>
       const screen = document.getElementById('kt-terminal-screen');
       if (!screen) return;
 
-      screen.innerHTML += `\n<span style="color:#60A5FA;">[root@kt-edge-dr-01 ~]# ${escapeHtml(cmd)}</span>\n<span style="color:#94A3B8;" class="kt-term-loading">⏳ 실행 중...</span>\n`;
+      screen.innerHTML += `\n<span style="color:#9FD3F5;">[root@kt-edge-dr-01 ~]# ${escapeHtml(cmd)}</span>\n<span style="color:#B4C6D8;" class="kt-term-loading">⏳ WireGuard / SSH 원격 터널 실행 중...</span>\n`;
       screen.scrollTop = screen.scrollHeight;
 
       try {
@@ -3128,15 +3094,16 @@ PORTAL_HTML = """<!DOCTYPE html>
         loadingEls.forEach(el => el.remove());
 
         if (data.status === 'ok') {
-          const color = data.code === 0 ? '#A7F3D0' : '#FCA5A5';
-          screen.innerHTML += `<span style="color:${color};">${escapeHtml(data.output)}</span>\n`;
+          const color = data.code === 0 ? '#8FE0B4' : '#FF9E8C';
+          const targetBadge = data.target ? `<span style="color:#9FD3F5; font-size:11px;">[연결 경로: ${escapeHtml(data.target)}]</span>\n` : '';
+          screen.innerHTML += `${targetBadge}<span style="color:${color};">${escapeHtml(data.output)}</span>\n`;
         } else {
-          screen.innerHTML += `<span style="color:#EF4444;">[오류] ${escapeHtml(data.message || '실행 실패')}</span>\n`;
+          screen.innerHTML += `<span style="color:#FF7A66;">[오류] ${escapeHtml(data.message || '실행 실패')}</span>\n`;
         }
       } catch (err) {
         const loadingEls = screen.querySelectorAll('.kt-term-loading');
         loadingEls.forEach(el => el.remove());
-        screen.innerHTML += `<span style="color:#EF4444;">[통신 오류] ${escapeHtml(err.message)}</span>\n`;
+        screen.innerHTML += `<span style="color:#FF7A66;">[통신 오류] ${escapeHtml(err.message)}</span>\n`;
       }
       screen.scrollTop = screen.scrollHeight;
     }
@@ -3181,12 +3148,9 @@ PORTAL_HTML = """<!DOCTYPE html>
 
     function clearKtTerminal() {
       const screen = document.getElementById('kt-terminal-screen');
-      if (screen) screen.innerHTML = '<span style="color:#64748B;">[CLEARED] 터미널 콘솔이 초기화되었습니다.</span><br>';
-    }
-
-    function escapeHtml(str) {
-      if (!str) return '';
-      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      if (screen) {
+        screen.innerHTML = '[SYSTEM] KT Cloud Edge 원격 터미널 화면이 초기화되었습니다.\n';
+      }
     }
 
     async function executeVmAction(action) {
@@ -4216,10 +4180,10 @@ PORTAL_HTML = """<!DOCTYPE html>
   // 존 · 서브넷  (열: 인터넷 30–230 | 통로 | KT 270–480 | 통로 | 온프렘 530–1230 | 통로 | AWS 1290–1730 | 우측 통로)
   txt(gZones, 40, 150, '인터넷 (WAN)', 't2-zone-t');
   zone('gh', 20, 600, 210, 200, 'GitHub Pages', '0초 비상 접수 (dr.ktci5.kr)');
-  zone('kt', 270, 120, 210, 560, 'KT Cloud', '입구 전용 · VM 1대 (14.63.212.190)');
+  zone('kt', 270, 120, 210, 560, 'KT Cloud', '입구 전용 · VM 1대 (14.63.213.214)');
   zone('on', 530, 120, 700, 700, '온프레미스 OpenStack', 'Primary · K3s · MySQL (3단 격리망)');
   zone('aws', 1290, 120, 440, 700, 'AWS (ap-northeast-2)', '관제 · DR 대기 · S3 백업');
-  subnet(285, 186, 180, 480, 'Edge-GW VM · kt-edge-dr-01 (Nginx+WAF)');
+  subnet(285, 186, 180, 480, 'Edge-GW VM · k-vm1 (Nginx+WAF)');
   subnet(545, 186, 670, 84, '🌐 [외부망 DMZ] br-ex (FIP 10.11.0.0/24 · WG 터널 종단)', 'warm');
   subnet(545, 306, 440, 400, '🏢 [내부망 SERVICE] net-k3s (10.10.1.0/24 · K3s 클러스터)', 'ok');
   subnet(705, 340, 265, 236, 'app 네임스페이스 (web·api 파드)', 'violet');
@@ -4268,7 +4232,7 @@ PORTAL_HTML = """<!DOCTYPE html>
   txt(gLinks, 95, 286, '프록시 · KT Edge', 't2-dns s');
   // 노드
   node('citizen', 40, 170, 120, 60, '사용자', 'HTTPS 민원 접수', { zone: '인터넷', lines: ['https://minwon.ktci5.kr 접속'] });
-  node('cf', 40, 330, 170, 74, 'Cloudflare', 'WAF · 봇/IP 제한', { zone: '인터넷 엣지', lines: ['minwon.ktci5.kr → 14.63.212.190 (프록시 · WAF/DDoS)', 'origin-kt.ktci5.kr → 같은 IP (DNS 전용 · 오리진 노출)', '터널 호스트명 8개 → minwon-tunnel', 'Edge 503 · 오리진 장애 시 Worker가 비상 폼 안내'] });
+  node('cf', 40, 330, 170, 74, 'Cloudflare', 'WAF · 봇/IP 제한', { zone: '인터넷 엣지', lines: ['minwon.ktci5.kr → 14.63.213.214 (프록시 · WAF/DDoS)', 'origin-kt.ktci5.kr → 같은 IP (DNS 전용 · 오리진 노출)', '터널 호스트명 8개 → minwon-tunnel', 'Edge 503 · 오리진 장애 시 Worker가 비상 폼 안내'] });
   node('ops', 40, 470, 90, 46, '운영자', '', { zone: '인터넷', lines: ['관리 화면은 Cloudflare Tunnel로만 접속', 'figteam.ktci5.kr 통합 로그인(SSO)'] });
   node('gh', 40, 666, 170, 74, '비상 접수 폼', 'dr.ktci5.kr', { zone: 'GitHub Pages', subnet: 'subnet-gh-fallback', lines: ['폭주 초과분 · Black Sky 시 0초 노출', '민원 데이터 비상 보관'] });
   node('nginx', 300, 226, 150, 60, 'Nginx TLS·WAF', '10초 마이크로캐시', { zone: 'KT Cloud', subnet: 'subnet-kt-edge', lines: ['TLS 종료 · ModSecurity WAF', 'GET 응답 10초 캐시 (무상태)'] });
@@ -4791,9 +4755,9 @@ PORTAL_HTML = """<!DOCTYPE html>
         set('v3-prop-tunnel', 'minwon-tunnel + 터널 A·B');
         var ms = document.getElementById('v3-sop-text');
         if (ms) ms.innerHTML = '<b>[Cloudflare DNS 기준 접속 경로]</b><br>' +
-          '• <b>대민</b>: <code>minwon.ktci5.kr</code> A 14.63.212.190 (프록시) → KT Edge → 터널 A → 온프렘.<br>' +
+          '• <b>대민</b>: <code>minwon.ktci5.kr</code> A 14.63.213.214 (프록시) → KT Edge → 터널 A → 온프렘.<br>' +
           '• <b>관리</b>: <code>figteam · app · argocd · grafana · horizon · openstack · aws-ctl · kt-edge</code>.ktci5.kr → <b>minwon-tunnel</b> → 온프렘 cloudflared (GPU 서버) → 내부 서비스. aws-ctl은 터널 B, kt-edge는 터널 A 경유.<br>' +
-          '• <b>⚠ 위험</b>: <code>origin-kt.ktci5.kr</code> A 14.63.212.190 <b>DNS 전용</b> — 오리진 IP가 공개되어 Cloudflare WAF·제한을 우회한 직접 접속이 가능. KT Edge 443을 Cloudflare IP 대역만 허용하거나 레코드 정리 필요.';
+          '• <b>⚠ 위험</b>: <code>origin-kt.ktci5.kr</code> A 14.63.213.214 <b>DNS 전용</b> — 오리진 IP가 공개되어 Cloudflare WAF·제한을 우회한 직접 접속이 가능. KT Edge 443을 Cloudflare IP 대역만 허용하거나 레코드 정리 필요.';
         if (window.addDrLog) window.addDrLog('[v2.5.1-FLOW] 9단계: 관리 접속 — Cloudflare Tunnel(minwon-tunnel) → 온프렘 cloudflared → WG 경유', 'success');
         return;
       }
@@ -5002,7 +4966,7 @@ PORTAL_HTML = """<!DOCTYPE html>
       el[id] = g; return g;
     }
     // 외부 경로 체인
-    var chain = [['ext-cf', 'Cloudflare', 'Anycast · WAF'], ['ext-kt', 'KT Edge', '14.63.212.190'], ['ext-wg', 'WG 터널 A', 'KT ↔ 온프렘'], ['ext-host', '온프렘 호스트', '10.10.10.8 · VMware']];
+    var chain = [['ext-cf', 'Cloudflare', 'Anycast · WAF'], ['ext-kt', 'KT Edge', '14.63.213.214'], ['ext-wg', 'WG 터널 A', 'KT ↔ 온프렘'], ['ext-host', '온프렘 호스트', '10.10.10.8 · VMware']];
     chain.forEach(function (c, i) {
       box(c[0], X_EXTCHAIN, TOP + i * 90, 150, 56, c[1], c[2], 'ext');
       if (i) line('l-' + c[0], [[X_EXTCHAIN + 75, TOP + (i - 1) * 90 + 56], [X_EXTCHAIN + 75, TOP + i * 90]], 'ext');
@@ -5105,7 +5069,7 @@ PORTAL_HTML = """<!DOCTYPE html>
     var tFip = target && el['fip-' + target.id] ? el['fip-' + target.id].textContent : '';
     HOPS = [
       ['Cloudflare 애니캐스트: 가장 가까운 엣지가 요청 수신 (WAF)', ['ext-cf']],
-      ['KT Edge(14.63.212.190): TLS 종료 · 접수 대기열', ['ext-kt', 'l-ext-kt']],
+      ['KT Edge(14.63.213.214): TLS 종료 · 접수 대기열', ['ext-kt', 'l-ext-kt']],
       ['WireGuard 터널 A → 온프렘 호스트', ['ext-wg', 'l-ext-wg']],
       ['온프렘 호스트(10.10.10.8) → VMware 브리지 → 외부망', ['ext-host', 'l-ext-host', 'l-host-ext', 'net-' + firstExt]],
       [tFip ? 'Floating IP ' + tFip + ' → 라우터 (OVN NAT)' : '외부망 → 라우터 게이트웨이 (OVN NAT)', rt ? ['l-gw-' + rt.id, 'rt-' + rt.id].concat(target ? ['fip-' + target.id] : []) : []],
@@ -5499,11 +5463,36 @@ class PortalHandler(http.server.BaseHTTPRequestHandler):
                     self.send_json({"status": "error", "message": "인증 실패: 제어/재시작 명령은 비밀번호(figteam)가 필요합니다."}, status=403)
                     return
 
-                ssh_cmd = [
-                    "ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=4",
-                    "-o", "BatchMode=yes", "root@10.200.0.1", cmd
+                # Dual target execution: 1. WireGuard Mesh IP (10.200.0.1) -> 2. Public IP (14.63.212.190:22)
+                ssh_targets = [
+                    ("WireGuard (10.200.0.1:22)", ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=3", "-o", "BatchMode=yes", "root@10.200.0.1", cmd]),
+                    ("KT Public (14.63.212.190:22)", ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=3", "-o", "BatchMode=yes", "root@14.63.212.190", cmd])
                 ]
-                proc = subprocess.run(ssh_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=12)
+
+                proc = None
+                used_target = ""
+                last_err = ""
+
+                for target_label, ssh_cmd in ssh_targets:
+                    try:
+                        res = subprocess.run(ssh_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=12)
+                        if res.returncode == 255 and ("Connection timed out" in res.stderr or "No route to host" in res.stderr or "Operation timed out" in res.stderr):
+                            last_err = res.stderr
+                            continue
+                        proc = res
+                        used_target = target_label
+                        break
+                    except subprocess.TimeoutExpired:
+                        last_err = f"{target_label} 타임아웃 (12초 초과)"
+                        continue
+                    except Exception as e:
+                        last_err = str(e)
+                        continue
+
+                if proc is None:
+                    self.send_json({"status": "error", "message": f"SSH 터널 연결 실패: {last_err or '모든 연결 경로 응답 없음'}"}, status=504)
+                    return
+
                 output = proc.stdout or ""
                 if proc.stderr:
                     lines = [l for l in proc.stderr.splitlines() if not l.strip().startswith('**')]
@@ -5517,6 +5506,7 @@ class PortalHandler(http.server.BaseHTTPRequestHandler):
                 self.send_json({
                     "status": "ok",
                     "cmd": cmd,
+                    "target": used_target,
                     "code": proc.returncode,
                     "output": output or "(명령어가 정상 실행되었으며 출력 내용이 없습니다.)"
                 })
