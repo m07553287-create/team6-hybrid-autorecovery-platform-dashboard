@@ -2303,9 +2303,9 @@
 
     function toggleKtControlLock() {
       if (!isKtControlUnlocked) {
-        const pwd = prompt("[KT Cloud 제어 권한 활성화]
+        const pwd = prompt(`[KT Cloud 제어 권한 활성화]
 전원 On/Off, 재부팅 및 터미널 관리 명령은 보호되어 있습니다.
-관리자 비밀번호(figteam)를 입력하세요:", "");
+관리자 비밀번호(figteam)를 입력하세요:`, "");
         if (pwd === null) return;
         if (pwd === 'figteam') {
           isKtControlUnlocked = true;
@@ -2423,9 +2423,9 @@
 
     function handleKtControlClick(type, param) {
       if (!isKtControlUnlocked) {
-        const pwd = prompt("[KT Cloud 제어 보안 인증]
+        const pwd = prompt(`[KT Cloud 제어 보안 인증]
 해당 명령(전원/재시작/제어)은 기본 비활성화되어 있습니다.
-활성화하려면 관리자 비밀번호(figteam)를 입력하세요:", "");
+활성화하려면 관리자 비밀번호(figteam)를 입력하세요:`, "");
         if (pwd === null) return;
         if (pwd === 'figteam') {
           isKtControlUnlocked = true;
@@ -2546,8 +2546,8 @@
     function clearKtTerminal() {
       const screen = document.getElementById('kt-terminal-screen');
       if (screen) {
-        screen.innerHTML = '[SYSTEM] KT Cloud Edge 원격 터미널 화면이 초기화되었습니다.
-';
+        screen.innerHTML = `[SYSTEM] KT Cloud Edge 원격 터미널 화면이 초기화되었습니다.
+`;
       }
     }
 
