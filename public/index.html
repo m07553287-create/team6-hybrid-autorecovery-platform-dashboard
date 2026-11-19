@@ -95,7 +95,7 @@
     iframe { width: 100%; height: 100%; border: none; display: block; }
 
     /* OVERVIEW DASHBOARD VIEW */
-    #overview-panel, #ktvm-panel, #osvm-panel, #dr-panel { flex: 1; overflow-y: auto; padding: 28px 32px 40px; display: flex; flex-direction: column; gap: 28px; }
+    #overview-panel, #ktvm-panel, #osvm-panel, #osnet-panel, #osops-panel, #awsvm-panel, #dr-panel { flex: 1; overflow-y: auto; padding: 28px 32px 40px; display: flex; flex-direction: column; gap: 28px; }
     .overview-hero { border: 2px solid var(--bp-ink); background: var(--bp-deep); padding: 22px 24px; }
     .overview-hero h2 { font-size: 24px; font-weight: 600; letter-spacing: -.01em; margin-bottom: 6px; color: var(--bp-ink); }
     .overview-hero p { font-size: 14px; color: var(--bp-ink-2); line-height: 1.6; max-width: 72ch; }
@@ -210,7 +210,7 @@
     @media (max-width: 900px) {
       .status-group { display: none; }
       aside { width: 200px; }
-      #overview-panel, #ktvm-panel, #osvm-panel, #dr-panel { padding: 20px 16px 32px; }
+      #overview-panel, #ktvm-panel, #osvm-panel, #osnet-panel, #osops-panel, #awsvm-panel, #dr-panel { padding: 20px 16px 32px; }
       .arch-container { grid-template-columns: 1fr; }
     }
     /* ===== 아이소메트릭 DR 토폴로지 ===== */
@@ -594,8 +594,63 @@
     .osx-log { margin-top: 10px; background: var(--bp-sunk); border: 1px solid var(--bp-line); padding: 12px; font: 12px/1.5 var(--mono); color: var(--bp-ink-2); max-height: 320px; overflow: auto; white-space: pre-wrap; }
     .osx-note { font-size: 12px; color: var(--bp-ink-3); margin-top: 8px; }
 
+
+    /* AWS EC2 관리 (#awsvm) */
+    #awsvm-panel { gap: 18px; }
+    .aws-nodes { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 16px; }
+    .aws-node .kt-props-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+    .aws-st { font-weight: 700; } .aws-st.ok { color: #8FE0B4; } .aws-st.fail { color: #FF9E8C; } .aws-st.wait { color: #F4C95D; }
+    .aws-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 8px; }
+    .aws-steps li { border: 1px solid var(--bp-line); padding: 10px 12px; font-size: 12.5px; background: var(--bp-ground); }
+    .aws-steps li b { display: block; font-size: 13px; margin-bottom: 3px; }
+    .aws-steps li span { color: var(--bp-ink-3); }
+    @media (max-width: 640px) { .aws-nodes { grid-template-columns: 1fr; } .aws-node .kt-props-grid { grid-template-columns: 1fr !important; } }
+    /* AWS 지점 (PR #13·#14) */
+    .osx-node.aws rect { stroke: #F4A261; }
+    .osx-node.aws.st-ok rect { stroke: var(--bp-ok); stroke-dasharray: none; }
+    .osx-node.aws.st-fail rect { stroke: var(--bp-redline); }
+    .osx-link.wgc path { stroke: #F4A261; stroke-dasharray: 2 5; stroke-width: 1.8; }
+    .osx-link.wgc.st-ok path { stroke: var(--bp-ok); stroke-dasharray: 6 4; }
+    .osx-link.wgc.st-fail path { stroke: var(--bp-redline); }
+    .osx-wgc-label { font-size: 11px; fill: #F4A261; }
+    /* #osvm 연결 점검 */
+    .osx-netgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 10px; }
+    .osx-net.route { grid-column: 1 / -1; }
+    .osx-net ol, .osx-net ul { list-style: none; display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; }
+    .osx-net.route ol { flex-direction: row; flex-wrap: wrap; gap: 0; }
+    .osx-net.route ol li { flex: 1 1 180px; border-left: 0; position: relative; padding-right: 18px; }
+    .osx-net.route ol li:not(:last-child)::after { content: '→'; position: absolute; right: 4px; top: 6px; color: var(--bp-ink-3); }
+    .osx-net li { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 8px; align-items: start; font-size: 12px; padding: 5px 0; border-top: 1px solid var(--bp-line); }
+    .osx-net.route li { grid-template-columns: 1fr; gap: 2px; border-top: 0; }
+    .osx-net .nst { font-size: 11px; font-weight: 700; text-align: center; padding: 1px 0; border: 1px solid currentColor; }
+    .osx-net.route .nst { justify-self: start; padding: 1px 8px; }
+    .osx-net .nmid { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .osx-net .nmid code { font-family: var(--mono); font-size: 11px; color: var(--bp-ink-2); overflow-wrap: anywhere; }
+    .osx-net .nmid small { font-size: 11px; color: var(--bp-ink-3); }
+    .osx-net em { font-style: normal; font-size: 11px; color: var(--bp-ink-3); font-family: var(--mono); white-space: nowrap; text-align: right; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+    .osx-net .st-ok .nst { color: var(--bp-ok-2, #8FE0B4); }
+    .osx-net .st-warn .nst, .osx-net .st-partial .nst { color: #F4C95D; }
+    .osx-net .st-fail .nst { color: var(--bp-redline); }
+    .osx-net .st-fail b { color: var(--bp-redline); }
+    .osx-net .st-missing .nst { color: var(--bp-ink-3); border-style: dashed; }
+    @media (max-width: 640px) { .osx-netgrid { grid-template-columns: 1fr; } .osx-net li { grid-template-columns: 48px 1fr; } .osx-net li em { grid-column: 2; } }
     /* ===== #osvm 재배치: 작은 정보는 좁게, 구성도는 한 화면에 ===== */
     #osvm-panel.osv-on { gap: 14px; padding-top: 18px; }
+    #osnet-panel, #osops-panel { gap: 12px; padding-top: 18px; }
+    /* 구조 페이지: 구성도에 높이를 몰아줌 */
+    #osnet-panel .osv-mapcol { flex: 1 1 auto; min-height: 0; }
+    #osnet-panel .osx-svg { max-height: calc(100vh - 56px - 190px); }
+    /* 연결·상태 페이지: 탭 내용을 넓게 */
+    #osops-panel > .osx { flex: 0 0 auto; padding: 12px 16px 16px; }
+    #osops-panel .osx-pane { padding-top: 4px; }
+    #osops-panel .osx-netgrid { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; align-items: start; }
+    #osops-panel .osx-hosts { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+    #osops-panel .osx-net li { font-size: 12.5px; }
+    #osops-panel .osx-hosts { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+    #osops-panel .osx-chips { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+    #osops-panel .osx-log { max-height: calc(100vh - 56px - 300px); min-height: 240px; }
+    @media (max-width: 1300px) { #osops-panel .osx-resgrid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 720px) { #osops-panel .osx-resgrid { grid-template-columns: 1fr; } #osops-panel .osx-netgrid { grid-template-columns: 1fr; } }
     .osv-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border: 1px solid var(--bp-ink); background: var(--bp-deep); padding: 10px 14px; }
     .osv-top .overview-hero { border: 0 !important; background: none !important; padding: 0; flex: 0 1 auto; }
     .osv-top .overview-hero h2 { font-size: 17px !important; margin: 0; white-space: nowrap; }
@@ -812,10 +867,30 @@
           <span>KT Cloud VM 관리</span>
           <span class="menu-badge" style="background:#3A78B5;color:#fff;">Admin</span>
         </li>
+        <li class="menu-item" data-key="awsvm" onclick="switchTab('awsvm')">
+          <span class="icon">🟧</span>
+          <span>AWS EC2 관리</span>
+          <span class="menu-badge" style="background:#F4A261;color:#111;">EC2</span>
+        </li>
         <li class="menu-item" onclick="switchTab('osvm')">
           <span class="icon">🖥️</span>
           <span>OpenStack VM 관리</span>
           <span class="menu-badge" style="background:#B08CFF;color:#fff;">Nova</span>
+        </li>
+        <li class="menu-item" data-key="osnet" onclick="switchTab('osnet')">
+          <span class="icon">🧭</span>
+          <span>OpenStack 구조</span>
+          <span class="menu-badge" style="background:#3A78B5;color:#fff;">Map</span>
+        </li>
+        <li class="menu-item" data-key="term" onclick="switchTab('term')">
+          <span class="icon">⌨️</span>
+          <span>통합 터미널</span>
+          <span class="menu-badge" style="background:#5FD39A;color:#04121F;">CLI</span>
+        </li>
+        <li class="menu-item" data-key="osops" onclick="switchTab('osops')">
+          <span class="icon">📡</span>
+          <span>OpenStack 연결 · 상태</span>
+          <span class="menu-badge" style="background:#3A78B5;color:#fff;">Ops</span>
         </li>
         <li class="menu-item" onclick="switchTab('horizon')">
           <span class="icon">☁️</span>
@@ -906,6 +981,22 @@
             <div class="svc-footer">
               <span style="color:#8FE0B4;">현재 경로: On-Prem Primary (RW) 🟢</span>
               <button class="btn-launch" style="background:#FF6B81;" onclick="switchTab('dr')">대시보드 열기 →</button>
+            </div>
+          </div>
+
+          <!-- AWS 지점 (PR #13·#14) -->
+          <div class="svc-card" style="border-color: rgba(244, 162, 97, 0.45);">
+            <div class="svc-card-header">
+              <div>
+                <div class="svc-title" style="color:#F7C79A;">AWS 지점 (관제 · DR)</div>
+                <div style="font-size: 11px; color: #B4C6D8; margin-top: 2px;">PR #13 Terraform · PR #14 Ansible · t3.small Rocky 8 ×2</div>
+              </div>
+              <span class="svc-type" style="background:#F4A261; color:#111;">AWS</span>
+            </div>
+            <div class="svc-desc">ctl <code>13.125.163.58</code> (VPC 10.50.0.0/16 · WG 10.200.0.3) · dr <code>54.116.129.147</code> (VPC 10.51.0.0/16 · WG 10.200.0.4). 온프렘 → KT 허브(WG 터널 C) → AWS로 연결합니다.</div>
+            <div class="svc-footer">
+              <span id="ov-aws-status" style="color:#F4C95D;">연결 상태 확인 중…</span>
+              <button class="btn-launch" style="background:#F4A261; color:#111;" onclick="switchTab('osops')">연결 상태 보기 →</button>
             </div>
           </div>
 
@@ -1088,8 +1179,13 @@
               </div>
             </div>
 
-            <!-- INTERACTIVE LIVE TERMINAL CONSOLE -->
-            <div style="margin-top:16px; border-top:1px solid rgba(255,255,255,0.1); padding-top:14px;">
+            <!-- KT 터미널은 통합 터미널(#term)로 이전 (2026-11-19). 원래 블록은 기존 JS 호환을 위해 숨김만 -->
+            <div style="margin-top:16px; border-top:1px solid rgba(255,255,255,0.1); padding-top:14px; display:flex; align-items:center; gap:10px;">
+              <button class="btn-top" style="background:#3A78B5; color:#fff; font-weight:700;" onclick="switchTab(&quot;term&quot;)">⌨️ 통합 터미널에서 KT Edge 열기</button>
+              <span style="font-size:11.5px; color:#8AA5C2;">KT · AWS · 온프렘 터미널은 「인프라 &amp; 가상화 → 통합 터미널」에서 씁니다.</span>
+            </div>
+            <!-- INTERACTIVE LIVE TERMINAL CONSOLE (숨김) -->
+            <div hidden style="display:none; margin-top:16px; border-top:1px solid rgba(255,255,255,0.1); padding-top:14px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                 <div style="display:flex; align-items:center; gap:8px;">
                   <span style="font-size:13px; font-weight:800; color:#8FE0B4;">💻 KT Edge 라이브 상태 확인 터미널</span>
@@ -1114,7 +1210,21 @@
                 <button class="btn-top kt-ctrl-btn" id="btn-term-reload" disabled style="font-size:11px; padding:4px 9px; border-color:#F4C95D; color:#F4C95D; opacity:0.35; cursor:not-allowed;" onclick="handleKtControlClick('term', 'nginx -s reload')">⚡ Nginx 리로드</button>
                 <button class="btn-top kt-ctrl-btn" id="btn-term-wgrestart" disabled style="font-size:11px; padding:4px 9px; border-color:#FF7A66; color:#FF7A66; opacity:0.35; cursor:not-allowed;" onclick="handleKtControlClick('term', 'systemctl restart wg-quick@wg0')">🔄 WG 재기동</button>
                 <button class="btn-top kt-ctrl-btn" id="btn-term-nginxrestart" disabled style="font-size:11px; padding:4px 9px; border-color:#FF7A66; color:#FF7A66; opacity:0.35; cursor:not-allowed;" onclick="handleKtControlClick('term', 'systemctl restart nginx')">🛑 Nginx 재시작</button>
-                <button class="btn-top" id="btn-kt-unlock-toggle" style="font-size:11px; padding:4px 10px; background:#F4C95D; color:#000; font-weight:800; border:none; margin-left:4px; cursor:pointer;" onclick="toggleKtControlLock()">🔑 활성화 (figteam)</button>
+                <button class="btn-top" id="btn-kt-unlock-toggle" style="font-size:11px; padding:4px 10px; background:#F4C95D; color:#000; font-weight:800; border:none; margin-left:4px; cursor:pointer;" onclick="toggleKtControlLock()">🔑 제어 활성화</button>
+              </div>
+
+              <!-- #osops 연결 점검 프리셋 (2026-11-18): KT 관점에서 같은 대상을 확인 -->
+              <div id="kt-osops-presets" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; align-items:center; border-top:1px dashed #2A4058; padding-top:8px;">
+                <span style="font-size:11.5px; font-weight:700; color:#9FD3F5; margin-right:4px;" title="OpenStack 연결 · 상태(#osops)는 온프렘 포털 호스트에서, 이 버튼은 KT Edge에서 실행합니다">🧪 연결 점검 (#osops · KT에서 실행):</span>
+                <button class="btn-top" style="font-size:11px; padding:4px 9px; border-color:#9FD3F5; color:#9FD3F5; font-weight:700;" onclick="execKtPreset('all')">▶ 전체 연결 점검</button>
+                <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtPreset('wg')">🔐 WG 핸드셰이크</button>
+                <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtPreset('guard')">🛡️ DMZ 보호 설정</button>
+                <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtPreset('waiting')">⏳ 대기 안내 (503)</button>
+                <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtPreset('realip')">👤 실제 IP 로그</button>
+                <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtPreset('status')">📊 Edge 처리 현황</button>
+                <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtPreset('aws')">🚨 AWS 도달</button>
+                <button class="btn-top" style="font-size:11px; padding:4px 9px;" onclick="execKtPreset('cert')">🔏 인증서 만료</button>
+                <a href="#osops" class="btn-top" style="font-size:11px; padding:4px 9px; text-decoration:none;" onclick="switchTab('osops'); return false;">📡 #osops 보기</a>
               </div>
 
               <!-- CLI INPUT BAR -->
@@ -1129,7 +1239,7 @@
 
               <!-- TERMINAL SCREEN -->
               <div id="kt-terminal-screen" style="background:#020617; border:1px solid #1D4A7A; padding:12px; font-family:'Courier New', monospace; font-size:12px; color:#8FE0B4; line-height:1.5; min-height:180px; max-height:300px; overflow-y:auto; white-space:pre-wrap; border-radius:0; box-shadow:inset 0 2px 10px rgba(0,0,0,0.5);">[SYSTEM] KT Cloud Edge 원격 터미널 준비 완료. WireGuard 및 Nginx 상태 확인 명령어는 즉시 실행 가능합니다.
-(보안 안내: 전원 on/off, 재부팅, 서비스 제어 명령은 기본 비활성화되어 있으며, 상단 '🔑 활성화 (figteam)' 버튼 또는 관리자 비밀번호 입력 후 활성화됩니다.)</div>
+(보안 안내: 전원 on/off, 재부팅, 서비스 제어 명령은 기본 비활성화되어 있으며, 상단 '🔑 제어 활성화' 버튼 또는 관리자 비밀번호 입력 후 활성화됩니다.)</div>
             </div>
           </div>
 
@@ -1224,7 +1334,7 @@
               <div>
                 <div style="display:flex; align-items:center; gap:10px;">
                   <span class="kt-vm-name" id="os-display-name">k8s-cp1</span>
-                  <span class="menu-badge" id="os-display-role" style="background:#C8962E; color:#fff; font-size:11px; padding:3px 10px;">K8s Control Plane & Primary DB</span>
+                  <span class="menu-badge" id="os-display-role" style="background:#C8962E; color:#fff; font-size:11px; padding:3px 10px;">K8s Control Plane · DB(MySQL)</span>
                 </div>
                 <div style="font-size: 11px; color: #B4C6D8; font-family: monospace; margin-top:2px;" id="os-display-id">ID: dd0ee22c-caad-4f47-90ca-47c88d8e539f</div>
               </div>
@@ -1240,7 +1350,7 @@
           <!-- 6-PROPERTY GRID -->
           <div class="kt-props-grid">
             <div class="prop-item">
-              <div class="prop-label">Floating IP (외부 공인/대민망)</div>
+              <div class="prop-label">Floating IP (OpenStack 외부망 · 사설 대역)</div>
               <div class="prop-val" id="os-floating-ip" style="color:#9FD3F5;">192.168.120.226</div>
             </div>
             <div class="prop-item">
@@ -1261,7 +1371,7 @@
             </div>
             <div class="prop-item">
               <div class="prop-label">전원 및 서비스 헬스 상태</div>
-              <div class="prop-val" id="os-health" style="color:#8FE0B4;">정상 가동 중 (Read/Write 활성)</div>
+              <div class="prop-val" id="os-health" style="color:#8FE0B4;">정상 가동 중</div>
             </div>
           </div>
 
@@ -1341,6 +1451,94 @@
             </div>
           </div>
         </div>
+      </section>
+
+      <!-- AWS EC2 관리 (2026-11-18, PR #13·#14) -->
+      <section id="awsvm-panel" style="display: none;">
+        <div class="overview-hero" style="background: linear-gradient(135deg, rgba(244, 162, 97, 0.22), rgba(15, 45, 79, 0.85)); border: 1px solid rgba(244, 162, 97, 0.4);">
+          <h2>🟧 AWS EC2 관리 — 관제(ctl) · DR(dr) 지점</h2>
+          <p>PR #13(Terraform: VPC 분리 · EC2 · SG · S3 backend)과 PR #14(Ansible: swap · WireGuard)로 만든 AWS 노드 2대입니다. 온프렘 → KT 허브(WG 터널 C) → AWS로 연결해 복구 러너와 Pilot-Light DR을 올립니다. 연결 상태는 온프렘 포털 호스트에서 실측합니다.</p>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card"><div class="label">EC2 인스턴스</div><div class="value">2대</div><div class="subtext">ctl · dr (t3.small)</div></div>
+          <div class="stat-card"><div class="label">WG 터널 C</div><div class="value" id="aws-stat-wg" style="color:#F4C95D;">-</div><div class="subtext">KT 허브 ↔ ctl · dr</div></div>
+          <div class="stat-card"><div class="label">VPC</div><div class="value">2개</div><div class="subtext">10.50.0.0/16 · 10.51.0.0/16</div></div>
+          <div class="stat-card"><div class="label">복구 서비스</div><div class="value" id="aws-stat-svc" style="color:#F4C95D;">-</div><div class="subtext">러너 :8080 · DR k3s :30080</div></div>
+        </div>
+
+        <div class="aws-nodes">
+          <div class="kt-vm-box aws-node" style="border:1px solid rgba(244,162,97,0.45);">
+            <div class="kt-vm-header">
+              <div class="kt-vm-title">
+                <span style="font-size:26px;">🟧</span>
+                <div>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <span class="kt-vm-name">aws-ctl</span>
+                    <span class="menu-badge" style="background:#F4A261; color:#111; font-size:11px; padding:3px 10px;">관제 · 복구 러너</span>
+                  </div>
+                  <div style="font-size:11px; color:#B4C6D8; font-family:monospace; margin-top:2px;">t3.small · Rocky 8 x86_64 · gp3 · EIP (PR #13)</div>
+                </div>
+              </div>
+              <div class="kt-vm-badge" style="border-color:#F4C95D; color:#F4C95D;">apply 완료 (팀 보고)</div>
+            </div>
+            <div class="kt-props-grid">
+              <div class="prop-item"><div class="prop-label">공인 IP (EIP)</div><div class="prop-val" style="color:#9FD3F5;">13.125.163.58</div></div>
+              <div class="prop-item"><div class="prop-label">VPC</div><div class="prop-val">10.50.0.0/16 (ctl)</div></div>
+              <div class="prop-item"><div class="prop-label">WireGuard IP</div><div class="prop-val">10.200.0.3</div></div>
+              <div class="prop-item"><div class="prop-label">WG 터널 C (KT 허브)</div><div class="prop-val aws-st wait" id="aws-ctl-wg">확인 중…</div></div>
+              <div class="prop-item"><div class="prop-label">복구 러너 :8080</div><div class="prop-val aws-st wait" id="aws-ctl-svc">확인 중…</div></div>
+              <div class="prop-item"><div class="prop-label">보안그룹</div><div class="prop-val" style="font-size:12px;">SSH = 관리자 IP · WG UDP 51820 = peer · ctl↔dr EIP</div></div>
+            </div>
+          </div>
+          <div class="kt-vm-box aws-node" style="border:1px solid rgba(244,162,97,0.45);">
+            <div class="kt-vm-header">
+              <div class="kt-vm-title">
+                <span style="font-size:26px;">🟧</span>
+                <div>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <span class="kt-vm-name">aws-dr</span>
+                    <span class="menu-badge" style="background:#F4A261; color:#111; font-size:11px; padding:3px 10px;">Pilot-Light DR</span>
+                  </div>
+                  <div style="font-size:11px; color:#B4C6D8; font-family:monospace; margin-top:2px;">t3.small · Rocky 8 x86_64 · gp3 · EIP (PR #13)</div>
+                </div>
+              </div>
+              <div class="kt-vm-badge" style="border-color:#F4C95D; color:#F4C95D;">apply 완료 (팀 보고)</div>
+            </div>
+            <div class="kt-props-grid">
+              <div class="prop-item"><div class="prop-label">공인 IP (EIP)</div><div class="prop-val" style="color:#9FD3F5;">54.116.129.147</div></div>
+              <div class="prop-item"><div class="prop-label">VPC</div><div class="prop-val">10.51.0.0/16 (dr)</div></div>
+              <div class="prop-item"><div class="prop-label">WireGuard IP</div><div class="prop-val">10.200.0.4</div></div>
+              <div class="prop-item"><div class="prop-label">WG 터널 C (KT 허브)</div><div class="prop-val aws-st wait" id="aws-dr-wg">확인 중…</div></div>
+              <div class="prop-item"><div class="prop-label">DR k3s :30080</div><div class="prop-val aws-st wait" id="aws-dr-svc">확인 중…</div></div>
+              <div class="prop-item"><div class="prop-label">보안그룹</div><div class="prop-val" style="font-size:12px;">SSH = 관리자 IP · WG UDP 51820 = peer · ctl↔dr EIP</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title"><span>🔗</span><span>온프렘 → AWS 연결 작업</span>
+          <button class="btn-top" style="margin-left:auto; font-size:12px;" onclick="switchTab('osops')">연결 점검 전체 보기 →</button></div>
+        <ul class="aws-steps">
+          <li><b>1. 접속 수단</b><span>minwon-key.pem + 보안그룹 admin_cidrs에 운영 IP 추가 (현재 맥·KT 모두 SSH 차단)</span></li>
+          <li><b>2. ctl · dr 공개키</b><span>/etc/wireguard/publickey — 공개 정보</span></li>
+          <li><b>3. 보안그룹 WG 허용</b><span>wg_peer_cidrs에 KT 14.63.212.190/32 포함 확인</span></li>
+          <li><b>4. AWS wg0 ← KT 허브 피어</b><span>AllowedIPs 10.200.0.1-2/32 · 192.168.120.0/24 · 172.20.0.0/24 · 10.10.1.0/24</span></li>
+          <li><b>5. KT wg0 ← AWS 피어</b><span>wg syncconf (온프렘 터널 무중단)</span></li>
+          <li><b>6. PR #14 role 반영</b><span>wg_extra_peers 변수 — 수동 추가분이 플레이북 실행 때 지워지지 않게</span></li>
+        </ul>
+        <p style="font-size:12px; color:#8AA5C2; margin:0;">전원 제어(시작 · 중지)는 AWS 자격증명을 포털에 연결한 뒤 추가합니다. 지금은 상태 표시만 합니다.</p>
+      </section>
+
+      <!-- 통합 터미널 (2026-11-19): KT · AWS · 온프렘, 세션 1회 잠금 해제 -->
+      <section id="term-panel" style="display: none; flex: 1; flex-direction: column; min-height: calc(100vh - 110px);">
+        <iframe id="term-frame" src="/term" title="통합 터미널" style="flex: 1; width: 100%; min-height: calc(100vh - 110px); border: 0; background: #04121F;"></iframe>
+      </section>
+
+      <!-- OpenStack 구조 · 연결 (2026-11-18 #osvm에서 분리) -->
+      <section id="osnet-panel" style="display: none;"></section>
+
+      <!-- OpenStack 연결 · 상태 (2026-11-18 osnet에서 분리) -->
+      <section id="osops-panel" style="display: none;">
         <div class="osx" id="osx"></div>
       </section>
 
@@ -1783,7 +1981,7 @@
               <span style="font-size:22px;">📡</span>
               <div>
                 <div style="font-size:15px; font-weight:800; color:#fff;">폐쇄망·오픈스택 네트워크 격리 및 Argo CD · Grafana 도달 범위 검증</div>
-                <div style="font-size:11px; color:#B4C6D8;">WireGuard 10.200.0.0/24 풀메쉬 & OpenStack OVN (외부망·내부망·폐쇄망) 경로 추적</div>
+                <div style="font-size:11px; color:#F4C95D;">설계 도식(v4.1 기준)입니다. 실제 측정 결과는 「OpenStack 연결 · 상태」 메뉴의 「연결 점검」 탭에서 확인하세요. (현재 WG는 KT↔온프렘 1쌍, AWS 피어 미가동)</div>
               </div>
             </div>
             <button onclick="closeReachabilityModal()" style="background:transparent; border:none; color:#B4C6D8; font-size:20px; cursor:pointer;">✕</button>
@@ -1969,11 +2167,15 @@
       overview: { title: "📊 통합 인프라 개요", url: "" },
       ktvm: { title: "⚡ KT Cloud VM 전원 및 자원 관리", url: "" },
       osvm: { title: "🖥️ 온프레미스 OpenStack VM 전원 및 자원 관리", url: "" },
+      awsvm: { title: "🟧 AWS EC2 관리", url: "" },
+      term: { title: "⌨️ 통합 터미널 (KT · AWS · 온프렘)", url: "" },
+      osnet: { title: "🧭 OpenStack 구조", url: "" },
+      osops: { title: "📡 OpenStack 연결 · 상태", url: "" },
       dr: { title: "🛡️ 하이브리드 멀티클라우드 운영 대시보드", url: "" },
       horizon: { title: "☁️ OpenStack Horizon IaaS 콘솔", url: "https://horizon.ktci5.kr/dashboard/project/" },
       grafana: { title: "📈 Grafana 통합 관제 대시보드", url: "https://grafana.ktci5.kr" },
       argocd: { title: "🚀 Argo CD GitOps 배포 콘솔", url: "https://argocd.ktci5.kr" },
-      minwon: { title: "🏛️ 민원청구 24시 센터 (대민 서비스)", url: "https://openstack.ktci5.kr" },
+      minwon: { title: "🏛️ 민원청구 24시 센터 (대민 서비스)", url: "https://minwon.ktci5.kr" },
       ktedge: { title: "🌐 KT Cloud Edge 관리 콘솔", url: "https://kt-edge.ktci5.kr" }
     };
 
@@ -2089,9 +2291,14 @@
     function switchTab(key) {
       if (!SERVICES[key]) return;
       currentTab = key;
+      ['osnet', 'osops', 'awsvm', 'term'].forEach(function (k) {
+        const pnl = document.getElementById(k + '-panel');
+        if (pnl) pnl.style.display = key === k ? 'flex' : 'none';
+      });
 
       document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
       const activeItem = Array.from(document.querySelectorAll('.menu-item')).find(el => {
+        if (el.dataset.key) return el.dataset.key === key;
         const text = el.innerText.toLowerCase();
         if (key === 'overview' && text.includes('개요')) return true;
         if (key === 'ktvm' && text.includes('kt cloud')) return true;
@@ -2143,6 +2350,13 @@
         if (osvmPanel) osvmPanel.style.display = 'flex';
         history.replaceState(null, '', '#osvm');
         fetchOsVmStatus(true);
+      } else if (key === 'osnet' || key === 'osops' || key === 'awsvm' || key === 'term') {
+        overviewPanel.style.display = 'none';
+        ktvmPanel.style.display = 'none';
+        iframePanel.style.display = 'none';
+        if (drPanel) drPanel.style.display = 'none';
+        if (osvmPanel) osvmPanel.style.display = 'none';
+        history.replaceState(null, '', '#' + key);
       } else if (key === 'dr') {
         overviewPanel.style.display = 'none';
         ktvmPanel.style.display = 'none';
@@ -2312,21 +2526,19 @@
     let isKtControlUnlocked = false;
     let currentKtVmState = 'Unknown';
 
-    function toggleKtControlLock() {
+    async function toggleKtControlLock() {
       if (!isKtControlUnlocked) {
-        const pwd = prompt(`[KT Cloud 제어 권한 활성화]
-전원 On/Off, 재부팅 및 터미널 관리 명령은 보호되어 있습니다.
-관리자 비밀번호(figteam)를 입력하세요:`, "");
+        const pwd = await mtAskPassword('KT 제어 인증');
         if (pwd === null) return;
-        if (pwd === 'figteam') {
+        if (await mtVerify(pwd)) { ktCtrlPwd = pwd;
           isKtControlUnlocked = true;
           applyKtControlState();
           alert('인증 성공: KT Edge 제어 권한이 활성화되었습니다.');
         } else {
-          alert('비밀번호가 일치하지 않습니다. (올바른 비밀번호: figteam)');
+          alert('비밀번호가 일치하지 않습니다.');
         }
       } else {
-        isKtControlUnlocked = false;
+        isKtControlUnlocked = false; ktCtrlPwd = '';
         applyKtControlState();
         alert('안내: KT Edge 제어 권한이 다시 잠겼습니다.');
       }
@@ -2348,7 +2560,7 @@
 
       if (!isKtControlUnlocked) {
         if (toggleBtn) {
-          toggleBtn.innerHTML = '🔑 활성화 (figteam)';
+          toggleBtn.innerHTML = '🔑 제어 활성화';
           toggleBtn.style.background = '#F4C95D';
           toggleBtn.style.color = '#000';
         }
@@ -2432,24 +2644,22 @@
       }
     }
 
-    function handleKtControlClick(type, param) {
+    async function handleKtControlClick(type, param) {
       if (!isKtControlUnlocked) {
-        const pwd = prompt(`[KT Cloud 제어 보안 인증]
-해당 명령(전원/재시작/제어)은 기본 비활성화되어 있습니다.
-활성화하려면 관리자 비밀번호(figteam)를 입력하세요:`, "");
+        const pwd = await mtAskPassword('KT 제어 인증');
         if (pwd === null) return;
-        if (pwd === 'figteam') {
+        if (await mtVerify(pwd)) { ktCtrlPwd = pwd;
           isKtControlUnlocked = true;
           applyKtControlState();
           alert('인증 성공: 제어 권한이 활성화되었습니다. 요청하신 작업을 진행합니다.');
         } else {
-          alert('비밀번호가 일치하지 않습니다. (올바른 비밀번호: figteam)');
+          alert('비밀번호가 일치하지 않습니다.');
           return;
         }
       }
 
       if (type === 'term') {
-        execKtTerminal(param, 'figteam');
+        execKtTerminal(param, ktCtrlPwd);
       } else if (type === 'vm') {
         confirmVmAction(param);
       }
@@ -2523,9 +2733,139 @@
       screen.scrollTop = screen.scrollHeight;
     }
 
-    function promptAndExecKtTerminal(cmd) {
-      const pwd = prompt(`[KT Edge 제어 인증]
-'${cmd}' 명령을 실행하려면 관리자 비밀번호(figteam)를 입력하세요:`, '');
+
+    // ===== 다중 대상 터미널 (AWS · 온프렘) 2026-11-19 =====
+    let ktCtrlPwd = '';
+    async function mtVerify(p) {
+      if (!p) return false;
+      try { const r = await fetch('/api/ctrl/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: p }) }); return r.ok; }
+      catch (e) { return false; }
+    }
+    const MT_COMMON = { '⏱ 상태': `hostname; uptime; free -h | sed -n 1,2p; df -h / | tail -1`, '🚫 실패 서비스': `systemctl --failed --no-legend || true` };
+    const MT_GROUPS = {
+      kt: { title: '⚡ KT Cloud 터미널', targets: { 'kt-edge': 'KT_PRESETS' } },
+      aws: { title: '☁️ AWS 터미널', targets: {
+        'ctl': { '🤖 러너 healthz': `curl -s -m5 http://127.0.0.1:8080/healthz; echo`, '📜 러너 로그': `sudo journalctl -u orchestrator --no-pager -n 20 | cut -c1-200`, '🔐 WG': `sudo wg show wg0 latest-handshakes | awk -v n=$(date +%s) '{print $1, ($2 ? n-$2 " 초 전" : "없음")}'`, '🏠 온프렘 도달': `for u in http://192.168.120.226:8080/healthz http://10.10.1.100/healthz; do echo "$u $(curl -s -m4 -o /dev/null -w '%{http_code}' $u)"; done; ping -c1 -W2 10.10.2.10 >/dev/null && echo 'db-01 응답' || echo 'db-01 응답 없음'` },
+        'dr': { '🧩 파드': `sudo /usr/local/bin/k3s kubectl -n minwon-dr get pods -o wide`, '🔁 복제 상태': `echo 'SHOW REPLICA STATUS' | sudo /usr/local/bin/k3s kubectl -n minwon-dr exec -i minwon-mysql-0 -- sh -c 'mysql -E -uroot -p"$MYSQL_ROOT_PASSWORD" 2>/dev/null' | grep -E 'Running:|Seconds_Behind|Last_(IO|SQL)_Error:|Source_Host'`, '💓 heartbeat': `echo 'SELECT ts, TIMESTAMPDIFF(SECOND, ts, UTC_TIMESTAMP(3)) AS lag_s FROM repl_check.heartbeat' | sudo /usr/local/bin/k3s kubectl -n minwon-dr exec -i minwon-mysql-0 -- sh -c 'mysql -E -uroot -p"$MYSQL_ROOT_PASSWORD" 2>/dev/null'`, '🩺 앱 healthz': `curl -s -m5 http://127.0.0.1:30080/healthz; echo`, '💾 백업 목록': `sudo ls -lh /var/backups/mysql | tail -5`, '🔐 WG': `sudo wg show wg0 latest-handshakes | awk -v n=$(date +%s) '{print $1, ($2 ? n-$2 " 초 전" : "없음")}'` },
+      } },
+      onprem: { title: '🖥️ 온프렘 터미널', targets: {
+        'controller': { '🧮 compute 서비스': `source /root/keystonerc_admin; openstack compute service list -c Binary -c Host -c Status -c State`, '📦 인스턴스 배치': `source /root/keystonerc_admin; openstack server list --all-projects --long -c Name -c Status -c Host -c Networks`, '🌐 네트워크 에이전트': `source /root/keystonerc_admin; openstack network agent list -c Host -c Binary -c Alive -c State`, '🧭 라우터': `source /root/keystonerc_admin; for r in rt-edge rt-data; do echo "== $r"; openstack router show $r -f value -c external_gateway_info -c routes; done`, '🧠 메모리 상위': `free -m | sed -n 1,3p; ps -eo rss,comm --sort=-rss | head -8` },
+        'compute1': { '🖥 VM': `virsh list --all`, '⚙ 서비스': `systemctl is-active openstack-nova-compute ovn-controller neutron-ovn-metadata-agent` },
+        'compute2': { '🖥 VM': `virsh list --all`, '⚙ 서비스': `systemctl is-active openstack-nova-compute ovn-controller neutron-ovn-metadata-agent` },
+        'compute3': { '🖥 VM': `virsh list --all`, '⚙ 서비스': `systemctl is-active openstack-nova-compute ovn-controller neutron-ovn-metadata-agent` },
+        'compute4': { '🖥 VM': `virsh list --all`, '⚙ 서비스': `systemctl is-active openstack-nova-compute ovn-controller neutron-ovn-metadata-agent` },
+        'k8s-cp1': { '🩺 앱 healthz': `curl -s -m5 http://127.0.0.1:8080/healthz; echo`, '📜 앱 로그': `sudo journalctl -u minwon-app --no-pager -n 15 | cut -c1-200`, '☸ k3s': `sudo k3s kubectl get nodes; sudo k3s kubectl get pods -A --no-headers | awk '{print $1, $2, $4}'`, '🛣 DB 경로': `ip route get 10.10.2.10 | head -1; timeout 3 bash -c '</dev/tcp/10.10.2.10/3306' && echo 'db-01:3306 열림' || echo 'db-01:3306 닫힘'` },
+        'db-01': { '🗄 MySQL': `systemctl is-active mysql; sudo mysql -E -e 'SELECT @@version, @@server_id, @@gtid_mode, @@read_only, @@super_read_only'`, '🔁 복제 연결': `sudo mysql -e "SHOW REPLICAS; SELECT user, host, command, time FROM information_schema.processlist WHERE command LIKE 'Binlog%'"`, '📊 데이터': `sudo mysql -N -e "SELECT 'complaints', COUNT(*) FROM minwon_db.complaints; SELECT 'gtid', @@GLOBAL.gtid_executed"`, '💾 백업 목록': `sudo ls -lh /var/backups/mysql | tail -5; df -h /var/lib/mysql | tail -1` },
+        'k8s-w1': { '☸ k3s-agent': `systemctl is-active k3s-agent || echo '클러스터 미가입'` },
+        'k8s-w2': { '☸ k3s-agent': `systemctl is-active k3s-agent || echo '클러스터 미가입'` },
+      } },
+    };
+    function mtAskPassword(cmd) {
+      return new Promise(resolve => {
+        const bg = document.createElement('div');
+        bg.style.cssText = 'position:fixed;inset:0;background:rgba(2,6,23,.7);z-index:9999;display:flex;align-items:center;justify-content:center';
+        bg.innerHTML = '<form style="background:#0F2D4F;border:1px solid #4F739A;padding:16px;min-width:320px;color:#E6EEF5;font-size:12.5px">'
+          + '<div style="font-weight:800;margin-bottom:6px">🔑 제어 비밀번호</div><div class="mt-cmd" style="color:#8AA5C2;margin-bottom:8px;word-break:break-all"></div>'
+          + '<input type="password" autocomplete="off" style="width:100%;background:#020617;border:1px solid #4F739A;color:#E6EEF5;padding:6px">'
+          + '<div style="margin-top:10px;text-align:right"><button type="button" class="btn-top">취소</button> <button type="submit" class="btn-top" style="background:#3A78B5;color:#fff">실행</button></div></form>';
+        bg.querySelector('.mt-cmd').textContent = cmd;
+        const f = bg.querySelector('form'), inp = bg.querySelector('input');
+        const done = v => { inp.value = ''; bg.remove(); resolve(v); };
+        f.onsubmit = e => { e.preventDefault(); done(inp.value); };
+        bg.querySelector('button[type=button]').onclick = () => done(null);
+        document.body.appendChild(bg); inp.focus();
+      });
+    }
+    const MT_DANGER = new RegExp('restart|stop|poweroff|reboot|reload|shutdown|kill|[ ]rm[ ]|^rm[ ]|[ ]dd[ ]|mkfs|systemctl[ ]+(start|enable|disable|mask)|(drop|delete|truncate|alter|update|insert|replace|grant|revoke|reset)[ ]|openstack[ ]+[a-z]+[ ]+(create|delete|set|unset|migrate|resize|rebuild)|kubectl[ ]+(delete|apply|scale|edit|patch|drain|cordon)|wg[ ]+(set|syncconf)|wg-quick', 'i');
+    let mtRemain = 0, mtTimer = null;
+    function mtLockUI(remain) {
+      mtRemain = remain || 0;
+      const st = document.getElementById('mt-lockstate'); if (!st) return;
+      const on = mtRemain > 0;
+      st.textContent = on ? ('🔓 제어 가능 · ' + Math.ceil(mtRemain / 60) + '분 남음') : '🔒 제어 잠김';
+      st.style.color = on ? '#5FD39A' : '#F4C95D';
+      document.getElementById('mt-lockpw').style.display = on ? 'none' : '';
+      document.getElementById('mt-unlock').style.display = on ? 'none' : '';
+      document.getElementById('mt-lock').style.display = on ? '' : 'none';
+      if (on) { isKtControlUnlocked = true; if (typeof applyKtControlState === 'function') applyKtControlState(); }
+      clearInterval(mtTimer); if (on) mtTimer = setInterval(() => mtLockUI(mtRemain - 30), 30000);
+    }
+    async function mtCtrl(path, body) {
+      try { const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }); const d = await r.json(); return { ok: r.ok, remain: d.remain || 0 }; }
+      catch (e) { return { ok: false, remain: 0 }; }
+    }
+    async function mtUnlock(pw) { const r = await mtCtrl('/api/ctrl/verify', { password: pw }); mtLockUI(r.remain); return r.ok; }
+    function mtInitLock() {
+      const pw = document.getElementById('mt-lockpw'); if (!pw || pw.dataset.ready) return; pw.dataset.ready = '1';
+      const go = async () => { const v = pw.value; pw.value = ''; if (!v) return; if (!(await mtUnlock(v))) { const st = document.getElementById('mt-lockstate'); st.textContent = '❌ 비밀번호가 맞지 않습니다'; st.style.color = '#FF7A66'; } };
+      document.getElementById('mt-unlock').onclick = go; pw.onkeydown = e => { if (e.key === 'Enter') go(); };
+      document.getElementById('mt-lock').onclick = async () => { const r = await mtCtrl('/api/ctrl/lock'); mtLockUI(0); isKtControlUnlocked = false; ktCtrlPwd = ''; };
+      mtCtrl('/api/ctrl/status').then(r => mtLockUI(r.remain));
+    }
+    async function mtExec(box, cmd, pwd) {
+      if (!pwd && MT_DANGER.test(cmd) && mtRemain > 0 && !confirm('제어/변경 명령을 실행합니다. 계속할까요?' + String.fromCharCode(10, 10) + cmd)) return;
+      const sel = box.querySelector('select'), scr = box.querySelector('.mt-screen'), t = sel.value;
+      const label = sel.options[sel.selectedIndex].text;
+      scr.insertAdjacentHTML('beforeend', `
+<span style="color:#9FD3F5">[${escapeHtml(label)}]$ ${escapeHtml(cmd)}</span>
+<span class="mt-wait" style="color:#B4C6D8">⏳ 실행 중...</span>
+`);
+      scr.scrollTop = scr.scrollHeight;
+      try {
+        const r = await fetch('/api/term/exec', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target: t, cmd, password: pwd || '' }) });
+        const d = await r.json(); scr.querySelectorAll('.mt-wait').forEach(e => e.remove());
+        if (d.need_password && !pwd) { const p = await mtAskPassword(cmd); if (p && await mtUnlock(p)) return mtExec(box, cmd, ''); scr.insertAdjacentHTML('beforeend', `<span style="color:#F4C95D">취소됨</span>` + String.fromCharCode(10)); return; }
+        if (d.status === 'ok') scr.insertAdjacentHTML('beforeend', `<span style="color:${d.code === 0 ? '#8FE0B4' : '#FF9E8C'}">${escapeHtml(d.output || '(출력 없음)')}</span>
+`);
+        else scr.insertAdjacentHTML('beforeend', `<span style="color:#FF7A66">[오류] ${escapeHtml(d.message || '실행 실패')}</span>
+`);
+      } catch (e) { scr.querySelectorAll('.mt-wait').forEach(x => x.remove()); scr.insertAdjacentHTML('beforeend', `<span style="color:#FF7A66">[통신 오류] ${escapeHtml(e.message)}</span>
+`); }
+      scr.scrollTop = scr.scrollHeight;
+    }
+    function mtRender(box) {
+      const g = MT_GROUPS[box.dataset.group]; if (!g) return;
+      const opts = Object.keys(g.targets).map(k => `<option value="${k}">${k}</option>`).join('');
+      box.innerHTML = `<div style="margin-top:16px;border:1px solid #1D4A7A;padding:12px;background:rgba(2,6,23,.35)">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><b style="color:#E6EEF5">${g.title}</b>
+          <select style="background:#0F2D4F;color:#E6EEF5;border:1px solid #4F739A;padding:4px 6px;font-family:monospace">${opts}</select>
+          <span style="font-size:11px;color:#8AA5C2">읽기 명령은 바로 실행 · 제어/변경 명령은 제어 비밀번호 필요(화면에 표시하지 않음)</span></div>
+        <div class="mt-presets" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
+        <div style="display:flex;gap:8px;margin-bottom:8px"><input class="mt-in" placeholder="명령어 입력 후 Enter" style="flex:1;background:#0F2D4F;border:1px solid #4F739A;color:#E6EEF5;padding:6px 10px;font-family:monospace;font-size:12px">
+          <button class="btn-top mt-run" style="background:#3A78B5;color:#fff">실행</button><button class="btn-top mt-clr">지우기</button></div>
+        <div class="mt-screen" style="background:#020617;border:1px solid #1D4A7A;padding:10px;font-family:'Courier New',monospace;font-size:12px;color:#8FE0B4;line-height:1.45;min-height:160px;max-height:360px;overflow:auto;white-space:pre-wrap">[SYSTEM] 대상을 고르고 버튼을 누르세요.</div></div>`;
+      const sel = box.querySelector('select'), pre = box.querySelector('.mt-presets'), inp = box.querySelector('.mt-in');
+      const KT_LABELS = { '▶ 전체 연결 점검': 'all', '🔐 WG 핸드셰이크': 'wg', '🛡️ DMZ 보호 설정': 'guard', '⏳ 대기 안내 (503)': 'waiting', '👤 실제 IP 로그': 'realip', '📊 Edge 처리 현황': 'status', '🚨 AWS 도달': 'aws', '🔏 인증서 만료': 'cert' };
+      const presetsOf = t => { const p = g.targets[t]; if (p !== 'KT_PRESETS') return p; const o = {}; Object.entries(KT_LABELS).forEach(([n, k]) => { if (typeof KT_OSOPS_PRESETS !== 'undefined' && KT_OSOPS_PRESETS[k]) o[n] = KT_OSOPS_PRESETS[k]; }); return o; };
+      const draw = () => { pre.innerHTML = ''; Object.entries(Object.assign({}, MT_COMMON, presetsOf(sel.value))).forEach(([n, c]) => {
+        const b = document.createElement('button'); b.className = 'btn-top'; b.style.cssText = 'font-size:11px;padding:4px 9px'; b.textContent = n; b.title = c; b.onclick = () => mtExec(box, c); pre.appendChild(b); }); };
+      sel.onchange = draw; draw();
+      const run = () => { const c = inp.value.trim(); if (c) { mtExec(box, c); inp.value = ''; } };
+      box.querySelector('.mt-run').onclick = run; inp.onkeydown = e => { if (e.key === 'Enter') run(); };
+      box.querySelector('.mt-clr').onclick = () => { box.querySelector('.mt-screen').textContent = '[SYSTEM] 화면을 지웠습니다.'; };
+    }
+    const mtBoot = () => { document.querySelectorAll('.mt-term').forEach(b => { if (!b.dataset.ready) { b.dataset.ready = '1'; mtRender(b); } }); mtInitLock(); };
+    document.addEventListener('DOMContentLoaded', mtBoot);
+    if (document.readyState !== 'loading') setTimeout(mtBoot, 0);
+
+    // #osops 연결 점검 프리셋 — KT Edge(10.200.0.1)에서 실행. 읽기 전용 명령만.
+    const KT_OSOPS_PRESETS = {
+      all: `for t in 'KT nginx·WAF (443)|https://127.0.0.1/healthz' 'WG→온프렘 VIP|http://10.10.1.100/healthz' 'WG→민원 앱 (k8s-cp1)|http://192.168.120.226:8080/healthz' 'Keystone|http://192.168.120.160:5000/v3' 'Nova API|http://192.168.120.160:8774/' 'Argo CD|http://192.168.120.226:30800/' 'Grafana|http://192.168.120.226:30300/api/health' '대기 안내 (503=정상)|https://10.200.0.1/_edge/waiting-preview' 'Edge 상태 화면|http://127.0.0.1:8088/' 'AWS 러너|http://10.200.0.3:8080/' 'AWS DR k3s|http://10.200.0.4:30080/'; do n=$(echo "$t" | cut -d'|' -f1); u=$(echo "$t" | cut -d'|' -f2); printf '%-28s ' "$n"; curl -sk -o /dev/null -m 4 -w '%{http_code}  %{time_total}s' "$u"; echo; done; echo '(000 = 응답 없음)'`,
+      wg: `wg show wg0 latest-handshakes | awk -v now=$(date +%s) '{ print $1, ($2 ? now-$2 "초 전" : "핸드셰이크 없음") }'; wg show wg0 allowed-ips`,
+      guard: `nginx -T 2>/dev/null | grep -nE 'real_ip_header|edge_trusted = 0|limit_req_zone|limit_conn_zone|limit_req zone|limit_conn edge|return 444|listen 8088'; echo "Cloudflare 신뢰 대역: $(grep -c set_real_ip_from /etc/nginx/conf.d/00-edge-guard.conf)개"`,
+      waiting: `curl -sk -D - -o /dev/null https://10.200.0.1/_edge/waiting-preview | grep -iE '^HTTP|retry-after|cache-control'`,
+      realip: `tail -n 10 /var/log/nginx/access.log | grep -v '^127.0.0.1' | awk '{ print $1, $4, $7, $9 }'`,
+      status: `curl -s http://127.0.0.1:8088/nginx_status`,
+      aws: `for ip in 10.200.0.3 10.200.0.4; do ping -c1 -W2 $ip >/dev/null && echo "$ip 응답" || echo "$ip 응답 없음"; done; wg show wg0 allowed-ips | grep -E '10.200.0.(3|4)' || echo 'WG에 AWS 피어 없음'`,
+      cert: `openssl x509 -in /etc/nginx/ssl/edge.crt -noout -subject -enddate`
+    };
+    function execKtPreset(key) {
+      const cmd = KT_OSOPS_PRESETS[key];
+      if (cmd) execKtTerminal(cmd);
+    }
+
+    async function promptAndExecKtTerminal(cmd) {
+      const pwd = await mtAskPassword('KT 제어 인증');
       if (pwd === null) return;
       if (!pwd) {
         alert('비밀번호를 입력해야 실행할 수 있습니다.');
@@ -2534,7 +2874,7 @@
       execKtTerminal(cmd, pwd);
     }
 
-    function submitKtTerminalInput() {
+    async function submitKtTerminalInput() {
       const input = document.getElementById('kt-terminal-input');
       if (!input) return;
       const cmd = input.value.trim();
@@ -2543,20 +2883,18 @@
       const isDangerous = /restart|stop|poweroff|reboot|reload|kill|rm\s|systemctl\s+(start|stop|restart|reload)/i.test(cmd);
       if (isDangerous) {
         if (!isKtControlUnlocked) {
-          const pwd = prompt(`[KT Edge 제어 인증]
-'${cmd}' 명령은 기본 비활성화되어 있습니다.
-실행하려면 관리자 비밀번호(figteam)를 입력하세요:`, '');
+          const pwd = await mtAskPassword('KT 제어 인증');
           if (pwd === null) return;
-          if (pwd === 'figteam') {
+          if (await mtVerify(pwd)) { ktCtrlPwd = pwd;
             isKtControlUnlocked = true;
             applyKtControlState();
-            execKtTerminal(cmd, 'figteam');
+            execKtTerminal(cmd, ktCtrlPwd);
           } else {
-            alert('비밀번호가 일치하지 않습니다. (올바른 비밀번호: figteam)');
+            alert('비밀번호가 일치하지 않습니다.');
             return;
           }
         } else {
-          execKtTerminal(cmd, 'figteam');
+          execKtTerminal(cmd, ktCtrlPwd);
         }
       } else {
         execKtTerminal(cmd);
@@ -2746,7 +3084,7 @@
       let role = "Worker Node";
       let roleColor = "#3A78B5";
       if (vm.name.includes('cp1') || vm.name.includes('master')) {
-        role = "K8s Control Plane & Primary DB";
+        role = "K8s Control Plane · DB(MySQL)";
         roleColor = "#C8962E";
       }
       if (roleEl) {
@@ -4261,39 +4599,34 @@
   var tabs = h('div', 'osx-tabs', null, root); tabs.setAttribute('role', 'tablist');
   var panes = {};
   // 재배치: 작은 정보는 좁게, 큰 구성도는 한 화면에
-  var panel = document.getElementById('osvm-panel');
+  // 2026-11-18: #osvm(VM 전원·자원)과 분리 — 구성도·경로 추적·탭은 #osnet 패널에
+  var panel = document.getElementById('osnet-panel');
+  var opsPanel = document.getElementById('osops-panel');
   var mapPane = h('div', 'osx-mappane', null, null);
   panes.map = mapPane;
   (function layout() {
-    if (!panel) return;
-    var hero = panel.querySelector('.overview-hero'), stats = panel.querySelector('.stats-grid');
-    var focused = document.getElementById('os-focused-box');
-    var selector = focused ? focused.previousElementSibling : null;
-    var grid = document.getElementById('os-vm-grid');
-    var invTitle = grid ? grid.previousElementSibling : null;
-    var host = grid ? grid.nextElementSibling : null;
-    while (host && !(host.classList && host.classList.contains('kt-vm-box'))) host = host.nextElementSibling;
-    panel.classList.add('osv-on');
+    if (!panel || !opsPanel) return;
+    // 구조 페이지: 구성도 + 경로 추적
     var top = document.createElement('div'); top.className = 'osv-top';
-    if (hero) top.appendChild(hero);
-    if (stats) top.appendChild(stats);
-    top.appendChild(head);
-    var main = document.createElement('div'); main.className = 'osv-main';
-    var mapCol = h('div', 'osv-mapcol', null, main);
+    h('h2', null, '🧭 OpenStack 구조', h('div', 'overview-hero', null, top));
+    var mapHead = h('div', 'osx-head', null, top);
+    var mapMeta = h('p', 'osx-meta', '불러오는 중…', mapHead);
+    var mapRefresh = h('button', 'btn-top', '새로고침', mapHead); mapRefresh.type = 'button';
+    mapRefresh.addEventListener('click', function () { load(true); });
+    new MutationObserver(function () { mapMeta.textContent = meta.textContent; })
+      .observe(meta, { childList: true, characterData: true, subtree: true });
+    var mapCol = h('div', 'osv-mapcol', null, null);
     mapCol.appendChild(mapPane);
-    var side = h('div', 'osv-side', null, main);
-    if (selector) side.appendChild(selector);
-    if (focused) side.appendChild(focused);
-    panel.insertBefore(top, panel.firstChild);
-    panel.insertBefore(main, top.nextSibling);
-    mapCol.appendChild(root);
-    panes.inv = h('div', 'osx-pane', null, null); panes.inv.dataset.p = 'inv'; panes.inv.hidden = true;
-    if (invTitle && invTitle.classList.contains('section-title')) invTitle.remove();
-    if (grid) panes.inv.appendChild(grid);
-    panes.host = h('div', 'osx-pane', null, null); panes.host.dataset.p = 'host'; panes.host.hidden = true;
-    if (host) panes.host.appendChild(host);
+    panel.appendChild(top);
+    panel.appendChild(mapCol);
+    // 연결·상태 페이지: 탭 전체
+    var top2 = document.createElement('div'); top2.className = 'osv-top';
+    h('h2', null, '📡 OpenStack 연결 · 상태', h('div', 'overview-hero', null, top2));
+    top2.appendChild(head);
+    opsPanel.appendChild(top2);
+    opsPanel.appendChild(root);
   })();
-  [['svc', '서비스 상태'], ['res', '자원 현황'], ['ops', 'VM 도구'], ['inv', 'VM 인벤토리'], ['host', '물리 호스트']].forEach(function (t, i) {
+  [['net', '연결 점검'], ['svc', '서비스 상태'], ['res', '자원 현황'], ['ops', 'VM 도구']].forEach(function (t, i) {
     var b = h('button', 'osx-tab' + (i ? '' : ' on'), t[1], tabs); b.type = 'button'; b.dataset.p = t[0]; b.setAttribute('role', 'tab');
     var p = panes[t[0]] || h('div', 'osx-pane', null, null);
     p.dataset.p = t[0]; p.hidden = !!i; root.appendChild(p);
@@ -4304,7 +4637,7 @@
     Array.prototype.forEach.call(tabs.children, function (b) { b.classList.toggle('on', b.dataset.p === k); });
     Object.keys(panes).forEach(function (p) { if (p !== 'map') panes[p].hidden = p !== k; });
   });
-  refresh.addEventListener('click', function () { load(true); });
+  refresh.addEventListener('click', function () { load(true); loadNet(true); });
 
   function errBox(parent, key) {
     if (DATA && DATA.errors && DATA.errors[key]) h('p', 'osx-err', '불러오지 못함 (' + key + '): ' + DATA.errors[key], parent);
@@ -4329,6 +4662,7 @@
   function render() { renderMap(); renderSvc(); renderRes(); renderOps(); }
 
   // ---------- 1·3. 구성도 + 경로 추적 ----------
+  var mapEl = null;
   var mapWrap, svg, traceList, traceCap, traceIdx = -1, traceTimer = null, HOPS = [];
   function renderMap() {
     var p = panes.map; p.textContent = '';
@@ -4365,7 +4699,7 @@
       frames.push({ host: hn, y: y, h: hgt, vms: list });
       y += hgt + 24;
     });
-    var H = Math.max(y, TOP + 4 * 90 + 30), W = X_HOST + HOST_W + 120;
+    var H = Math.max(y, TOP + 6 * 90 + 40), W = X_HOST + HOST_W + 120;
     mapWrap = h('div', 'osx-map', null, p);
     svg = s('svg', { viewBox: '0 0 ' + W + ' ' + H, 'class': 'osx-svg', role: 'img', 'aria-label': 'OpenStack 네트워크 구성도', preserveAspectRatio: 'xMidYMid meet' }, mapWrap);
     var gL = s('g', {}, svg), gN = s('g', {}, svg);
@@ -4385,12 +4719,22 @@
       el[id] = g; return g;
     }
     // 외부 경로 체인
-    var chain = [['ext-cf', 'Cloudflare', 'Anycast · WAF'], ['ext-kt', 'KT Edge', '14.63.212.190'], ['ext-wg', 'WG 터널 A', 'KT ↔ 온프렘'], ['ext-host', '온프렘 호스트', '10.10.10.8 · VMware']];
+    var chain = [['ext-cf', 'Cloudflare', 'minwon.ktci5.kr'], ['ext-kt', 'KT Edge (DMZ)', 'WAF · 14.63.212.190'], ['ext-wg', 'WG 터널 A', 'KT ↔ 온프렘'], ['ext-host', '온프렘 호스트', 'VIP 10.10.1.100 · DNAT']];
     chain.forEach(function (c, i) {
       box(c[0], X_EXTCHAIN, TOP + i * 90, 150, 56, c[1], c[2], 'ext');
       if (i) line('l-' + c[0], [[X_EXTCHAIN + 75, TOP + (i - 1) * 90 + 56], [X_EXTCHAIN + 75, TOP + i * 90]], 'ext');
     });
-    s('text', { x: X_EXTCHAIN, y: TOP - 20, 'class': 'osx-col' }, gN, 'OpenStack 밖 (대민 경로)');
+    // AWS 지점 (PR #13·#14) — KT 허브 경유 WG 터널 C. 색은 연결 점검(w1·w2) 실측으로 칠함
+    var AWS_Y = TOP + 4 * 90 + 34, KT_MID = TOP + 90 + 28, X_RAIL = 8;
+    s('text', { x: X_EXTCHAIN, y: AWS_Y - 12, 'class': 'osx-col' }, gN, 'AWS (PR #13·#14)');
+    [['aws-ctl', 'AWS ctl', '10.200.0.3 · 13.125.163.58', 'ctl · t3.small Rocky 8 · VPC 10.50.0.0/16 · 관제·러너 예정'],
+     ['aws-dr', 'AWS dr', '10.200.0.4 · 54.116.129.147', 'dr · t3.small Rocky 8 · VPC 10.51.0.0/16 · Pilot-Light DR 예정']].forEach(function (a, i) {
+      var ay = AWS_Y + i * 80;
+      var g = box(a[0], X_EXTCHAIN, ay, 150, 56, a[1], a[2], 'ext aws');
+      s('title', {}, g, a[3]);
+      line('l-wgc-' + a[0].slice(4), [[X_EXTCHAIN, KT_MID], [X_RAIL, KT_MID], [X_RAIL, ay + 28], [X_EXTCHAIN, ay + 28]], 'wgc');
+    });
+    s('text', { x: X_RAIL + 4, y: KT_MID - 6, 'class': 'osx-wgc-label' }, gN, 'WG 터널 C');
     // 외부망 막대
     var extBars = {};
     var extList = ext.length ? ext : [{ id: 'ext:none', name: '외부망 정보 없음', subnets: [] }];
@@ -4471,6 +4815,7 @@
       }
     });
     s('text', { x: X_HOST, y: TOP - 20, 'class': 'osx-col' }, gN, 'Compute 노드 · VM (Nova 배치)');
+    mapEl = el; paintAws();
     errBox(p, 'networks'); errBox(p, 'routers'); errBox(p, 'servers');
 
     // 경로 추적 (실데이터 기반)
@@ -4487,15 +4832,16 @@
     var tFixed = target ? ((((target.addresses || {})[tNet ? tNet.name : Object.keys(target.addresses || {})[0]] || [])[0]) || {}).addr : '';
     var tFip = target && el['fip-' + target.id] ? el['fip-' + target.id].textContent : '';
     HOPS = [
-      ['Cloudflare 애니캐스트: 가장 가까운 엣지가 요청 수신 (WAF)', ['ext-cf']],
-      ['KT Edge(14.63.212.190): TLS 종료 · 접수 대기열', ['ext-kt', 'l-ext-kt']],
+      ['minwon.ktci5.kr → Cloudflare 엣지 수신 (DNS 프록시)', ['ext-cf']],
+      ['KT Edge DMZ(14.63.212.190:443): TLS 종료 · ModSecurity WAF (대기열 미구축)', ['ext-kt', 'l-ext-kt']],
       ['WireGuard 터널 A → 온프렘 호스트', ['ext-wg', 'l-ext-wg']],
-      ['온프렘 호스트(10.10.10.8) → VMware 브리지 → 외부망', ['ext-host', 'l-ext-host', 'l-host-ext', 'net-' + firstExt]],
+      ['온프렘 호스트 VIP 10.10.1.100 → DNAT → VMware 브리지 → 외부망', ['ext-host', 'l-ext-host', 'l-host-ext', 'net-' + firstExt]],
       [tFip ? 'Floating IP ' + tFip + ' → 라우터 (OVN NAT)' : '외부망 → 라우터 게이트웨이 (OVN NAT)', rt ? ['l-gw-' + rt.id, 'rt-' + rt.id].concat(target ? ['fip-' + target.id] : []) : []],
       [tNet ? '라우터 → ' + tNet.name + ' (게이트웨이 인터페이스)' : '라우터 → 내부망', tNet ? ['l-if-net-' + tNet.id, 'net-' + tNet.id] : []],
       [target ? tNet ? tNet.name + ' → ' + target.name + ' (' + tFixed + ' · ' + (target.host || '') + ')' : target.name : 'VM 정보 없음', target ? ['l-vm-' + target.id, 'vm-' + target.id, 'host-' + (frames.filter(function (f) { return f.vms.indexOf(target) >= 0; })[0] || {}).host] : []]
     ];
     if (frames.length > 1) HOPS.push(['다른 Compute의 VM과는 OVN Geneve 터널로 통신', ['l-geneve-1']]);
+    HOPS.push(['온프렘 → KT 허브 → AWS ctl·dr (WG 터널 C · PR #13·#14) — 초록=연결, 빨강=미연결', ['ext-kt', 'l-wgc-ctl', 'l-wgc-dr', 'aws-ctl', 'aws-dr']]);
     HOPS.forEach(function (hp, i) {
       var li = h('li', null, null, traceList); li.dataset.i = i; li.title = hp[0]; li.tabIndex = 0;
       h('i', null, String(i + 1), li); h('span', null, hp[0], li);
@@ -4518,6 +4864,91 @@
       if (traceIdx >= HOPS.length - 1) traceIdx = -1;
       go(traceIdx + 1);
       traceTimer = setInterval(function () { if (traceIdx >= HOPS.length - 1) { stop(); return; } go(traceIdx + 1); }, 1600);
+    });
+  }
+
+
+  // ---------- 0. 연결 점검 (실측) ----------
+  var NET = null, netLoading = false, netLast = 0;
+  var NET_LABEL = { ok: '정상', warn: '주의', fail: '장애', missing: '미구축', partial: '일부' };
+  function loadNet(force) {
+    if (netLoading || (!force && Date.now() - netLast < 20000)) return;
+    netLoading = true;
+    if (!NET) { panes.net.textContent = ''; h('p', 'osx-meta', '연결을 점검하는 중… (최대 5초)', panes.net); }
+    fetch('/api/connectivity' + (force ? '?force=1' : ''), { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { netLoading = false; netLast = Date.now(); if (j.status !== 'ok') throw new Error(j.message || '오류'); NET = j; renderNet(); paintAws(); })
+      .catch(function (e) { netLoading = false; panes.net.textContent = ''; h('p', 'osx-err', '연결 점검 실패: ' + e.message, panes.net); });
+  }
+  function paintAws() {
+    if (!NET) return;
+    var st = {};
+    NET.items.forEach(function (it) { st[it.id] = it.state; });
+    if (mapEl) [['w1', 'aws-ctl', 'l-wgc-ctl'], ['w2', 'aws-dr', 'l-wgc-dr']].forEach(function (m) {
+      var ok = st[m[0]] === 'ok';
+      [m[1], m[2]].forEach(function (id) {
+        if (!mapEl[id]) return;
+        mapEl[id].classList.toggle('st-ok', ok);
+        mapEl[id].classList.toggle('st-fail', !ok);
+      });
+    });
+    function mark(id, state, okText, failText) {
+      var e = document.getElementById(id); if (!e) return;
+      var ok = state === 'ok';
+      e.textContent = ok ? okText : failText;
+      e.className = 'prop-val aws-st ' + (ok ? 'ok' : 'fail');
+    }
+    var errOf = function (id) { var it = NET.items.filter(function (x) { return x.id === id; })[0]; return it && !it.code ? netErr(it) : (it && it.code ? 'HTTP ' + it.code : '응답 없음'); };
+    mark('aws-ctl-wg', st.w1, '연결 🟢', '미연결 — ' + errOf('w1'));
+    mark('aws-dr-wg', st.w2, '연결 🟢', '미연결 — ' + errOf('w2'));
+    mark('aws-ctl-svc', st.a1, '응답 🟢', '미배포 — ' + errOf('a1'));
+    mark('aws-dr-svc', st.a2, '응답 🟢', '미배포 — ' + errOf('a2'));
+    var sw = document.getElementById('aws-stat-wg'), ss = document.getElementById('aws-stat-svc');
+    var nw = (st.w1 === 'ok' ? 1 : 0) + (st.w2 === 'ok' ? 1 : 0), ns = (st.a1 === 'ok' ? 1 : 0) + (st.a2 === 'ok' ? 1 : 0);
+    if (sw) { sw.textContent = nw + ' / 2'; sw.style.color = nw === 2 ? '#8FE0B4' : '#FF9E8C'; }
+    if (ss) { ss.textContent = ns + ' / 2'; ss.style.color = ns === 2 ? '#8FE0B4' : '#FF9E8C'; }
+    var ov = document.getElementById('ov-aws-status');
+    if (ov) {
+      var n = (st.w1 === 'ok' ? 1 : 0) + (st.w2 === 'ok' ? 1 : 0);
+      ov.textContent = 'WG 터널 C ' + n + '/2 ' + (n === 2 ? '연결 🟢' : '미연결 🔴') + ' · 실측 ' + new Date(NET.generated * 1000).toLocaleTimeString();
+      ov.style.color = n === 2 ? '#8FE0B4' : '#FF9E8C';
+    }
+  }
+  function netErr(it) {
+    var e = (it.error || '').toLowerCase();
+    if (it.state === 'ok') return '연결 끊김 (차단)';
+    if (e.indexOf('no route') >= 0 || e.indexOf('113') >= 0) return '경로 없음';
+    if (e.indexOf('timed out') >= 0 || e.indexOf('timeout') >= 0) return '시간 초과';
+    if (e.indexOf('refused') >= 0) return '연결 거부';
+    if (e.indexOf('closed') >= 0) return '연결 끊김';
+    if (e.indexOf('name') >= 0 && e.indexOf('resol') >= 0) return 'DNS 실패';
+    return '응답 없음';
+  }
+  function renderNet() {
+    var p = panes.net; p.textContent = '';
+    var sm = NET.summary || {};
+    var bad = (sm.fail || 0) + (sm.warn || 0);
+    var sum = h('p', 'osx-sum ' + (bad ? 'bad' : 'good'), null, p);
+    sum.textContent = ['ok', 'warn', 'fail', 'partial', 'missing'].filter(function (k) { return sm[k]; })
+      .map(function (k) { return NET_LABEL[k] + ' ' + sm[k]; }).join(' · ');
+    h('p', 'osx-meta', '실측 ' + new Date(NET.generated * 1000).toLocaleTimeString() + ' · 출발지: ' + NET.probe_from + ' · 「설계 대비 미구축」은 수동 점검 결과', p);
+    var grid = h('div', 'osx-netgrid', null, p);
+    NET.groups.forEach(function (g) {
+      var rows = NET.items.filter(function (it) { return it.group === g[0]; });
+      var c = h('section', 'osx-card osx-net' + (g[0] === 'route' ? ' route' : ''), null, grid);
+      h('h4', null, g[1], c);
+      var ol = h(g[0] === 'route' ? 'ol' : 'ul', null, null, c);
+      rows.forEach(function (it) {
+        var li = h('li', 'st-' + it.state, null, ol);
+        h('span', 'nst', NET_LABEL[it.state] || it.state, li);
+        var mid = h('div', 'nmid', null, li);
+        h('b', null, it.name, mid);
+        h('code', null, it.target, mid);
+        if (it.note) h('small', null, it.note, mid);
+        var res = it.live ? (it.code ? (it.proto === 'tcp' ? 'TCP 연결' : 'HTTP ' + it.code) : netErr(it)) + ' · ' + it.ms + 'ms' : '수동';
+        if (it.live && !it.code && it.error) li.title = it.error;
+        h('em', null, res, li);
+      });
     });
   }
 
@@ -4646,10 +5077,10 @@
   // ---------- 탭 진입 시 불러오기 ----------
   var orig = window.switchTab;
   if (typeof orig === 'function') {
-    window.switchTab = function (k) { orig(k); if (k === 'osvm') load(false); };
+    window.switchTab = function (k) { orig(k); if (k === 'osnet' || k === 'osops') { load(false); loadNet(false); } if (k === 'overview' || k === 'awsvm') loadNet(false); };
   }
-  if ((location.hash || '').replace('#', '') === 'osvm') load(false);
-  setInterval(function () { var pnl = document.getElementById('osvm-panel'); if (pnl && pnl.style.display !== 'none' && !document.hidden) load(false); }, 60000);
+  var hk = (location.hash || '').replace('#', ''); if (hk === 'osnet' || hk === 'osops') { load(false); loadNet(false); } if (!hk || hk === 'overview' || hk === 'awsvm') loadNet(false);
+  setInterval(function () { if (document.hidden) return; var a = document.getElementById('osnet-panel'), b = document.getElementById('osops-panel'); if ((a && a.style.display !== 'none') || (b && b.style.display !== 'none')) { load(false); loadNet(false); } }, 60000);
   window.OSView = { load: load };
 })();
 
