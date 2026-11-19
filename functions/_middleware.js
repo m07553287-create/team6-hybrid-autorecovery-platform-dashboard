@@ -7,7 +7,7 @@
 //   CF_ACCESS_CLIENT_ID     선택: 백엔드 호스트명을 Cloudflare Access 서비스 토큰으로 막았을 때
 //   CF_ACCESS_CLIENT_SECRET 선택
 
-const BACKEND_PATH = /^\/(api|sso)\//;
+const BACKEND_PATH = /^\/(api|sso)\/|^\/term$/;   // /term = 통합 터미널(백엔드가 로그인 확인 후 제공)
 
 function backendHeaders(request, env) {
   const h = new Headers(request.headers);

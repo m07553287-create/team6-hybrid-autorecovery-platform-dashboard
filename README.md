@@ -19,14 +19,25 @@
 |---|---|
 | `public/` | Pages가 제공하는 화면 — **생성 결과, 직접 고치지 않음** |
 | `functions/_middleware.js` | 백엔드 경로 전달 · 화면 제공 전 세션 확인 |
-| `backend/server.base.py` | 운영 원본에서 비밀값만 설정 파일로 뺀 기준본 (생성 입력) |
-| `backend/server.py` | 생성된 백엔드 (온프렘 배포 대상) |
+| `backend/server.py` | **원본** — 운영 포털(s1 `/opt/figteam-portal/server.py`)과 같은 파일. 테마 포함, 비밀값 없음(설정 파일에서 읽음) |
+| `backend/server.base.py` | (옛 방식) 테마 적용 전 기준본 — `BUILD_FROM_BASE=1 tools/build.sh` 일 때만 사용 |
 | `backend/portal_config.example.json` | 서버 설정 파일 예시 (실제 파일은 저장소에 올리지 않음) |
 | `theme/` | 청사진 테마 · DR 콘솔 · 2D 연결 구성도 엔진(`topo2d.js`) · 생성 스크립트 |
-| `tools/build.sh` | 기준본 → `backend/server.py` + `public/` 생성, 비밀값 형태 검사 |
+| `tools/build.sh` | `backend/server.py` 문법 검사 → `public/` 생성 → 비밀값 형태 검사 |
+| `term/` | 통합 터미널 페이지(`term.html`, 포털이 `GET /term` 으로 제공) · 포털 패치 기록 |
 | `tools/sanitize.py` | 운영 원본 → 기준본 (비밀값 제거 · `/api/session` · 로그인 실패 리다이렉트) |
 
 ## 화면 구성
+메뉴 「인프라 & 가상화」: KT Cloud VM 관리 · AWS EC2 관리 · OpenStack VM 관리 · OpenStack 구조 · **⌨️ 통합 터미널** · OpenStack 연결·상태 · Horizon
+
+- **통합 터미널(`#term` → `/term`)** — KT · AWS · 온프렘 11개 대상 ([term/README.md](term/README.md))
+  - 진입 시 제어 비밀번호 → 로그인 세션 60분 잠금 해제(상단 카운트다운). 잠금 상태에선 읽기 명령도 실행 안 함
+  - 탭 / ⧉ 화면 위 창(드래그·크기·최소화·최대화) / ↗ 새 창(`/term?solo=<대상>`, 다른 모니터), 여러 개 동시
+  - ＋ 추가: 영역 → 대상 → 「확인」·「⚠ 복구」 메뉴 + 명령 입력. 복구·위험 명령은 실행 전 확인, 감사 로그 `term-audit.log`
+  - 제어 비밀번호는 `portal_config.json` `ctrl_pass` — 화면·페이지 소스에 나오지 않음(서버 검증)
+- **KT Cloud VM 관리(`#ktvm`)**: 전원·자원 제어. 예전 내장 터미널은 숨기고 통합 터미널로 연결
+- **AWS EC2 관리(`#awsvm`)**: ctl(러너)·dr(복구) 상태, WG 연결 절차
+- **OpenStack 연결·상태(`#osops`)**: 연결 점검 21항목(실측·수동 구분), 서비스 상태, 자원 현황
 - **DR 관제 콘솔(`#dr`)**: 2D 연결 구성도 · 9개 시나리오 단계별 흐름 · 상세 구성 · 전체 화면
 - **OpenStack VM 관리(`#osvm`) 하단 — OpenStack 구조 · 연결** (`theme/osview.js`)
   - 구성도 · 경로: Neutron/Nova 실시간 데이터로 외부망 → 라우터 → 내부망 → Compute별 VM · Floating IP · OVN Geneve를 그리고, Cloudflare 애니캐스트부터 VM까지 경로를 단계별로 재생
@@ -45,10 +56,13 @@
 ## 수정 · 빌드
 
 ```bash
-# theme/ 또는 backend/server.base.py 수정 후
-tools/build.sh          # backend/server.py, public/ 갱신
+# 운영에서 고친 경우: 운영 원본을 가져와 원본으로 삼는다
+scp 10.10.10.8:/opt/figteam-portal/server.py backend/server.py
+tools/build.sh          # 문법 검사 · public/ 갱신 · 비밀값 형태 검사
 git add -A && git commit -m "..." && git push   # main 푸시 → Actions가 검사 후 Pages 배포
 ```
+> 2026-11-19 부터 `backend/server.py` 가 원본입니다. 운영 포털이 테마 적용 뒤에도 직접 수정돼 왔기 때문에(연결 점검·AWS·터미널 등) 기준본에서 다시 생성하면 그 변경이 사라집니다.
+> `term/term.html` 을 고치면 s1 `/opt/figteam-portal/term.html` 에 복사합니다.
 
 백엔드(`backend/server.py`)가 바뀌었으면 온프렘에도 반영해야 합니다 (아래 2단계).
 
