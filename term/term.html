@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>통합 터미널</title>
+<style>
+  :root {
+    --bg: #04121F; --panel: #0A2238; --panel-2: #0F2D4F; --line: #1D4A7A; --line-2: #4F739A;
+    --ink: #E6EEF5; --ink-2: #B4C6D8; --ink-3: #8AA5C2; --ok: #8FE0B4; --cmd: #9FD3F5;
+    --warn: #F4C95D; --bad: #FF7A66; --scr: #020617; --accent: #3A78B5;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 13px/1.45 system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  button { font: inherit; color: var(--ink); background: var(--panel-2); border: 1px solid var(--line-2); padding: 4px 10px; cursor: pointer; }
+  button:hover { border-color: var(--cmd); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+  button.warn { border-color: var(--warn); color: var(--warn); }
+  button.icon { padding: 2px 8px; min-width: 28px; }
+  input { font: 12.5px ui-monospace, Menlo, Consolas, monospace; color: var(--ink); background: var(--panel-2); border: 1px solid var(--line-2); padding: 6px 9px; }
+  input:focus, button:focus-visible { outline: 2px solid var(--cmd); outline-offset: 1px; }
+
+  /* 잠금 화면 */
+  #gate { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--bg); z-index: 1000; }
+  #gate form { width: min(360px, calc(100% - 32px)); background: var(--panel); border: 1px solid var(--line-2); padding: 22px; }
+  #gate h1 { margin: 0 0 4px; font-size: 17px; }
+  #gate p { margin: 0 0 14px; color: var(--ink-3); font-size: 12.5px; }
+  #gate input { width: 100%; margin-bottom: 10px; font-size: 14px; padding: 9px 10px; }
+  #gate .msg { min-height: 18px; color: var(--bad); font-size: 12.5px; margin-bottom: 8px; }
+
+  /* 상단 */
+  #app { display: none; height: 100%; flex-direction: column; }
+  header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  header b { font-size: 15px; }
+  #clock { font: 700 12.5px ui-monospace, Menlo, monospace; color: var(--ok); border: 1px solid var(--line); padding: 3px 8px; }
+  #clock.low { color: var(--warn); border-color: var(--warn); }
+  header .sp { flex: 1; }
+  #tabs { display: flex; gap: 2px; padding: 6px 10px 0; border-bottom: 1px solid var(--line); overflow-x: auto; background: var(--bg); min-height: 38px; }
+  .tab { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--line); border-bottom: 0; background: var(--panel); color: var(--ink-2); cursor: pointer; white-space: nowrap; }
+  .tab.on { background: var(--panel-2); color: var(--ink); border-color: var(--line-2); }
+  .tab .g { font-size: 10.5px; color: var(--ink-3); }
+  .tab .x { border: 0; background: none; padding: 0 2px; color: var(--ink-3); }
+  #stage { flex: 1; min-height: 0; padding: 10px; overflow: auto; }
+  #empty { color: var(--ink-3); padding: 30px; text-align: center; }
+
+  /* 터미널 */
+  .term { display: flex; flex-direction: column; height: 100%; min-height: 0; border: 1px solid var(--line); background: var(--panel); }
+  .term > .bar { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--panel-2); user-select: none; }
+  .term > .bar .t { font-weight: 700; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .term > .bar .h { font: 11px ui-monospace, Menlo, monospace; color: var(--ink-3); }
+  .term .presets { display: flex; flex-wrap: wrap; gap: 5px; padding: 8px; border-bottom: 1px dashed var(--line); }
+  .term .presets .lbl { font-size: 11px; color: var(--ink-3); align-self: center; margin-right: 2px; }
+  .term .presets button { font-size: 11.5px; padding: 3px 9px; }
+  .term .scr { flex: 1; min-height: 120px; overflow: auto; margin: 0; padding: 10px; background: var(--scr); color: var(--ok); font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-all; }
+  .term .scr .c { color: var(--cmd); } .term .scr .e { color: var(--bad); } .term .scr .w { color: var(--ink-2); } .term .scr .f { color: #FF9E8C; }
+  .term .inrow { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--line); }
+  .term .inrow .p { font: 700 12px ui-monospace, Menlo, monospace; color: var(--ok); align-self: center; white-space: nowrap; }
+  .term .inrow input { flex: 1; min-width: 0; }
+
+  /* 띄운 창 */
+  #float-layer { position: fixed; inset: 0; pointer-events: none; z-index: 50; }
+  .term.float { position: fixed; pointer-events: auto; width: 680px; height: 440px; resize: both; overflow: hidden; min-width: 320px; min-height: 200px; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+  .term.float > .bar { cursor: move; }
+  .term.float.max { inset: 8px !important; width: auto !important; height: auto !important; resize: none; }
+  .term.float.min { height: 36px !important; width: 280px !important; resize: none; }
+  .term.float.min > :not(.bar) { display: none; }
+  .term:not(.float) .only-float { display: none; }
+  .solo .term { height: 100%; }
+
+  /* 추가 마법사 */
+  #wiz { position: fixed; inset: 0; background: rgba(2,6,23,.72); display: none; align-items: center; justify-content: center; z-index: 900; }
+  #wiz .box { width: min(560px, calc(100% - 32px)); background: var(--panel); border: 1px solid var(--line-2); padding: 18px; }
+  #wiz h2 { margin: 0 0 4px; font-size: 15px; }
+  #wiz .step { color: var(--ink-3); font-size: 12px; margin-bottom: 12px; }
+  #wiz .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  #wiz .grid button { text-align: left; padding: 10px; }
+  #wiz .grid button small { display: block; color: var(--ink-3); font: 11px ui-monospace, Menlo, monospace; margin-top: 3px; }
+  #wiz .foot { display: flex; justify-content: space-between; margin-top: 14px; }
+  @media (max-width: 640px) { .term.float { width: calc(100vw - 16px) !important; left: 8px !important; } }
+</style>
+</head>
+<body>
+<div id="gate">
+  <form id="gate-form" autocomplete="off">
+    <h1>⌨️ 통합 터미널</h1>
+    <p>KT · AWS · 온프렘 터미널을 쓰려면 제어 비밀번호를 입력하세요. 한 번 입력하면 60분 동안 유지됩니다.</p>
+    <input id="gate-pw" type="password" placeholder="제어 비밀번호" autocomplete="off" required>
+    <div class="msg" id="gate-msg"></div>
+    <button class="primary" type="submit" style="width:100%">잠금 해제</button>
+  </form>
+</div>
+
+<div id="app">
+  <header>
+    <b>⌨️ 통합 터미널</b>
+    <span id="clock" title="잠금까지 남은 시간">--:--</span>
+    <span class="sp"></span>
+    <button class="primary" id="btn-add">＋ 터미널 추가</button>
+    <button id="btn-lock" title="지금 잠그기">🔒 잠금</button>
+  </header>
+  <nav id="tabs" aria-label="터미널 탭"></nav>
+  <main id="stage"><div id="empty">＋ 터미널 추가 → 영역 → 대상을 고르세요. 띄우기(⧉)로 화면 위에 여러 개를 겹쳐 띄우거나, 새 창(↗)으로 다른 모니터에 둘 수 있습니다.</div></main>
+</div>
+<div id="float-layer"></div>
+
+<div id="wiz" role="dialog" aria-modal="true">
+  <div class="box">
+    <h2 id="wiz-title">터미널 추가</h2>
+    <div class="step" id="wiz-step">1/2 · 영역 선택</div>
+    <div class="grid" id="wiz-grid"></div>
+    <div class="foot"><button id="wiz-back">← 이전</button><button id="wiz-close">닫기</button></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const KT_PRESETS = /*KT_PRESETS*/{};
+
+const WG = `sudo wg show wg0 latest-handshakes | awk -v n=$(date +%s) '{print $1, ($2 ? n-$2 " 초 전" : "없음")}'`;
+const MYDR = `sudo /usr/local/bin/k3s kubectl -n minwon-dr exec -i minwon-mysql-0 -- sh -c 'mysql -E -uroot -p"$MYSQL_ROOT_PASSWORD" 2>/dev/null'`;
+const NOVA = `systemctl is-active openstack-nova-compute ovn-controller neutron-ovn-metadata-agent`;
+const COMMON = { '⏱ 상태': `hostname; uptime; free -h | sed -n 1,2p; df -h / | tail -1`, '🚫 실패 서비스': `systemctl --failed --no-legend || true` };
+const compute = (n) => ({ label: `compute${n}`, host: `192.168.120.16${n}`,
+  check: { '🖥 VM': `virsh list --all`, '⚙ 서비스': NOVA, '🧠 메모리': `free -m | sed -n 1,2p` },
+  fix: { '♻ nova-compute 재시작': `systemctl restart openstack-nova-compute && sleep 3 && ${NOVA}` } });
+
+// 영역 → 대상 → {확인 메뉴, 복구 메뉴}. 복구 메뉴는 실행 전에 확인을 받는다.
+const AREAS = {
+  kt: { name: '⚡ KT Cloud', desc: 'Edge · WAF · WG 허브', targets: {
+    'kt-edge': { label: 'KT Edge', host: '10.200.0.1', check: 'KT',
+      fix: { '🔁 nginx 검사 후 reload': `nginx -t && nginx -s reload && echo reloaded` } } } },
+  aws: { name: '☁️ AWS', desc: '러너 · DR 복구 노드', targets: {
+    ctl: { label: 'ctl (러너)', host: '10.200.0.3', check: {
+        '🤖 러너 healthz': `curl -s -m5 http://127.0.0.1:8080/healthz; echo`,
+        '📜 러너 로그': `sudo journalctl -u orchestrator --no-pager -n 20 | cut -c1-200`,
+        '🔐 WG': WG,
+        '🏠 온프렘 도달': `for u in http://192.168.120.226:8080/healthz http://10.10.1.100/healthz; do echo "$u $(curl -s -m4 -o /dev/null -w '%{http_code}' $u)"; done; ping -c1 -W2 10.10.2.10 >/dev/null && echo 'db-01 응답' || echo 'db-01 응답 없음'` },
+      fix: { '♻ 러너 재시작': `sudo systemctl restart orchestrator && sleep 2 && curl -s -m5 http://127.0.0.1:8080/healthz; echo` } },
+    dr: { label: 'dr (복구)', host: '10.200.0.4', check: {
+        '🔁 복제 상태': `echo 'SHOW REPLICA STATUS' | ${MYDR} | grep -E 'Running:|Seconds_Behind|Last_(IO|SQL)_Error:|Source_Host'`,
+        '💓 heartbeat': `echo 'SELECT ts, TIMESTAMPDIFF(SECOND, ts, UTC_TIMESTAMP(3)) AS lag_s FROM repl_check.heartbeat' | ${MYDR}`,
+        '🧩 파드': `sudo /usr/local/bin/k3s kubectl -n minwon-dr get pods -o wide`,
+        '🩺 앱 healthz': `curl -s -m5 http://127.0.0.1:30080/healthz; echo`,
+        '💾 백업 목록': `sudo ls -lh /var/backups/mysql | tail -5`,
+        '🔐 WG': WG },
+      fix: { '⏯ 복제 재시작': `echo 'STOP REPLICA; START REPLICA;' | ${MYDR}; sleep 3; echo 'SHOW REPLICA STATUS' | ${MYDR} | grep -E 'Running:|Seconds_Behind'`,
+             '♻ dr 앱 재시작': `sudo /usr/local/bin/k3s kubectl -n minwon-dr rollout restart deploy/minwon-app && sudo /usr/local/bin/k3s kubectl -n minwon-dr rollout status deploy/minwon-app --timeout=90s` } } } },
+  onprem: { name: '🖥️ 온프렘', desc: 'OpenStack · 앱 · DB', targets: {
+    controller: { label: 'controller', host: '192.168.120.160', check: {
+        '🧮 compute 서비스': `source /root/keystonerc_admin; openstack compute service list -c Binary -c Host -c Status -c State`,
+        '📦 인스턴스 배치': `source /root/keystonerc_admin; openstack server list --all-projects --long -c Name -c Status -c Host -c Networks`,
+        '🌐 네트워크 에이전트': `source /root/keystonerc_admin; openstack network agent list -c Host -c Binary -c Alive -c State`,
+        '🧭 라우터': `source /root/keystonerc_admin; for r in rt-edge rt-data; do echo "== $r"; openstack router show $r -f value -c external_gateway_info -c routes; done`,
+        '🧠 메모리 상위': `free -m | sed -n 1,3p; ps -eo rss,comm --sort=-rss | head -8` },
+      fix: { '♻ neutron-server 재시작': `systemctl restart neutron-server && sleep 5 && systemctl is-active neutron-server`,
+             '♻ httpd(API) 재시작': `systemctl restart httpd && sleep 3 && systemctl is-active httpd` } },
+    compute1: compute(1), compute2: compute(2), compute3: compute(3), compute4: compute(4),
+    'k8s-cp1': { label: 'k8s-cp1 (앱)', host: '192.168.120.226', check: {
+        '🩺 앱 healthz': `curl -s -m5 http://127.0.0.1:8080/healthz; echo`,
+        '📜 앱 로그': `sudo journalctl -u minwon-app --no-pager -n 15 | cut -c1-200`,
+        '☸ 노드·파드': `sudo k3s kubectl get nodes; sudo k3s kubectl get pods -A --no-headers | awk '{print $1, $2, $4}'`,
+        '🛣 DB 경로': `ip route get 10.10.2.10 | head -1; timeout 3 bash -c '</dev/tcp/10.10.2.10/3306' && echo 'db-01:3306 열림' || echo 'db-01:3306 닫힘'` },
+      fix: { '♻ 앱 재시작': `sudo systemctl restart minwon-app && sleep 3 && curl -s -m5 http://127.0.0.1:8080/healthz; echo` } },
+    'db-01': { label: 'db-01 (MySQL)', host: '10.10.2.10', check: {
+        '🗄 MySQL': `systemctl is-active mysql; sudo mysql -E -e 'SELECT @@version, @@server_id, @@gtid_mode, @@read_only, @@super_read_only'`,
+        '🔁 복제 연결': `sudo mysql -e "SHOW REPLICAS; SELECT user, host, command, time FROM information_schema.processlist WHERE command LIKE 'Binlog%'"`,
+        '📊 데이터': `sudo mysql -N -e "SELECT 'complaints', COUNT(*) FROM minwon_db.complaints; SELECT 'gtid', @@GLOBAL.gtid_executed"`,
+        '💾 백업 목록': `sudo ls -lh /var/backups/mysql | tail -5; df -h /var/lib/mysql | tail -1` },
+      fix: { '💾 지금 백업': `sudo /usr/local/sbin/mysql-backup.sh && sudo ls -lh /var/backups/mysql | tail -2`,
+             '♻ MySQL 재시작': `sudo systemctl restart mysql && systemctl is-active mysql` } },
+    'k8s-w1': { label: 'k8s-w1', host: '172.20.0.180', check: { '☸ k3s-agent': `systemctl is-active k3s-agent` }, fix: { '♻ k3s-agent 재시작': `sudo systemctl restart k3s-agent && systemctl is-active k3s-agent` } },
+    'k8s-w2': { label: 'k8s-w2', host: '172.20.0.152', check: { '☸ k3s-agent': `systemctl is-active k3s-agent` }, fix: { '♻ k3s-agent 재시작': `sudo systemctl restart k3s-agent && systemctl is-active k3s-agent` } } } }
+};
+const KT_LABELS = { '▶ 전체 연결 점검': 'all', '🔐 WG 핸드셰이크': 'wg', '🛡️ DMZ 보호 설정': 'guard', '⏳ 대기 안내 (503)': 'waiting', '👤 실제 IP 로그': 'realip', '📊 Edge 처리 현황': 'status', '🚨 AWS 도달': 'aws', '🔏 인증서 만료': 'cert' };
+const DANGER = /restart|stop|poweroff|reboot|reload|shutdown|kill|(^|[ ;&|])rm[ ]|(^|[ ;&|])dd[ ]|mkfs|systemctl[ ]+(start|enable|disable|mask)|\b(drop|delete|truncate|alter|update|insert|replace|grant|revoke|reset)\b|openstack[ ]+[a-z]+[ ]+(create|delete|set|unset|migrate|resize|rebuild)|kubectl[ ]+(delete|apply|scale|edit|patch|drain|cordon|rollout)|wg[ ]+(set|syncconf)|wg-quick/i;
+
+function findTarget(id) {
+  for (const [a, area] of Object.entries(AREAS)) if (area.targets[id]) return Object.assign({ id, area: a, areaName: area.name }, area.targets[id]);
+  return null;
+}
+function checksOf(t) {
+  if (t.check !== 'KT') return Object.assign({}, COMMON, t.check);
+  const o = Object.assign({}, COMMON);
+  Object.entries(KT_LABELS).forEach(([n, k]) => { if (KT_PRESETS[k]) o[n] = KT_PRESETS[k]; });
+  return o;
+}
+const $ = (s, r) => (r || document).querySelector(s);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+async function api(path, body) {
+  try {
+    const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+    if (r.status === 401 || r.redirected) { location.href = '/login'; return { ok: false, status: 401, d: {} }; }
+    return { ok: r.ok, status: r.status, d: await r.json().catch(() => ({})) };
+  } catch (e) { return { ok: false, status: 0, d: { message: e.message } }; }
+}
+
+/* ---------- 잠금 · 60분 카운트 ---------- */
+let lockEnd = 0, tick = null;
+function showGate(msg) {
+  clearInterval(tick); lockEnd = 0;
+  $('#gate').style.display = 'flex'; $('#app').style.display = 'none'; $('#float-layer').style.display = 'none';
+  $('#gate-msg').textContent = msg || ''; setTimeout(() => $('#gate-pw').focus(), 30);
+}
+function openApp(remain) {
+  lockEnd = Date.now() + remain * 1000;
+  $('#gate').style.display = 'none'; $('#app').style.display = 'flex'; $('#float-layer').style.display = '';
+  clearInterval(tick); tick = setInterval(drawClock, 1000); drawClock();
+  if (!terms.length) restoreOrSolo();
+}
+function drawClock() {
+  const s = Math.max(0, Math.round((lockEnd - Date.now()) / 1000));
+  const c = $('#clock'); c.textContent = `🔓 ${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  c.classList.toggle('low', s < 300);
+  if (s <= 0) showGate('60분이 지나 잠겼습니다. 다시 입력하세요.');
+}
+$('#gate-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const pw = $('#gate-pw').value; $('#gate-pw').value = '';
+  const r = await api('/api/ctrl/verify', { password: pw });
+  if (r.ok) openApp(r.d.remain || 3600); else showGate('비밀번호가 맞지 않습니다.');
+});
+$('#btn-lock').onclick = async () => { await api('/api/ctrl/lock'); showGate('잠갔습니다.'); };
+setInterval(async () => { if (!lockEnd) return; const r = await api('/api/ctrl/status'); if (r.ok) { if (r.d.remain > 0) lockEnd = Date.now() + r.d.remain * 1000; else showGate('다른 창에서 잠겼거나 시간이 지났습니다.'); } }, 60000);
+
+/* ---------- 터미널 ---------- */
+const SOLO = new URLSearchParams(location.search).get('solo');
+let terms = [], active = null, seq = 0, zTop = 60;
+function saveOpen() { if (SOLO) return; try { localStorage.setItem('ops-term-open', JSON.stringify(terms.map((t) => t.target.id))); } catch (e) {} }
+function restoreOrSolo() {
+  if (SOLO) { document.body.classList.add('solo'); $('#tabs').style.display = 'none'; $('#btn-add').style.display = 'none'; const t = findTarget(SOLO); if (t) addTerm(t.id); document.title = `터미널 · ${t ? t.label : SOLO}`; return; }
+  let ids = []; try { ids = JSON.parse(localStorage.getItem('ops-term-open') || '[]'); } catch (e) {}
+  ids.filter(findTarget).forEach((id) => addTerm(id, true));
+  if (terms.length) activate(terms[0]);
+}
+function addTerm(id, quiet) {
+  const t = findTarget(id); if (!t) return;
+  const T = { id: ++seq, target: t, mode: 'tab', hist: [], hi: 0 };
+  const el = document.createElement('section'); el.className = 'term'; T.el = el;
+  el.innerHTML = `<div class="bar"><span class="t">${esc(t.areaName)} › ${esc(t.label)}</span><span class="h">${esc(t.host)}</span>
+      <button class="icon only-float" data-a="min" title="최소화">▁</button><button class="icon only-float" data-a="max" title="최대화">▢</button>
+      <button class="icon only-float" data-a="dock" title="탭으로 되돌리기">⇲</button><button class="icon" data-a="float" title="화면 위에 띄우기">⧉</button>
+      <button class="icon" data-a="win" title="새 창 (다른 모니터)">↗</button><button class="icon" data-a="close" title="닫기">✕</button></div>
+    <div class="presets pc"><span class="lbl">확인</span></div>
+    <div class="presets pf"><span class="lbl" style="color:var(--warn)">⚠ 복구</span></div>
+    <pre class="scr"><span class="w">[${esc(t.label)}] 버튼을 누르거나 명령을 입력하세요.</span>\n</pre>
+    <div class="inrow"><span class="p">${esc(t.id)}$</span><input placeholder="명령어 입력 후 Enter (↑↓ 이전 명령)"><button class="primary" data-a="run">실행</button><button data-a="clr">지우기</button></div>`;
+  const pc = $('.pc', el), pf = $('.pf', el);
+  Object.entries(checksOf(t)).forEach(([n, c]) => { const b = document.createElement('button'); b.textContent = n; b.title = c; b.onclick = () => run(T, c); pc.appendChild(b); });
+  if (t.fix && Object.keys(t.fix).length) Object.entries(t.fix).forEach(([n, c]) => { const b = document.createElement('button'); b.className = 'warn'; b.textContent = n; b.title = c; b.onclick = () => run(T, c, true); pf.appendChild(b); });
+  else pf.remove();
+  const inp = $('input', el);
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { const c = inp.value.trim(); if (c) { T.hist.push(c); T.hi = T.hist.length; inp.value = ''; run(T, c); } }
+    else if (e.key === 'ArrowUp' && T.hist.length) { T.hi = Math.max(0, T.hi - 1); inp.value = T.hist[T.hi]; e.preventDefault(); }
+    else if (e.key === 'ArrowDown' && T.hist.length) { T.hi = Math.min(T.hist.length, T.hi + 1); inp.value = T.hist[T.hi] || ''; e.preventDefault(); }
+  });
+  el.addEventListener('click', (e) => {
+    const a = e.target.closest('button') && e.target.closest('button').dataset.a; if (!a) return;
+    if (a === 'run') { const c = inp.value.trim(); if (c) { T.hist.push(c); T.hi = T.hist.length; inp.value = ''; run(T, c); } }
+    else if (a === 'clr') $('.scr', el).textContent = '';
+    else if (a === 'close') closeTerm(T);
+    else if (a === 'float') floatTerm(T);
+    else if (a === 'dock') dockTerm(T);
+    else if (a === 'min') { el.classList.toggle('min'); el.classList.remove('max'); stackMin(); }
+    else if (a === 'max') { el.classList.toggle('max'); el.classList.remove('min'); stackMin(); }
+    else if (a === 'win') { window.open(`/term?solo=${encodeURIComponent(t.id)}`, `term-${t.id}-${T.id}`, 'width=960,height=640'); if (!SOLO) closeTerm(T); }
+  });
+  el.addEventListener('pointerdown', () => { if (T.mode === 'float') el.style.zIndex = ++zTop; });
+  terms.push(T);
+  if (SOLO) { $('#stage').innerHTML = ''; $('#stage').appendChild(el); }
+  else { drawTabs(); if (!quiet) activate(T); }
+  saveOpen();
+  return T;
+}
+function drawTabs() {
+  const nav = $('#tabs'); nav.innerHTML = '';
+  terms.forEach((T) => {
+    const b = document.createElement('div'); b.className = 'tab' + (T === active && T.mode === 'tab' ? ' on' : ''); b.tabIndex = 0;
+    b.innerHTML = `<span>${T.mode === 'float' ? '⧉ ' : ''}${esc(T.target.label)}</span><span class="g">${esc(T.target.areaName.replace(/^\S+\s/, ''))}</span><button class="x" title="닫기">✕</button>`;
+    b.onclick = (e) => { if (e.target.classList.contains('x')) { closeTerm(T); return; } if (T.mode === 'float') { T.el.classList.remove('min'); T.el.style.zIndex = ++zTop; stackMin(); } else activate(T); };
+    nav.appendChild(b);
+  });
+  $('#empty').style.display = terms.some((T) => T.mode === 'tab') ? 'none' : '';
+}
+function activate(T) {
+  active = T; const st = $('#stage');
+  [...st.querySelectorAll('.term')].forEach((x) => x.remove());
+  if (T && T.mode === 'tab') { st.appendChild(T.el); setTimeout(() => $('input', T.el).focus(), 10); }
+  drawTabs();
+}
+function floatTerm(T) {
+  T.mode = 'float'; const el = T.el; el.classList.add('float');
+  const n = terms.filter((x) => x.mode === 'float').length - 1;
+  el.style.left = (60 + (n % 6) * 34) + 'px'; el.style.top = (90 + (n % 6) * 30) + 'px'; el.style.zIndex = ++zTop;
+  $('#float-layer').appendChild(el); drag(el);
+  if (active === T) { const next = terms.find((x) => x.mode === 'tab'); activate(next || null); } else drawTabs();
+}
+function dockTerm(T) { T.mode = 'tab'; T.el.classList.remove('float', 'min', 'max'); T.el.removeAttribute('style'); activate(T); stackMin(); }
+function closeTerm(T) {
+  T.el.remove(); terms = terms.filter((x) => x !== T); saveOpen();
+  if (SOLO) { window.close(); return; }
+  if (active === T) activate(terms.find((x) => x.mode === 'tab') || null); else drawTabs();
+  stackMin();
+}
+function stackMin() { // 최소화된 창은 화면 아래에 나란히
+  let x = 8; terms.filter((T) => T.mode === 'float' && T.el.classList.contains('min')).forEach((T) => { T.el.style.left = x + 'px'; T.el.style.top = (innerHeight - 44) + 'px'; x += 288; });
+}
+function drag(el) {
+  const bar = $('.bar', el); if (bar.dataset.drag) return; bar.dataset.drag = '1';
+  bar.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button') || el.classList.contains('max') || !el.classList.contains('float')) return;
+    const r = el.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+    const mv = (ev) => { el.style.left = Math.min(innerWidth - 80, Math.max(0, ev.clientX - dx)) + 'px'; el.style.top = Math.min(innerHeight - 36, Math.max(0, ev.clientY - dy)) + 'px'; };
+    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); };
+    addEventListener('pointermove', mv); addEventListener('pointerup', up);
+  });
+}
+async function run(T, cmd, fromFix) {
+  if ((fromFix || DANGER.test(cmd)) && !confirm(`[${T.target.label}] 제어/변경 명령을 실행합니다. 계속할까요?\n\n${cmd}`)) return;
+  const scr = $('.scr', T.el);
+  scr.insertAdjacentHTML('beforeend', `<span class="c">[${esc(T.target.id)}]$ ${esc(cmd)}</span>\n<span class="w wait">⏳ 실행 중...</span>\n`);
+  scr.scrollTop = scr.scrollHeight;
+  const r = await api('/api/term/exec', { target: T.target.id, cmd });
+  scr.querySelectorAll('.wait').forEach((x) => x.remove());
+  if (r.status === 403 && (r.d.need_unlock || r.d.need_password)) { showGate('잠금이 풀려 있지 않습니다. 다시 입력하세요.'); return; }
+  if (r.ok && r.d.status === 'ok') scr.insertAdjacentHTML('beforeend', `<span class="${r.d.code === 0 ? '' : 'f'}">${esc(r.d.output || '(출력 없음)')}</span>\n`);
+  else scr.insertAdjacentHTML('beforeend', `<span class="e">[오류] ${esc(r.d.message || ('HTTP ' + r.status))}</span>\n`);
+  scr.scrollTop = scr.scrollHeight;
+}
+
+/* ---------- 추가 마법사: 영역 → 대상 ---------- */
+let wizArea = null;
+function wizDraw() {
+  const g = $('#wiz-grid'); g.innerHTML = '';
+  if (!wizArea) {
+    $('#wiz-step').textContent = '1/2 · 어느 영역의 터미널인가요?'; $('#wiz-back').style.visibility = 'hidden';
+    Object.entries(AREAS).forEach(([k, a]) => { const b = document.createElement('button'); b.innerHTML = `<b>${esc(a.name)}</b><small>${esc(a.desc)}</small>`; b.onclick = () => { wizArea = k; wizDraw(); }; g.appendChild(b); });
+  } else {
+    const a = AREAS[wizArea]; $('#wiz-step').textContent = `2/2 · ${a.name} › 대상 선택`; $('#wiz-back').style.visibility = '';
+    Object.entries(a.targets).forEach(([id, t]) => { const b = document.createElement('button'); b.innerHTML = `<b>${esc(t.label)}</b><small>${esc(t.host)}</small>`; b.onclick = () => { $('#wiz').style.display = 'none'; addTerm(id); }; g.appendChild(b); });
+  }
+  const f = g.querySelector('button'); if (f) f.focus();
+}
+$('#btn-add').onclick = () => { wizArea = null; $('#wiz').style.display = 'flex'; wizDraw(); };
+$('#wiz-back').onclick = () => { wizArea = null; wizDraw(); };
+$('#wiz-close').onclick = () => { $('#wiz').style.display = 'none'; };
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#wiz').style.display === 'flex') $('#wiz').style.display = 'none'; });
+addEventListener('resize', stackMin);
+
+/* ---------- 시작 ---------- */
+(async () => { const r = await api('/api/ctrl/status'); if (r.ok && r.d.remain > 0) openApp(r.d.remain); else showGate(''); })();
+</script>
+</body>
+</html>
