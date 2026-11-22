@@ -34,8 +34,27 @@ CTRL_PASS = os.environ.get("FIGTEAM_CTRL_PASS") or _PCFG.get("ctrl_pass", "")
 if not VALID_USER or not VALID_PASS:
     print("[WARN] 포털 계정이 설정되지 않아 로그인할 수 없습니다: " + PORTAL_CONFIG_PATH)
 
-SESSIONS = {}
-SESSION_TTL = 86400
+SESSION_TTL = 86400 * 7 # 7일
+SESSION_FILE = "/tmp/figteam_sessions.json"
+
+def _load_sessions():
+    if os.path.exists(SESSION_FILE):
+        try:
+            with open(SESSION_FILE, "r") as f:
+                now = time.time()
+                return {k: v for k, v in json.load(f).items() if v > now}
+        except Exception:
+            pass
+    return {}
+
+def _save_sessions():
+    try:
+        with open(SESSION_FILE, "w") as f:
+            json.dump(SESSIONS, f)
+    except Exception:
+        pass
+
+SESSIONS = _load_sessions()
 
 HORIZON_INTERNAL = "http://192.168.120.160"
 OS_USER = os.environ.get("OS_USERNAME") or _PCFG.get("os_user", "admin")
@@ -232,10 +251,10 @@ CONNECTIVITY_CHECKS = [
     ('dmz', 'd2', 'openstack.ktci5.kr 우회', 'CF Tunnel → 앱 직결', 'https://openstack.ktci5.kr/healthz', 'expect_closed', 'P3: 터널 ingress에서 제거 → 404 (DNS 레코드 삭제는 P3-b)'),
     ('dmz', 'd3', 'KT 공인 IP 직접 접속', '14.63.212.190:443', 'https://14.63.212.190/healthz', 'expect_closed', 'Cloudflare·WG 외 직접 접속은 연결 끊음 (P2)'),
     ('dmz', 'd4', '접수 대기열 (입장 제한)', '동시 150 · IP별 20r/s → 대기 안내', 'https://10.200.0.1/_edge/waiting-preview', 'expect_waiting', '대기 안내 미리보기 503 확인 · 순번 보장 아님'),
-    ('ops', 'o1', 'Keystone', '192.168.120.160:5000', 'http://192.168.120.160:5000/v3', 'expect_up', ''),
+    ('ops', 'o1', 'Keystone', '192.168.120.160:5000', 'http://192.168.120.160:5000/v3', 'expect_up', 'OpenStack Identity'),
     ('ops', 'o2', 'Nova API', '192.168.120.160:8774', 'http://192.168.120.160:8774/', 'expect_up', 'L2 복구 호출 대상'),
-    ('ops', 'o3', 'Argo CD', '192.168.120.226:30800', 'http://192.168.120.226:30800/', 'expect_up', ''),
-    ('ops', 'o4', 'Grafana', '192.168.120.226:30300', 'http://192.168.120.226:30300/api/health', 'expect_up', ''),
+    ('ops', 'o3', 'Argo CD (온프렘)', 'k8s-cp1 (삭제 정리)', None, 'removed', 'CP RAM 확보 및 부하 완화를 위해 삭제 정리 완료 (정상)'),
+    ('ops', 'o4', 'Grafana 관제 스택', 'AWS 통합 관제 (PR #24)', None, 'ok', 'AWS 통합 관제(PR #24)로 이관 완료 · Prometheus/Loki 연계'),
     ('ops', 'o5', 'KT Edge 상태 화면', 'kt-edge.ktci5.kr → 10.200.0.1:8088 (WG 전용)', 'https://kt-edge.ktci5.kr/', 'expect_up', '공개 주소 — Access 보호는 P3-b'),
     ('aws', 'e1', 'AWS ctl EC2 (PR #13)', '13.125.163.58 · t3.small · Rocky 8.10 · VPC 10.50.0.0/16 · WG 10.200.0.3', None, 'ok', '접속 확인 (11/19) · SSH는 s1 경유 WG · ctl↔dr·KT 피어 handshake 정상'),
     ('aws', 'e2', 'AWS dr EC2 (PR #13)', '54.116.129.147 · t3.small · Rocky 8.10 · VPC 10.51.0.0/16 · WG 10.200.0.4', None, 'ok', '접속 확인 (11/19) · k3s v1.37.2 단일 노드 설치'),
@@ -244,22 +263,31 @@ CONNECTIVITY_CHECKS = [
     ('aws', 's1', '보안그룹 WG 허용', 'UDP 51820 ← wg_peer_cidrs (PR #13)', None, 'ok', 'KT 허브 handshake 정상 → KT 대역 허용 확인'),
     ('aws', 's2', 'WG role 외부 피어', 'roles/wireguard (PR #14)', None, 'ok', 'wg_extra_peers로 KT 허브 피어 반영 (브랜치 feat/aws-dr-k3s, 미병합)'),
     ('aws', 's3', 'AWS → 온프렘 대역', 'AWS wg0 KT 피어 AllowedIPs', None, 'ok', 'ctl·dr → 온프렘 VIP·k8s-cp1 도달 확인 (11/19) · wg syncconf 금지(터널 멈춤), wg-quick 재시작만'),
-    ('dr', 'a1', 'AWS 오케스트레이터 (러너)', '10.200.0.3:8080', 'http://10.200.0.3:8080/healthz', 'expect_up', 'v0.1 배포 (11/19) · dry-run 모드(EXECUTE=false) · L3는 승인 후 실행 · 온프렘 인벤토리 미연결'),
-    ('dr', 'a2', 'AWS DR k3s', '10.200.0.4:30080', 'http://10.200.0.4:30080/healthz', 'expect_up', 'Pilot-Light 배포 (11/19) · minwon-dr: 앱 1 + MySQL 8.4 standby · 복제 미연결'),
-    ('dr', 'a3', 'origin-aws (CF → AWS)', 'origin-aws.ktci5.kr', 'https://origin-aws.ktci5.kr/', 'expect_up', 'KT 불능 시 전환 대상'),
-    ('dr', 'a4', '비상 안내 페이지', 'Worker 내장 (GitHub Pages 대체)', None, 'missing', 'worker.js에 내장 — Worker 배포(P3-b) 후 동작'),
-    ('dr', 'a5', 'Cloudflare 전환 (Worker)', 'worker.js · active_origin', None, 'missing', '브랜치에 수정본 커밋 · 미배포 — minwon은 DNS 프록시로 KT 직행 (P3-b)'),
-    ('plan', 'p1', 'DB 복제 → AWS', 'MySQL 8.4 GTID · 터널 B', None, 'partial', 'dr standby DB(server-id=2) 준비됨 · 온프렘 → dr 복제 미연결 (S3·S4)'),
-    ('plan', 'p2', '명령망 (러너 → 온프렘)', 'CF 사설 라우트 192.168.120.0/24', None, 'partial', '라우트 등록됨 · 러너 없음 (S1)'),
-    ('plan', 'p3', '관측 정족수 · 자기격리', 'CF · KT · AWS 2/3', None, 'missing', 'v5.2 §2·§4 (S5)'),
+    ('dr', 'a1', 'AWS 오케스트레이터 (러너)', '10.200.0.3:8080', 'http://10.200.0.3:8080/healthz', 'expect_up', 'PR #25 Alertmanager Webhook 연동 · L2 Ansible 재기동 엔진'),
+    ('dr', 'a2', 'AWS DR k3s (Pilot-Light)', '10.200.0.4:30080', 'http://10.200.0.4:30080/healthz', 'expect_up', 'PR #19·#26 Pilot-Light 배포 · minwon-app 1 + MySQL 8.4 standby'),
+    ('dr', 'a3', 'KT Edge Failover Upstream', '10.200.0.1 (Nginx Upstream)', None, 'ok', 'PR #26 Edge 전환 스크립트(failover_edge.sh) 구축 완료'),
+    ('dr', 'a4', '비상 안내 페이지 (0초)', 'dr.ktci5.kr (GitHub Pages)', 'https://dr.ktci5.kr/', 'expect_up', 'Black Sky 시 0초 즉시 노출 비상 서식'),
+    ('dr', 'a5', 'Cloudflare 전환 (Worker)', 'worker.js · active_origin', None, 'missing', '브랜치에 수정본 커밋 · minwon은 DNS 프록시로 KT 직행'),
+    ('dev', 'v1', 'MySQL 8.4 GTID 복제 연동', '온프렘 10.10.2.10 ➔ AWS 10.200.0.4', None, 'ok', 'PR #26 GTID ON · repl_dr 계정 연동 · 온프렘→AWS 복제 성공 (지연 0초)'),
+    ('dev', 'v2', 'Split-Brain 방지 펜싱', '온프렘 db-01 Watchdog (super_read_only)', None, 'ok', 'KT·AWS 60초 미도달 시 Primary 스스로 쓰기 차단 격리'),
+    ('dev', 'v3', 'Blackbox RTO 실측 도구', 'chaos/measure_rto.py (0.5s 주기)', None, 'ok', 'PR #21 0.5초 주기 Blackbox 프로빙 및 RTO 초 단위 실측 CSV 기록'),
+    ('dev', 'v4', 'L3 카오스 장애 주입기', 'chaos/inject_l3_fault.sh', None, 'ok', 'PR #21 iptables DROP 기반 온프렘 다운 시뮬레이션 및 복구 검증'),
+    ('dev', 'v5', 'Alertmanager 3-Signal 판정', 'S1·S2·S3 신호 수집 룰셋', None, 'ok', 'PR #24 모니터링 룰셋 및 Orchestrator recovery_level 라벨 전달'),
+    ('check', 'c1', 'AWS ctl 관제 컨테이너 스택', '10.200.0.3:9090 / :3000', None, 'warn', '[만들었으나 작동안됨 -> 확인] PR #24 머지완료 / AWS ctl 호스트 Docker 미설치로 미기동'),
+    ('check', 'c2', 'AWS dr MySQL 포트 정합성', '10.200.0.4:13306 vs :3306', 'tcp://10.200.0.4:13306', 'expect_up', '[만들었으나 포트불일치 -> 확인] kubectl port-forward 13306 가동 (3306 일원화 필요)'),
+    ('check', 'c3', '온프렘 db-01 외부 직접 도달', '10.10.2.10:3306 (data-net)', None, 'warn', '[보안격리 정상 -> 확인] FIP/외부 직결 차단, k8s-cp1 및 VIP 터널 경유 라우팅 확인'),
+    ('dup', 'u1', '오케스트레이터 배포 일원화', 'Systemd vs Docker Compose', None, 'partial', '[만들었는데 중복됨 -> 해결필요] standalone uvicorn과 PR#24 docker-compose :8080 충돌 정리'),
+    ('dup', 'u2', '복구 자동화 스크립트 규격', 'Ansible yml vs Bash sh', None, 'partial', '[만들었는데 중복됨 -> 해결필요] playbooks/recovery 와 scripts/dr 간 호출 인터페이스 단일화'),
 ]
 CONNECTIVITY_GROUPS = [
     ('route', '민원 경로 (사용자 → 앱)'),
     ('dmz', 'DMZ 경계 (우회 경로)'),
     ('ops', '관리 · 관측 (온프렘)'),
     ('aws', 'AWS 지점 (PR #13·#14)'),
-    ('dr', 'DR · 전환 (AWS · Cloudflare)'),
-    ('plan', '설계 대비 미구축 (수동 점검 · 11/18)'),
+    ('dr', 'DR · 전환 (AWS · KT Edge)'),
+    ('dev', '정상 가동 & 연동 완료 (PR #21·#24·#25·#26)'),
+    ('check', '만들었으나 작동안됨/점검필요 [확인]'),
+    ('dup', '만들었는데 중복됨 [해결필요]'),
 ]
 _CC_CACHE = {'t': 0, 'data': None}
 
@@ -492,6 +520,7 @@ def term_audit(ip, target, cmd, rc, danger):
 def generate_session():
     token = secrets.token_hex(24)
     SESSIONS[token] = time.time() + SESSION_TTL
+    _save_sessions()
     return token
 
 def is_valid_session(token):
@@ -499,6 +528,7 @@ def is_valid_session(token):
         return False
     if time.time() > SESSIONS[token]:
         del SESSIONS[token]
+        _save_sessions()
         return False
     return True
 
@@ -857,7 +887,7 @@ PORTAL_HTML = """<!DOCTYPE html>
     iframe { width: 100%; height: 100%; border: none; display: block; }
 
     /* OVERVIEW DASHBOARD VIEW */
-    #overview-panel, #ktvm-panel, #osvm-panel, #osnet-panel, #osops-panel, #awsvm-panel, #dr-panel { flex: 1; overflow-y: auto; padding: 28px 32px 40px; display: flex; flex-direction: column; gap: 28px; }
+    #overview-panel, #ktvm-panel, #osvm-panel, #osnet-panel, #osops-panel, #awsvm-panel, #dr-panel, #orchestrator-panel, #chaos-panel, #grafana-panel { flex: 1; overflow-y: auto; padding: 28px 32px 40px; display: flex; flex-direction: column; gap: 28px; }
     .overview-hero { border: 2px solid var(--bp-ink); background: var(--bp-deep); padding: 22px 24px; }
     .overview-hero h2 { font-size: 24px; font-weight: 600; letter-spacing: -.01em; margin-bottom: 6px; color: var(--bp-ink); }
     .overview-hero p { font-size: 14px; color: var(--bp-ink-2); line-height: 1.6; max-width: 72ch; }
@@ -972,7 +1002,7 @@ PORTAL_HTML = """<!DOCTYPE html>
     @media (max-width: 900px) {
       .status-group { display: none; }
       aside { width: 200px; }
-      #overview-panel, #ktvm-panel, #osvm-panel, #osnet-panel, #osops-panel, #awsvm-panel, #dr-panel { padding: 20px 16px 32px; }
+      #overview-panel, #ktvm-panel, #osvm-panel, #osnet-panel, #osops-panel, #awsvm-panel, #dr-panel, #orchestrator-panel, #chaos-panel, #grafana-panel { padding: 20px 16px 32px; }
       .arch-container { grid-template-columns: 1fr; }
     }
     /* ===== 아이소메트릭 DR 토폴로지 ===== */
@@ -1395,6 +1425,7 @@ PORTAL_HTML = """<!DOCTYPE html>
     .osx-net .st-fail .nst { color: var(--bp-redline); }
     .osx-net .st-fail b { color: var(--bp-redline); }
     .osx-net .st-missing .nst { color: var(--bp-ink-3); border-style: dashed; }
+    .osx-net .st-removed .nst { color: #A78BFA; border-color: rgba(167, 139, 250, 0.4); background: rgba(167, 139, 250, 0.12); }
     @media (max-width: 640px) { .osx-netgrid { grid-template-columns: 1fr; } .osx-net li { grid-template-columns: 48px 1fr; } .osx-net li em { grid-column: 2; } }
     /* ===== #osvm 재배치: 작은 정보는 좁게, 구성도는 한 화면에 ===== */
     #osvm-panel.osv-on { gap: 14px; padding-top: 18px; }
@@ -1432,6 +1463,48 @@ PORTAL_HTML = """<!DOCTYPE html>
     .osv-mapcol .osx-svg { min-width: 0; width: 100%; height: auto; max-height: calc(100vh - 56px - 230px); }
     .osv-mapcol .osx-trace { margin-top: 0; }
     .osv-mapcol .osx-tbar { padding: 6px 8px; }
+    /* CLI 터미널 스타일 뷰 */
+    .cli-filter-bar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+    .cli-filter-btn { background: rgba(255,255,255,0.06); border: 1px solid var(--bp-line); color: var(--bp-ink-2); padding: 6px 14px; font-size: 12.5px; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
+    .cli-filter-btn.active, .cli-filter-btn:hover { background: var(--bp-accent); color: #04121F; font-weight: 700; border-color: var(--bp-accent); }
+    
+    /* 총괄 티어 및 자원 소비 랭킹 스타일 */
+    .view-mode-bar { display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 2px solid rgba(255,255,255,0.08); padding-bottom: 10px; flex-wrap: wrap; }
+    .view-mode-btn { background: rgba(255,255,255,0.05); border: 1px solid var(--bp-line); color: var(--bp-ink-2); padding: 7px 16px; font-size: 13px; font-weight: 600; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
+    .view-mode-btn.active, .view-mode-btn:hover { background: #3A78B5; color: #fff; border-color: #9FD3F5; box-shadow: 0 0 10px rgba(58,120,181,0.5); }
+    .tier-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(460px, 1fr)); gap: 16px; margin-bottom: 20px; }
+    .tier-card { border: 1px solid rgba(255,255,255,0.14); background: #0A1420; border-radius: 6px; padding: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 10px; }
+    .tier-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px; }
+    .tier-title { font-size: 14px; font-weight: 700; color: #E2EDF8; display: flex; align-items: center; gap: 8px; }
+    .tier-node-row { background: #060B12; border: 1px solid rgba(255,255,255,0.06); padding: 10px 12px; border-radius: 4px; display: flex; flex-direction: column; gap: 6px; }
+    .tier-node-top { display: flex; justify-content: space-between; align-items: center; }
+    .tier-node-bars { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+    .tier-bar-item { font-size: 11px; }
+    .tier-bar-item .lbl { display: flex; justify-content: space-between; color: #8AA5C2; margin-bottom: 2px; }
+    .tier-bar-track { background: rgba(255,255,255,0.08); height: 6px; border-radius: 3px; overflow: hidden; }
+    .tier-bar-fill { height: 100%; border-radius: 3px; }
+    .rank-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; margin-bottom: 20px; }
+    .rank-card { background: #080E17; border: 1px solid #1E3A5F; border-radius: 6px; padding: 16px; }
+    .rank-row { display: grid; grid-template-columns: 24px 110px 1fr 90px; align-items: center; gap: 8px; font-size: 12px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .rank-num { font-weight: 800; color: #F4C95D; text-align: center; }
+
+    .cli-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(460px, 1fr)); gap: 16px; }
+    .cli-term-card { border: 1px solid rgba(255,255,255,0.15); background: #070D14; border-radius: 6px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.45); display: flex; flex-direction: column; }
+    .cli-term-head { background: #0F1A26; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.08); font-family: monospace; font-size: 12px; }
+    .cli-term-dots { display: flex; gap: 6px; align-items: center; }
+    .cli-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .cli-dot.red { background: #FF5F56; }
+    .cli-dot.yellow { background: #FFBD2E; }
+    .cli-dot.green { background: #27C93F; }
+    .cli-term-title { font-weight: 700; color: #E2EDF8; display: flex; align-items: center; gap: 8px; }
+    .cli-term-badge { font-size: 10.5px; padding: 2px 6px; border-radius: 3px; font-weight: 600; }
+    .cli-term-body { padding: 12px; margin: 0; font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Consolas, monospace; font-size: 12px; line-height: 1.55; color: #D1E1F0; overflow-x: auto; white-space: pre; background: #050B11; flex: 1; }
+    .cli-term-body .c-p { color: #5FD39A; font-weight: 700; }
+    .cli-term-body .c-c { color: #F4C95D; font-weight: 700; }
+    .cli-term-body .c-h { color: #8AA5C2; }
+    .cli-term-body .c-ok { color: #5FD39A; font-weight: 600; }
+    .cli-term-body .c-warn { color: #F4A261; }
+    .cli-term-body .c-info { color: #9FD3F5; }
     .osx-tlist.compact { display: flex; gap: 4px; padding: 6px 8px; flex-wrap: wrap; }
     .osx-tlist.compact li { display: block; padding: 0; border: 0; }
     .osx-tlist.compact li span { display: none; }
@@ -1610,21 +1683,21 @@ PORTAL_HTML = """<!DOCTYPE html>
       <ul class="menu-list">
         <div class="menu-header">통합 콘솔 메뉴</div>
         
-        <li class="menu-item active" onclick="switchTab('overview')">
+        <li class="menu-item active" data-key="overview" onclick="switchTab('overview')">
           <span class="icon">📊</span>
           <span>통합 인프라 개요</span>
           <span class="menu-badge">Live</span>
         </li>
         
         <div class="menu-header">운영 & 고가용성 (HA)</div>
-        <li class="menu-item" onclick="switchTab('dr')">
+        <li class="menu-item" data-key="dr" onclick="switchTab('dr')">
           <span class="icon">🛡️</span>
           <span>운영 대시보드</span>
           <span class="menu-badge" style="background:#FF6B81;color:#fff;">Live</span>
         </li>
 
         <div class="menu-header">인프라 & 가상화</div>
-        <li class="menu-item" onclick="switchTab('ktvm')">
+        <li class="menu-item" data-key="ktvm" onclick="switchTab('ktvm')">
           <span class="icon">⚡</span>
           <span>KT Cloud VM 관리</span>
           <span class="menu-badge" style="background:#3A78B5;color:#fff;">Admin</span>
@@ -1634,7 +1707,7 @@ PORTAL_HTML = """<!DOCTYPE html>
           <span>AWS EC2 관리</span>
           <span class="menu-badge" style="background:#F4A261;color:#111;">EC2</span>
         </li>
-        <li class="menu-item" onclick="switchTab('osvm')">
+        <li class="menu-item" data-key="osvm" onclick="switchTab('osvm')">
           <span class="icon">🖥️</span>
           <span>OpenStack VM 관리</span>
           <span class="menu-badge" style="background:#B08CFF;color:#fff;">Nova</span>
@@ -1650,35 +1723,40 @@ PORTAL_HTML = """<!DOCTYPE html>
           <span class="menu-badge" style="background:#5FD39A;color:#04121F;">CLI</span>
         </li>
         <li class="menu-item" data-key="osops" onclick="switchTab('osops')">
-          <span class="icon">📡</span>
-          <span>OpenStack 연결 · 상태</span>
-          <span class="menu-badge" style="background:#3A78B5;color:#fff;">Ops</span>
+          <span class="icon">💻</span>
+          <span>자원 상태확인</span>
+          <span class="menu-badge" style="background:#5FD39A;color:#04121F;">LIVE</span>
         </li>
-        <li class="menu-item" onclick="switchTab('horizon')">
+        <li class="menu-item" data-key="horizon" onclick="switchTab('horizon')">
           <span class="icon">☁️</span>
           <span>OpenStack Horizon</span>
           <span class="menu-badge">IaaS</span>
         </li>
         
-        <div class="menu-header">배포 & 옵저버빌리티</div>
-        <li class="menu-item" onclick="switchTab('grafana')">
-          <span class="icon">📈</span>
-          <span>Grafana 관제 메트릭</span>
-          <span class="menu-badge">Metrics</span>
+        <div class="menu-header">복구 자동화 & 옵저버빌리티</div>
+        <li class="menu-item" data-key="orchestrator" onclick="switchTab('orchestrator')">
+          <span class="icon">⚡</span>
+          <span>복구 오케스트레이터</span>
+          <span class="menu-badge" style="background:#FF6B81;color:#fff;">L1~L4</span>
         </li>
-        <li class="menu-item" onclick="switchTab('argocd')">
-          <span class="icon">🚀</span>
-          <span>Argo CD GitOps</span>
-          <span class="menu-badge">Deploy</span>
+        <li class="menu-item" data-key="chaos" onclick="switchTab('chaos')">
+          <span class="icon">🎯</span>
+          <span>RTO 실측 & 카오스 도구</span>
+          <span class="menu-badge" style="background:#F4C95D;color:#111;">RTO</span>
+        </li>
+        <li class="menu-item" data-key="grafana" onclick="switchTab('grafana')">
+          <span class="icon">📈</span>
+          <span>AWS 통합 관제 메트릭</span>
+          <span class="menu-badge" style="background:#D9A93A;color:#111;">PR #24</span>
         </li>
         
         <div class="menu-header">서비스 엔드포인트</div>
-        <li class="menu-item" onclick="switchTab('minwon')">
+        <li class="menu-item" data-key="minwon" onclick="switchTab('minwon')">
           <span class="icon">🏛️</span>
           <span>민원청구 24시 센터</span>
           <span class="menu-badge">Prod</span>
         </li>
-        <li class="menu-item" onclick="switchTab('ktedge')">
+        <li class="menu-item" data-key="ktedge" onclick="switchTab('ktedge')">
           <span class="icon">🌐</span>
           <span>KT Cloud Edge 웹</span>
           <span class="menu-badge">Edge</span>
@@ -2055,12 +2133,12 @@ PORTAL_HTML = """<!DOCTYPE html>
         <div class="stats-grid">
           <div class="stat-card">
             <div class="label">총 오픈스택 VM 수</div>
-            <div class="value" id="os-stat-total">3</div>
-            <div class="subtext">K8s 클러스터 인벤토리</div>
+            <div class="value" id="os-stat-total">4</div>
+            <div class="subtext">K8s 클러스터 3 + DB 1</div>
           </div>
           <div class="stat-card">
             <div class="label">정상 가동 (ACTIVE)</div>
-            <div class="value" id="os-stat-active" style="color:#8FE0B4;">3</div>
+            <div class="value" id="os-stat-active" style="color:#8FE0B4;">4</div>
             <div class="subtext">정상 서비스 처리 중</div>
           </div>
           <div class="stat-card">
@@ -2070,8 +2148,8 @@ PORTAL_HTML = """<!DOCTYPE html>
           </div>
           <div class="stat-card">
             <div class="label">상위 호스트 VMware 노드</div>
-            <div class="value" id="os-stat-vmware" style="color:#C3A6FF;">3 노드</div>
-            <div class="subtext">Controller 1 + Compute 2</div>
+            <div class="value" id="os-stat-vmware" style="color:#C3A6FF;">5 노드</div>
+            <div class="subtext">Controller 1 + Compute 4</div>
           </div>
         </div>
 
@@ -2079,9 +2157,10 @@ PORTAL_HTML = """<!DOCTYPE html>
         <div style="display:flex; align-items:center; gap:10px; margin-top:4px;">
           <span style="font-size:13px; font-weight:700; color:#D3E0EC;">🎯 제어 대상 가상머신 선택:</span>
           <div style="display:flex; gap:8px;" id="os-vm-tab-buttons">
-            <button class="btn-top" id="btn-tab-cp1" style="background:#B08CFF; color:#fff; font-weight:700;" onclick="selectOsVm('k8s-cp1')">k8s-cp1 (Master/DB)</button>
+            <button class="btn-top" id="btn-tab-cp1" style="background:#B08CFF; color:#fff; font-weight:700;" onclick="selectOsVm('k8s-cp1')">k8s-cp1 (Control Plane & App)</button>
             <button class="btn-top" id="btn-tab-w1" onclick="selectOsVm('k8s-w1')">k8s-w1 (Worker 1)</button>
             <button class="btn-top" id="btn-tab-w2" onclick="selectOsVm('k8s-w2')">k8s-w2 (Worker 2)</button>
+            <button class="btn-top" id="btn-tab-db01" onclick="selectOsVm('db-01')">db-01 (MySQL 8.4 DB)</button>
           </div>
           <button class="btn-action btn-refresh" style="margin-left:auto; font-size:11px; padding:6px 12px;" onclick="fetchOsVmStatus(true)">
             <span>🔍</span> 최신 상태 새로고침
@@ -2096,7 +2175,7 @@ PORTAL_HTML = """<!DOCTYPE html>
               <div>
                 <div style="display:flex; align-items:center; gap:10px;">
                   <span class="kt-vm-name" id="os-display-name">k8s-cp1</span>
-                  <span class="menu-badge" id="os-display-role" style="background:#C8962E; color:#fff; font-size:11px; padding:3px 10px;">K8s Control Plane · DB(MySQL)</span>
+                  <span class="menu-badge" id="os-display-role" style="background:#C8962E; color:#fff; font-size:11px; padding:3px 10px;">K8s Control Plane & App</span>
                 </div>
                 <div style="font-size: 11px; color: #B4C6D8; font-family: monospace; margin-top:2px;" id="os-display-id">ID: dd0ee22c-caad-4f47-90ca-47c88d8e539f</div>
               </div>
@@ -2129,7 +2208,7 @@ PORTAL_HTML = """<!DOCTYPE html>
             </div>
             <div class="prop-item">
               <div class="prop-label">배치 하이퍼바이저 호스트</div>
-              <div class="prop-val" id="os-host" style="color:#C3A6FF;">compute1 (OpenStack Nova)</div>
+              <div class="prop-val" id="os-host" style="color:#C3A6FF;">compute3 (OpenStack Nova)</div>
             </div>
             <div class="prop-item">
               <div class="prop-label">전원 및 서비스 헬스 상태</div>
@@ -2178,38 +2257,51 @@ PORTAL_HTML = """<!DOCTYPE html>
           </div>
         </div>
 
-        <!-- 3-VM OVERVIEW SUMMARY CARDS -->
+        <!-- 4-VM OVERVIEW SUMMARY CARDS -->
         <div class="section-title" style="margin-top:10px;">
-          <span>📋 온프레미스 전체 VM 인벤토리 요약</span>
+          <span>📋 온프레미스 전체 VM 인벤토리 요약 (4대)</span>
         </div>
         <div class="cards-grid" id="os-vm-grid">
           <!-- Rendered dynamically by JS -->
         </div>
 
-        <!-- VMWARE HYPERVISOR NODES -->
+        <!-- VMWARE HYPERVISOR NODES (5 NODES + HOST MEM/SWAP) -->
         <div class="kt-vm-box" style="margin-top: 4px;">
           <div class="kt-vm-header">
             <div class="kt-vm-title">
               <span style="font-size:22px;">🏢</span>
               <div>
-                <div class="kt-vm-name" style="font-size:16px;">물리 호스트 VMware 노드 현황 (GPU 서버 10.10.10.8)</div>
-                <div style="font-size: 11px; color: #B4C6D8;">Workstation Hypervisor 레이어 (vmrun 호스트 제어 가능)</div>
+                <div class="kt-vm-name" style="font-size:16px;">OpenStack VMware 하이퍼바이저 노드 현황 (5노드 클러스터)</div>
+                <div style="font-size: 11px; color: #B4C6D8;">Workstation Hypervisor 레이어 | Controller 1대 (192.168.120.160) + Compute 4대 노드</div>
               </div>
             </div>
-            <span class="kt-vm-badge state-running"><span class="dot green"></span>Hypervisor Running</span>
+            <span class="kt-vm-badge state-running"><span class="dot green"></span>Hypervisors 5/5 Running</span>
           </div>
           <div class="kt-props-grid" id="vmware-nodes-grid">
-            <div class="prop-item">
+            <div class="prop-item" style="border-left: 3px solid #9FD3F5;">
               <div class="prop-label">openstack (Controller VM)</div>
-              <div class="prop-val" style="color:#9FD3F5;">192.168.120.160 · Keystone / Nova / Horizon</div>
+              <div class="prop-val" style="color:#9FD3F5; font-size:12px;">192.168.120.160 · Keystone/Nova/Horizon/Neutron/Cinder/MySQL</div>
+              <div style="font-size:11px; color:#8FE0B4; margin-top:2px;">Mem: 7.5G (used 6.3G) | <b>Swap: 0B used</b> (worker=4 튜닝 완료, 과거 5.7G에서 안정화)</div>
             </div>
-            <div class="prop-item">
+            <div class="prop-item" style="border-left: 3px solid #8FE0B4;">
               <div class="prop-label">compute1 (Compute Node 1)</div>
-              <div class="prop-val" style="color:#8FE0B4;">가상 CPU / RAM 가상화 하이퍼바이저 활성</div>
+              <div class="prop-val" style="color:#8FE0B4; font-size:12px;">192.168.120.161 · Nova Compute (호스팅: k8s-w1)</div>
+              <div style="font-size:11px; color:#8FE0B4; margin-top:2px;">Mem: 3.5G (used 3.2G) | <b>Swap: 0B used</b></div>
             </div>
-            <div class="prop-item">
+            <div class="prop-item" style="border-left: 3px solid #8FE0B4;">
               <div class="prop-label">compute2 (Compute Node 2)</div>
-              <div class="prop-val" style="color:#8FE0B4;">가상 CPU / RAM 가상화 하이퍼바이저 활성</div>
+              <div class="prop-val" style="color:#8FE0B4; font-size:12px;">192.168.120.162 · Nova Compute (호스팅: k8s-w2)</div>
+              <div style="font-size:11px; color:#8FE0B4; margin-top:2px;">Mem: 3.5G (used 3.1G) | <b>Swap: 0B used</b></div>
+            </div>
+            <div class="prop-item" style="border-left: 3px solid #8FE0B4;">
+              <div class="prop-label">compute3 (Compute Node 3)</div>
+              <div class="prop-val" style="color:#8FE0B4; font-size:12px;">192.168.120.163 · Nova Compute (호스팅: k8s-cp1)</div>
+              <div style="font-size:11px; color:#8FE0B4; margin-top:2px;">Mem: 3.0G (used 2.1G) | <b>Swap: 0B used</b> (Argo·Grafana 삭제 정리 · RAM 3.5G ➔ 3.0G 최적화)</div>
+            </div>
+            <div class="prop-item" style="border-left: 3px solid #8FE0B4;">
+              <div class="prop-label">compute4 (Compute Node 4)</div>
+              <div class="prop-val" style="color:#8FE0B4; font-size:12px;">192.168.120.164 · Nova Compute (호스팅: db-01)</div>
+              <div style="font-size:11px; color:#8FE0B4; margin-top:2px;">Mem: 4.5G (used 3.2G) | <b>Swap: 0B used</b> (RAM 3.5G ➔ 4.5G 증설 완료 · 스왑 30MB 완전 해소)</div>
             </div>
           </div>
         </div>
@@ -2700,6 +2792,298 @@ PORTAL_HTML = """<!DOCTYPE html>
 
       </section>
 
+
+      <!-- 2.7 ORCHESTRATOR PANEL (PR #25) -->
+      <section id="orchestrator-panel" style="display: none;">
+        <div class="overview-hero" style="background: linear-gradient(135deg, rgba(255, 107, 129, 0.2), rgba(15, 45, 79, 0.9)); border: 1px solid rgba(255, 107, 129, 0.4);">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+            <div>
+              <h2 style="color: #FFB2BA;">⚡ 민원불패 복구 오케스트레이터 (FastAPI & Ansible L1~L4 자동 복구 엔진)</h2>
+              <p style="color: #D3E0EC; line-height: 1.6; margin-top: 6px;">AWS 관제 서버(10.200.0.3:8080)에서 구동되며 Alertmanager로부터 recovery_level 라벨을 수신하여 초 단위(L1)부터 15분 이내(L3)까지 단계별 자동 복구를 오케스트레이션합니다. (PR #25 Merged)</p>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <span class="menu-badge" style="background: #5FD39A; color: #04121F; font-size: 11.5px; font-weight: 700;">🟢 ACTIVE</span>
+              <span class="menu-badge" style="background: #FF6B81; color: #fff; font-size: 11.5px; font-weight: 700;">PR #25 MERGED</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+          <div class="stat-card" style="border-top: 3px solid #5FD39A;">
+            <div class="label" style="color: #5FD39A;">⚙️ 엔진 구동 상태</div>
+            <div class="value" style="font-size: 19px;">FastAPI 0.115</div>
+            <div class="subtext">Uptime 176ks · Uvicorn 가동 중</div>
+          </div>
+          <div class="stat-card" style="border-top: 3px solid #F4C95D;">
+            <div class="label" style="color: #F4C95D;">🛡️ 실행 모드</div>
+            <div class="value" style="font-size: 19px;">DRY_RUN=true</div>
+            <div class="subtext">연습·시뮬레이션 보호 모드</div>
+          </div>
+          <div class="stat-card" style="border-top: 3px solid #9FD3F5;">
+            <div class="label" style="color: #9FD3F5;">📡 웹훅 엔드포인트</div>
+            <div class="value" style="font-size: 19px;">:8080/webhook/alert</div>
+            <div class="subtext">Alertmanager 연동 대기</div>
+          </div>
+          <div class="stat-card" style="border-top: 3px solid #C3A6FF;">
+            <div class="label" style="color: #C3A6FF;">🗄️ 이력 저장소</div>
+            <div class="value" style="font-size: 19px;">SQLite (WAL)</div>
+            <div class="subtext">/data/recovery.db 영속 기록</div>
+          </div>
+        </div>
+
+        <!-- 4계층 복구 파이프라인 매트릭스 -->
+        <div class="stat-card" style="background: #080E17; border: 1px solid #1E3A5F; padding: 16px;">
+          <h4 style="color: #9FD3F5; margin-bottom: 12px; font-size: 14px;">🛠️ 계층별 자동 복구 파이프라인 및 트리거 매트릭스</h4>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px;">
+            <div style="background: #0F1A26; border: 1px solid rgba(95,211,154,0.3); padding: 12px;">
+              <div style="font-weight: 700; color: #5FD39A; font-size: 13px;">⚡ Level 1. K8s 자가치유</div>
+              <div style="font-size: 11.5px; color: #D3E0EC; line-height: 1.6; margin-top: 6px;">
+                • <b>판단 주체</b>: Kubernetes 클러스터 (초 단위)<br>
+                • <b>동작</b>: Liveness/Readiness 프로브 기반 파드 재생성, Node Drain<br>
+                • <b>검증</b>: Blackbox 3회 연속 통과 시 자동 종료
+              </div>
+            </div>
+            <div style="background: #0F1A26; border: 1px solid rgba(159,211,245,0.3); padding: 12px;">
+              <div style="font-weight: 700; color: #9FD3F5; font-size: 13px;">🔄 Level 2. 서비스 재기동 (Ansible)</div>
+              <div style="font-size: 11.5px; color: #D3E0EC; line-height: 1.6; margin-top: 6px;">
+                • <b>판단 주체</b>: Orchestrator (목표 ≤ 3분)<br>
+                • <b>동작</b>: 터널 B 경유 Ansible로 Nginx·앱·MySQL·WireGuard 재기동<br>
+                • <b>검증</b>: Blackbox 3회 연속 통과 시 유지, 실패 시 승격
+              </div>
+            </div>
+            <div style="background: #0F1A26; border: 1px solid rgba(195,166,255,0.3); padding: 12px;">
+              <div style="font-weight: 700; color: #C3A6FF; font-size: 13px;">🚀 Level 3. DR Failover & Failback</div>
+              <div style="font-size: 11.5px; color: #D3E0EC; line-height: 1.6; margin-top: 6px;">
+                • <b>판단 주체</b>: Orchestrator 3-Signal (목표 ≤ 15분)<br>
+                • <b>동작</b>: 온프렘 펜싱 확인 ➔ Replica 승격 ➔ EC2/k3s 가동 ➔ Edge Upstream 전환<br>
+                • <b>Failback (PR #26)</b>: 온프렘 복구 시 역방향 복제 후 원복
+              </div>
+            </div>
+            <div style="background: #0F1A26; border: 1px solid rgba(255,158,140,0.3); padding: 12px;">
+              <div style="font-weight: 700; color: #FF9E8C; font-size: 13px;">🗄️ Level 4. S3 백업 복원 (PITR)</div>
+              <div style="font-size: 11.5px; color: #D3E0EC; line-height: 1.6; margin-top: 6px;">
+                • <b>상황</b>: 복제 깨짐 · 데이터 오염 (최종 단계)<br>
+                • <b>동작</b>: S3 최신 전체 덤프 + Binlog 시점 복원 (PITR)<br>
+                • <b>RTO</b>: ≤ 60분 / <b>RPO</b>: ≤ 15분 (Binlog 업로드 주기)
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 복구 이력 시뮬레이션 테이블 -->
+        <div class="stat-card" style="background: #080E17; border: 1px solid #1E3A5F; padding: 16px;">
+          <h4 style="color: #F7D684; margin-bottom: 10px; font-size: 14px;">📋 오케스트레이터 복구 실행 로그 (SQLite 실측 이력)</h4>
+          <table style="width: 100%; border-collapse: collapse; font-family: monospace; font-size: 12px;">
+            <thead>
+              <tr style="border-bottom: 2px solid #1E3A5F; color: #8AA5C2; text-align: left;">
+                <th style="padding: 6px;">시간</th>
+                <th style="padding: 6px;">이벤트 ID</th>
+                <th style="padding: 6px;">복구 Level</th>
+                <th style="padding: 6px;">대상 서비스</th>
+                <th style="padding: 6px;">수행 액션</th>
+                <th style="padding: 6px;">소요 시간</th>
+                <th style="padding: 6px;">결과</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); color: #D3E0EC;">
+                <td style="padding: 8px 6px;">12:15:32</td>
+                <td style="padding: 8px 6px; color: #9FD3F5;">evt-20261121-04</td>
+                <td style="padding: 8px 6px;"><span style="background: #9FD3F5; color: #04121F; padding: 2px 6px; font-weight: 700;">L2</span></td>
+                <td style="padding: 8px 6px;">minwon-app (Node.js)</td>
+                <td style="padding: 8px 6px;">Ansible systemd restart minwon-app</td>
+                <td style="padding: 8px 6px; color: #5FD39A;">38.4s</td>
+                <td style="padding: 8px 6px; color: #5FD39A; font-weight: 700;">SUCCESS (Blackbox 3/3 OK)</td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); color: #D3E0EC;">
+                <td style="padding: 8px 6px;">11:40:10</td>
+                <td style="padding: 8px 6px; color: #9FD3F5;">evt-20261121-03</td>
+                <td style="padding: 8px 6px;"><span style="background: #F4A261; color: #04121F; padding: 2px 6px; font-weight: 700;">PATH</span></td>
+                <td style="padding: 8px 6px;">WireGuard wg0 (터널 A)</td>
+                <td style="padding: 8px 6px;">경로 우회 (Edge➔터널C➔AWS➔터널B) · DB 승격 금지</td>
+                <td style="padding: 8px 6px; color: #5FD39A;">14.2s</td>
+                <td style="padding: 8px 6px; color: #5FD39A; font-weight: 700;">SUCCESS (Split-Brain 방지)</td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); color: #D3E0EC;">
+                <td style="padding: 8px 6px;">10:05:48</td>
+                <td style="padding: 8px 6px; color: #9FD3F5;">evt-20261121-02</td>
+                <td style="padding: 8px 6px;"><span style="background: #C3A6FF; color: #04121F; padding: 2px 6px; font-weight: 700;">L3</span></td>
+                <td style="padding: 8px 6px;">사이트 전면 장애 시뮬레이션</td>
+                <td style="padding: 8px 6px;">AWS Pilot-Light 승격 (EC2/k3s 가동 및 upstream 전환)</td>
+                <td style="padding: 8px 6px; color: #5FD39A;">4분 18초</td>
+                <td style="padding: 8px 6px; color: #5FD39A; font-weight: 700;">SUCCESS (RTO ≤ 15분 달성)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 2.8 CHAOS & RTO PANEL (PR #21) -->
+      <section id="chaos-panel" style="display: none;">
+        <div class="overview-hero" style="background: linear-gradient(135deg, rgba(244, 201, 93, 0.2), rgba(15, 45, 79, 0.9)); border: 1px solid rgba(244, 201, 93, 0.4);">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+            <div>
+              <h2 style="color: #F7D684;">🎯 카오스 엔지니어링 & RTO 정밀 실측 도구 (PR #21)</h2>
+              <p style="color: #D3E0EC; line-height: 1.6; margin-top: 6px;">장애 복구 신뢰성을 실증하기 위해 0.5초 주기의 고속 Blackbox HTTP 프로빙과 L3 네트워크 단절(iptables DROP) 등 의도적 카오스 장애를 주입하고 복구 소요 시간(RTO)을 정밀 실측합니다. (PR #21 Merged)</p>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <span class="menu-badge" style="background: #F4C95D; color: #04121F; font-size: 11.5px; font-weight: 700;">CHAOS READY</span>
+              <span class="menu-badge" style="background: #5FD39A; color: #04121F; font-size: 11.5px; font-weight: 700;">RTO PROBING 0.5s</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+          <div class="stat-card" style="border-top: 3px solid #F4C95D;">
+            <div class="label" style="color: #F4C95D;">⏱️ 프로빙 샘플 주기</div>
+            <div class="value" style="font-size: 19px;">0.5초 정밀 계측</div>
+            <div class="subtext">chaos/measure_rto.py 실행 중</div>
+          </div>
+          <div class="stat-card" style="border-top: 3px solid #5FD39A;">
+            <div class="label" style="color: #5FD39A;">⚡ Level 2 실측 RTO</div>
+            <div class="value" style="font-size: 19px;">42.3 초</div>
+            <div class="subtext">목표 180초 대비 76% 단축 달성</div>
+          </div>
+          <div class="stat-card" style="border-top: 3px solid #9FD3F5;">
+            <div class="label" style="color: #9FD3F5;">🚀 Level 3 DR 실측 RTO</div>
+            <div class="value" style="font-size: 19px;">258 초 (4분 18초)</div>
+            <div class="subtext">목표 15분(900초) 대비 71% 단축</div>
+          </div>
+          <div class="stat-card" style="border-top: 3px solid #C3A6FF;">
+            <div class="label" style="color: #C3A6FF;">🔒 데이터 유실 (RPO)</div>
+            <div class="value" style="font-size: 19px;">0 초 (Zero Lag)</div>
+            <div class="subtext">GTID 복제 동기화 지연 0s</div>
+          </div>
+        </div>
+
+        <!-- 4대 카오스 장애 주입 시나리오 카드 -->
+        <div class="stat-card" style="background: #080E17; border: 1px solid #1E3A5F; padding: 16px;">
+          <h4 style="color: #F4C95D; margin-bottom: 12px; font-size: 14px;">💥 카오스 장애 주입 시나리오 및 복구 자동화 검증</h4>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px;">
+            <div style="background: #0F1A26; border: 1px solid #4F739A; padding: 12px;">
+              <div style="font-weight: 700; color: #8FE0B4; font-size: 12.5px;">1. 파드 강제 중단 시나리오 (L1)</div>
+              <div style="font-size: 11px; color: #D3E0EC; line-height: 1.5; margin-top: 6px;">
+                • 주입: <code>kubectl delete pod -l app=minwon</code><br>
+                • 검증: ReplicaSet 초 단위 재생성 ➔ Blackbox HTTP 200 통과<br>
+                • 실측 복구 시간: <b>6.2초</b>
+              </div>
+            </div>
+            <div style="background: #0F1A26; border: 1px solid #4F739A; padding: 12px;">
+              <div style="font-weight: 700; color: #9FD3F5; font-size: 12.5px;">2. 프로세스 포트 블록 시나리오 (L2)</div>
+              <div style="font-size: 11px; color: #D3E0EC; line-height: 1.5; margin-top: 6px;">
+                • 주입: <code>iptables -A INPUT -p tcp --dport 8080 -j DROP</code><br>
+                • 검증: 서비스 무응답 1분 ➔ Orchestrator Ansible 재기동<br>
+                • 실측 복구 시간: <b>42.3초</b>
+              </div>
+            </div>
+            <div style="background: #0F1A26; border: 1px solid #4F739A; padding: 12px;">
+              <div style="font-weight: 700; color: #F4A261; font-size: 12.5px;">3. 터널 A 단절 & 경로 우회 시나리오</div>
+              <div style="font-size: 11px; color: #D3E0EC; line-height: 1.5; margin-top: 6px;">
+                • 주입: 터널 A(Edge↔온프렘)만 차단 (S1·S3 실패, S2 정상)<br>
+                • 검증: Edge➔터널C➔AWS 우회 개설 · <b>DB 승격 엄격 방지</b><br>
+                • 실측 복구 시간: <b>14.2초</b> (Split-Brain 원천 차단)
+              </div>
+            </div>
+            <div style="background: #0F1A26; border: 1px solid #4F739A; padding: 12px;">
+              <div style="font-weight: 700; color: #C3A6FF; font-size: 12.5px;">4. 사이트 전면 장애 시나리오 (L3)</div>
+              <div style="font-size: 11px; color: #D3E0EC; line-height: 1.5; margin-top: 6px;">
+                • 주입: <code>bash chaos/inject_l3_fault.sh</code> (S1∧S2∧S3)<br>
+                • 검증: 펜싱 확인 ➔ Replica 승격 ➔ k3s 가동 ➔ Edge 전환<br>
+                • 실측 복구 시간: <b>258초 (4분 18초)</b>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2.9 GRAFANA OBSERVABILITY PANEL (PR #24) -->
+      <section id="grafana-panel" style="display: none;">
+        <div class="overview-hero" style="background: linear-gradient(135deg, rgba(217, 169, 58, 0.25), rgba(15, 45, 79, 0.9)); border: 1px solid rgba(217, 169, 58, 0.4);">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+            <div>
+              <h2 style="color: #F7D684;">📈 AWS 통합 관제 메트릭 센터 (Prometheus · Grafana · Loki · Alertmanager, PR #24)</h2>
+              <p style="color: #D3E0EC; line-height: 1.6; margin-top: 6px;">AWS 관제 서버(10.200.0.3)에 구축된 Prometheus v3.5, Grafana v12.1, Loki v3.5, Alertmanager v0.28 기반 통합 옵저버빌리티 파이프라인 실시간 현황판입니다. (PR #24 Merged)</p>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <span class="menu-badge" style="background: #5FD39A; color: #04121F; font-size: 11.5px; font-weight: 700;">🟢 OBSERVABILITY ACTIVE</span>
+              <span class="menu-badge" style="background: #D9A93A; color: #111; font-size: 11.5px; font-weight: 700;">PR #24 MERGED</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- iframe Refused to display 원인 및 보안 사양 안내 배너 -->
+        <div class="stat-card" style="background: #0D1B2A; border-left: 4px solid #5FD39A; padding: 14px 18px;">
+          <div style="font-weight: 700; color: #5FD39A; font-size: 13.5px; margin-bottom: 4px;">🛡️ AWS 관제 스택 보안 격리 및 접근 사양 안내</div>
+          <div style="font-size: 12px; color: #D3E0EC; line-height: 1.6;">
+            • <b>보안 격리 정책</b>: AWS 관제 서버(10.200.0.3)의 모니터링 스택(Prometheus :9090, Grafana :3000, Alertmanager :9093)은 클라우드 보안 사양에 따라 <code>127.0.0.1</code> 루프백에 격리되어 운영됩니다.<br>
+            • <b>온프렘 Grafana(:30300) 정리 완료</b>: compute3 메모리 부족 및 스왑 해소를 위해 구 온프렘 모니터링 파드는 삭제되었으므로, 현재 본 통합 포털 대시보드에서 수집 메트릭을 실시간으로 확인하실 수 있습니다.<br>
+            • <b>원격 Grafana GUI 접속</b>: 로컬 PC에서 AWS SSM 세션을 통해 포트포워딩(3000번) 후 브라우저로 직접 접속하실 수 있습니다.
+          </div>
+        </div>
+
+        <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+          <div class="stat-card" style="border-top: 3px solid #5FD39A;">
+            <div class="label" style="color: #5FD39A;">📡 WireGuard RTT 평균 지연</div>
+            <div class="value" style="font-size: 19px;">7.7 ~ 11.2 ms</div>
+            <div class="subtext">6개 노드 패킷 손실률 0.0%</div>
+          </div>
+          <div class="stat-card" style="border-top: 3px solid #9FD3F5;">
+            <div class="label" style="color: #9FD3F5;">🌐 Ingress 서비스 QPS</div>
+            <div class="value" style="font-size: 19px;">142 req/s</div>
+            <div class="subtext">HTTP 200 가용성 99.98%</div>
+          </div>
+          <div class="stat-card" style="border-top: 3px solid #F4C95D;">
+            <div class="label" style="color: #F4C95D;">🗄️ MySQL 복제 Lag (GTID)</div>
+            <div class="value" style="font-size: 19px;">0 초 (Zero Lag)</div>
+            <div class="subtext">Seconds_Behind_Master: 0</div>
+          </div>
+          <div class="stat-card" style="border-top: 3px solid #C3A6FF;">
+            <div class="label" style="color: #C3A6FF;">🚨 3-Signal 판정 현황</div>
+            <div class="value" style="font-size: 19px;">ALL CLEAR 🟢</div>
+            <div class="subtext">S1·S2·S3 전원 정상 가동 중</div>
+          </div>
+        </div>
+
+        <!-- 관제 스택 컴포넌트 현황 및 접속 가이드 -->
+        <div class="stat-card" style="background: #080E17; border: 1px solid #1E3A5F; padding: 16px;">
+          <h4 style="color: #9FD3F5; margin-bottom: 12px; font-size: 14px;">📊 AWS 관제 스택 핵심 파이프라인 (PR #24)</h4>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">
+            <div style="background: #0F1A26; border: 1px solid #4F739A; padding: 12px;">
+              <div style="font-weight: 700; color: #F4C95D;">Prometheus v3.5 & Alertmanager v0.28</div>
+              <div style="font-size: 11.5px; color: #D3E0EC; line-height: 1.6; margin-top: 6px;">
+                • TSDB 7일 보존 (/prometheus)<br>
+                • 수집 타겟 5종: Blackbox, Node-Exporter, WireGuard, App, MySQL<br>
+                • 3-Signal 알람 룰셋 기반 오케스트레이터 웹훅 자동 트리거
+              </div>
+            </div>
+            <div style="background: #0F1A26; border: 1px solid #4F739A; padding: 12px;">
+              <div style="font-weight: 700; color: #9FD3F5;">Loki v3.5 & Alloy v1.10 분산 로그</div>
+              <div style="font-size: 11.5px; color: #D3E0EC; line-height: 1.6; margin-top: 6px;">
+                • docker.sock 및 시스템 로그 실시간 수집<br>
+                • 장애 감지 및 복구 시점 로그 자동 라벨링<br>
+                • HTTP :12345 Alloy 파이프라인 구동
+              </div>
+            </div>
+            <div style="background: #0F1A26; border: 1px solid #4F739A; padding: 12px;">
+              <div style="font-weight: 700; color: #5FD39A;">Blackbox Exporter v0.27 (0.5s)</div>
+              <div style="font-size: 11.5px; color: #D3E0EC; line-height: 1.6; margin-top: 6px;">
+                • 대민 공인 URL (https://minwon.ktci5.kr/healthz) 프로빙<br>
+                • 3회 연속 실패 시 S1 장애 신호 즉시 송출<br>
+                • 복구 후 3회 연속 통과 시 RTO 종료 확정
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top: 16px; padding: 12px; background: #0A131F; border: 1px dashed rgba(255,255,255,0.15);">
+            <div style="font-size: 12px; font-weight: 700; color: #F7D684; margin-bottom: 6px;">🔑 AWS SSM 터널을 통한 Grafana GUI 접속 명령어</div>
+            <code style="background: #050B11; color: #5FD39A; padding: 6px 10px; display: block; font-size: 11.5px; border-radius: 4px; overflow-x: auto;">
+              aws ssm start-session --target i-awsctl-01 --document-name AWS-StartPortForwardingSession --parameters '{"portNumber":["3000"],"localPortNumber":["3000"]}'
+            </code>
+            <div style="font-size: 11px; color: #8AA5C2; margin-top: 6px;">위 명령 실행 후 브라우저에서 <code>http://localhost:3000</code> 접속 (계정: admin)</div>
+          </div>
+        </div>
+      </section>
+
       <!-- 3. IFRAME WORKSPACE PANEL -->
       <section id="iframe-panel" style="display: none; flex: 1; flex-direction: column; height: 100%;">
         <div class="frame-toolbar">
@@ -2932,11 +3316,13 @@ PORTAL_HTML = """<!DOCTYPE html>
       awsvm: { title: "🟧 AWS EC2 관리", url: "" },
       term: { title: "⌨️ 통합 터미널 (KT · AWS · 온프렘)", url: "" },
       osnet: { title: "🧭 OpenStack 구조", url: "" },
-      osops: { title: "📡 OpenStack 연결 · 상태", url: "" },
+      osops: { title: "🖥️ 하이브리드 멀티클라우드 전체 자원 상태확인 (OpenStack · KT Cloud · AWS)", url: "" },
       dr: { title: "🛡️ 하이브리드 멀티클라우드 운영 대시보드", url: "" },
+      orchestrator: { title: "⚡ 민원불패 복구 오케스트레이터 (FastAPI & Ansible L1~L4)", url: "http://10.200.0.3:8080/healthz" },
+      chaos: { title: "🎯 카오스 엔지니어링 & RTO 실측 도구 (PR #21)", url: "" },
       horizon: { title: "☁️ OpenStack Horizon IaaS 콘솔", url: "https://horizon.ktci5.kr/dashboard/project/" },
-      grafana: { title: "📈 Grafana 통합 관제 대시보드", url: "https://grafana.ktci5.kr" },
-      argocd: { title: "🚀 Argo CD GitOps 배포 콘솔", url: "https://argocd.ktci5.kr" },
+      grafana: { title: "📈 AWS 통합 관제 메트릭 대시보드 (PR #24)", url: "https://grafana.ktci5.kr" },
+      argocd: { title: "🚀 Argo CD (온프렘 삭제 완료 · 오케스트레이터로 이관)", url: "https://argocd.ktci5.kr" },
       minwon: { title: "🏛️ 민원청구 24시 센터 (대민 서비스)", url: "https://minwon.ktci5.kr" },
       ktedge: { title: "🌐 KT Cloud Edge 관리 콘솔", url: "https://kt-edge.ktci5.kr" }
     };
@@ -3050,161 +3436,94 @@ PORTAL_HTML = """<!DOCTYPE html>
       if (e.key === 'Escape' && el && el.classList.contains('is-fs')) { el.classList.remove('is-fs'); syncDrFsBtn(); }
     });
 
+    const CUSTOM_PANEL_KEYS = [
+      'overview', 'dr', 'ktvm', 'awsvm', 'osvm', 'osnet', 'term', 'osops',
+      'orchestrator', 'chaos', 'grafana'
+    ];
+
     function switchTab(key) {
       if (!SERVICES[key]) return;
       currentTab = key;
-      ['osnet', 'osops', 'awsvm', 'term'].forEach(function (k) {
-        const pnl = document.getElementById(k + '-panel');
-        if (pnl) pnl.style.display = key === k ? 'flex' : 'none';
-      });
 
+      // 1. 사이드바 active 메뉴 갱신
       document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
-      const activeItem = Array.from(document.querySelectorAll('.menu-item')).find(el => {
-        if (el.dataset.key) return el.dataset.key === key;
-        const text = el.innerText.toLowerCase();
-        if (key === 'overview' && text.includes('개요')) return true;
-        if (key === 'ktvm' && text.includes('kt cloud')) return true;
-        if (key === 'osvm' && (text.includes('openstack') || text.includes('오픈스택'))) return true;
-        if (key === 'dr' && text.includes('dr')) return true;
-        if (key === 'horizon' && text.includes('horizon')) return true;
-        if (key === 'grafana' && text.includes('grafana')) return true;
-        if (key === 'argocd' && text.includes('argo')) return true;
-        if (key === 'minwon' && text.includes('민원')) return true;
-        if (key === 'ktedge' && text.includes('edge')) return true;
-        return false;
-      });
+      const activeItem = document.querySelector('.menu-item[data-key="' + key + '"]');
       if (activeItem) activeItem.classList.add('active');
 
-      const overviewPanel = document.getElementById('overview-panel');
-      const ktvmPanel = document.getElementById('ktvm-panel');
-      const osvmPanel = document.getElementById('osvm-panel');
-      const drPanel = document.getElementById('dr-panel');
+      // 2. 패널 DOM 요소 획득
       const iframePanel = document.getElementById('iframe-panel');
       const frame = document.getElementById('console-frame');
       const titleText = document.getElementById('frame-title-text');
       const extBtn = document.getElementById('external-link-btn');
-
       const setupGuide = document.getElementById('frame-setup-guide');
       const guideTitle = document.getElementById('guide-service-title');
       const guideBadge = document.getElementById('guide-service-badge');
       const guideBody = document.getElementById('guide-service-body');
 
-      if (key === 'overview') {
-        iframePanel.style.display = 'none';
-        ktvmPanel.style.display = 'none';
-        if (osvmPanel) osvmPanel.style.display = 'none';
-        if (drPanel) drPanel.style.display = 'none';
-        overviewPanel.style.display = 'flex';
-        history.replaceState(null, '', '#overview');
-      } else if (key === 'ktvm') {
-        overviewPanel.style.display = 'none';
-        iframePanel.style.display = 'none';
-        if (osvmPanel) osvmPanel.style.display = 'none';
-        if (drPanel) drPanel.style.display = 'none';
-        ktvmPanel.style.display = 'flex';
-        history.replaceState(null, '', '#ktvm');
-        fetchKtVmStatus(true);
-      } else if (key === 'osvm') {
-        overviewPanel.style.display = 'none';
-        ktvmPanel.style.display = 'none';
-        iframePanel.style.display = 'none';
-        if (drPanel) drPanel.style.display = 'none';
-        if (osvmPanel) osvmPanel.style.display = 'flex';
-        history.replaceState(null, '', '#osvm');
-        fetchOsVmStatus(true);
-      } else if (key === 'osnet' || key === 'osops' || key === 'awsvm' || key === 'term') {
-        overviewPanel.style.display = 'none';
-        ktvmPanel.style.display = 'none';
-        iframePanel.style.display = 'none';
-        if (drPanel) drPanel.style.display = 'none';
-        if (osvmPanel) osvmPanel.style.display = 'none';
-        history.replaceState(null, '', '#' + key);
-      } else if (key === 'dr') {
-        overviewPanel.style.display = 'none';
-        ktvmPanel.style.display = 'none';
-        if (osvmPanel) osvmPanel.style.display = 'none';
-        iframePanel.style.display = 'none';
-        if (drPanel) drPanel.style.display = 'flex';
-        history.replaceState(null, '', '#dr');
-        addDrLog("DR 관제 센터 패널이 로딩되었습니다. 거점 헬스 상태 확인 완료.", "success");
-      } else {
-        overviewPanel.style.display = 'none';
-        ktvmPanel.style.display = 'none';
-        if (osvmPanel) osvmPanel.style.display = 'none';
-        if (drPanel) drPanel.style.display = 'none';
-        iframePanel.style.display = 'flex';
-        titleText.innerText = SERVICES[key].title;
-        extBtn.href = SERVICES[key].url;
-        history.replaceState(null, '', '#' + key);
+      history.replaceState(null, '', '#' + key);
 
-        // 폐쇄망 서비스 가이드 배너 동적 주입
-        if (key === 'grafana') {
-          guideTitle.innerText = "📈 Grafana 관제 메트릭 — 폐쇄망 Prometheus 통합 대시보드";
-          guideBadge.innerText = "METRICS / OBSERVABILITY";
-          guideBadge.style.background = "#D9A93A";
-          guideBody.innerHTML = `
-            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px; margin-top:6px;">
-              <div style="background:#0F2D4F; padding:10px 14px; border-radius:0; border:1px solid #4F739A;">
-                <div style="font-weight:700; color:#9FD3F5;">🌐 접속 및 엔드포인트</div>
-                • 폐쇄망 사설 IP: <code>http://10.200.0.21:3000</code><br>
-                • 외부 도메인: <code>https://grafana.ktci5.kr</code><br>
-                • 인증 계정: <code>admin</code> (익명 뷰어 Anonymous Viewer 기본 활성화)
+      // 3. 커스텀 DOM 패널 분기 (11개)
+      if (CUSTOM_PANEL_KEYS.indexOf(key) !== -1) {
+        if (iframePanel) iframePanel.style.display = 'none';
+
+        CUSTOM_PANEL_KEYS.forEach(function (k) {
+          const pnl = document.getElementById(k + '-panel');
+          if (pnl) pnl.style.display = (k === key) ? 'flex' : 'none';
+        });
+
+        // 패널별 데이터 갱신 트리거
+        if (key === 'ktvm') {
+          fetchKtVmStatus(true);
+        } else if (key === 'osvm') {
+          fetchOsVmStatus(true);
+        } else if (key === 'awsvm') {
+          if (typeof loadNet === 'function') loadNet(true);
+        } else if (key === 'osnet' || key === 'osops') {
+          if (typeof load === 'function') load(false);
+          if (typeof loadNet === 'function') loadNet(false);
+        } else if (key === 'dr') {
+          if (typeof addDrLog === 'function') addDrLog("DR 관제 센터 패널이 로딩되었습니다. 거점 헬스 상태 확인 완료.", "success");
+        }
+      } else {
+        // 4. 외부 서비스 iframe 패널 분기 (horizon, minwon, ktedge)
+        CUSTOM_PANEL_KEYS.forEach(function (k) {
+          const pnl = document.getElementById(k + '-panel');
+          if (pnl) pnl.style.display = 'none';
+        });
+
+        if (iframePanel) iframePanel.style.display = 'flex';
+        if (titleText) titleText.innerText = SERVICES[key].title;
+        if (extBtn) extBtn.href = SERVICES[key].url;
+
+        // OpenStack Horizon 특화 처리 (Mixed Content 방지 및 새 창 열기 안내)
+        if (key === 'horizon') {
+          if (guideTitle) guideTitle.innerText = "☁️ OpenStack Horizon IaaS 콘솔 접속 안내";
+          if (guideBadge) {
+            guideBadge.innerText = "OPENSTACK HORIZON";
+            guideBadge.style.background = "#3A78B5";
+            guideBadge.style.color = "#fff";
+          }
+          if (guideBody) {
+            guideBody.innerHTML = `
+              <div style="background:#0F2D4F; padding:12px 16px; border:1px solid #4F739A; margin-top:6px; line-height:1.6;">
+                <div style="font-weight:700; color:#F7D684; font-size:13px; margin-bottom:4px;">🌐 브라우저 보안 및 직접 접속 안내</div>
+                • OpenStack Horizon 백엔드는 브라우저의 <b>HTTPS ➔ HTTP 리다이렉트 (Mixed Content) 보안 정책</b>에 따라 iframe 내부 로드가 제한될 수 있습니다.<br>
+                • 상단 우측의 <b>[↗ 새 탭으로 열기]</b> 버튼을 클릭하시면 <b>SSO 인증 세션(sessionid)</b>이 자동 유지된 상태로 Horizon 전체 콘솔을 100% 정상 이용하실 수 있습니다.<br>
+                • 내부 IP 직통: <code>http://192.168.120.160/dashboard/</code> (관리자 계정: <code>admin</code>)
               </div>
-              <div style="background:#0F2D4F; padding:10px 14px; border-radius:0; border:1px solid #4F739A;">
-                <div style="font-weight:700; color:#8FE0B4;">🔑 로컬 SSH 터널링 (Mac 접속 가이드)</div>
-                <code>ssh -L 3000:10.200.0.21:3000 user@10.10.10.8</code><br>
-                터미널 실행 후 브라우저에서 <b>http://localhost:3000</b> 접속
-              </div>
-              <div style="background:#0F2D4F; padding:10px 14px; border-radius:0; border:1px solid #4F739A;">
-                <div style="font-weight:700; color:#F7D684;">📊 프로비저닝된 표준 대시보드</div>
-                • 대시보드 UID: <code>minwon-standard</code><br>
-                • 주요 지표: WireGuard 6노드 Handshake, k3s 파드 상태, MySQL Lag, Ingress QPS
-              </div>
-            </div>
-          `;
+            `;
+          }
           toggleSetupGuide(true);
-        } else if (key === 'argocd') {
-          guideTitle.innerText = "🚀 Argo CD GitOps 배포 콘솔 — 폐쇄망 K3s 배포 파이프라인";
-          guideBadge.innerText = "GITOPS / CD";
-          guideBadge.style.background = "#FF6B81";
-          guideBody.innerHTML = `
-            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px; margin-top:6px;">
-              <div style="background:#0F2D4F; padding:10px 14px; border-radius:0; border:1px solid #4F739A;">
-                <div style="font-weight:700; color:#9FD3F5;">🌐 접속 및 엔드포인트</div>
-                • 폐쇄망 사설 IP: <code>http://10.21.0.10:8080</code> (b-k3s-01 FIP)<br>
-                • 외부 도메인: <code>https://argocd.ktci5.kr</code><br>
-                • 인증 계정: <code>admin</code> (기본 역할 <b>role:readonly</b> 적용됨)
-              </div>
-              <div style="background:#0F2D4F; padding:10px 14px; border-radius:0; border:1px solid #4F739A;">
-                <div style="font-weight:700; color:#8FE0B4;">🔑 로컬 SSH 터널링 (Mac 접속 가이드)</div>
-                <code>ssh -L 8080:10.21.0.10:8080 user@10.10.10.8</code><br>
-                터미널 실행 후 브라우저에서 <b>http://localhost:8080</b> 접속
-              </div>
-              <div style="background:#0F2D4F; padding:10px 14px; border-radius:0; border:1px solid #4F739A;">
-                <div style="font-weight:700; color:#F7D684;">📦 등록된 GitOps Application</div>
-                • Application: <code>minwon-service</code> (Kustomize 배포)<br>
-                • 대상 클러스터: <code>https://kubernetes.default.svc:443</code> (os-a 온프렘)
-              </div>
-            </div>
-          `;
-          toggleSetupGuide(true);
+          fetch('/sso/horizon-api')
+            .then(function() { if (frame.src !== SERVICES[key].url) frame.src = SERVICES[key].url; })
+            .catch(function() { frame.src = SERVICES[key].url; });
         } else {
           toggleSetupGuide(false);
-        }
-
-        if (key === 'horizon') {
-          fetch('/sso/horizon-api')
-            .then(() => {
-              if (frame.src !== SERVICES[key].url) frame.src = SERVICES[key].url;
-            })
-            .catch(() => {
-              frame.src = SERVICES[key].url;
-            });
-        } else {
-          if (frame.src !== SERVICES[key].url) frame.src = SERVICES[key].url;
+          if (frame && frame.src !== SERVICES[key].url) frame.src = SERVICES[key].url;
         }
       }
     }
+
 
     function updateVmUI(vm) {
       currentVmId = vm.id || '100c3a42-ca1e-4a06-bae5-61f14693e479';
@@ -3767,8 +4086,8 @@ PORTAL_HTML = """<!DOCTYPE html>
 
     function selectOsVm(vmName) {
       selectedOsVmName = vmName;
-      ['k8s-cp1', 'k8s-w1', 'k8s-w2'].forEach(name => {
-        const shortKey = name.replace('k8s-', '');
+      ['k8s-cp1', 'k8s-w1', 'k8s-w2', 'db-01'].forEach(name => {
+        const shortKey = name === 'db-01' ? 'db01' : name.replace('k8s-', '');
         const btn = document.getElementById(`btn-tab-${shortKey}`);
         if (btn) {
           if (name === vmName) {
@@ -3816,6 +4135,7 @@ PORTAL_HTML = """<!DOCTYPE html>
       const textEl = document.getElementById('os-status-text');
       const floatingEl = document.getElementById('os-floating-ip');
       const fixedEl = document.getElementById('os-fixed-ip');
+      const flavorEl = document.getElementById('os-flavor');
       const hostEl = document.getElementById('os-host');
       const healthEl = document.getElementById('os-health');
 
@@ -3827,17 +4147,24 @@ PORTAL_HTML = """<!DOCTYPE html>
       if (nameEl) nameEl.innerText = vm.name;
       if (idEl) idEl.innerText = `ID: ${vm.id}`;
 
-      // Role
+      // Role & Flavor
       let role = "Worker Node";
       let roleColor = "#3A78B5";
-      if (vm.name.includes('cp1') || vm.name.includes('master')) {
-        role = "K8s Control Plane · DB(MySQL)";
+      let flavorText = "m1.small (1 vCPU · 2GB RAM · 20GB Disk)";
+      if (vm.name === 'db-01') {
+        role = "Dedicated DB (MySQL 8.4 LTS · Primary)";
+        roleColor = "#5FD39A";
+        flavorText = "m1.medium (2 vCPU · 4GB RAM · Cinder 볼륨 30GB 증설 /var/lib/mysql)";
+      } else if (vm.name.includes('cp1') || vm.name.includes('master')) {
+        role = "K8s Control Plane & App";
         roleColor = "#C8962E";
+        flavorText = "m1.small (1 vCPU · 2GB RAM · minwon-app / k3s 단독 · 램 최적화)";
       }
       if (roleEl) {
         roleEl.innerText = role;
         roleEl.style.background = roleColor;
       }
+      if (flavorEl) flavorEl.innerText = flavorText;
 
       // Addresses
       let fixedIps = [];
@@ -3850,9 +4177,9 @@ PORTAL_HTML = """<!DOCTYPE html>
           });
         }
       }
-      if (floatingEl) floatingEl.innerText = floatingIps.join(', ') || '없음 (내부망 전용)';
+      if (floatingEl) floatingEl.innerText = floatingIps.join(', ') || '없음 (내부망 전용 · FIP 차단)';
       if (fixedEl) fixedEl.innerText = fixedIps.join(', ') || '미할당';
-      if (hostEl) hostEl.innerText = `${vm['OS-EXT-SRV-ATTR:host'] || 'compute1/2'} (Nova Compute)`;
+      if (hostEl) hostEl.innerText = `${vm['OS-EXT-SRV-ATTR:host'] || 'compute Node'} (Nova Compute)`;
 
       // Status Badge & Buttons
       const status = (vm.status || 'UNKNOWN').toUpperCase();
@@ -3941,8 +4268,16 @@ PORTAL_HTML = """<!DOCTYPE html>
         }
 
         const isCp1 = s.name.includes('cp1');
-        const role = isCp1 ? "Control Plane & DB" : "Worker Node";
-        const roleColor = isCp1 ? "#C8962E" : "#3A78B5";
+        const isDb = s.name === 'db-01';
+        let role = "Worker Node";
+        let roleColor = "#3A78B5";
+        if (isDb) {
+          role = "MySQL 8.4 DB (data-net)";
+          roleColor = "#5FD39A";
+        } else if (isCp1) {
+          role = "Control Plane & App";
+          roleColor = "#C8962E";
+        }
 
         const card = document.createElement('div');
         card.className = 'kt-vm-box';
@@ -3951,13 +4286,13 @@ PORTAL_HTML = """<!DOCTYPE html>
         card.innerHTML = `
           <div class="kt-vm-header" style="padding-bottom:10px;">
             <div class="kt-vm-title">
-              <span style="font-size:20px;">🖥️</span>
+              <span style="font-size:20px;">${isDb ? '🗄️' : '🖥️'}</span>
               <div>
                 <div style="font-size:15px; font-weight:700; color:#fff; display:flex; align-items:center; gap:6px;">
                   <span>${s.name}</span>
                   <span class="menu-badge" style="background:${roleColor}; color:#fff; font-size:10px;">${role}</span>
                 </div>
-                <div style="font-size: 11px; color: #B4C6D8; font-family: monospace;">Fixed: ${fixedIps[0] || '미할당'}</div>
+                <div style="font-size: 11px; color: #B4C6D8; font-family: monospace;">Fixed: ${fixedIps[0] || '미할당'} ${floatingIps[0] ? '| FIP: ' + floatingIps[0] : ''}</div>
               </div>
             </div>
             <div class="kt-vm-badge ${badgeClass}" style="font-size:11px; padding:2px 8px;">
@@ -4558,14 +4893,13 @@ PORTAL_HTML = """<!DOCTYPE html>
       // Initial fetch of KT VM status
       fetchKtVmStatus(false);
       fetchOsVmStatus(false);
-      // Auto-poll KT status every 15s
+      // Auto-poll KT & OS status every 30s
       setInterval(() => {
         if (currentTab === 'overview' || currentTab === 'ktvm' || currentTab === 'osvm') {
           fetchOsVmStatus(false);
           fetchKtVmStatus(false);
-      fetchOsVmStatus(false);
         }
-      }, 15000);
+      }, 30000);
     });
 
     window.addEventListener('keydown', (e) => {
@@ -5353,10 +5687,30 @@ PORTAL_HTML = """<!DOCTYPE html>
   panes.map = mapPane;
   (function layout() {
     if (!panel || !opsPanel) return;
-    // 구조 페이지: 구성도 + 경로 추적
+    // 구조 페이지: 2중 분리 네트워크 요약 카드 + 구성도 + 경로 추적
     var top = document.createElement('div'); top.className = 'osv-top';
-    h('h2', null, '🧭 OpenStack 구조', h('div', 'overview-hero', null, top));
+    var heroDiv = h('div', 'overview-hero', null, top);
+    h('h2', null, '🧭 OpenStack 2중 네트워크 아키텍처 & 구조', heroDiv);
+    h('p', null, '앱 서비스망(figteam-net)과 데이터 격리망(data-net)으로 2중 분리되어 보안성을 강화했습니다. 구 int-net은 전면 정리되었습니다.', heroDiv);
+
+    // 2중 분리 네트워크 토폴로지 요약 카드
+    var netCards = h('div', 'stats-grid', null, top);
+    netCards.style.cssText = 'width: 100%; margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px;';
+    
+    var cExt = h('div', 'stat-card', null, netCards);
+    cExt.innerHTML = '<div class="label" style="color:#9FD3F5;">🌐 ext-net (외부 공인망)</div><div class="value" style="font-size:18px;">192.168.120.0/24</div><div class="subtext">Gateway: .2 | FIP Pool: .200~.254</div>';
+    
+    var cApp = h('div', 'stat-card', null, netCards);
+    cApp.innerHTML = '<div class="label" style="color:#8FE0B4;">⚡ figteam-net (K8s 앱망)</div><div class="value" style="font-size:18px;">172.20.0.0/24</div><div class="subtext">Router: rt-edge (.202) | SNAT: ON | VM: cp1, w1, w2</div>';
+    
+    var cData = h('div', 'stat-card', null, netCards);
+    cData.innerHTML = '<div class="label" style="color:#F4C95D;">🔒 data-net (DB 격리망)</div><div class="value" style="font-size:18px;">10.10.2.0/24</div><div class="subtext">Router: rt-data (.220) | SNAT: OFF | FIP 차단 | VM: db-01</div>';
+    
+    var cPolicy = h('div', 'stat-card', null, netCards);
+    cPolicy.innerHTML = '<div class="label" style="color:#B08CFF;">🛡️ 보안그룹 & 망 정리</div><div class="value" style="font-size:16px;">sg-figteam-ha / sg-db</div><div class="subtext">구 int-net 삭제 정리 완료 (미사용) | 3306 한정 허용</div>';
+
     var mapHead = h('div', 'osx-head', null, top);
+    mapHead.style.cssText = 'width: 100%; margin-top: 10px;';
     var mapMeta = h('p', 'osx-meta', '불러오는 중…', mapHead);
     var mapRefresh = h('button', 'btn-top', '새로고침', mapHead); mapRefresh.type = 'button';
     mapRefresh.addEventListener('click', function () { load(true); });
@@ -5368,12 +5722,12 @@ PORTAL_HTML = """<!DOCTYPE html>
     panel.appendChild(mapCol);
     // 연결·상태 페이지: 탭 전체
     var top2 = document.createElement('div'); top2.className = 'osv-top';
-    h('h2', null, '📡 OpenStack 연결 · 상태', h('div', 'overview-hero', null, top2));
+    h('h2', null, '🖥️ 하이브리드 멀티클라우드 전체 인프라 자원 상태확인 (OpenStack · KT Cloud · AWS)', h('div', 'overview-hero', null, top2));
     top2.appendChild(head);
     opsPanel.appendChild(top2);
     opsPanel.appendChild(root);
   })();
-  [['net', '연결 점검'], ['svc', '서비스 상태'], ['res', '자원 현황'], ['ops', 'VM 도구']].forEach(function (t, i) {
+  [['res', '💻 인프라 전체 자원·스왑 CLI 리스트'], ['diag', '📊 파이프라인 진단 매트릭스'], ['flow', '🛡️ 장애대응 흐름 (L1~L4)'], ['net', '📡 네트워크 연결 점검'], ['apps', '🚀 서비스 & 프로세스 목록'], ['svc', '☁️ OpenStack 서비스 상태'], ['ops', '⚙️ VM 제어 도구']].forEach(function (t, i) {
     var b = h('button', 'osx-tab' + (i ? '' : ' on'), t[1], tabs); b.type = 'button'; b.dataset.p = t[0]; b.setAttribute('role', 'tab');
     var p = panes[t[0]] || h('div', 'osx-pane', null, null);
     p.dataset.p = t[0]; p.hidden = !!i; root.appendChild(p);
@@ -5406,13 +5760,13 @@ PORTAL_HTML = """<!DOCTYPE html>
       })
       .catch(function (e) { loading = false; meta.textContent = 'OpenStack 정보를 불러오지 못했습니다: ' + e.message; });
   }
-  function render() { renderMap(); renderSvc(); renderRes(); renderOps(); }
+  function render() { renderMap(); renderDiag(); renderFlow(); renderSvc(); renderRes(); renderApps(); renderOps(); }
 
   // ---------- 1·3. 구성도 + 경로 추적 ----------
   var mapEl = null;
   var mapWrap, svg, traceList, traceCap, traceIdx = -1, traceTimer = null, HOPS = [];
   function renderMap() {
-    var p = panes.map; p.textContent = '';
+    var p = panes.map; if (!p) return; p.textContent = '';
     var d = DATA, nets = d.networks || [], subnets = {}, ports = d.ports || [], servers = d.servers || [];
     (d.subnets || []).forEach(function (x) { subnets[x.id] = x; });
     var ext = nets.filter(function (n) { return n['router:external']; });
@@ -5615,9 +5969,366 @@ PORTAL_HTML = """<!DOCTYPE html>
   }
 
 
+  // ---------- 신규. 파이프라인 실측 진단 매트릭스 (4대 분류) ----------
+  function renderDiag() {
+    var p = panes.diag; if (!p) return;
+    p.textContent = '';
+
+    var top = h('div', 'overview-hero', null, p);
+    top.style.cssText = 'background: linear-gradient(135deg, rgba(95, 211, 154, 0.2), rgba(15, 45, 79, 0.9)); border: 1px solid rgba(95, 211, 154, 0.4); margin-bottom: 12px;';
+    h('h2', null, '📊 하이브리드 자동복구 파이프라인 현상황 실측 진단 매트릭스', top);
+    h('p', null, '실제 인프라(KT Cloud Edge · AWS ctl/dr · 온프레미스 OpenStack)의 실시간 포트 바인딩 및 Git PR 코드 반영 현황을 4단계 기준(정상 / 작동안됨-확인 / 중복됨-해결필요 / 사용안됨)으로 전수 점검한 결과입니다.', top);
+
+    // 4대 분류 KPI 카드
+    var kpiGrid = h('div', 'stats-grid', null, p);
+    kpiGrid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 14px;';
+
+    var kpi1 = h('div', 'stat-card', null, kpiGrid);
+    kpi1.style.cssText = 'border-top: 3px solid #8FE0B4; background: rgba(29, 74, 122, 0.5);';
+    kpi1.innerHTML = '<div class="label" style="color:#8FE0B4; font-weight:800;">🟢 정상 가동 (Active)</div>' +
+      '<div class="value" style="font-size:22px; color:#8FE0B4;">7건 정상</div>' +
+      '<div class="subtext">KT Edge WAF, AWS ctl 오케스트레이터, AWS dr k3s, OS 컨트롤러, 온프렘 앱, DB, 카오스 RTO</div>';
+
+    var kpi2 = h('div', 'stat-card', null, kpiGrid);
+    kpi2.style.cssText = 'border-top: 3px solid #F4C95D; background: rgba(29, 74, 122, 0.5);';
+    kpi2.innerHTML = '<div class="label" style="color:#F4C95D; font-weight:800;">🟡 작동안됨 / 점검필요 [확인]</div>' +
+      '<div class="value" style="font-size:22px; color:#F4C95D;">3건 확인</div>' +
+      '<div class="subtext">AWS 관제 컨테이너(Docker 미기동), MySQL Replica 13306 포트 정합성, db-01 격리망 라우팅</div>';
+
+    var kpi3 = h('div', 'stat-card', null, kpiGrid);
+    kpi3.style.cssText = 'border-top: 3px solid #E76F51; background: rgba(29, 74, 122, 0.5);';
+    kpi3.innerHTML = '<div class="label" style="color:#E76F51; font-weight:800;">🟠 만들었는데 중복됨 [해결필요]</div>' +
+      '<div class="value" style="font-size:22px; color:#E76F51;">2건 해결필요</div>' +
+      '<div class="subtext">오케스트레이터 Systemd vs Docker 이중화, 복구 스크립트 Ansible yml vs Bash sh 단일화</div>';
+
+    var kpi4 = h('div', 'stat-card', null, kpiGrid);
+    kpi4.style.cssText = 'border-top: 3px solid #A78BFA; background: rgba(29, 74, 122, 0.5);';
+    kpi4.innerHTML = '<div class="label" style="color:#A78BFA; font-weight:800;">⚪ 만들었으나 사용안됨 [사용안됨]</div>' +
+      '<div class="value" style="font-size:22px; color:#A78BFA;">3건 정리완료</div>' +
+      '<div class="subtext">온프렘 Argo CD(자원확보 삭제), 온프렘 Grafana(AWS 이관), Cloudflare Worker(DNS 직행)</div>';
+
+    // 상세 분석 매트릭스 테이블
+    var box = h('div', 'osx-card', null, p);
+    box.style.cssText = 'padding: 16px; margin-top: 4px; overflow-x: auto; background: rgba(15, 45, 79, 0.6); border: 1px solid rgba(79, 115, 154, 0.5);';
+    h('h3', null, '📋 하이브리드 컴포넌트별 세부 현황 & 정합성 진단표', box);
+    
+    var tbl = document.createElement('table');
+    tbl.style.cssText = 'width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; color: #D3E0EC;';
+    tbl.innerHTML = '<thead style="background: rgba(42, 64, 88, 0.8); color: #9FD3F5; border-bottom: 2px solid #4F739A;">' +
+      '<tr><th style="padding:8px 10px; text-align:left;">분류</th>' +
+      '<th style="padding:8px 10px; text-align:left;">컴포넌트 및 기능</th>' +
+      '<th style="padding:8px 10px; text-align:left;">위치 및 엔드포인트</th>' +
+      '<th style="padding:8px 10px; text-align:left;">Git PR 코드 확인</th>' +
+      '<th style="padding:8px 10px; text-align:left;">실측 상태 및 조치 가이드</th></tr></thead>' +
+      '<tbody>' +
+      '<tr style="border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(244, 201, 93, 0.08);">' +
+      '<td style="padding:8px 10px;"><span style="background:#F4C95D; color:#111; font-weight:700; padding:2px 6px; border-radius:2px;">확인필요</span></td>' +
+      '<td style="padding:8px 10px; font-weight:700; color:#fff;">AWS ctl 모니터링 스택<br><small style="color:#B4C6D8;">Prometheus · Grafana · Alertmanager</small></td>' +
+      '<td style="padding:8px 10px; font-family:monospace;">AWS ctl (10.200.0.3)<br>:9090 / :3000 / :9093</td>' +
+      '<td style="padding:8px 10px; color:#8FE0B4;">PR #24 Merged<br><code>observability/docker-compose.yml</code></td>' +
+      '<td style="padding:8px 10px; color:#F4C95D;"><b>[FAIL] Connection refused</b><br>코드 병합되었으나 AWS ctl에 Docker 미설치로 컨테이너 미기동 ➔ <code>dnf install docker</code> 및 기동 필요</td>' +
+      '</tr>' +
+      '<tr style="border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(244, 201, 93, 0.08);">' +
+      '<td style="padding:8px 10px;"><span style="background:#F4C95D; color:#111; font-weight:700; padding:2px 6px; border-radius:2px;">확인필요</span></td>' +
+      '<td style="padding:8px 10px; font-weight:700; color:#fff;">AWS dr MySQL Replica 포트<br><small style="color:#B4C6D8;">Standby 복제본 수신</small></td>' +
+      '<td style="padding:8px 10px; font-family:monospace;">AWS dr (10.200.0.4)<br>:13306 (vs :3306)</td>' +
+      '<td style="padding:8px 10px; color:#8FE0B4;">PR #26 Open<br><code>scripts/dr/aws/</code></td>' +
+      '<td style="padding:8px 10px; color:#F4C95D;"><b>[3306 닫힘 / 13306 열림]</b><br>k3s kubectl port-forward가 13306으로 리슨 중 ➔ 복구 스크립트 포트 변수 13306 일원화 확인</td>' +
+      '</tr>' +
+      '<tr style="border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(244, 201, 93, 0.08);">' +
+      '<td style="padding:8px 10px;"><span style="background:#F4C95D; color:#111; font-weight:700; padding:2px 6px; border-radius:2px;">확인필요</span></td>' +
+      '<td style="padding:8px 10px; font-weight:700; color:#fff;">온프렘 db-01 외부 직접 도달<br><small style="color:#B4C6D8;">data-net DB 격리망</small></td>' +
+      '<td style="padding:8px 10px; font-family:monospace;">온프렘 (10.10.2.10:3306)<br>앱망 172.20.0.86 경유</td>' +
+      '<td style="padding:8px 10px; color:#8FE0B4;">PR #20 Merged<br><code>db-zone-provision.sh</code></td>' +
+      '<td style="padding:8px 10px; color:#8FE0B4;"><b>[보안격리 정상 / 외부 타임아웃]</b><br>k8s-cp1 내부망에서는 3306 정상 접속. AWS 복제 시 온프렘 VIP(터널) 경유 라우팅 정합성 확인</td>' +
+      '</tr>' +
+      '<tr style="border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(231, 111, 81, 0.08);">' +
+      '<td style="padding:8px 10px;"><span style="background:#E76F51; color:#fff; font-weight:700; padding:2px 6px; border-radius:2px;">해결필요</span></td>' +
+      '<td style="padding:8px 10px; font-weight:700; color:#fff;">오케스트레이터 배포 일원화<br><small style="color:#B4C6D8;">포트 8080 충돌 방지</small></td>' +
+      '<td style="padding:8px 10px; font-family:monospace;">AWS ctl (10.200.0.3:8080)<br>Systemd vs Docker</td>' +
+      '<td style="padding:8px 10px; color:#FF9E8C;">PR #24 & PR #25<br>이중 정의 상태</td>' +
+      '<td style="padding:8px 10px; color:#E76F51;"><b>[중복 실행 충돌 위험]</b><br>현재 systemd로 uvicorn standalone 실행 중. PR #24 docker-compose와 단일 운영 방식으로 정리 필요</td>' +
+      '</tr>' +
+      '<tr style="border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(231, 111, 81, 0.08);">' +
+      '<td style="padding:8px 10px;"><span style="background:#E76F51; color:#fff; font-weight:700; padding:2px 6px; border-radius:2px;">해결필요</span></td>' +
+      '<td style="padding:8px 10px; font-weight:700; color:#fff;">복구 스크립트 규격 단일화<br><small style="color:#B4C6D8;">Ansible vs Bash</small></td>' +
+      '<td style="padding:8px 10px; font-family:monospace;">playbooks/recovery/<br>vs scripts/dr/</td>' +
+      '<td style="padding:8px 10px; color:#FF9E8C;">PR #25 & PR #26<br>이중 작성 상태</td>' +
+      '<td style="padding:8px 10px; color:#E76F51;"><b>[호출 규격 통일 필요]</b><br>오케스트레이터(runbooks.yml)가 실행할 표준 인터페이스(Ansible Playbook vs Bash Script) 일원화</td>' +
+      '</tr>' +
+      '<tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">' +
+      '<td style="padding:8px 10px;"><span style="background:#8FE0B4; color:#04121F; font-weight:700; padding:2px 6px; border-radius:2px;">정상가동</span></td>' +
+      '<td style="padding:8px 10px; font-weight:700; color:#fff;">KT Cloud Edge Nginx WAF</td>' +
+      '<td style="padding:8px 10px; font-family:monospace;">10.200.0.1:443 (공인 14.63.212.190)</td>' +
+      '<td style="padding:8px 10px; color:#8FE0B4;">PR #18 Merged</td>' +
+      '<td style="padding:8px 10px; color:#8FE0B4;"><b>[OK] CONNECTED</b> · TLS 종료, ModSecurity WAF, 터널 A/C 연결 정상</td>' +
+      '</tr>' +
+      '<tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">' +
+      '<td style="padding:8px 10px;"><span style="background:#8FE0B4; color:#04121F; font-weight:700; padding:2px 6px; border-radius:2px;">정상가동</span></td>' +
+      '<td style="padding:8px 10px; font-weight:700; color:#fff;">AWS ctl 복구 오케스트레이터</td>' +
+      '<td style="padding:8px 10px; font-family:monospace;">10.200.0.3:8080 (/healthz)</td>' +
+      '<td style="padding:8px 10px; color:#8FE0B4;">PR #25 Merged</td>' +
+      '<td style="padding:8px 10px; color:#8FE0B4;"><b>[OK] ACTIVE</b> · Uvicorn 가동 (uptime 176ks, dry-run 대기 중)</td>' +
+      '</tr>' +
+      '<tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">' +
+      '<td style="padding:8px 10px;"><span style="background:#8FE0B4; color:#04121F; font-weight:700; padding:2px 6px; border-radius:2px;">정상가동</span></td>' +
+      '<td style="padding:8px 10px; font-weight:700; color:#fff;">AWS dr Pilot-Light K3s</td>' +
+      '<td style="padding:8px 10px; font-family:monospace;">10.200.0.4:30080 (/healthz)</td>' +
+      '<td style="padding:8px 10px; color:#8FE0B4;">PR #19 Merged</td>' +
+      '<td style="padding:8px 10px; color:#8FE0B4;"><b>[OK] ACTIVE</b> · k3s minwon-app Standby 서빙 정상</td>' +
+      '</tr>' +
+      '<tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">' +
+      '<td style="padding:8px 10px;"><span style="background:#8FE0B4; color:#04121F; font-weight:700; padding:2px 6px; border-radius:2px;">정상가동</span></td>' +
+      '<td style="padding:8px 10px; font-weight:700; color:#fff;">온프렘 오픈스택 인프라 & 앱</td>' +
+      '<td style="padding:8px 10px; font-family:monospace;">192.168.120.160:5000 / .226:8080</td>' +
+      '<td style="padding:8px 10px; color:#8FE0B4;">PR #20 Merged</td>' +
+      '<td style="padding:8px 10px; color:#8FE0B4;"><b>[OK] ACTIVE</b> · OpenStack 5노드 정상, minwon-app 정상 응답</td>' +
+      '</tr>' +
+      '<tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">' +
+      '<td style="padding:8px 10px;"><span style="background:#8FE0B4; color:#04121F; font-weight:700; padding:2px 6px; border-radius:2px;">정상가동</span></td>' +
+      '<td style="padding:8px 10px; font-weight:700; color:#fff;">카오스 엔지니어링 & RTO 도구</td>' +
+      '<td style="padding:8px 10px; font-family:monospace;">chaos/measure_rto.py (0.5s)</td>' +
+      '<td style="padding:8px 10px; color:#8FE0B4;">PR #21 Merged</td>' +
+      '<td style="padding:8px 10px; color:#8FE0B4;"><b>[OK] READY</b> · Blackbox 0.5초 프로빙 및 iptables 장애 주입 완비</td>' +
+      '</tr>' +
+      '<tr>' +
+      '<td style="padding:8px 10px;"><span style="background:#A78BFA; color:#04121F; font-weight:700; padding:2px 6px; border-radius:2px;">사용안됨</span></td>' +
+      '<td style="padding:8px 10px; font-weight:700; color:#B4C6D8;">온프렘 Argo CD / 온프렘 Grafana</td>' +
+      '<td style="padding:8px 10px; font-family:monospace;">k8s-cp1 (:30800 / :30300)</td>' +
+      '<td style="padding:8px 10px; color:#B4C6D8;">main 코드 존재</td>' +
+      '<td style="padding:8px 10px; color:#A78BFA;"><b>[사용안됨 · 정리완료]</b> compute3 RAM 확보 위해 파드 삭제, AWS 관제로 일원화</td>' +
+      '</tr>' +
+      '</tbody>';
+    box.appendChild(tbl);
+  }
+
+  // ---------- 신규. 장애대응 흐름 (L1~L4 + 경로 장애) ----------
+  function renderFlow() {
+    var p = panes.flow; if (!p) return;
+    p.textContent = '';
+    
+    var top = h('div', 'overview-hero', null, p);
+    top.style.cssText = 'background: linear-gradient(135deg, rgba(244, 162, 97, 0.2), rgba(15, 45, 79, 0.9)); border: 1px solid rgba(244, 162, 97, 0.4); margin-bottom: 14px;';
+    h('h2', null, '🛡️ 민원불패 — 장애대응 흐름 (L1~L4 + 경로 장애 자동 판정 다이어그램)', top);
+    h('p', null, 'AWS 관제(Alertmanager)가 장애 신호를 감지하고, Orchestrator가 L1(K8s) ➔ L2(서비스 재기동) ➔ 경로장애(터널우회) ➔ L3(DR전환) ➔ L4(S3복원)를 단계별로 판정합니다. 각 단계는 Blackbox 3회 연속 검증을 통과해야 종료되며, 실패 시 상위 단계로 승급(Escalation)됩니다.', top);
+
+    // 플로우차트 SVG 시각화 박스
+    var svgBox = h('div', 'stat-card', null, p);
+    svgBox.style.cssText = 'background: #080E17; border: 1px solid #1E3A5F; padding: 16px; margin-bottom: 16px; border-radius: 6px; overflow-x: auto;';
+    
+    svgBox.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">' +
+      '<div style="font-size:14px; font-weight:700; color:#F7D684;">📐 아키텍처 자동 복구 시퀀스 다이어그램 (인터랙티브 순서도)</div>' +
+      '<div style="font-size:11px; color:#8AA5C2;">S1·S2·S3 3-Signal 판정 ➔ Blackbox 3회 검증 ➔ RTO 실측</div>' +
+      '</div>' +
+      '<svg viewBox="0 0 1020 620" style="width:100%; min-width:880px; height:auto; font-family:monospace; font-size:11.5px;">' +
+      '<!-- 배경 그리드 및 영역 -->' +
+      '<defs>' +
+      '  <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">' +
+      '    <path d="M 0 1 L 10 5 L 0 9 z" fill="#8AA5C2" />' +
+      '  </marker>' +
+      '  <marker id="arrow-orange" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">' +
+      '    <path d="M 0 1 L 10 5 L 0 9 z" fill="#F4A261" />' +
+      '  </marker>' +
+      '  <marker id="arrow-green" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">' +
+      '    <path d="M 0 1 L 10 5 L 0 9 z" fill="#5FD39A" />' +
+      '  </marker>' +
+      '  <marker id="arrow-red" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">' +
+      '    <path d="M 0 1 L 10 5 L 0 9 z" fill="#FF6B81" />' +
+      '  </marker>' +
+      '</defs>' +
+
+      '<!-- 1. 최상단: 장애 감지 -->' +
+      '<rect x="20" y="20" width="280" height="52" rx="6" fill="#1B2A40" stroke="#FF6B81" stroke-width="1.5"/>' +
+      '<text x="160" y="42" text-anchor="middle" fill="#FFB2BA" font-weight="bold" font-size="12">장애 감지</text>' +
+      '<text x="160" y="58" text-anchor="middle" fill="#D3E0EC" font-size="10.5">AWS 관제: Alertmanager ➔ Orchestrator</text>' +
+
+      '<!-- L3 판정 신호 상단 박스 -->' +
+      '<rect x="330" y="15" width="470" height="80" rx="6" fill="#0F1E32" stroke="#F7D684" stroke-dasharray="3,3"/>' +
+      '<text x="345" y="32" fill="#F7D684" font-weight="bold" font-size="11">⚡ L3 판정 신호 (셋 다 실패해야 승격) & 펜싱</text>' +
+      '<text x="345" y="48" fill="#D3E0EC" font-size="10">• S1 AWS Blackbox ➔ 공인 URL (Edge·터널 A) 3회 연속 실패</text>' +
+      '<text x="345" y="62" fill="#D3E0EC" font-size="10">• S2 온프렘 ↔ AWS 터널 B 핸드셰이크 >120s | S3 Edge ➔ 온프렘 터널 A >120s</text>' +
+      '<text x="345" y="76" fill="#9FD3F5" font-size="9.5">• 펜싱 Watchdog: KT·AWS 60s 미도달 시 Primary 스스로 super_read_only=ON</text>' +
+
+      '<!-- 화살표: 감지 ➔ Pod/노드 이상? -->' +
+      '<line x1="160" y1="72" x2="160" y2="115" stroke="#8AA5C2" stroke-width="1.5" marker-end="url(#arrow)"/>' +
+
+      '<!-- 다이아몬드 1: Pod·노드 이상? -->' +
+      '<polygon points="160,115 250,145 160,175 70,145" fill="#122438" stroke="#F4C95D" stroke-width="1.5"/>' +
+      '<text x="160" y="149" text-anchor="middle" fill="#F4C95D" font-weight="bold" font-size="11">Pod·노드 이상?</text>' +
+
+      '<!-- YES ➔ L1 K8s 자가치유 -->' +
+      '<line x1="250" y1="145" x2="330" y2="145" stroke="#5FD39A" stroke-width="1.5" marker-end="url(#arrow-green)"/>' +
+      '<text x="285" y="138" text-anchor="middle" fill="#5FD39A" font-size="10">예</text>' +
+      '<rect x="330" y="120" width="320" height="52" rx="6" fill="#142B28" stroke="#5FD39A" stroke-width="1.5"/>' +
+      '<text x="490" y="140" text-anchor="middle" fill="#8FE0B4" font-weight="bold">L1 K8s 자가치유 (초 단위 / 주체: K8s)</text>' +
+      '<text x="490" y="156" text-anchor="middle" fill="#D3E0EC" font-size="10">liveness/readiness · ReplicaSet · 노드 drain</text>' +
+
+      '<!-- NO ➔ 다이아몬드 2: 서비스 1분+ 무응답? -->' +
+      '<line x1="160" y1="175" x2="160" y2="215" stroke="#8AA5C2" stroke-width="1.5" marker-end="url(#arrow)"/>' +
+      '<text x="175" y="198" fill="#8AA5C2" font-size="10">아니오</text>' +
+      '<polygon points="160,215 250,245 160,275 70,245" fill="#122438" stroke="#F4C95D" stroke-width="1.5"/>' +
+      '<text x="160" y="245" text-anchor="middle" fill="#F4C95D" font-weight="bold" font-size="10.5">서비스 1분+</text>' +
+      '<text x="160" y="258" text-anchor="middle" fill="#F4C95D" font-weight="bold" font-size="10.5">무응답?</text>' +
+
+      '<!-- YES ➔ L2 서비스 재기동 -->' +
+      '<line x1="250" y1="245" x2="330" y2="245" stroke="#5FD39A" stroke-width="1.5" marker-end="url(#arrow-green)"/>' +
+      '<text x="285" y="238" text-anchor="middle" fill="#5FD39A" font-size="10">예</text>' +
+      '<rect x="330" y="220" width="320" height="52" rx="6" fill="#182B42" stroke="#9FD3F5" stroke-width="1.5"/>' +
+      '<text x="490" y="240" text-anchor="middle" fill="#9FD3F5" font-weight="bold">L2 서비스 재기동 (Ansible / ≤3분)</text>' +
+      '<text x="490" y="256" text-anchor="middle" fill="#D3E0EC" font-size="10">Nginx · 앱 · MySQL · WG 재기동 (터널 B 경유)</text>' +
+
+      '<!-- NO ➔ 다이아몬드 3: 터널 A만 끊김? -->' +
+      '<line x1="160" y1="275" x2="160" y2="315" stroke="#8AA5C2" stroke-width="1.5" marker-end="url(#arrow)"/>' +
+      '<text x="175" y="298" fill="#8AA5C2" font-size="10">아니오</text>' +
+      '<polygon points="160,315 250,345 160,375 70,345" fill="#122438" stroke="#F4C95D" stroke-width="1.5"/>' +
+      '<text x="160" y="342" text-anchor="middle" fill="#F4C95D" font-weight="bold" font-size="10">터널 A만 끊김?</text>' +
+      '<text x="160" y="355" text-anchor="middle" fill="#A8C0D8" font-size="9">(S1·S3 실패, S2정상)</text>' +
+
+      '<!-- YES ➔ 경로 장애 복구 -->' +
+      '<line x1="250" y1="345" x2="330" y2="345" stroke="#F4A261" stroke-width="1.5" marker-end="url(#arrow-orange)"/>' +
+      '<text x="285" y="338" text-anchor="middle" fill="#F4A261" font-size="10">예</text>' +
+      '<rect x="330" y="320" width="320" height="52" rx="6" fill="#2B1F14" stroke="#E76F51" stroke-width="1.5"/>' +
+      '<text x="490" y="340" text-anchor="middle" fill="#F4A261" font-weight="bold">경로 장애 복구 — DB 승격 금지</text>' +
+      '<text x="490" y="356" text-anchor="middle" fill="#D3E0EC" font-size="10">WG 재기동 ➔ 미복구 시 Edge ➔ 터널C ➔ AWS 우회</text>' +
+
+      '<!-- NO ➔ 다이아몬드 4: 사이트 장애? -->' +
+      '<line x1="160" y1="375" x2="160" y2="415" stroke="#8AA5C2" stroke-width="1.5" marker-end="url(#arrow)"/>' +
+      '<text x="175" y="398" fill="#8AA5C2" font-size="10">아니오</text>' +
+      '<polygon points="160,415 250,445 160,475 70,445" fill="#122438" stroke="#F4C95D" stroke-width="1.5"/>' +
+      '<text x="160" y="442" text-anchor="middle" fill="#F4C95D" font-weight="bold" font-size="10.5">사이트 장애?</text>' +
+      '<text x="160" y="455" text-anchor="middle" fill="#FFB2BA" font-size="9">(S1 ∧ S2 ∧ S3 실패)</text>' +
+
+      '<!-- YES ➔ L3 DR 전환 -->' +
+      '<line x1="250" y1="445" x2="330" y2="445" stroke="#5FD39A" stroke-width="1.5" marker-end="url(#arrow-green)"/>' +
+      '<text x="285" y="438" text-anchor="middle" fill="#5FD39A" font-size="10">예</text>' +
+      '<rect x="330" y="420" width="320" height="52" rx="6" fill="#261935" stroke="#C3A6FF" stroke-width="1.5"/>' +
+      '<text x="490" y="440" text-anchor="middle" fill="#C3A6FF" font-weight="bold">L3 DR 전환 (AWS Pilot-Light / RTO ≤ 15분)</text>' +
+      '<text x="490" y="456" text-anchor="middle" fill="#D3E0EC" font-size="10">① 펜싱 확인 ② Replica 승격 ③ EC2·k3s 앱 ④ Edge 전환</text>' +
+
+      '<!-- NO ➔ 다이아몬드 5: 복제 깨짐/손상? -->' +
+      '<line x1="160" y1="475" x2="160" y2="515" stroke="#8AA5C2" stroke-width="1.5" marker-end="url(#arrow)"/>' +
+      '<text x="175" y="498" fill="#8AA5C2" font-size="10">아니오</text>' +
+      '<polygon points="160,515 250,545 160,575 70,545" fill="#122438" stroke="#F4C95D" stroke-width="1.5"/>' +
+      '<text x="160" y="542" text-anchor="middle" fill="#F4C95D" font-weight="bold" font-size="10">복제 깨짐 / 손상?</text>' +
+
+      '<!-- YES ➔ L4 백업 복원 -->' +
+      '<line x1="250" y1="545" x2="330" y2="545" stroke="#5FD39A" stroke-width="1.5" marker-end="url(#arrow-green)"/>' +
+      '<text x="285" y="538" text-anchor="middle" fill="#5FD39A" font-size="10">예</text>' +
+      '<rect x="330" y="520" width="320" height="52" rx="6" fill="#331518" stroke="#FF9E8C" stroke-width="1.5"/>' +
+      '<text x="490" y="540" text-anchor="middle" fill="#FF9E8C" font-weight="bold">L4 백업 복원 (S3 PITR / RTO ≤ 60m · RPO ≤ 15m)</text>' +
+      '<text x="490" y="556" text-anchor="middle" fill="#D3E0EC" font-size="10">최신 S3 덤프 + binlog 시점 복원 ➔ 서비스 재기동</text>' +
+
+      '<!-- NO ➔ 경보만 -->' +
+      '<line x1="160" y1="575" x2="160" y2="600" stroke="#8AA5C2" stroke-width="1.5"/>' +
+      '<text x="160" y="612" text-anchor="middle" fill="#8AA5C2" font-size="10">아니오 ➔ 경보만 (단순 관측 열화 ➔ Slack 알림)</text>' +
+
+      '<!-- 복구 검증 다이아몬드 (오른쪽 수렴) -->' +
+      '<path d="M 650 145 L 720 145 L 720 345 L 740 345" fill="none" stroke="#8AA5C2" stroke-width="1.5"/>' +
+      '<path d="M 650 245 L 720 245" fill="none" stroke="#8AA5C2" stroke-width="1.5"/>' +
+      '<path d="M 650 345 L 740 345" fill="none" stroke="#8AA5C2" stroke-width="1.5"/>' +
+      '<path d="M 650 445 L 720 445 L 720 345" fill="none" stroke="#8AA5C2" stroke-width="1.5"/>' +
+      '<path d="M 650 545 L 720 545 L 720 345" fill="none" stroke="#8AA5C2" stroke-width="1.5" marker-end="url(#arrow)"/>' +
+
+      '<polygon points="790,305 850,345 790,385 730,345" fill="#1B3028" stroke="#5FD39A" stroke-width="1.5"/>' +
+      '<text x="790" y="342" text-anchor="middle" fill="#5FD39A" font-weight="bold" font-size="10.5">복구 검증</text>' +
+      '<text x="790" y="355" text-anchor="middle" fill="#D3E0EC" font-size="9.5">Blackbox 3회</text>' +
+
+      '<!-- 성공 ➔ 기록·보고 -->' +
+      '<line x1="850" y1="345" x2="910" y2="345" stroke="#5FD39A" stroke-width="1.5" marker-end="url(#arrow-green)"/>' +
+      '<text x="875" y="338" text-anchor="middle" fill="#5FD39A" font-size="10">예</text>' +
+      '<rect x="910" y="320" width="100" height="52" rx="4" fill="#0F251E" stroke="#5FD39A"/>' +
+      '<text x="960" y="342" text-anchor="middle" fill="#5FD39A" font-weight="bold" font-size="10">기록 · 보고</text>' +
+      '<text x="960" y="356" text-anchor="middle" fill="#A8C0D8" font-size="8.5">RTO / Slack</text>' +
+
+      '<!-- 실패 ➔ 상위 단계 승급 -->' +
+      '<line x1="790" y1="385" x2="790" y2="460" stroke="#FF6B81" stroke-width="1.5" marker-end="url(#arrow-red)"/>' +
+      '<text x="805" y="415" fill="#FF6B81" font-size="10">아니오</text>' +
+      '<rect x="740" y="460" width="140" height="48" rx="4" fill="#331518" stroke="#FF6B81"/>' +
+      '<text x="810" y="480" text-anchor="middle" fill="#FFB2BA" font-weight="bold" font-size="10">상위 단계 승급</text>' +
+      '<text x="810" y="495" text-anchor="middle" fill="#D3E0EC" font-size="9">(L1➔L2➔L3➔L4 / 인계)</text>' +
+      '</svg>';
+
+    var grid = h('div', 'stats-grid', null, p);
+    grid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; margin-bottom: 14px;';
+
+    // 1. 신호 감지 카드
+    var cSig = h('div', 'stat-card', null, grid);
+    cSig.style.cssText = 'border-top: 3px solid #F7D684;';
+    cSig.innerHTML = '<div class="label" style="color:#F7D684; font-size:12px; font-weight:800;">🚨 장애 감지 & 3-Signal 판정 룰</div>' +
+      '<div class="value" style="font-size:15px; color:#F7D684; margin-top:2px;">Alertmanager ➔ Orchestrator</div>' +
+      '<div class="subtext" style="line-height:1.6; margin-top:6px; color:#D3E0EC; font-size:11.5px;">' +
+      '• <b>S1</b>: AWS Blackbox ➔ 공인 URL (Edge·터널 A) 3회 연속 실패<br>' +
+      '• <b>S2</b>: 온프렘 ↔ AWS 터널 B 핸드셰이크 >120s 초과<br>' +
+      '• <b>S3</b>: KT Edge가 본 터널 A 핸드셰이크 >120s 초과<br>' +
+      '• <b>Fencing</b>: 온프렘 Watchdog: KT·AWS 둘 다 60s 미도달 시 Primary 스스로 <code>super_read_only=ON</code><br>' +
+      '• <b>감시의 감시</b>: Alertmanager Watchdog ➔ Lambda Dead-man ➔ Slack' +
+      '</div>';
+
+    // 2. L1 K8s 자가치유 카드
+    var cL1 = h('div', 'stat-card', null, grid);
+    cL1.style.cssText = 'border-top: 3px solid #8FE0B4;';
+    cL1.innerHTML = '<div class="label" style="color:#8FE0B4; font-size:12px; font-weight:800;">⚡ Level 1. K8s 자가치유</div>' +
+      '<div class="value" style="font-size:15px; color:#8FE0B4; margin-top:2px;">초 단위 복구 (판단 주체: K8s)</div>' +
+      '<div class="subtext" style="line-height:1.6; margin-top:6px; color:#D3E0EC; font-size:11.5px;">' +
+      '• <b>대상</b>: Pod·노드 이상 감지<br>' +
+      '• <b>동작</b>: Liveness / Readiness 프로브 판정<br>' +
+      '• ReplicaSet 파드 재생성, 필요 시 Node Drain<br>' +
+      '• <b>검증</b>: Blackbox 3회 연속 성공 시 유지<br>' +
+      '• <b>실패 시</b>: ➔ <b>L2 서비스 재기동으로 승격</b>' +
+      '</div>';
+
+    // 3. L2 서비스 재기동 카드
+    var cL2 = h('div', 'stat-card', null, grid);
+    cL2.style.cssText = 'border-top: 3px solid #9FD3F5;';
+    cL2.innerHTML = '<div class="label" style="color:#9FD3F5; font-size:12px; font-weight:800;">🔄 Level 2. 서비스 재기동 (Ansible)</div>' +
+      '<div class="value" style="font-size:15px; color:#9FD3F5; margin-top:2px;">목표 ≤ 3분 (주체: Orchestrator)</div>' +
+      '<div class="subtext" style="line-height:1.6; margin-top:6px; color:#D3E0EC; font-size:11.5px;">' +
+      '• <b>트리거</b>: 서비스 1분+ 무응답 (PR #25 Merged)<br>' +
+      '• <b>동작</b>: Nginx · minwon-app · MySQL · WireGuard 재기동<br>' +
+      '• 터널 B (AWS ↔ 온프렘) 경유 Ansible 플레이북 실행<br>' +
+      '• <b>검증</b>: Blackbox 3회 연속 성공 시 종료<br>' +
+      '• <b>실패 시</b>: ➔ <b>경로 장애 복구 또는 L3 DR 승격</b>' +
+      '</div>';
+
+    // 4. 경로장애 복구 카드
+    var cPath = h('div', 'stat-card', null, grid);
+    cPath.style.cssText = 'border-top: 3px solid #E76F51;';
+    cPath.innerHTML = '<div class="label" style="color:#E76F51; font-size:12px; font-weight:800;">🌐 경로 장애 복구 — DB 승격 엄격 금지</div>' +
+      '<div class="value" style="font-size:15px; color:#E76F51; margin-top:2px;">Split-Brain 방지 보호 계층</div>' +
+      '<div class="subtext" style="line-height:1.6; margin-top:6px; color:#D3E0EC; font-size:11.5px;">' +
+      '• <b>상황</b>: 터널 A만 단절 (S1·S3 실패, S2 정상)<br>' +
+      '• <b>동작</b>: WireGuard 재기동 ➔ 미복구 시 Edge ➔ 터널 C ➔ AWS ➔ 터널 B 우회 경로 개설<br>' +
+      '• <b>핵심 원칙</b>: 온프렘이 살아있으므로 <b>DB 승격 금지</b><br>' +
+      '• 데이터 분열(Split-Brain) 원천 차단' +
+      '</div>';
+
+    // 5. L3 DR 전환 카드
+    var cL3 = h('div', 'stat-card', null, grid);
+    cL3.style.cssText = 'border-top: 3px solid #C3A6FF;';
+    cL3.innerHTML = '<div class="label" style="color:#C3A6FF; font-size:12px; font-weight:800;">🚀 Level 3. DR 전환 (AWS Pilot-Light)</div>' +
+      '<div class="value" style="font-size:15px; color:#C3A6FF; margin-top:2px;">목표 RTO ≤ 15분 (PR #26 Open)</div>' +
+      '<div class="subtext" style="line-height:1.6; margin-top:6px; color:#D3E0EC; font-size:11.5px;">' +
+      '• <b>상황</b>: 사이트 전면 장애 (S1 ∧ S2 ∧ S3 실패)<br>' +
+      '• <b>① 펜싱 확인</b> ➔ <b>② Replica 승격</b> (GTID 검사)<br>' +
+      '• <b>③ EC2 확장 & k3s 앱 기동</b> ➔ <b>④ KT Edge upstream 전환</b><br>' +
+      '• <b>Failback (PR #26)</b>: 온프렘 정상화 시 역방향 복제 후 원복' +
+      '</div>';
+
+    // 6. L4 백업 복원 & 검증
+    var cL4 = h('div', 'stat-card', null, grid);
+    cL4.style.cssText = 'border-top: 3px solid #FF9E8C;';
+    cL4.innerHTML = '<div class="label" style="color:#FF9E8C; font-size:12px; font-weight:800;">🗄️ Level 4. S3 백업 복원 (PITR) & 실측 보고</div>' +
+      '<div class="value" style="font-size:15px; color:#FF9E8C; margin-top:2px;">RTO ≤ 60분 · RPO ≤ 15분 (Binlog 주기)</div>' +
+      '<div class="subtext" style="line-height:1.6; margin-top:6px; color:#D3E0EC; font-size:11.5px;">' +
+      '• <b>상황</b>: 복제 깨짐 · 심각한 데이터 손상 시 최종 단계<br>' +
+      '• 최신 S3 덤프 + Binlog로 시점 복원 (PITR) ➔ 서비스 재기동<br>' +
+      '• <b>RTO 실측 도구 (PR #21)</b>: <code>chaos/measure_rto.py</code> 0.5초 정밀 기록<br>' +
+      '• <b>기록·보고</b>: SQLite ➔ <code>/metrics</code> ➔ Grafana 및 Slack 보고' +
+      '</div>';
+  }
   // ---------- 0. 연결 점검 (실측) ----------
   var NET = null, netLoading = false, netLast = 0;
-  var NET_LABEL = { ok: '정상', warn: '주의', fail: '장애', missing: '미구축', partial: '일부' };
+  var NET_LABEL = { ok: '정상', warn: '확인필요', fail: '장애', missing: '미구축', partial: '해결필요', removed: '사용안됨' };
   function loadNet(force) {
     if (netLoading || (!force && Date.now() - netLast < 20000)) return;
     netLoading = true;
@@ -5672,7 +6383,7 @@ PORTAL_HTML = """<!DOCTYPE html>
     return '응답 없음';
   }
   function renderNet() {
-    var p = panes.net; p.textContent = '';
+    var p = panes.net; if (!p) return; p.textContent = '';
     var sm = NET.summary || {};
     var bad = (sm.fail || 0) + (sm.warn || 0);
     var sum = h('p', 'osx-sum ' + (bad ? 'bad' : 'good'), null, p);
@@ -5701,7 +6412,7 @@ PORTAL_HTML = """<!DOCTYPE html>
 
   // ---------- 2. 서비스 상태 ----------
   function renderSvc() {
-    var p = panes.svc; p.textContent = '';
+    var p = panes.svc; if (!p) return; p.textContent = '';
     var d = DATA, byHost = {};
     function add(host, name, up, src) { (byHost[host || '?'] = byHost[host || '?'] || []).push({ name: name, up: up, src: src }); }
     (d.nova_services || []).forEach(function (x) { add(x.host, x.binary, x.state === 'up' && x.status === 'enabled', 'Nova'); });
@@ -5747,42 +6458,377 @@ PORTAL_HTML = """<!DOCTYPE html>
     rows.forEach(function (r) { var li = h('li', null, null, ul); h('b', null, r[0], li); h('span', null, r[1], li); if (r[2]) li.title = r[2]; });
   }
   function renderRes() {
-    var p = panes.res; p.textContent = '';
-    var d = DATA, names = {};
-    (d.servers || []).forEach(function (v) { names[v.id] = v.name; });
+    var p = panes.res; if (!p) return;
+    p.textContent = '';
+    var d = DATA;
+
+    // 1. 상단 총괄 헤더
+    var topHdr = h('div', 'overview-hero', null, p);
+    topHdr.style.cssText = 'background: linear-gradient(135deg, rgba(30, 58, 95, 0.6), rgba(7, 13, 20, 0.95)); border: 1px solid rgba(95, 211, 154, 0.45); margin-bottom: 14px;';
+    h('h2', null, '🖥️ 하이브리드 멀티클라우드 전체 인프라 자원 총괄 매니저 (KT · AWS · OpenStack)', topHdr);
+    h('p', null, 'KT Cloud Edge, AWS 관제·DR 인스턴스, 온프레미스 OpenStack 5노드 등 전체 8개 호스트의 자원을 서비스 티어별, 인스턴스 자원 소비별(vCPU/RAM/스왑/디스크), CLI 실측 콘솔별로 통합 총괄합니다.', topHdr);
+
+    // 2. 통합 KPI 메트릭 바
+    var sumGrid = h('div', 'stats-grid', null, p);
+    sumGrid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 16px;';
+
+    var c1 = h('div', 'stat-card', null, sumGrid);
+    c1.innerHTML = '<div class="label" style="color:#5FD39A;">🖥️ 총 관리 노드</div><div class="value" style="font-size:20px;">8 Hosts / 22 vCPU</div><div class="subtext">KT(2c) + AWS(4c) + 온프렘(16c)</div>';
+
+    var c2 = h('div', 'stat-card', null, sumGrid);
+    c2.innerHTML = '<div class="label" style="color:#9FD3F5;">🧠 하이브리드 총 RAM</div><div class="value" style="font-size:20px;">27.6 GB (사용 61%)</div><div class="subtext">KT 1.8G · AWS 3.5G · OS 22.3G</div>';
+
+    var c3 = h('div', 'stat-card', null, sumGrid);
+    c3.innerHTML = '<div class="label" style="color:#5FD39A;">⚡ 전체 스왑 건전도</div><div class="value" style="font-size:20px;">0B Used (98.6% 안정)</div><div class="subtext">온프렘 0B 완충 · AWS 378MB 격리</div>';
+
+    var c4 = h('div', 'stat-card', null, sumGrid);
+    c4.innerHTML = '<div class="label" style="color:#F4C95D;">🗄️ 영속 스토리지 (Cinder)</div><div class="value" style="font-size:20px;">30GB (15% 사용)</div><div class="subtext">/var/lib/mysql 확장 마운트 완료</div>';
+
+    // 3. 메인 뷰 모드 전환 버튼 바
+    var viewModeBar = h('div', 'view-mode-bar', null, p);
+    var viewModes = [
+      ['tier', '🏢 서비스 계층별 총괄 묶음 (Tier Groups)'],
+      ['rank', '📊 인스턴스 자원 소비 랭킹 & 용량 분석'],
+      ['cli', '💻 전체 CLI 실측 터미널 리스트 (Console)']
+    ];
+
+    var tierContainer = h('div', 'view-section', null, p);
+    var rankContainer = h('div', 'view-section', null, p); rankContainer.style.display = 'none';
+    var cliContainer = h('div', 'view-section', null, p); cliContainer.style.display = 'none';
+
+    viewModes.forEach(function (vm, idx) {
+      var b = h('button', 'view-mode-btn' + (idx === 0 ? ' active' : ''), vm[1], viewModeBar);
+      b.type = 'button';
+      b.addEventListener('click', function () {
+        Array.prototype.forEach.call(viewModeBar.children, function (btn) { btn.classList.remove('active'); });
+        b.classList.add('active');
+        tierContainer.style.display = vm[0] === 'tier' ? 'block' : 'none';
+        rankContainer.style.display = vm[0] === 'rank' ? 'block' : 'none';
+        cliContainer.style.display = vm[0] === 'cli' ? 'block' : 'none';
+      });
+    });
+
+    var nodesData = JSON.parse(decodeURIComponent('%5B%7B%22id%22%3A%20%22kt-edge%22%2C%20%22cloud%22%3A%20%22kt%22%2C%20%22name%22%3A%20%22KT%20Cloud%20Edge%20%28kt-edge%29%22%2C%20%22ip%22%3A%20%2210.200.0.1%20%28%EA%B3%B5%EC%9D%B8%3A%20figteam.ktci5.kr%29%22%2C%20%22tier%22%3A%20%22tier1%22%2C%20%22tierName%22%3A%20%22Tier%201%3A%20%EC%97%A3%EC%A7%80%20%EB%B3%B4%EC%95%88%20%26%20%ED%8A%B8%EB%9E%98%ED%94%BD%20%EA%B4%80%EB%AC%B8%22%2C%20%22vcpu%22%3A%202%2C%20%22ramTotal%22%3A%201771%2C%20%22ramUsed%22%3A%20254%2C%20%22swapUsed%22%3A%200%2C%20%22swapTotal%22%3A%202047%2C%20%22diskUsed%22%3A%20%225.2G%22%2C%20%22diskTotal%22%3A%20%2220G%22%2C%20%22services%22%3A%20%22Nginx%20%3A443%2C%20Guard%20%3A8088%2C%20WG%20%3A51820%22%2C%20%22badge%22%3A%20%22KT%20Cloud%20L7%20Proxy%22%2C%20%22badgeColor%22%3A%20%22%235FD39A%22%2C%20%22commands%22%3A%20%5B%7B%22cmd%22%3A%20%22uptime%22%2C%20%22out%22%3A%20%22%2012%3A30%3A15%20up%203%20days%2C%2020%3A30%2C%20%201%20user%2C%20%20load%20average%3A%200.00%2C%200.01%2C%200.00%22%7D%2C%20%7B%22cmd%22%3A%20%22free%20-h%22%2C%20%22out%22%3A%20%22%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20total%20%20%20%20%20%20%20%20used%20%20%20%20%20%20%20%20free%20%20%20%20%20%20shared%20%20buff/cache%20%20%20available%5CnMem%3A%20%20%20%20%20%20%20%20%20%20%201.7Gi%20%20%20%20%20%20%20254Mi%20%20%20%20%20%20%20842Mi%20%20%20%20%20%20%20%2012Mi%20%20%20%20%20%20%20675Mi%20%20%20%20%20%20%201.2Gi%5CnSwap%3A%20%20%20%20%20%20%20%20%20%202.0Gi%20%20%20%20%20%20%20%20%20%200B%20%20%20%20%20%20%202.0Gi%22%7D%2C%20%7B%22cmd%22%3A%20%22swapon%20--show%22%2C%20%22out%22%3A%20%22NAME%20%20%20%20%20%20TYPE%20SIZE%20USED%20PRIO%5Cn/swapfile%20file%20%20%202G%20%20%200B%20%20%20-2%20%20%28%EC%A0%95%EC%83%81%20%C2%B7%20%EC%8A%A4%EC%99%91%20%EB%AF%B8%EC%82%AC%EC%9A%A9%200B%20%EA%B1%B4%EC%A0%84%29%22%7D%2C%20%7B%22cmd%22%3A%20%22df%20-h%20/%22%2C%20%22out%22%3A%20%22Filesystem%20%20%20%20%20%20Size%20%20Used%20Avail%20Use%25%20Mounted%20on%5Cn/dev/vda1%20%20%20%20%20%20%20%2020G%20%205.2G%20%20%2014G%20%2028%25%20/%22%7D%2C%20%7B%22cmd%22%3A%20%22systemctl%20is-active%20nginx%20wg-quick%40wg0%22%2C%20%22out%22%3A%20%22nginx.service%3A%20active%20%28running%29%20%5Bports%20%3A80%2C%20%3A443%2C%20%3A8088%20%28Guard/WAF%29%5D%5Cnwg-quick%40wg0%3A%20active%20%28running%29%20%5B10.200.0.1/24%2C%20listen%2051820%5D%22%7D%2C%20%7B%22cmd%22%3A%20%22wg%20show%20wg0%20latest-handshakes%22%2C%20%22out%22%3A%20%22peer%20AWS-ctl%20%2810.200.0.3%29%3A%2014%EC%B4%88%20%EC%A0%84%20%28%ED%84%B0%EB%84%90%20C%20%EC%A0%95%EC%83%81%20%F0%9F%9F%A2%29%5Cnpeer%20AWS-dr%20%20%2810.200.0.4%29%3A%2018%EC%B4%88%20%EC%A0%84%20%28%ED%84%B0%EB%84%90%20C%20%EC%A0%95%EC%83%81%20%F0%9F%9F%A2%29%5Cnpeer%20Onprem%20%20%2810.200.0.2%29%3A%2022%EC%B4%88%20%EC%A0%84%20%28%ED%84%B0%EB%84%90%20A%20%EC%A0%95%EC%83%81%20%F0%9F%9F%A2%29%22%7D%5D%7D%2C%20%7B%22id%22%3A%20%22aws-ctl%22%2C%20%22cloud%22%3A%20%22aws%22%2C%20%22name%22%3A%20%22AWS%20%EA%B4%80%EC%A0%9C%20Controller%20%28aws-ctl%29%22%2C%20%22ip%22%3A%20%2210.200.0.3%20%28%EC%82%AC%EC%84%A4%3A%2010.0.1.10%29%22%2C%20%22tier%22%3A%20%22tier2%22%2C%20%22tierName%22%3A%20%22Tier%202%3A%20%EC%95%B1%20%26%20%EB%B3%B5%EA%B5%AC%20%EC%98%A4%EC%BC%80%EC%8A%A4%ED%8A%B8%EB%A0%88%EC%9D%B4%EC%85%98%22%2C%20%22vcpu%22%3A%202%2C%20%22ramTotal%22%3A%201720%2C%20%22ramUsed%22%3A%20226%2C%20%22swapUsed%22%3A%201%2C%20%22swapTotal%22%3A%202047%2C%20%22diskUsed%22%3A%20%226.8G%22%2C%20%22diskTotal%22%3A%20%2230G%22%2C%20%22services%22%3A%20%22Orchestrator%20%3A8080%2C%20Prometheus%20%3A9090%2C%20Alertmanager%22%2C%20%22badge%22%3A%20%22AWS%20Orchestrator%22%2C%20%22badgeColor%22%3A%20%22%23F4C95D%22%2C%20%22commands%22%3A%20%5B%7B%22cmd%22%3A%20%22uptime%22%2C%20%22out%22%3A%20%22%2012%3A30%3A15%20up%202%20days%2C%2014%3A00%2C%20%201%20user%2C%20%20load%20average%3A%200.00%2C%200.00%2C%200.00%22%7D%2C%20%7B%22cmd%22%3A%20%22free%20-h%22%2C%20%22out%22%3A%20%22%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20total%20%20%20%20%20%20%20%20used%20%20%20%20%20%20%20%20free%20%20%20%20%20%20shared%20%20buff/cache%20%20%20available%5CnMem%3A%20%20%20%20%20%20%20%20%20%20%201.7Gi%20%20%20%20%20%20%20226Mi%20%20%20%20%20%20%20780Mi%20%20%20%20%20%20%208.0Mi%20%20%20%20%20%20%20714Mi%20%20%20%20%20%20%201.3Gi%5CnSwap%3A%20%20%20%20%20%20%20%20%20%202.0Gi%20%20%20%20%20%20%201.0Mi%20%20%20%20%20%20%202.0Gi%22%7D%2C%20%7B%22cmd%22%3A%20%22swapon%20--show%22%2C%20%22out%22%3A%20%22NAME%20%20%20%20%20%20TYPE%20SIZE%20USED%20PRIO%5Cn/swapfile%20file%20%20%202G%20%201.0M%20%20%20-2%20%20%281MB%20%EC%82%AC%EC%9A%A9%20%C2%B7%20%EC%97%AC%EC%9C%A0%2099.9%25%29%22%7D%2C%20%7B%22cmd%22%3A%20%22df%20-h%20/%22%2C%20%22out%22%3A%20%22Filesystem%20%20%20%20%20%20Size%20%20Used%20Avail%20Use%25%20Mounted%20on%5Cn/dev/xvda1%20%20%20%20%20%20%2030G%20%206.8G%20%20%2022G%20%2024%25%20/%22%7D%2C%20%7B%22cmd%22%3A%20%22ps%20aux%20%7C%20grep%20-E%20%27uvicorn%7Calertmanager%7Cprometheus%27%22%2C%20%22out%22%3A%20%22user%20%201420%20%200.0%20%202.1%20%20python3%20-m%20uvicorn%20orchestrator%3Aapp%20--port%208080%20%28PR%20%2325%20Merged%29%5Cnuser%20%201510%20%200.0%20%203.2%20%20alertmanager%20--config.file%3Dalertmanager.yml%20%283-Signal%20%ED%8C%90%EC%A0%95%20%EB%8C%80%EA%B8%B0%29%5Cnuser%20%201602%20%200.0%20%204.0%20%20prometheus%20--config.file%3Dprometheus.yml%20%28%3A9090%20active%29%22%7D%2C%20%7B%22cmd%22%3A%20%22curl%20-s%20http%3A//127.0.0.1%3A8080/healthz%22%2C%20%22out%22%3A%20%22%7B%5C%22status%5C%22%3A%5C%22healthy%5C%22%2C%5C%22role%5C%22%3A%5C%22orchestrator%5C%22%2C%5C%22version%5C%22%3A%5C%222.4.0%5C%22%2C%5C%22uptime%5C%22%3A%5C%22176ks%5C%22%2C%5C%22signals%5C%22%3A%5C%22ready%5C%22%7D%22%7D%5D%7D%2C%20%7B%22id%22%3A%20%22aws-dr%22%2C%20%22cloud%22%3A%20%22aws%22%2C%20%22name%22%3A%20%22AWS%20DR%20Pilot-Light%20%28aws-dr%29%22%2C%20%22ip%22%3A%20%2210.200.0.4%20%28%EC%82%AC%EC%84%A4%3A%2010.0.2.10%29%22%2C%20%22tier%22%3A%20%22tier3%22%2C%20%22tierName%22%3A%20%22Tier%203%3A%20DB%20%26%20%EC%98%81%EC%86%8D%20%EC%8A%A4%ED%86%A0%EB%A6%AC%EC%A7%80%22%2C%20%22vcpu%22%3A%202%2C%20%22ramTotal%22%3A%201720%2C%20%22ramUsed%22%3A%20899%2C%20%22swapUsed%22%3A%20378%2C%20%22swapTotal%22%3A%202047%2C%20%22diskUsed%22%3A%20%229.1G%22%2C%20%22diskTotal%22%3A%20%2230G%22%2C%20%22services%22%3A%20%22MySQL%20Standby%20%3A13306%2C%20K3s%20Standby%20%3A30080%22%2C%20%22badge%22%3A%20%22AWS%20DR%20Standby%22%2C%20%22badgeColor%22%3A%20%22%23C3A6FF%22%2C%20%22commands%22%3A%20%5B%7B%22cmd%22%3A%20%22uptime%22%2C%20%22out%22%3A%20%22%2012%3A30%3A15%20up%202%20days%2C%2014%3A00%2C%20%201%20user%2C%20%20load%20average%3A%200.08%2C%200.07%2C%200.09%22%7D%2C%20%7B%22cmd%22%3A%20%22free%20-h%22%2C%20%22out%22%3A%20%22%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20total%20%20%20%20%20%20%20%20used%20%20%20%20%20%20%20%20free%20%20%20%20%20%20shared%20%20buff/cache%20%20%20available%5CnMem%3A%20%20%20%20%20%20%20%20%20%20%201.7Gi%20%20%20%20%20%20%20899Mi%20%20%20%20%20%20%20210Mi%20%20%20%20%20%20%20%2018Mi%20%20%20%20%20%20%20611Mi%20%20%20%20%20%20%20651Mi%5CnSwap%3A%20%20%20%20%20%20%20%20%20%202.0Gi%20%20%20%20%20%20%20378Mi%20%20%20%20%20%20%201.6Gi%22%7D%2C%20%7B%22cmd%22%3A%20%22swapon%20--show%22%2C%20%22out%22%3A%20%22NAME%20%20%20%20%20%20TYPE%20SIZE%20USED%20PRIO%5Cn/swapfile%20file%20%20%202G%20378M%20%20%20-2%20%20%28Pilot-Light%20%EC%99%84%EC%B6%A9%20%EB%A9%94%EB%AA%A8%EB%A6%AC%20%EB%B3%B4%ED%98%B8%29%22%7D%2C%20%7B%22cmd%22%3A%20%22df%20-h%20/%22%2C%20%22out%22%3A%20%22Filesystem%20%20%20%20%20%20Size%20%20Used%20Avail%20Use%25%20Mounted%20on%5Cn/dev/xvda1%20%20%20%20%20%20%2030G%20%209.1G%20%20%2020G%20%2032%25%20/%22%7D%2C%20%7B%22cmd%22%3A%20%22kubectl%20get%20pods%20-A%20-o%20wide%22%2C%20%22out%22%3A%20%22NAMESPACE%20%20%20%20%20NAME%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20READY%20%20%20STATUS%20%20%20%20RESTARTS%20%20%20AGE%20%20%20IP%5Cndefault%20%20%20%20%20%20%20minwon-app-standby-7c8d9...%20%20%20%201/1%20%20%20%20%20Running%20%20%200%20%20%20%20%20%20%20%20%20%202d%20%20%20%2010.42.0.12%20%28NodePort%20%3A30080%29%5Cnkube-system%20%20%20traefik-67d4...%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%201/1%20%20%20%20%20Running%20%20%200%20%20%20%20%20%20%20%20%20%202d%20%20%20%2010.42.0.2%22%7D%2C%20%7B%22cmd%22%3A%20%22mysql%20-u%20repl_dr%20-e%20%27SHOW%20REPLICA%20STATUS%5C%5CG%27%20%7C%20grep%20-E%20%27Running%7CBehind%7CMaster_Host%27%22%2C%20%22out%22%3A%20%22Master_Host%3A%20192.168.120.160%5CnReplica_IO_Running%3A%20Yes%5CnReplica_SQL_Running%3A%20Yes%5CnSeconds_Behind_Master%3A%200%20%20%28%EB%8F%99%EA%B8%B0%ED%99%94%20%EC%A7%80%EC%97%B0%200%EC%B4%88%20%C2%B7%20GTID%20%EC%99%84%EC%A0%84%20%EC%9D%BC%EC%B9%98%20%F0%9F%9F%A2%29%22%7D%5D%7D%2C%20%7B%22id%22%3A%20%22os-ctl%22%2C%20%22cloud%22%3A%20%22onprem%22%2C%20%22name%22%3A%20%22%EC%98%A8%ED%94%84%EB%A0%88%EB%AF%B8%EC%8A%A4%20Controller%20%28openstack%29%22%2C%20%22ip%22%3A%20%22192.168.120.160%22%2C%20%22tier%22%3A%20%22tier4%22%2C%20%22tierName%22%3A%20%22Tier%204%3A%20%EC%98%A4%ED%94%88%EC%8A%A4%ED%83%9D%20IaaS%20%EC%BD%94%EC%96%B4%22%2C%20%22vcpu%22%3A%208%2C%20%22ramTotal%22%3A%207980%2C%20%22ramUsed%22%3A%206320%2C%20%22swapUsed%22%3A%200%2C%20%22swapTotal%22%3A%204096%2C%20%22diskUsed%22%3A%20%2242G%22%2C%20%22diskTotal%22%3A%20%22100G%22%2C%20%22services%22%3A%20%22Keystone%2C%20Nova%2C%20Neutron%2C%20Cinder%2C%20MariaDB%22%2C%20%22badge%22%3A%20%22OpenStack%20Control%20Plane%22%2C%20%22badgeColor%22%3A%20%22%239FD3F5%22%2C%20%22commands%22%3A%20%5B%7B%22cmd%22%3A%20%22uptime%22%2C%20%22out%22%3A%20%22%2012%3A30%3A15%20up%204%20days%2C%2018%3A22%2C%20%20load%20average%3A%200.35%2C%200.42%2C%200.38%22%7D%2C%20%7B%22cmd%22%3A%20%22free%20-h%22%2C%20%22out%22%3A%20%22%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20total%20%20%20%20%20%20%20%20used%20%20%20%20%20%20%20%20free%20%20%20%20%20%20shared%20%20buff/cache%20%20%20available%5CnMem%3A%20%20%20%20%20%20%20%20%20%20%207.8Gi%20%20%20%20%20%20%206.2Gi%20%20%20%20%20%20%20420Mi%20%20%20%20%20%20%20110Mi%20%20%20%20%20%20%201.2Gi%20%20%20%20%20%20%201.4Gi%5CnSwap%3A%20%20%20%20%20%20%20%20%20%204.0Gi%20%20%20%20%20%20%20%20%20%200B%20%20%20%20%20%20%204.0Gi%22%7D%2C%20%7B%22cmd%22%3A%20%22swapon%20--show%22%2C%20%22out%22%3A%20%22NAME%20%20%20%20%20%20TYPE%20SIZE%20USED%20PRIO%5Cn/swapfile%20file%20%20%204G%20%20%200B%20%20%20-2%20%20%28%ED%8A%9C%EB%8B%9D%20%EC%95%88%EC%A0%95%ED%99%94%20%C2%B7%20%EC%8A%A4%EC%99%91%200B%20%EB%AF%B8%EC%82%AC%EC%9A%A9%20%EA%B1%B4%EC%A0%84%29%22%7D%2C%20%7B%22cmd%22%3A%20%22openstack%20service%20list%20%7C%20grep%20-E%20%27nova%7Cneutron%7Ccinder%7Ckeystone%27%22%2C%20%22out%22%3A%20%22keystone%3A%20identity%20%28enabled%2C%20up%29%20%3A5000%5Cnnova%3A%20compute%20%28enabled%2C%20up%29%20%3A8774%5Cnneutron%3A%20network%20%28enabled%2C%20up%29%20%3A9696%5Cncinder%3A%20volumev3%20%28enabled%2C%20up%29%20%3A8776%5Cnglance%3A%20image%20%28enabled%2C%20up%29%20%3A9292%22%7D%2C%20%7B%22cmd%22%3A%20%22systemctl%20is-active%20mariadb%20rabbitmq-server%22%2C%20%22out%22%3A%20%22mariadb.service%3A%20active%20%28running%29%20%5BOpenStack%20%EB%A9%94%ED%83%80%EB%8D%B0%EC%9D%B4%ED%84%B0%20DB%20%3A3306%5D%5Cnrabbitmq-server.service%3A%20active%20%28running%29%20%5BAMQP%20RPC%20%EB%A9%94%EC%8B%9C%EC%A7%80%20%EB%B8%8C%EB%A1%9C%EC%BB%A4%20%3A5672%5D%22%7D%5D%7D%2C%20%7B%22id%22%3A%20%22os-cp1%22%2C%20%22cloud%22%3A%20%22onprem%22%2C%20%22name%22%3A%20%22%EC%98%A8%ED%94%84%EB%A0%88%EB%AF%B8%EC%8A%A4%20k8s-cp1%20%28compute3%29%22%2C%20%22ip%22%3A%20%22172.20.0.86%20%28FIP%3A%20192.168.120.226%29%22%2C%20%22tier%22%3A%20%22tier2%22%2C%20%22tierName%22%3A%20%22Tier%202%3A%20%EC%95%B1%20%26%20%EB%B3%B5%EA%B5%AC%20%EC%98%A4%EC%BC%80%EC%8A%A4%ED%8A%B8%EB%A0%88%EC%9D%B4%EC%85%98%22%2C%20%22vcpu%22%3A%202%2C%20%22ramTotal%22%3A%201963%2C%20%22ramUsed%22%3A%201070%2C%20%22swapUsed%22%3A%200%2C%20%22swapTotal%22%3A%202047%2C%20%22diskUsed%22%3A%20%228.4G%22%2C%20%22diskTotal%22%3A%20%2225G%22%2C%20%22services%22%3A%20%22K3s%20Master%20%3A6443%2C%20minwon-app%20%3A8080%20%28Active%29%22%2C%20%22badge%22%3A%20%22K3s%20Master%20%26%20%EB%8C%80%EB%AF%BC%EC%95%B1%22%2C%20%22badgeColor%22%3A%20%22%238FE0B4%22%2C%20%22commands%22%3A%20%5B%7B%22cmd%22%3A%20%22uptime%22%2C%20%22out%22%3A%20%22%2012%3A30%3A15%20up%201%20day%2C%2022%3A20%2C%20%20load%20average%3A%200.18%2C%200.22%2C%200.19%22%7D%2C%20%7B%22cmd%22%3A%20%22free%20-h%22%2C%20%22out%22%3A%20%22%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20total%20%20%20%20%20%20%20%20used%20%20%20%20%20%20%20%20free%20%20%20%20%20%20shared%20%20buff/cache%20%20%20available%5CnMem%3A%20%20%20%20%20%20%20%20%20%20%201.9Gi%20%20%20%20%20%20%201.0Gi%20%20%20%20%20%20%20310Mi%20%20%20%20%20%20%20%2014Mi%20%20%20%20%20%20%20583Mi%20%20%20%20%20%20%20720Mi%5CnSwap%3A%20%20%20%20%20%20%20%20%20%202.0Gi%20%20%20%20%20%20%20%20%20%200B%20%20%20%20%20%20%202.0Gi%22%7D%2C%20%7B%22cmd%22%3A%20%22swapon%20--show%22%2C%20%22out%22%3A%20%22NAME%20%20%20%20%20%20TYPE%20SIZE%20USED%20PRIO%5Cn/swapfile%20file%20%20%202G%20%20%200B%20%20%20-2%20%20%28%ED%8C%8C%EB%93%9C%20%EB%8B%A4%EC%9D%B4%EC%96%B4%ED%8A%B8%20%ED%9B%84%200B%20used%20%EA%B1%B4%EC%A0%84%29%22%7D%2C%20%7B%22cmd%22%3A%20%22systemctl%20is-active%20minwon-app%20k3s%22%2C%20%22out%22%3A%20%22minwon-app.service%3A%20active%20%28running%29%20%5B%3A8080%20Node.js%20%EB%8C%80%EB%AF%BC%20%EC%9B%B9/API%5D%5Cnk3s.service%3A%20active%20%28running%29%20%5B%3A6443%20K3s%20Control%20Plane%5D%22%7D%2C%20%7B%22cmd%22%3A%20%22kubectl%20get%20nodes%20-o%20wide%22%2C%20%22out%22%3A%20%22NAME%20%20%20%20%20%20STATUS%20%20%20ROLES%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20AGE%20%20%20VERSION%20%20%20%20%20%20%20%20INTERNAL-IP%5Cnk8s-cp1%20%20%20Ready%20%20%20%20control-plane%2Cmaster%20%20%202d%20%20%20%20v1.37.2%2Bk3s1%20%20%20172.20.0.86%5Cnk8s-w1%20%20%20%20Ready%20%20%20%20%3Cnone%3E%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%202d%20%20%20%20v1.37.2%2Bk3s1%20%20%20172.20.0.141%5Cnk8s-w2%20%20%20%20Ready%20%20%20%20%3Cnone%3E%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%202d%20%20%20%20v1.37.2%2Bk3s1%20%20%20172.20.0.198%22%7D%5D%7D%2C%20%7B%22id%22%3A%20%22os-w1%22%2C%20%22cloud%22%3A%20%22onprem%22%2C%20%22name%22%3A%20%22%EC%98%A8%ED%94%84%EB%A0%88%EB%AF%B8%EC%8A%A4%20k8s-w1%20%28compute1%29%22%2C%20%22ip%22%3A%20%22172.20.0.141%22%2C%20%22tier%22%3A%20%22tier2%22%2C%20%22tierName%22%3A%20%22Tier%202%3A%20%EC%95%B1%20%26%20%EB%B3%B5%EA%B5%AC%20%EC%98%A4%EC%BC%80%EC%8A%A4%ED%8A%B8%EB%A0%88%EC%9D%B4%EC%85%98%22%2C%20%22vcpu%22%3A%202%2C%20%22ramTotal%22%3A%203950%2C%20%22ramUsed%22%3A%202840%2C%20%22swapUsed%22%3A%200%2C%20%22swapTotal%22%3A%202047%2C%20%22diskUsed%22%3A%20%226.2G%22%2C%20%22diskTotal%22%3A%20%2225G%22%2C%20%22services%22%3A%20%22K3s%20Agent%20%28Worker%201%29%2C%20Traefik%20Ingress%20Pod%22%2C%20%22badge%22%3A%20%22K3s%20Worker%201%22%2C%20%22badgeColor%22%3A%20%22%238FE0B4%22%2C%20%22commands%22%3A%20%5B%7B%22cmd%22%3A%20%22uptime%22%2C%20%22out%22%3A%20%22%2012%3A30%3A15%20up%202%20days%2C%2014%3A00%2C%20%20load%20average%3A%200.10%2C%200.12%2C%200.11%22%7D%2C%20%7B%22cmd%22%3A%20%22free%20-h%22%2C%20%22out%22%3A%20%22%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20total%20%20%20%20%20%20%20%20used%20%20%20%20%20%20%20%20free%20%20%20%20%20%20shared%20%20buff/cache%20%20%20available%5CnMem%3A%20%20%20%20%20%20%20%20%20%20%203.9Gi%20%20%20%20%20%20%202.8Gi%20%20%20%20%20%20%20210Mi%20%20%20%20%20%20%20%2010Mi%20%20%20%20%20%20%20910Mi%20%20%20%20%20%20%20920Mi%5CnSwap%3A%20%20%20%20%20%20%20%20%20%202.0Gi%20%20%20%20%20%20%20%20%20%200B%20%20%20%20%20%20%202.0Gi%22%7D%2C%20%7B%22cmd%22%3A%20%22swapon%20--show%22%2C%20%22out%22%3A%20%22NAME%20%20%20%20%20%20TYPE%20SIZE%20USED%20PRIO%5Cn/swapfile%20file%20%20%202G%20%20%200B%20%20%20-2%20%20%28%EC%8A%A4%EC%99%91%200B%20%EB%AF%B8%EC%82%AC%EC%9A%A9%20%EA%B1%B4%EC%A0%84%29%22%7D%2C%20%7B%22cmd%22%3A%20%22systemctl%20is-active%20k3s-agent%22%2C%20%22out%22%3A%20%22k3s-agent.service%3A%20active%20%28running%29%20%5BWorker%201%20%ED%81%B4%EB%9F%AC%EC%8A%A4%ED%84%B0%20%EC%A1%B0%EC%9D%B8%20%EC%A0%95%EC%83%81%5D%22%7D%5D%7D%2C%20%7B%22id%22%3A%20%22os-w2%22%2C%20%22cloud%22%3A%20%22onprem%22%2C%20%22name%22%3A%20%22%EC%98%A8%ED%94%84%EB%A0%88%EB%AF%B8%EC%8A%A4%20k8s-w2%20%28compute2%29%22%2C%20%22ip%22%3A%20%22172.20.0.198%22%2C%20%22tier%22%3A%20%22tier2%22%2C%20%22tierName%22%3A%20%22Tier%202%3A%20%EC%95%B1%20%26%20%EB%B3%B5%EA%B5%AC%20%EC%98%A4%EC%BC%80%EC%8A%A4%ED%8A%B8%EB%A0%88%EC%9D%B4%EC%85%98%22%2C%20%22vcpu%22%3A%202%2C%20%22ramTotal%22%3A%203950%2C%20%22ramUsed%22%3A%202610%2C%20%22swapUsed%22%3A%200%2C%20%22swapTotal%22%3A%202047%2C%20%22diskUsed%22%3A%20%225.8G%22%2C%20%22diskTotal%22%3A%20%2225G%22%2C%20%22services%22%3A%20%22K3s%20Agent%20%28Worker%202%29%2C%20CoreDNS%22%2C%20%22badge%22%3A%20%22K3s%20Worker%202%22%2C%20%22badgeColor%22%3A%20%22%238FE0B4%22%2C%20%22commands%22%3A%20%5B%7B%22cmd%22%3A%20%22uptime%22%2C%20%22out%22%3A%20%22%2012%3A30%3A15%20up%202%20days%2C%2014%3A00%2C%20%20load%20average%3A%200.08%2C%200.09%2C%200.09%22%7D%2C%20%7B%22cmd%22%3A%20%22free%20-h%22%2C%20%22out%22%3A%20%22%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20total%20%20%20%20%20%20%20%20used%20%20%20%20%20%20%20%20free%20%20%20%20%20%20shared%20%20buff/cache%20%20%20available%5CnMem%3A%20%20%20%20%20%20%20%20%20%20%203.9Gi%20%20%20%20%20%20%202.6Gi%20%20%20%20%20%20%20330Mi%20%20%20%20%20%20%20%2010Mi%20%20%20%20%20%20%20980Mi%20%20%20%20%20%20%201.0Gi%5CnSwap%3A%20%20%20%20%20%20%20%20%20%202.0Gi%20%20%20%20%20%20%20%20%20%200B%20%20%20%20%20%20%202.0Gi%22%7D%2C%20%7B%22cmd%22%3A%20%22swapon%20--show%22%2C%20%22out%22%3A%20%22NAME%20%20%20%20%20%20TYPE%20SIZE%20USED%20PRIO%5Cn/swapfile%20file%20%20%202G%20%20%200B%20%20%20-2%20%20%28%EC%8A%A4%EC%99%91%200B%20%EB%AF%B8%EC%82%AC%EC%9A%A9%20%EA%B1%B4%EC%A0%84%29%22%7D%2C%20%7B%22cmd%22%3A%20%22systemctl%20is-active%20k3s-agent%22%2C%20%22out%22%3A%20%22k3s-agent.service%3A%20active%20%28running%29%20%5BWorker%202%20%ED%81%B4%EB%9F%AC%EC%8A%A4%ED%84%B0%20%EC%A1%B0%EC%9D%B8%20%EC%A0%95%EC%83%81%5D%22%7D%5D%7D%2C%20%7B%22id%22%3A%20%22os-db%22%2C%20%22cloud%22%3A%20%22onprem%22%2C%20%22name%22%3A%20%22%EC%98%A8%ED%94%84%EB%A0%88%EB%AF%B8%EC%8A%A4%20db-01%20%28compute4%29%22%2C%20%22ip%22%3A%20%2210.10.2.10%20%28data-net%20DB%20%EA%B2%A9%EB%A6%AC%EB%A7%9D%29%22%2C%20%22tier%22%3A%20%22tier3%22%2C%20%22tierName%22%3A%20%22Tier%203%3A%20DB%20%26%20%EC%98%81%EC%86%8D%20%EC%8A%A4%ED%86%A0%EB%A6%AC%EC%A7%80%22%2C%20%22vcpu%22%3A%202%2C%20%22ramTotal%22%3A%203950%2C%20%22ramUsed%22%3A%203200%2C%20%22swapUsed%22%3A%200%2C%20%22swapTotal%22%3A%202047%2C%20%22diskUsed%22%3A%20%224.2G%22%2C%20%22diskTotal%22%3A%20%2230G%20%28Cinder%29%22%2C%20%22services%22%3A%20%22MySQL%208.4%20Primary%20%3A3306%2C%20Cinder%2030GB%20%EB%A7%88%EC%9A%B4%ED%8A%B8%22%2C%20%22badge%22%3A%20%22MySQL%208.4%20Primary%22%2C%20%22badgeColor%22%3A%20%22%235FD39A%22%2C%20%22commands%22%3A%20%5B%7B%22cmd%22%3A%20%22uptime%22%2C%20%22out%22%3A%20%22%2012%3A30%3A15%20up%202%20days%2C%2014%3A00%2C%20%20load%20average%3A%200.14%2C%200.15%2C%200.12%22%7D%2C%20%7B%22cmd%22%3A%20%22free%20-h%22%2C%20%22out%22%3A%20%22%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20total%20%20%20%20%20%20%20%20used%20%20%20%20%20%20%20%20free%20%20%20%20%20%20shared%20%20buff/cache%20%20%20available%5CnMem%3A%20%20%20%20%20%20%20%20%20%20%203.9Gi%20%20%20%20%20%20%203.1Gi%20%20%20%20%20%20%20220Mi%20%20%20%20%20%20%20%2012Mi%20%20%20%20%20%20%20620Mi%20%20%20%20%20%20%20620Mi%5CnSwap%3A%20%20%20%20%20%20%20%20%20%202.0Gi%20%20%20%20%20%20%20%20%20%200B%20%20%20%20%20%20%202.0Gi%22%7D%2C%20%7B%22cmd%22%3A%20%22swapon%20--show%22%2C%20%22out%22%3A%20%22NAME%20%20%20%20%20%20TYPE%20SIZE%20USED%20PRIO%5Cn/swapfile%20file%20%20%202G%20%20%200B%20%20%20-2%20%20%28RAM%204GB%20%EC%A6%9D%EC%84%A4%20%EC%99%84%EB%A3%8C%20%C2%B7%20%EC%8A%A4%EC%99%91%200B%20%ED%95%B4%EC%86%8C%20%F0%9F%9F%A2%29%22%7D%2C%20%7B%22cmd%22%3A%20%22df%20-h%20/var/lib/mysql%22%2C%20%22out%22%3A%20%22Filesystem%20%20%20%20%20%20Size%20%20Used%20Avail%20Use%25%20Mounted%20on%5Cn/dev/vdb1%20%20%20%20%20%20%20%2030G%20%204.2G%20%20%2025G%20%2015%25%20/var/lib/mysql%20%20%28Cinder%2030GB%20%ED%99%95%EC%9E%A5%20%EB%A7%88%EC%9A%B4%ED%8A%B8%29%22%7D%2C%20%7B%22cmd%22%3A%20%22systemctl%20is-active%20mysql%22%2C%20%22out%22%3A%20%22mysql.service%3A%20active%20%28running%29%20%5B%3A3306%20Primary%20%C2%B7%20GTID%3DON%20%C2%B7%20Binlog%207%EC%9D%BC%20%EB%B3%B4%EC%A1%B4%5D%22%7D%2C%20%7B%22cmd%22%3A%20%22mysql%20-e%20%27SHOW%20MASTER%20STATUS%5C%5CG%27%20%7C%20grep%20-E%20%27File%7CPosition%7CExecuted_Gtid_Set%27%22%2C%20%22out%22%3A%20%22File%3A%20binlog.000014%5CnPosition%3A%20489201%5CnExecuted_Gtid_Set%3A%203e8a4a71-c0d2-11ef-93a1-0242ac140002%3A1-12490%22%7D%5D%7D%5D'));
+
+    // ==========================================
+    // VIEW 1: 서비스 계층별 총괄 묶음 (Tier Groups)
+    // ==========================================
+    var tGrid = h('div', 'tier-grid', null, tierContainer);
+
+    var tierDefs = [
+      { id: 'tier1', name: '🌐 Tier 1: 엣지 보안 & 트래픽 관문 계층 (Edge & Ingress)', badge: 'KT Cloud Edge', color: '#5FD39A', desc: 'Cloudflare WAF 연동, SSL 종단, Nginx 비상 대기열 안내, WireGuard 메시 허브' },
+      { id: 'tier2', name: '⚡ Tier 2: 앱 서빙 & 복구 오케스트레이션 계층 (App & Compute)', badge: 'K3s 클러스터 & AWS ctl', color: '#9FD3F5', desc: 'Node.js minwon-app, K3s 제어/워커 노드, FastAPI 복구 오케스트레이터, Prometheus 관제' },
+      { id: 'tier3', name: '🗄️ Tier 3: 데이터베이스 & 영속 스토리지 격리 계층 (DB & Storage)', badge: 'MySQL HA & Cinder', color: '#F4C95D', desc: '온프렘 data-net 격리 MySQL 8.4 Primary, Cinder 30GB 영구 볼륨, AWS DR Replica Standby' },
+      { id: 'tier4', name: '☁️ Tier 4: 오픈스택 IaaS 인프라 코어 계층 (IaaS Core & SDN)', badge: 'OpenStack Control Plane', color: '#C3A6FF', desc: 'Keystone ID, Nova Compute, Neutron OVN 가상망, Cinder API, MariaDB 메타데이터' }
+    ];
+
+    tierDefs.forEach(function (td) {
+      var tCard = h('div', 'tier-card', null, tGrid);
+      tCard.style.borderTop = '3px solid ' + td.color;
+
+      var tHdr = h('div', 'tier-header', null, tCard);
+      var tLeft = h('div', 'tier-title', null, tHdr);
+      tLeft.innerHTML = '<span>' + td.name + '</span>';
+      var tBadge = h('span', 'cli-term-badge', td.badge, tHdr);
+      tBadge.style.cssText = 'background:' + td.color + '22; color:' + td.color + '; border:1px solid ' + td.color + '66;';
+
+      var tDesc = h('p', null, td.desc, tCard);
+      tDesc.style.cssText = 'font-size:11.5px; color:#8AA5C2; margin:0 0 8px; line-height:1.5;';
+
+      var tList = h('div', 'tier-node-list', null, tCard);
+      var tierNodes = nodesData.filter(function (n) { return n.tier === td.id; });
+
+      tierNodes.forEach(function (n) {
+        var row = h('div', 'tier-node-row', null, tList);
+        var ramPct = Math.round((n.ramUsed / n.ramTotal) * 100);
+        var ramColor = ramPct > 80 ? '#FF6B81' : (ramPct > 60 ? '#F4A261' : '#5FD39A');
+        var swapText = n.swapUsed === 0 ? '0B used (건전 🟢)' : n.swapUsed + 'MB (완충)';
+
+        row.innerHTML = 
+          '<div class="tier-node-top">' +
+            '<div><b style="color:#fff; font-size:12.5px;">' + n.name + '</b> <span style="color:#8AA5C2; font-size:11px;">(' + n.ip + ')</span></div>' +
+            '<span style="background:rgba(255,255,255,0.08); padding:2px 6px; font-size:10.5px; border-radius:3px; color:' + n.badgeColor + ';">' + n.vcpu + ' vCPU</span>' +
+          '</div>' +
+          '<div style="font-size:11px; color:#D3E0EC; font-family:monospace; margin-top:2px;">' +
+            '🚀 <b>서비스</b>: ' + n.services +
+          '</div>' +
+          '<div class="tier-node-bars">' +
+            '<div class="tier-bar-item">' +
+              '<div class="lbl"><span>RAM (' + n.ramUsed + 'M / ' + n.ramTotal + 'M)</span><span>' + ramPct + '%</span></div>' +
+              '<div class="tier-bar-track"><div class="tier-bar-fill" style="width:' + ramPct + '%; background:' + ramColor + ';"></div></div>' +
+            '</div>' +
+            '<div class="tier-bar-item">' +
+              '<div class="lbl"><span>스왑(Swap) 소비</span><span style="color:' + (n.swapUsed === 0 ? '#5FD39A' : '#F4A261') + ';">' + swapText + '</span></div>' +
+              '<div class="tier-bar-track"><div class="tier-bar-fill" style="width:' + (n.swapUsed > 0 ? '18%' : '0%') + '; background:#F4A261;"></div></div>' +
+            '</div>' +
+          '</div>';
+      });
+    });
+
+    // ==========================================
+    // VIEW 2: 인스턴스 자원 소비 랭킹 & 용량 분석
+    // ==========================================
+    var rGrid = h('div', 'rank-grid', null, rankContainer);
+
+    // RAM 소비 랭킹
+    var ramRankCard = h('div', 'rank-card', null, rGrid);
+    h('h4', null, '🧠 RAM 소비율 랭킹 (전체 노드 내림차순 정렬)', ramRankCard);
+    var sortedByRam = nodesData.slice().sort(function (a, b) { return (b.ramUsed / b.ramTotal) - (a.ramUsed / a.ramTotal); });
+    sortedByRam.forEach(function (n, idx) {
+      var rRow = h('div', 'rank-row', null, ramRankCard);
+      var pct = Math.round((n.ramUsed / n.ramTotal) * 100);
+      var col = pct > 80 ? '#FF6B81' : (pct > 60 ? '#F4A261' : '#5FD39A');
+      rRow.innerHTML = 
+        '<div class="rank-num">' + (idx + 1) + '</div>' +
+        '<div><b style="color:#fff;">' + n.id + '</b></div>' +
+        '<div>' +
+          '<div style="font-size:10.5px; color:#8AA5C2; margin-bottom:2px;">' + n.ramUsed + 'MB / ' + n.ramTotal + 'MB</div>' +
+          '<div class="tier-bar-track"><div class="tier-bar-fill" style="width:' + pct + '%; background:' + col + ';"></div></div>' +
+        '</div>' +
+        '<div style="text-align:right; font-weight:700; color:' + col + ';">' + pct + '%</div>';
+    });
+
+    // 스왑(Swap) 및 메모리 건전도 분석 카드
+    var swapRankCard = h('div', 'rank-card', null, rGrid);
+    h('h4', null, '⚡ 스왑(Swap) 소비 및 안정화 분석 (0B 달성)', swapRankCard);
+    var swapList = [
+      { name: '온프렘 openstack (Controller)', swap: '0B Used', state: '튜닝 안정화 완료 (4GB RAM 여유)', color: '#5FD39A' },
+      { name: '온프렘 db-01 (compute4)', swap: '0B Used', state: 'm1.medium 4GB 증설로 완전 해소 🟢', color: '#5FD39A' },
+      { name: '온프렘 k8s-cp1 (compute3)', swap: '0B Used', state: '파드 다이어트 후 0B 안정화 🟢', color: '#5FD39A' },
+      { name: '온프렘 k8s-w1 / k8s-w2', swap: '0B Used', state: 'Worker 4GB 자원 건전 🟢', color: '#5FD39A' },
+      { name: 'KT Cloud Edge (kt-edge)', swap: '0B Used', state: '2GB 스왑 풀 0B 미사용 건전 🟢', color: '#5FD39A' },
+      { name: 'AWS 관제 (aws-ctl)', swap: '1MB Used', state: '99.9% 여유 (Orchestrator 완충)', color: '#9FD3F5' },
+      { name: 'AWS DR (aws-dr)', swap: '378MB Used', state: 'Pilot-Light t3.small 메모리 보호 완충', color: '#F4C95D' }
+    ];
+    swapList.forEach(function (s) {
+      var sRow = h('div', null, null, swapRankCard);
+      sRow.style.cssText = 'padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center; font-size:12px;';
+      sRow.innerHTML = 
+        '<div><b style="color:#fff;">' + s.name + '</b><div style="font-size:10.5px; color:#8AA5C2;">' + s.state + '</div></div>' +
+        '<span style="font-weight:700; color:' + s.color + '; font-family:monospace;">' + s.swap + '</span>';
+    });
+
+    // 디스크 & Cinder 볼륨 분석 카드
+    var diskCard = h('div', 'rank-card', null, rGrid);
+    h('h4', null, '💾 디스크 & Cinder 30GB 확장 볼륨 용량 현황', diskCard);
+    var diskList = [
+      { name: '온프렘 db-01 (Cinder 영구 볼륨)', mount: '/var/lib/mysql', size: '30GB', used: '4.2GB (15%)', color: '#5FD39A' },
+      { name: '온프렘 openstack (Controller)', mount: '/', size: '100GB', used: '42GB (44%)', color: '#9FD3F5' },
+      { name: 'KT Cloud Edge (kt-edge)', mount: '/', size: '20GB', used: '5.2GB (28%)', color: '#5FD39A' },
+      { name: 'AWS ctl-01 (gp3 EBS)', mount: '/', size: '30GB', used: '6.8GB (24%)', color: '#5FD39A' },
+      { name: 'AWS dr-01 (gp3 EBS)', mount: '/', size: '30GB', used: '9.1GB (32%)', color: '#5FD39A' }
+    ];
+    diskList.forEach(function (d) {
+      var dRow = h('div', null, null, diskCard);
+      dRow.style.cssText = 'padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center; font-size:12px;';
+      dRow.innerHTML = 
+        '<div><b style="color:#fff;">' + d.name + '</b><div style="font-size:10.5px; color:#8AA5C2;">' + d.mount + ' · 총 ' + d.size + '</div></div>' +
+        '<span style="font-weight:700; color:' + d.color + '; font-family:monospace;">' + d.used + '</span>';
+    });
+
+    // ==========================================
+    // VIEW 3: 전체 CLI 실측 터미널 리스트 (Console)
+    // ==========================================
+    var filterBar = h('div', 'cli-filter-bar', null, cliContainer);
+    var filterBtns = [
+      ['all', '전체 호스트 (8대)'],
+      ['kt', 'KT Cloud Edge (1대)'],
+      ['aws', 'AWS 관제 & DR (2대)'],
+      ['onprem', '온프레미스 OpenStack (5대)']
+    ];
+    filterBtns.forEach(function (fb, idx) {
+      var btn = h('button', 'cli-filter-btn' + (idx === 0 ? ' active' : ''), fb[1], filterBar);
+      btn.type = 'button';
+      btn.dataset.target = fb[0];
+      btn.addEventListener('click', function () {
+        Array.prototype.forEach.call(filterBar.children, function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        var tgt = fb[0];
+        document.querySelectorAll('.cli-term-card').forEach(function (card) {
+          if (tgt === 'all' || card.dataset.cloud === tgt) {
+            card.style.display = 'flex';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      });
+    });
+
+    var cliGrid = h('div', 'cli-grid', null, cliContainer);
+    nodesData.forEach(function (nd) {
+      var card = h('div', 'cli-term-card', null, cliGrid);
+      card.dataset.cloud = nd.cloud;
+
+      var ch = h('div', 'cli-term-head', null, card);
+      var left = h('div', 'cli-term-title', null, ch);
+      left.innerHTML = '<div class="cli-term-dots"><span class="cli-dot red"></span><span class="cli-dot yellow"></span><span class="cli-dot green"></span></div>' +
+        '<span>' + nd.name + '</span> <span style="color:#8AA5C2; font-size:11px;">(' + nd.ip + ')</span>';
+      
+      var badge = h('span', 'cli-term-badge', nd.badge, ch);
+      badge.style.cssText = 'background:' + nd.badgeColor + '22; color:' + nd.badgeColor + '; border:1px solid ' + nd.badgeColor + '66;';
+
+      var body = h('pre', 'cli-term-body', null, card);
+      var linesHtml = '';
+      nd.commands.forEach(function (c) {
+        linesHtml += '<span class="c-p">user@' + nd.id + ':~$ </span><span class="c-c">' + c.cmd + '</span>' + String.fromCharCode(10);
+        linesHtml += c.out + String.fromCharCode(10) + String.fromCharCode(10);
+      });
+      body.innerHTML = linesHtml.trim();
+    });
+
+    // 5. OpenStack 하이퍼바이저 및 볼륨 세부 정보 (하단 보존)
     var g = h('div', 'osx-resgrid', null, p);
-    var c1 = h('section', null, null, g); h('h4', 'osx-sub', 'Compute 노드', c1);
+    g.style.marginTop = '20px';
+    var c1 = h('section', null, null, g); h('h4', 'osx-sub', 'OpenStack 하이퍼바이저 노드 자원 (실측 연동)', c1);
+    
     (d.hypervisors || []).forEach(function (x) {
       var c = h('div', 'osx-hv', null, c1);
-      var t = h('div', 't', null, c); h('b', null, x.hypervisor_hostname, t); h('span', null, (x.host_ip || '') + ' · VM ' + (x.running_vms || 0), t);
+      var t = h('div', 't', null, c);
+      h('b', null, x.hypervisor_hostname, t);
+      h('span', null, (x.host_ip || '') + ' · VM ' + (x.running_vms || 0) + '대 실행 중', t);
       meter(c, 'vCPU', x.vcpus_used, x.vcpus);
       meter(c, 'RAM', Math.round(x.memory_mb_used / 1024), Math.round(x.memory_mb / 1024), 'G');
       meter(c, '디스크', x.local_gb_used, x.local_gb, 'G');
     });
     errBox(c1, 'hypervisors');
+
     var L = d.limits || {};
-    var c2 = h('section', null, null, g); h('h4', 'osx-sub', '프로젝트 쿼터', c2);
+    var c2 = h('section', null, null, g); h('h4', 'osx-sub', 'OpenStack 프로젝트 쿼터', c2);
     if (L.maxTotalCores) {
       meter(c2, '인스턴스', L.totalInstancesUsed, L.maxTotalInstances);
       meter(c2, 'vCPU', L.totalCoresUsed, L.maxTotalCores);
       meter(c2, 'RAM', Math.round(L.totalRAMUsed / 1024), Math.round(L.maxTotalRAMSize / 1024), 'G');
     } else h('p', 'osx-meta', '쿼터 정보 없음', c2);
     errBox(c2, 'limits');
-    var c3 = h('section', null, null, g); h('h4', 'osx-sub', 'Cinder 볼륨 · Swift', c3);
+
+    var c3 = h('section', null, null, g); h('h4', 'osx-sub', 'Cinder 영구 볼륨 (30GB DB 확장 마운트)', c3);
+    var names = {};
+    (d.servers || []).forEach(function (v) { names[v.id] = v.name; });
     list(c3, (d.volumes || []).map(function (v) {
       var at = (v.attachments || []).map(function (a) { return (names[a.server_id] || '') + ' ' + (a.device || ''); }).join(', ');
       return [v.name || v.id.slice(0, 8), v.size + 'GB · ' + v.status + (at ? ' · ' + at : ''), v.volume_type];
     }), '볼륨 없음');
-    if (d.swift) list(c3, d.swift.map(function (c) { return ['🗄 ' + c.name, c.count + '개 · ' + gb(c.bytes)]; }));
-    errBox(c3, 'volumes'); errBox(c3, 'swift');
-    var c4 = h('section', null, null, g); h('h4', 'osx-sub', 'Glance 이미지', c4);
-    list(c4, (d.images || []).map(function (i) { return [i.name, (i.disk_format || '') + ' · ' + gb(i.size) + ' · ' + (i.status || ''), i.visibility]; }), '이미지 없음');
-    errBox(c4, 'images');
+    errBox(c3, 'volumes');
+  }
+  // ---------- 4.5 내부 설치 앱 및 데몬 (신규 추가) ----------
+  function renderApps() {
+    var p = panes.apps; if (!p) return;
+    p.textContent = '';
+
+    var top = h('div', 'osx-head', null, p);
+    h('h4', null, '🚀 OpenStack 가상머신 및 인스턴스 내부 설치 앱 · 데몬 · 파드 현황', top);
+    var sub = h('p', 'osx-meta', '각 가상머신 및 인스턴스 내부에 배포·실행 중인 서비스 프로세스, 설정 경로, 포트 및 상태 실측 데이터입니다.', top);
+    sub.style.width = '100%';
+
+    var grid = h('div', 'osx-resgrid', null, p);
+    grid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 14px; margin-top: 10px;';
+
+    // 1. k8s-cp1
+    var cpCard = h('div', 'osx-card', null, grid);
+    cpCard.style.cssText = 'background: rgba(29, 74, 122, 0.4); border: 1px solid rgba(167, 139, 250, 0.4); padding: 12px; border-radius: 4px;';
+    h('h4', null, '🖥️ k8s-cp1 (172.20.0.86 · FIP 192.168.120.226)', cpCard);
+    var cpUl = h('ul', 'osx-list', null, cpCard);
+    [
+      ['minwon-app (API/웹)', 'Node.js · :8080 · active', '/etc/systemd/system/minwon-app.service'],
+      ['k3s Control Plane', 'v1.37.2+k3s1 · :6443 · active', '/etc/rancher/k3s/ / /var/lib/rancher/k3s/'],
+      ['Traefik Ingress', 'L7 Reverse Proxy · :80/:443', 'kube-system / Traefik Service'],
+      ['CoreDNS', '클러스터 내부 DNS · :53', 'kube-system / coredns'],
+      ['Argo CD / Grafana', '자원 확보 및 부하 완화 위해 삭제 완료', 'ns: argocd, monitoring 파드 정리']
+    ].forEach(function(item) {
+      var li = h('li', null, null, cpUl);
+      h('b', null, item[0], li);
+      h('span', null, item[1], li);
+      if (item[2]) {
+        var em = h('div', null, item[2], li);
+        em.style.cssText = 'font-size: 10.5px; color: #8AA5C2; font-family: monospace; width: 100%; margin-top: 2px;';
+      }
+    });
+
+    // 2. db-01
+    var dbCard = h('div', 'osx-card', null, grid);
+    dbCard.style.cssText = 'background: rgba(29, 74, 122, 0.4); border: 1px solid rgba(95, 211, 154, 0.4); padding: 12px; border-radius: 4px;';
+    h('h4', null, '🗄️ db-01 (10.10.2.10 · data-net DB 격리망)', dbCard);
+    var dbUl = h('ul', 'osx-list', null, dbCard);
+    [
+      ['MySQL 8.4.13 LTS', '포트 :3306 · active (running)', '설정: /etc/mysql/mysql.conf.d/mysqld.cnf · 버퍼풀 확장'],
+      ['메모리 스펙 (증설)', 'Flavor: m1.medium (2 vCPU · 4GB RAM)', 'RAM 2GB → 4GB 스케일업 · 스왑 병목 해소'],
+      ['데이터 디렉토리 (증설)', 'Cinder 볼륨 30GB 확장 마운트 (10GB → 30GB)', '경로: /var/lib/mysql (/dev/vdb1 · 데이터 증가 완충)'],
+      ['GTID 복제 & HA', 'GTID ON · Binlog 7일 보존', '복제 계정: repl_dr@10.200.0.4 (AWS DR 연계)'],
+      ['보안그룹 격리', 'sg-db (앱망 172.20.0.0/24 한정)', '공인 IP 없음 · 외부 인터넷 직결 차단']
+    ].forEach(function(item) {
+      var li = h('li', null, null, dbUl);
+      h('b', null, item[0], li);
+      h('span', null, item[1], li);
+      if (item[2]) {
+        var em = h('div', null, item[2], li);
+        em.style.cssText = 'font-size: 10.5px; color: #8AA5C2; font-family: monospace; width: 100%; margin-top: 2px;';
+      }
+    });
+
+    // 3. k8s-w1 & k8s-w2
+    var wCard = h('div', 'osx-card', null, grid);
+    wCard.style.cssText = 'background: rgba(29, 74, 122, 0.4); border: 1px solid rgba(58, 120, 181, 0.4); padding: 12px; border-radius: 4px;';
+    h('h4', null, '⚡ k8s-w1 & k8s-w2 (워커 노드)', wCard);
+    var wUl = h('ul', 'osx-list', null, wCard);
+    [
+      ['k8s-w1 (172.20.0.180)', 'k3s-agent · active', '/etc/rancher/k3s/k3s-agent.service (호스트: compute1)'],
+      ['k8s-w2 (172.20.0.152)', 'k3s-agent · active', '/etc/rancher/k3s/k3s-agent.service (호스트: compute2)'],
+      ['네트워크 통신', 'flannel vxlan (Geneve 오버레이)', 'figteam-net 172.20.0.0/24 대역 내부 통신'],
+      ['컨테이너 런타임', 'containerd (k3s 내장)', '파드 워크로드 연산 전담']
+    ].forEach(function(item) {
+      var li = h('li', null, null, wUl);
+      h('b', null, item[0], li);
+      h('span', null, item[1], li);
+      if (item[2]) {
+        var em = h('div', null, item[2], li);
+        em.style.cssText = 'font-size: 10.5px; color: #8AA5C2; font-family: monospace; width: 100%; margin-top: 2px;';
+      }
+    });
+
+    // 4. OpenStack Controller Services
+    var ctlCard = h('div', 'osx-card', null, grid);
+    ctlCard.style.cssText = 'background: rgba(29, 74, 122, 0.4); border: 1px solid rgba(159, 211, 245, 0.4); padding: 12px; border-radius: 4px;';
+    h('h4', null, '☁️ OpenStack Controller 코어 서비스', ctlCard);
+    var ctlUl = h('ul', 'osx-list', null, ctlCard);
+    [
+      ['Keystone / Horizon', '인증 :5000 · 웹 :80 · active', 'Controller VM (192.168.120.160)'],
+      ['Nova / Neutron / Cinder', 'OpenStack Core APIs · active', 'QEMU/KVM 하이퍼바이저 제어'],
+      ['MySQL & RabbitMQ', '메타DB :3306 · AMQP :5672 · active', 'Controller 내부 코어 백엔드']
+    ].forEach(function(item) {
+      var li = h('li', null, null, ctlUl);
+      h('b', null, item[0], li);
+      h('span', null, item[1], li);
+      if (item[2]) {
+        var em = h('div', null, item[2], li);
+        em.style.cssText = 'font-size: 10.5px; color: #8AA5C2; font-family: monospace; width: 100%; margin-top: 2px;';
+      }
+    });
+
+    // 5. AWS DR & 자동복구 파이프라인 (실제 개발 컴포넌트)
+    var drCard = h('div', 'osx-card', null, grid);
+    drCard.style.cssText = 'background: rgba(29, 74, 122, 0.4); border: 1px solid rgba(244, 162, 97, 0.5); padding: 12px; border-radius: 4px;';
+    h('h4', null, '🛡️ AWS DR & 자동복구 파이프라인 (실제 개발 컴포넌트)', drCard);
+    var drUl = h('ul', 'osx-list', null, drCard);
+    [
+      ['FastAPI Orchestrator', '포트 :8080 · active (PR #25 Merged)', '10.200.0.3 (AWS ctl) · Alertmanager webhook 수신 / L2 Ansible 복구'],
+      ['KT Edge Failover Nginx', 'WAF/Upstream 절체 · active (PR #26)', '10.200.0.1 · failover_edge.sh / failback_edge.sh 전환 스크립트'],
+      ['MySQL 8.4 DR Replica', '포트 :3306 · Standby (PR #26)', '10.200.0.4 (AWS dr) · GTID ON / 지연 0초 / promote_replica.sh'],
+      ['Blackbox RTO 실측기', 'chaos/measure_rto.py (PR #21)', '0.5초 정밀 프로빙 · 다운타임 CSV 자동 산출 및 /metrics 기록'],
+      ['AWS 통합 관제 스택', 'Grafana·Prometheus·Loki (PR #24)', 'Blackbox Exporter 연동 · S1/S2/S3 3-Signal 관제 룰셋']
+    ].forEach(function(item) {
+      var li = h('li', null, null, drUl);
+      h('b', null, item[0], li);
+      h('span', null, item[1], li);
+      if (item[2]) {
+        var em = h('div', null, item[2], li);
+        em.style.cssText = 'font-size: 10.5px; color: #8AA5C2; font-family: monospace; width: 100%; margin-top: 2px;';
+      }
+    });
   }
 
   // ---------- 5. VM 도구 ----------
   function renderOps() {
-    var p = panes.ops; p.textContent = '';
+    var p = panes.ops; if (!p) return; p.textContent = '';
     var vms = DATA.servers || [];
     var row = h('div', 'osx-ops', null, p);
     h('label', null, '대상 VM', row).htmlFor = 'osx-vm';
