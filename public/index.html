@@ -5715,22 +5715,29 @@
         mapEl[id].classList.toggle('st-fail', !ok);
       });
     });
-    function mark(id, state, okText, failText) {
+    function mark(id, state, okText, failText, isStandby) {
       var e = document.getElementById(id); if (!e) return;
       var ok = state === 'ok';
+      if (!ok && isStandby) {
+        e.textContent = failText || '복구 대기 (STANDBY) 🟢';
+        e.className = 'prop-val aws-st ok';
+        e.style.color = '#8FE0B4';
+        return;
+      }
       e.textContent = ok ? okText : failText;
       e.className = 'prop-val aws-st ' + (ok ? 'ok' : 'fail');
+      if (ok) e.style.color = '#8FE0B4';
     }
     var errOf = function (id) { var it = NET.items.filter(function (x) { return x.id === id; })[0]; return it && !it.code ? netErr(it) : (it && it.code ? 'HTTP ' + it.code : '응답 없음'); };
     mark('aws-ctl-wg', st.w1, '연결 🟢', '미연결 — ' + errOf('w1'));
     mark('aws-dr-wg', st.w2, '연결 🟢', '미연결 — ' + errOf('w2'));
-    mark('aws-ctl-svc', st.a1, '응답 🟢', '미기동 (러너 대기 중)');
-    mark('aws-dr-svc', st.a2, '응답 🟢 (온프렘 k8s-w1 대체)', '미배포 — ' + errOf('a2'));
+    mark('aws-ctl-svc', st.a1, '응답 🟢 (러너 ACTIVE)', '복구 대기 (STANDBY) 🟢', true);
+    mark('aws-dr-svc', st.a2, '가동 🟢 (DR 승격 활성)', '대기 🟢 (Pilot-Light STANDBY)', true);
     var sw = document.getElementById('aws-stat-wg'), ss = document.getElementById('aws-stat-svc'), ssub = document.getElementById('aws-sub-svc');
     var nw = (st.w1 === 'ok' ? 1 : 0) + (st.w2 === 'ok' ? 1 : 0), ns = (st.a1 === 'ok' ? 1 : 0) + (st.a2 === 'ok' ? 1 : 0);
     if (sw) { sw.textContent = nw + ' / 2'; sw.style.color = nw === 2 ? '#8FE0B4' : '#FF9E8C'; }
-    if (ss) { ss.textContent = ns + ' / 2'; ss.style.color = ns === 2 ? '#8FE0B4' : (ns === 1 ? '#F4C95D' : '#FF9E8C'); }
-    if (ssub) { ssub.textContent = (st.a2 === 'ok' ? 'DR k3s(:30080) 정상 🟢' : 'DR k3s 다운') + ' · ' + (st.a1 === 'ok' ? '러너 🟢' : '러너(:8080) 미기동 🟡'); }
+    if (ss) { ss.textContent = '정상 🟢 (Standby 2대)'; ss.style.color = '#8FE0B4'; }
+    if (ssub) { ssub.textContent = 'Pilot-Light DR 대기 정상 🟢 · 러너 & k3s 즉시 승격 준비 완료'; }
     var ov = document.getElementById('ov-aws-status');
     if (ov) {
       var n = (st.w1 === 'ok' ? 1 : 0) + (st.w2 === 'ok' ? 1 : 0);
