@@ -1049,35 +1049,10 @@ def get_services_and_pods_detail():
             "status": "ACTIVE 🟢",
             "services": [
                 {"name": "K3s Agent", "port": "k3s-agent.service", "status": "ACTIVE 🟢", "desc": "kubelet & containerd (Worker 1)"},
-                {"name": "Minwon Service Host", "port": ":30080 NodePort", "status": "ACTIVE 🟢", "desc": "민원 앱 파드 2대 서빙"},
+                {"name": "Minwon Service Host", "port": ":30080 NodePort", "status": "ACTIVE 🟢", "desc": "민원 앱 파드 2대 안정 서빙 (안전·성능 우선)"},
                 {"name": "ArgoCD 배포 엔진", "port": "Pod", "status": "ACTIVE 🟢", "desc": "GitOps 지속 배포 파드"}
             ],
             "pods": [p for p in onprem_pods if p.get('node') == 'k8s-w1']
-        },
-        {
-            "id": "k8s-w2",
-            "name": "온프레미스 k8s-w2",
-            "group": "onprem",
-            "role": "K3s 확장 워커 노드 2 (k8s-w1 단독 워커)",
-            "ip": "172.20.0.152 (figteam-net)",
-            "tier": "Tier 2: K8s Worker 2",
-            "hostMapping": "compute2 (k8s.worker)",
-            "vcpu": 2,
-            "vcpuLoad": "0.10",
-            "ramTotal": 2560,
-            "ramUsed": 280,
-            "swapUsed": 0,
-            "swapTotal": 0,
-            "diskUsed": "5.5G",
-            "diskTotal": "20G",
-            "diskPct": 28,
-            "status": "ACTIVE 🟢",
-            "services": [
-                {"name": "K3s Agent", "port": "k3s-agent.service", "status": "ACTIVE 🟢", "desc": "kubelet & containerd (Worker 2)"},
-                {"name": "Minwon App Replica", "port": ":30080 NodePort", "status": "ACTIVE 🟢", "desc": "부하 분산 파드 서빙"},
-                {"name": "Node Exporter", "port": ":9100", "status": "ACTIVE 🟢", "desc": "호스트 메트릭 수집기"}
-            ],
-            "pods": [p for p in onprem_pods if p.get('node') == 'k8s-w2']
         },
         {
             "id": "kt-edge",
@@ -6070,10 +6045,10 @@ PORTAL_HTML = """<!DOCTYPE html>
   node('gpu', 565, 212, 180, 48, 'cloudflared · 포털', '', { zone: '온프레미스 · GPU 서버 ktci5 (10.10.10.8)', lines: ['minwon-tunnel 커넥터 (아웃바운드만 · 인바운드 0)', 'figteam 통합 포털 :18088', '호스트명 라우팅: figteam · app · argocd · grafana · horizon · openstack', 'aws-ctl → WG 터널 B · kt-edge → WG 터널 A'] });
   node('onwg', 800, 212, 170, 48, 'WireGuard GW', '', { zone: '온프레미스', subnet: 'subnet-onprem-wg', lines: ['공인 IP 없음 · Outbound만', '터널 A · B 종단', '자가 펜싱 Watchdog'] });
   node('ingress', 560, 350, 130, 52, 'Traefik Ingress', 'k8s-cp1', { zone: '온프레미스', subnet: 'subnet-onprem-k8s', lines: ['NodePort 30080 · L7 인그레스'] });
-  node('web1', 720, 372, 115, 46, 'k8s-w1', '워커 노드 1', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['compute1 물리 호스트 전담', '2 vCPU · 2.5GB RAM'] });
-  node('web2', 720, 432, 115, 46, 'k8s-w2', '워커 노드 2', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['compute2 물리 호스트 전담', '2 vCPU · 2.5GB RAM (확장)'] });
-  node('api1', 845, 372, 115, 46, 'minwon-app-1', 'k8s-w1', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['Worker 1 (compute1) 분산 서빙', 'livenessProbe /healthz?live=1'] });
-  node('api2', 845, 432, 115, 46, 'minwon-app-2', 'k8s-w2', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['Worker 2 (compute2) 분산 서빙', 'Pod Anti-Affinity 이중화'] });
+  node('web1', 720, 372, 115, 46, 'k8s-w1', '단독 워커 노드', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['compute1 물리 전담 · 2.5GB RAM', '안전·성능 우선 단일 워커 체제'] });
+  node('web2', 720, 432, 115, 46, 'k8s-w2 (회수)', '대기·회수 완료', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['compute2 정지 (호스트 메모리 보호)', '안전·성능 우선 정책으로 완전 회수'] });
+  node('api1', 845, 372, 115, 46, 'minwon-app-1', 'k8s-w1', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['Worker 1 (k8s-w1) 파드 #1 🟢', 'livenessProbe /healthz 200 OK'] });
+  node('api2', 845, 432, 115, 46, 'minwon-app-2', 'k8s-w1', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['Worker 1 (k8s-w1) 파드 #2 🟢', '단일 워커 내 2파드 안정 분산'] });
   node('worker', 720, 492, 115, 46, 'intake-worker', '', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['접수 테이블 미처리 건을 순차 처리 (Outbox)', '큐 길이 기반 확장'] });
   node('na', 845, 492, 115, 46, 'notify·audit', '', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['알림 · 감사 로그 워커'] });
   node('redis', 720, 624, 115, 46, 'Redis', '', { zone: '온프레미스 · data', subnet: 'subnet-onprem-k8s', lines: ['로컬 캐시 (DR 복제 안 함)'] });
@@ -7985,39 +7960,10 @@ PORTAL_HTML = """<!DOCTYPE html>
         badgeColor: '#8FE0B4',
         status: 'ACTIVE 🟢',
         commands: [
-          { cmd: 'kubectl get pods -n minwon-sample -o wide', out: 'minwon-app-6878dbfdf4-lxvfz 1/1 Running k8s-w1\\nminwon-app-6878dbfdf4-vvbzn 1/1 Running k8s-w1 (워커 1 파드 서빙 🟢)' },
+          { cmd: 'kubectl get pods -n minwon-sample -o wide', out: 'minwon-app-54778fbc5b-n94nw 1/1 Running k8s-w1\\nminwon-app-54778fbc5b-qcthx 1/1 Running k8s-w1 (단일 워커 2파드 안정 서빙 🟢)' },
           { cmd: 'uptime', out: ' 09:38:00 up 2 days, load average: 0.08, 0.05, 0.02' },
           { cmd: 'free -m', out: 'Mem: 2464 total, 301 used, 1728 free, 2003 available\\nSwap: 0B (스왑 0B 미사용 건전 🟢 · 2 vCPU / 2.5GB RAM)' },
-          { cmd: 'systemctl is-active k3s-agent', out: 'k3s-agent.service: active (running) [워커 1 정상 조인 🟢]' }
-        ]
-      },
-      {
-        id: 'k8s-w2',
-        cloud: 'onprem',
-        group: 'onprem',
-        name: '온프레미스 k8s-w2 (compute2 전담)',
-        ip: '172.20.0.152 (figteam-net)',
-        tier: 'tier2',
-        tierName: 'Tier 2: K8s 확장 워커 (부하 분산)',
-        hostMapping: 'compute2 단독 전담 (물리 4GB 호스트)',
-        vcpu: 2,
-        vcpuLoad: '0.10',
-        ramTotal: 2560,
-        ramUsed: 280,
-        swapUsed: 0,
-        swapTotal: 0,
-        diskUsed: '5.5G',
-        diskTotal: '20G',
-        diskPct: 28,
-        services: 'K3s Agent (확장 워커 2 🟢), minwon-app 분산 서빙 (:30080), Node Exporter',
-        badge: 'K3s Worker 2',
-        badgeColor: '#8FE0B4',
-        status: 'ACTIVE 🟢',
-        commands: [
-          { cmd: 'kubectl get nodes', out: 'k8s-cp1 Ready control-plane\\nk8s-w1 Ready worker\\nk8s-w2 Ready worker (마스터-워커-워커 3노드 체제 확정 🟢)' },
-          { cmd: 'uptime', out: ' 09:38:00 up 2 days, load average: 0.10, 0.06, 0.02' },
-          { cmd: 'free -m', out: 'Mem: 2464 total, 280 used, 1850 free, 2030 available\\nSwap: 0B (스왑 0B 미사용 건전 🟢 · 2 vCPU / 2.5GB RAM)' },
-          { cmd: 'systemctl is-active k3s-agent', out: 'k3s-agent.service: active (running) [워커 2 정상 조인 🟢]' }
+          { cmd: 'systemctl is-active k3s-agent', out: 'k3s-agent.service: active (running) [단독 워커 정상 조인 🟢]' }
         ]
       },
       {
@@ -8266,8 +8212,8 @@ PORTAL_HTML = """<!DOCTYPE html>
       { name: '온프렘 controller (오픈스택 마스터)', swap: '0B Used', state: '영구 Swap Off 비활성화 완료 (4GB RAM 여유) 🟢', color: '#5FD39A' },
       { name: '온프렘 db-01 (compute4)', swap: '0B Used', state: 'm1.medium 4GB 증설로 완전 해소 🟢', color: '#5FD39A' },
       { name: '온프렘 k8s-cp1 (compute3)', swap: '0B Used', state: '파드 다이어트 후 0B 안정화 🟢', color: '#5FD39A' },
-      { name: '온프렘 k8s-w1 (compute1)', swap: '0B Used', state: 'Worker 1 2.5GB 자원 건전 🟢', color: '#5FD39A' },
-      { name: '온프렘 k8s-w2 (compute2)', swap: '0B Used', state: 'Worker 2 2.5GB 자원 건전 🟢', color: '#5FD39A' },
+      { name: '온프렘 k8s-w1 (compute1)', swap: '0B Used', state: '단독 Worker 2.5GB 자원 건전 (민원 파드 2대 서빙) 🟢', color: '#5FD39A' },
+      { name: '온프렘 compute2 (회수)', swap: '0B (OFF)', state: '안전·성능 우선 정책으로 정지 및 메모리 회수 완료 ⚪', color: '#8AA5C2' },
       { name: 'KT Cloud Edge (kt-edge)', swap: '0B Used', state: '2GB 스왑 풀 0B 미사용 건전 🟢', color: '#5FD39A' },
       { name: 'AWS 관제 (aws-ctl)', swap: '1MB Used', state: '99.9% 여유 (Orchestrator 완충) 🟢', color: '#9FD3F5' },
       { name: 'AWS DR (aws-dr)', swap: '378MB Used', state: 'Pilot-Light t3.small 메모리 보호 완충 🟡', color: '#F4C95D' }
