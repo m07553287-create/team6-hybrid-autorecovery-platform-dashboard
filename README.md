@@ -57,6 +57,8 @@
 | `docs/ARCHITECTURE_SPEC_AND_TRAFFIC_GUIDE.md` | **[핵심 규격서]** 트래픽 판별안 및 클라우드별 구성요소 정의서 |
 | `public/` | GitHub Pages 호스팅 정적 파일 (`index.html`, `CNAME`) |
 | `backend/server.py` | 포털 원본 서버 코드 (로컬 및 온프렘 백업용) |
+| `content/settings_guide.py` | **[설정] 화면 원본 데이터** — 인스턴스별 서비스 영역(설계·설정·명령어·검증·오류 시 확인), 선행 순서 S0~S12, 변수표 (2026-11-26 실측) |
+| `content/settings.js` · `settings.css` | [설정] 화면 렌더러·스타일 (`tools/build_settings.py` 가 server.py 에 주입) |
 | `tools/build.sh` | 정적 파일 문법 검사 및 `public/` 생성 빌드 스크립트 |
 | `.github/workflows/deploy-pages.yml` | GitHub Pages 공식 자동 배포 워크플로우 |
 
