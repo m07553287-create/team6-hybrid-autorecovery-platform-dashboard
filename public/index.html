@@ -392,7 +392,7 @@
       z-index: 2;
     }
     table.data-table td {
-      padding: 8px 10px;
+      padding: 7px 10px;
       border-bottom: 1px solid #1e293b;
       color: #e2e8f0;
       font-family: var(--font-mono);
@@ -400,6 +400,41 @@
     }
     table.data-table tr:hover td {
       background: rgba(30, 42, 71, 0.5);
+    }
+    .inst-badge {
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: #1e293b;
+      color: #38bdf8;
+      border: 1px solid #0284c7;
+      display: inline-block;
+      white-space: nowrap;
+    }
+    .group-badge {
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: rgba(148, 163, 184, 0.12);
+      color: #cbd5e1;
+      border: 1px solid #334155;
+      display: inline-block;
+      white-space: nowrap;
+    }
+    .svc-box {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .svc-name {
+      font-weight: 700;
+      color: #fff;
+    }
+    .svc-desc {
+      font-size: 9.5px;
+      color: var(--text-muted);
     }
     .badge-running {
       color: #34d399;
@@ -774,98 +809,177 @@
 
       <!-- ROW 2: MAIN DASHBOARD SPLIT -->
       <div class="dashboard-split">
-        <!-- LEFT: POD & CONTAINER STATUS TABLE -->
+        <!-- LEFT: SERVICE STATUS HIERARCHICAL TABLE (인스턴스 > 서비스그룹 > 서비스) -->
         <div class="pod-table-panel">
           <div class="panel-head">
             <div class="panel-title">
-              <span>쿠버네티스 파드 & 컨테이너 서비스 현황</span>
+              <span>서비스 현황</span>
             </div>
-            <div class="panel-sub">Total 8 Services Running · K3s v1.28</div>
+            <div class="panel-sub">인스턴스 ➔ 서비스그룹 ➔ 서비스 리소스 계층 관제</div>
           </div>
           <div class="table-scroll">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>서비스 / 파드명</th>
-                  <th>네임스페이스</th>
-                  <th>배치 노드</th>
-                  <th>CPU</th>
-                  <th>메모리</th>
-                  <th>레플리카</th>
-                  <th>상태</th>
+                  <th style="width: 22%;">인스턴스</th>
+                  <th style="width: 24%;">서비스그룹</th>
+                  <th style="width: 28%;">서비스 (파드/컨테이너)</th>
+                  <th style="width: 10%;">CPU</th>
+                  <th style="width: 10%;">메모리</th>
+                  <th style="width: 6%;">상태</th>
                 </tr>
               </thead>
               <tbody id="pod-table-body">
+                <!-- 1. KT Cloud Edge -->
                 <tr>
-                  <td><strong>ingress-traefik-84f9b</strong></td>
-                  <td>kube-system</td>
-                  <td>k8s-cp1</td>
-                  <td>120m</td>
-                  <td>184MB</td>
-                  <td>1/1</td>
-                  <td><span class="badge-running">Running</span></td>
-                </tr>
-                <tr>
-                  <td><strong>minwon-backend-7bc8f</strong></td>
-                  <td>production</td>
-                  <td>k8s-cp1</td>
-                  <td>280m</td>
-                  <td>412MB</td>
-                  <td>2/2</td>
-                  <td><span class="badge-running">Running</span></td>
-                </tr>
-                <tr>
-                  <td><strong>minwon-frontend-6da1c</strong></td>
-                  <td>production</td>
-                  <td>k8s-cp1</td>
-                  <td>95m</td>
-                  <td>146MB</td>
-                  <td>2/2</td>
-                  <td><span class="badge-running">Running</span></td>
-                </tr>
-                <tr>
-                  <td><strong>coredns-6799fbd9c</strong></td>
-                  <td>kube-system</td>
-                  <td>k8s-cp1</td>
-                  <td>45m</td>
-                  <td>68MB</td>
-                  <td>1/1</td>
-                  <td><span class="badge-running">Running</span></td>
-                </tr>
-                <tr>
-                  <td><strong>mariadb-galera-0</strong></td>
-                  <td>database</td>
-                  <td>db-01</td>
-                  <td>310m</td>
-                  <td>890MB</td>
-                  <td>1/1</td>
-                  <td><span class="badge-running">Running</span></td>
-                </tr>
-                <tr>
-                  <td><strong>wireguard-mesh-daemon</strong></td>
-                  <td>network</td>
-                  <td>kt-edge</td>
+                  <td rowspan="2"><span class="inst-badge">KT Cloud Edge</span></td>
+                  <td rowspan="2"><span class="group-badge">네트워크 & WAF 관문</span></td>
+                  <td>
+                    <div class="svc-box">
+                      <span class="svc-name">wireguard-mesh-daemon</span>
+                      <span class="svc-desc">VPN 메쉬 터널 A/B 관리</span>
+                    </div>
+                  </td>
                   <td>60m</td>
                   <td>88MB</td>
-                  <td>1/1</td>
                   <td><span class="badge-running">Running</span></td>
                 </tr>
                 <tr>
-                  <td><strong>duck-hsagent-dr-engine</strong></td>
-                  <td>management</td>
-                  <td>aws-ctl</td>
+                  <td>
+                    <div class="svc-box">
+                      <span class="svc-name">modsecurity-waf-proxy</span>
+                      <span class="svc-desc">L7 인라인 방화벽 검증</span>
+                    </div>
+                  </td>
+                  <td>110m</td>
+                  <td>164MB</td>
+                  <td><span class="badge-running">Running</span></td>
+                </tr>
+
+                <!-- 2. Onprem k8s-cp1 -->
+                <tr>
+                  <td rowspan="4"><span class="inst-badge">온프렘 k8s-cp1</span></td>
+                  <td rowspan="2"><span class="group-badge">민원 서비스</span></td>
+                  <td>
+                    <div class="svc-box">
+                      <span class="svc-name">minwon-backend</span>
+                      <span class="svc-desc">비즈니스 로직 & REST API</span>
+                    </div>
+                  </td>
+                  <td>280m</td>
+                  <td>412MB</td>
+                  <td><span class="badge-running">Running</span></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="svc-box">
+                      <span class="svc-name">minwon-frontend</span>
+                      <span class="svc-desc">사용자 웹 UI 포털</span>
+                    </div>
+                  </td>
+                  <td>95m</td>
+                  <td>146MB</td>
+                  <td><span class="badge-running">Running</span></td>
+                </tr>
+                <tr>
+                  <td rowspan="2"><span class="group-badge">인그레스 & 코어</span></td>
+                  <td>
+                    <div class="svc-box">
+                      <span class="svc-name">traefik-ingress-controller</span>
+                      <span class="svc-desc">L7 라우팅 & SSL 종단</span>
+                    </div>
+                  </td>
+                  <td>120m</td>
+                  <td>184MB</td>
+                  <td><span class="badge-running">Running</span></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="svc-box">
+                      <span class="svc-name">coredns-resolver</span>
+                      <span class="svc-desc">클러스터 내부 도메인 질의</span>
+                    </div>
+                  </td>
+                  <td>45m</td>
+                  <td>68MB</td>
+                  <td><span class="badge-running">Running</span></td>
+                </tr>
+
+                <!-- 3. Onprem db-01 -->
+                <tr>
+                  <td rowspan="2"><span class="inst-badge">온프렘 db-01</span></td>
+                  <td rowspan="2"><span class="group-badge">데이터베이스 & 백업</span></td>
+                  <td>
+                    <div class="svc-box">
+                      <span class="svc-name">mariadb-galera-cluster</span>
+                      <span class="svc-desc">메인 트랜잭션 DB 엔진</span>
+                    </div>
+                  </td>
+                  <td>310m</td>
+                  <td>890MB</td>
+                  <td><span class="badge-running">Running</span></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="svc-box">
+                      <span class="svc-name">ssh-backup-receiver</span>
+                      <span class="svc-desc">AWS DR 역방향 백업 수신</span>
+                    </div>
+                  </td>
+                  <td>25m</td>
+                  <td>45MB</td>
+                  <td><span class="badge-running">Running</span></td>
+                </tr>
+
+                <!-- 4. AWS CTL -->
+                <tr>
+                  <td rowspan="2"><span class="inst-badge">AWS CTL</span></td>
+                  <td rowspan="2"><span class="group-badge">DR 관제 & 오케스트레이션</span></td>
+                  <td>
+                    <div class="svc-box">
+                      <span class="svc-name">duck-hsagent-dr-engine</span>
+                      <span class="svc-desc">헬스체크 및 승격 판정</span>
+                    </div>
+                  </td>
                   <td>85m</td>
                   <td>132MB</td>
-                  <td>1/1</td>
                   <td><span class="badge-running">Running</span></td>
                 </tr>
                 <tr>
-                  <td><strong>aws-pilot-light-agent</strong></td>
-                  <td>dr-standby</td>
-                  <td>aws-dr</td>
+                  <td>
+                    <div class="svc-box">
+                      <span class="svc-name">route53-failover-syncer</span>
+                      <span class="svc-desc">DNS 가중치 및 자동 절체</span>
+                    </div>
+                  </td>
+                  <td>30m</td>
+                  <td>54MB</td>
+                  <td><span class="badge-running">Running</span></td>
+                </tr>
+
+                <!-- 5. AWS DR -->
+                <tr>
+                  <td rowspan="2"><span class="inst-badge">AWS DR K3s</span></td>
+                  <td rowspan="2"><span class="group-badge">재해 복구 대기 (Pilot-Light)</span></td>
+                  <td>
+                    <div class="svc-box">
+                      <span class="svc-name">dr-pilot-light-agent</span>
+                      <span class="svc-desc">Standby 대기 파드 (정상)</span>
+                    </div>
+                  </td>
                   <td>15m</td>
                   <td>48MB</td>
-                  <td>1/1</td>
+                  <td><span class="badge-standby">Standby</span></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="svc-box">
+                      <span class="svc-name">dr-rsync-backup-syncer</span>
+                      <span class="svc-desc">정기 데이터 스냅샷 동기화</span>
+                    </div>
+                  </td>
+                  <td>20m</td>
+                  <td>64MB</td>
                   <td><span class="badge-standby">Standby</span></td>
                 </tr>
               </tbody>
