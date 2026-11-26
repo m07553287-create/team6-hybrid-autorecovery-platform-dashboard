@@ -5,9 +5,16 @@
 
 ---
 
-## 📌 핵심 공식 규격 문서
-> 본 프로젝트의 트래픽 판별 구성안 및 각 클라우드별 세부 컴포넌트 명세는 아래 공식 문서에 정의되어 있습니다.  
-> 👉 **[하이브리드 멀티클라우드 아키텍처 규격 및 트래픽 판별 가이드 (docs/ARCHITECTURE_SPEC_AND_TRAFFIC_GUIDE.md)](docs/ARCHITECTURE_SPEC_AND_TRAFFIC_GUIDE.md)**
+## 📌 핵심 공식 규격 및 설정 가이드
+> 본 프로젝트의 클라우드별 추가 설정 로드맵, 트래픽 판별안 및 원클릭 설치 스크립트는 아래 공식 문서에 정리되어 있습니다.  
+> 1. 👉 **[클라우드별 추가 설정 순서 로드맵 및 스크립트 가이드 (docs/CLOUD_SETUP_ROADMAP_AND_SCRIPTS.md)](docs/CLOUD_SETUP_ROADMAP_AND_SCRIPTS.md)**  
+> 2. 👉 **[하이브리드 멀티클라우드 아키텍처 규격 및 트래픽 판별 가이드 (docs/ARCHITECTURE_SPEC_AND_TRAFFIC_GUIDE.md)](docs/ARCHITECTURE_SPEC_AND_TRAFFIC_GUIDE.md)**  
+
+### 🚀 원클릭 추가 설치 스크립트 (`scripts/`)
+- **KT Cloud Edge 추가 설정**: `sudo bash scripts/setup_ktcloud_edge_addons.sh` (Nginx 트래픽 판별 모듈)
+- **AWS DR 추가 설정**: `sudo bash scripts/setup_aws_dr_addons.sh` (온프렘 10.10.2.10 자동 백업 데몬)
+- **온프레미스 오픈스택 추가 설정**: `sudo bash scripts/setup_onprem_openstack_addons.sh` (DB 백업 수신 계정)
+- *원칙: 기존 VM 및 클러스터 설정 100% 보존 + 테라폼 1순위 적용 (IaC 지원 영역)*
 
 ---
 
