@@ -371,26 +371,33 @@
       align-items: center;
       gap: 12px;
     }
-    .sort-box {
+    .sort-tabs-group {
       display: flex;
       align-items: center;
-      gap: 6px;
-      font-size: 11px;
+      gap: 4px;
+    }
+    .sort-btn {
+      background: #141e33;
+      border: 1px solid #1e293b;
       color: var(--text-sub);
-    }
-    .sort-select {
-      background: #090d16;
-      border: 1px solid var(--surface-border);
-      color: #fff;
       font-size: 11px;
-      padding: 3px 8px;
+      padding: 3px 9px;
       border-radius: 4px;
-      font-family: inherit;
       cursor: pointer;
+      transition: all 0.15s ease;
+      font-family: inherit;
     }
-    .sort-select:focus {
-      outline: none;
-      border-color: var(--primary);
+    .sort-btn:hover {
+      background: #1e293b;
+      color: #fff;
+      border-color: #3b82f6;
+    }
+    .sort-btn.active {
+      background: #1e293b;
+      color: #38bdf8;
+      border-color: #38bdf8;
+      font-weight: 700;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
     }
     .matrix-5col-grid {
       flex: 1;
@@ -1176,30 +1183,28 @@
         <div class="toolbar-left">
           <div class="toolbar-title">
             <span>5대 클라우드 인스턴스 서비스 매트릭스</span>
-            <span class="badge-running" style="font-size: 10px; padding: 1px 6px;">실시간 연동</span>
+            <span class="badge-running" style="font-size: 10px; padding: 1px 6px;">실시간 관제</span>
           </div>
-          <div class="toolbar-sub">데스크탑 전용 FHD 뷰 · 인스턴스별 Top 10 서비스 고밀도 배치 · 클릭 시 상세 모달</div>
+          <div class="toolbar-sub">데스크탑 FHD 고정 뷰 · 순위 구분 없는 5대 기준 정렬 (종류별·서비스별·리소스크기별·이름별·실행시간별)</div>
         </div>
         <div class="toolbar-right">
+          <!-- 정렬 기준 5종 버튼 그룹 (순위 구분 없음) -->
+          <div class="sort-tabs-group" id="sort-tabs-group">
+            <span style="font-size: 11px; color: var(--text-muted); margin-right: 2px;">정렬:</span>
+            <button type="button" class="sort-btn active" data-sort="type" onclick="setSortMode('type')">종류별</button>
+            <button type="button" class="sort-btn" data-sort="service" onclick="setSortMode('service')">서비스별</button>
+            <button type="button" class="sort-btn" data-sort="resource" onclick="setSortMode('resource')">리소스크기별</button>
+            <button type="button" class="sort-btn" data-sort="name" onclick="setSortMode('name')">이름별</button>
+            <button type="button" class="sort-btn" data-sort="runtime" onclick="setSortMode('runtime')">실행시간별</button>
+          </div>
           <!-- 서비스 형태별 필터 -->
-          <div class="filter-chips-row" id="type-filter-group">
-            <span style="font-size: 11px; color: var(--text-muted); margin-right: 2px;">유형 필터:</span>
+          <div class="filter-chips-row" id="type-filter-group" style="margin-left: 6px;">
+            <span style="font-size: 11px; color: var(--text-muted); margin-right: 2px;">필터:</span>
             <button type="button" class="chip-btn active" data-type="all" onclick="setServiceFilter('all')">전체</button>
             <button type="button" class="chip-btn" data-type="web" onclick="setServiceFilter('web')">웹/API</button>
             <button type="button" class="chip-btn" data-type="gw" onclick="setServiceFilter('gw')">보안/관문</button>
             <button type="button" class="chip-btn" data-type="daemon" onclick="setServiceFilter('daemon')">상시데몬</button>
             <button type="button" class="chip-btn" data-type="data" onclick="setServiceFilter('data')">데이터/DR</button>
-          </div>
-          <!-- 리소스 & 형태 정렬 셀렉터 -->
-          <div class="sort-box">
-            <label for="sort-select" style="font-size: 11px; color: var(--text-muted);">정렬 기준:</label>
-            <select id="sort-select" class="sort-select" onchange="applySortAndFilter()">
-              <option value="rank">기본 중요도 순위 (#1~#10)</option>
-              <option value="cpu">CPU 점유율 높은순 (CPU %)</option>
-              <option value="mem">메모리 점유율 높은순 (RAM %)</option>
-              <option value="lat">응답속도 빠른순 (Latency ms)</option>
-              <option value="type">서비스 형태별 묶음 (Type)</option>
-            </select>
           </div>
         </div>
       </div>
@@ -1534,16 +1539,16 @@ bash scripts/setup_aws_dr_addons.sh`,
         netSpeed: '2.1ms (KT Backbone)',
         status: '정상 가동 (Active)',
         services: [
-          { rank: 1, type: 'gw', typeName: '보안/관문', name: 'modsecurity-waf-proxy', desc: 'L7 인라인 웹방화벽 패킷 검증', alloc: '300m / 512MB', cpuU: '110m (37%)', cpuP: 37, memU: '164MB (32%)', memP: 32, lat: '2.1ms', port: '80, 443', state: 'Running' },
-          { rank: 2, type: 'daemon', typeName: '상시작용', name: 'wireguard-mesh-daemon', desc: 'VPN 메쉬 터널 A/B 상시 가동', alloc: '200m / 256MB', cpuU: '60m (30%)', cpuP: 30, memU: '88MB (34%)', memP: 34, lat: '1.2ms', port: '51820/udp', state: 'Running' },
-          { rank: 3, type: 'gw', typeName: '네트워크', name: 'haproxy-edge-router', desc: '역방향 프록시 및 로드밸런싱', alloc: '200m / 256MB', cpuU: '45m (23%)', cpuP: 23, memU: '62MB (24%)', memP: 24, lat: '0.9ms', port: '443', state: 'Running' },
-          { rank: 4, type: 'gw', typeName: '보안', name: 'fail2ban-intrusion-guard', desc: '비인가 무차별 대입 자동차단', alloc: '100m / 128MB', cpuU: '20m (20%)', cpuP: 20, memU: '34MB (27%)', memP: 27, lat: '-', port: 'local', state: 'Running' },
-          { rank: 5, type: 'daemon', typeName: '모니터링', name: 'telegraf-edge-agent', desc: '에지 트래픽 텔레메트리 수집', alloc: '100m / 128MB', cpuU: '25m (25%)', cpuP: 25, memU: '42MB (33%)', memP: 33, lat: '4.5ms', port: '9100', state: 'Running' },
-          { rank: 6, type: 'daemon', typeName: '상시작용', name: 'certbot-ssl-renewer', desc: '와일드카드 Let’s Encrypt 갱신', alloc: '100m / 128MB', cpuU: '10m (10%)', cpuP: 10, memU: '28MB (22%)', memP: 22, lat: '-', port: 'cron', state: 'Running' },
-          { rank: 7, type: 'gw', typeName: '네트워크', name: 'iptables-nat-sync', desc: '커널 레벨 NAT 포워딩 동기화', alloc: '100m / 128MB', cpuU: '15m (15%)', cpuP: 15, memU: '22MB (17%)', memP: 17, lat: '0.4ms', port: 'kernel', state: 'Running' },
-          { rank: 8, type: 'daemon', typeName: '시스템', name: 'cloud-init-agent', desc: 'KT Cloud 가상머신 프로비저닝', alloc: '100m / 128MB', cpuU: '5m (5%)', cpuP: 5, memU: '18MB (14%)', memP: 14, lat: '-', port: 'local', state: 'Running' },
-          { rank: 9, type: 'daemon', typeName: '로그', name: 'rsyslog-audit-forwarder', desc: '감사 로그 원격 전송 데몬', alloc: '100m / 128MB', cpuU: '12m (12%)', cpuP: 12, memU: '32MB (25%)', memP: 25, lat: '1.8ms', port: '514', state: 'Running' },
-          { rank: 10, type: 'daemon', typeName: '헬스체크', name: 'edge-health-checker', desc: '인바운드 라우팅 상태 감시', alloc: '100m / 128MB', cpuU: '18m (18%)', cpuP: 18, memU: '26MB (20%)', memP: 20, lat: '2.4ms', port: '8088', state: 'Running' }
+          { type: 'gw', typeName: '보안/관문', name: 'modsecurity-waf-proxy', desc: 'L7 인라인 웹방화벽 패킷 검증', alloc: '300m / 512MB', cpuU: '110m (37%)', cpuP: 37, memU: '164MB (32%)', memP: 32, lat: '2.1ms', port: '80, 443', state: 'Running', runtime: '45일 12h', uptimeHours: 1092 },
+          { type: 'daemon', typeName: '상시작용', name: 'wireguard-mesh-daemon', desc: 'VPN 메쉬 터널 A/B 상시 가동', alloc: '200m / 256MB', cpuU: '60m (30%)', cpuP: 30, memU: '88MB (34%)', memP: 34, lat: '1.2ms', port: '51820/udp', state: 'Running', runtime: '60일 04h', uptimeHours: 1444 },
+          { type: 'gw', typeName: '네트워크', name: 'haproxy-edge-router', desc: '역방향 프록시 및 로드밸런싱', alloc: '200m / 256MB', cpuU: '45m (23%)', cpuP: 23, memU: '62MB (24%)', memP: 24, lat: '0.9ms', port: '443', state: 'Running', runtime: '45일 11h', uptimeHours: 1091 },
+          { type: 'gw', typeName: '보안', name: 'fail2ban-intrusion-guard', desc: '비인가 무차별 대입 자동차단', alloc: '100m / 128MB', cpuU: '20m (20%)', cpuP: 20, memU: '34MB (27%)', memP: 27, lat: '-', port: 'local', state: 'Running', runtime: '38일 06h', uptimeHours: 918 },
+          { type: 'daemon', typeName: '모니터링', name: 'telegraf-edge-agent', desc: '에지 트래픽 텔레메트리 수집', alloc: '100m / 128MB', cpuU: '25m (25%)', cpuP: 25, memU: '42MB (33%)', memP: 33, lat: '4.5ms', port: '9100', state: 'Running', runtime: '42일 18h', uptimeHours: 1026 },
+          { type: 'daemon', typeName: '상시작용', name: 'certbot-ssl-renewer', desc: '와일드카드 Let’s Encrypt 갱신', alloc: '100m / 128MB', cpuU: '10m (10%)', cpuP: 10, memU: '28MB (22%)', memP: 22, lat: '-', port: 'cron', state: 'Running', runtime: '15일 02h', uptimeHours: 362 },
+          { type: 'gw', typeName: '네트워크', name: 'iptables-nat-sync', desc: '커널 레벨 NAT 포워딩 동기화', alloc: '100m / 128MB', cpuU: '15m (15%)', cpuP: 15, memU: '22MB (17%)', memP: 17, lat: '0.4ms', port: 'kernel', state: 'Running', runtime: '60일 05h', uptimeHours: 1445 },
+          { type: 'daemon', typeName: '시스템', name: 'cloud-init-agent', desc: 'KT Cloud 가상머신 프로비저닝', alloc: '100m / 128MB', cpuU: '5m (5%)', cpuP: 5, memU: '18MB (14%)', memP: 14, lat: '-', port: 'local', state: 'Running', runtime: '60일 05h', uptimeHours: 1445 },
+          { type: 'daemon', typeName: '로그', name: 'rsyslog-audit-forwarder', desc: '감사 로그 원격 전송 데몬', alloc: '100m / 128MB', cpuU: '12m (12%)', cpuP: 12, memU: '32MB (25%)', memP: 25, lat: '1.8ms', port: '514', state: 'Running', runtime: '58일 20h', uptimeHours: 1412 },
+          { type: 'daemon', typeName: '헬스체크', name: 'edge-health-checker', desc: '인바운드 라우팅 상태 감시', alloc: '100m / 128MB', cpuU: '18m (18%)', cpuP: 18, memU: '26MB (20%)', memP: 20, lat: '2.4ms', port: '8088', state: 'Running', runtime: '24일 09h', uptimeHours: 585 }
         ]
       },
       'onprem-cp1': {
@@ -1556,16 +1561,16 @@ bash scripts/setup_aws_dr_addons.sh`,
         netSpeed: '0.8ms (Intranet Core)',
         status: '정상 가동 (Active)',
         services: [
-          { rank: 1, type: 'web', typeName: '웹/API', name: 'minwon-backend', desc: '민원 접수 핵심 REST API', alloc: '500m / 1,024MB', cpuU: '280m (56%)', cpuP: 56, memU: '412MB (40%)', memP: 40, lat: '14.2ms', port: '8080', state: 'Running' },
-          { rank: 2, type: 'gw', typeName: '보안/관문', name: 'traefik-ingress-controller', desc: 'L7 인그레스 라우팅 & SSL', alloc: '300m / 512MB', cpuU: '120m (40%)', cpuP: 40, memU: '184MB (36%)', memP: 36, lat: '1.8ms', port: '80, 443', state: 'Running' },
-          { rank: 3, type: 'web', typeName: '웹/UI', name: 'minwon-frontend', desc: '대민 접수 포털 웹 프론트엔드', alloc: '300m / 512MB', cpuU: '95m (32%)', cpuP: 32, memU: '146MB (29%)', memP: 29, lat: '18.5ms', port: '3000', state: 'Running' },
-          { rank: 4, type: 'daemon', typeName: '시스템/코어', name: 'coredns-resolver', desc: '클러스터 내부 도메인 질의 해석', alloc: '200m / 256MB', cpuU: '45m (23%)', cpuP: 23, memU: '68MB (27%)', memP: 27, lat: '0.6ms', port: '53', state: 'Running' },
-          { rank: 5, type: 'gw', typeName: '네트워크', name: 'kube-flannel-cni', desc: '오버레이 파드 네트워크 인터페이스', alloc: '200m / 256MB', cpuU: '35m (18%)', cpuP: 18, memU: '54MB (21%)', memP: 21, lat: '0.5ms', port: 'vxlan', state: 'Running' },
-          { rank: 6, type: 'daemon', typeName: '시스템', name: 'k3s-server-core', desc: '쿠버네티스 컨트롤 플레인 엔진', alloc: '500m / 1,024MB', cpuU: '190m (38%)', cpuP: 38, memU: '480MB (47%)', memP: 47, lat: '1.1ms', port: '6443', state: 'Running' },
-          { rank: 7, type: 'daemon', typeName: '모니터링', name: 'metrics-server', desc: '파드/노드 자원 사용량 집계', alloc: '150m / 256MB', cpuU: '30m (20%)', cpuP: 20, memU: '58MB (23%)', memP: 23, lat: '3.2ms', port: '4443', state: 'Running' },
-          { rank: 8, type: 'daemon', typeName: '스토리지', name: 'local-path-provisioner', desc: '로컬 PV 동적 프로비저닝 CSI', alloc: '100m / 128MB', cpuU: '15m (15%)', cpuP: 15, memU: '32MB (25%)', memP: 25, lat: '0.8ms', port: 'csi', state: 'Running' },
-          { rank: 9, type: 'daemon', typeName: '상시작용', name: 'minwon-worker-queue', desc: '비동기 알림 및 민원 큐 처리', alloc: '200m / 512MB', cpuU: '40m (20%)', cpuP: 20, memU: '94MB (18%)', memP: 18, lat: '2.1ms', port: 'internal', state: 'Running' },
-          { rank: 10, type: 'daemon', typeName: '진단', name: 'node-problem-detector', desc: '노드 커널 및 런타임 이상 진단', alloc: '100m / 128MB', cpuU: '18m (18%)', cpuP: 18, memU: '38MB (30%)', memP: 30, lat: '-', port: 'daemon', state: 'Running' }
+          { type: 'web', typeName: '웹/API', name: 'minwon-backend', desc: '민원 접수 핵심 REST API', alloc: '500m / 1,024MB', cpuU: '280m (56%)', cpuP: 56, memU: '412MB (40%)', memP: 40, lat: '14.2ms', port: '8080', state: 'Running', runtime: '18일 06h', uptimeHours: 438 },
+          { type: 'gw', typeName: '보안/관문', name: 'traefik-ingress-controller', desc: 'L7 인그레스 라우팅 & SSL', alloc: '300m / 512MB', cpuU: '120m (40%)', cpuP: 40, memU: '184MB (36%)', memP: 36, lat: '1.8ms', port: '80, 443', state: 'Running', runtime: '35일 14h', uptimeHours: 854 },
+          { type: 'web', typeName: '웹/UI', name: 'minwon-frontend', desc: '대민 접수 포털 웹 프론트엔드', alloc: '300m / 512MB', cpuU: '95m (32%)', cpuP: 32, memU: '146MB (29%)', memP: 29, lat: '18.5ms', port: '3000', state: 'Running', runtime: '18일 06h', uptimeHours: 438 },
+          { type: 'daemon', typeName: '시스템/코어', name: 'coredns-resolver', desc: '클러스터 내부 도메인 질의 해석', alloc: '200m / 256MB', cpuU: '45m (23%)', cpuP: 23, memU: '68MB (27%)', memP: 27, lat: '0.6ms', port: '53', state: 'Running', runtime: '40일 22h', uptimeHours: 982 },
+          { type: 'gw', typeName: '네트워크', name: 'kube-flannel-cni', desc: '오버레이 파드 네트워크 인터페이스', alloc: '200m / 256MB', cpuU: '35m (18%)', cpuP: 18, memU: '54MB (21%)', memP: 21, lat: '0.5ms', port: 'vxlan', state: 'Running', runtime: '40일 22h', uptimeHours: 982 },
+          { type: 'daemon', typeName: '시스템', name: 'k3s-server-core', desc: '쿠버네티스 컨트롤 플레인 엔진', alloc: '500m / 1,024MB', cpuU: '190m (38%)', cpuP: 38, memU: '480MB (47%)', memP: 47, lat: '1.1ms', port: '6443', state: 'Running', runtime: '41일 01h', uptimeHours: 985 },
+          { type: 'daemon', typeName: '모니터링', name: 'metrics-server', desc: '파드/노드 자원 사용량 집계', alloc: '150m / 256MB', cpuU: '30m (20%)', cpuP: 20, memU: '58MB (23%)', memP: 23, lat: '3.2ms', port: '4443', state: 'Running', runtime: '35일 09h', uptimeHours: 849 },
+          { type: 'daemon', typeName: '스토리지', name: 'local-path-provisioner', desc: '로컬 PV 동적 프로비저닝 CSI', alloc: '100m / 128MB', cpuU: '15m (15%)', cpuP: 15, memU: '32MB (25%)', memP: 25, lat: '0.8ms', port: 'csi', state: 'Running', runtime: '40일 18h', uptimeHours: 978 },
+          { type: 'daemon', typeName: '상시작용', name: 'minwon-worker-queue', desc: '비동기 알림 및 민원 큐 처리', alloc: '200m / 512MB', cpuU: '40m (20%)', cpuP: 20, memU: '94MB (18%)', memP: 18, lat: '2.1ms', port: 'internal', state: 'Running', runtime: '12일 04h', uptimeHours: 292 },
+          { type: 'daemon', typeName: '진단', name: 'node-problem-detector', desc: '노드 커널 및 런타임 이상 진단', alloc: '100m / 128MB', cpuU: '18m (18%)', cpuP: 18, memU: '38MB (30%)', memP: 30, lat: '-', port: 'daemon', state: 'Running', runtime: '39일 16h', uptimeHours: 952 }
         ]
       },
       'onprem-db': {
@@ -1578,16 +1583,16 @@ bash scripts/setup_aws_dr_addons.sh`,
         netSpeed: '0.4ms (Intranet DB)',
         status: '정상 가동 (Active)',
         services: [
-          { rank: 1, type: 'data', typeName: '데이터베이스', name: 'mariadb-galera-cluster', desc: '메인 트랜잭션 DB 엔진 (ACID)', alloc: '800m / 2,048MB', cpuU: '310m (39%)', cpuP: 39, memU: '890MB (43%)', memP: 43, lat: '0.8ms', port: '3306', state: 'Running' },
-          { rank: 2, type: 'daemon', typeName: '상시작용', name: 'ssh-backup-receiver', desc: 'AWS DR 역방향 동기화 수신 계정', alloc: '200m / 512MB', cpuU: '25m (13%)', cpuP: 13, memU: '45MB (9%)', memP: 9, lat: '1.5ms', port: '22', state: 'Running' },
-          { rank: 3, type: 'daemon', typeName: '모니터링', name: 'mysqld-exporter', desc: 'MySQL 메트릭 프로메테우스 전송', alloc: '100m / 128MB', cpuU: '18m (18%)', cpuP: 18, memU: '36MB (28%)', memP: 28, lat: '2.0ms', port: '9104', state: 'Running' },
-          { rank: 4, type: 'data', typeName: '백업', name: 'xtrabackup-cron-scheduler', desc: '무중단 물리 백업 스케줄러', alloc: '200m / 256MB', cpuU: '10m (5%)', cpuP: 5, memU: '48MB (19%)', memP: 19, lat: '-', port: 'cron', state: 'Running' },
-          { rank: 5, type: 'data', typeName: '데이터', name: 'innodb-buffer-monitor', desc: 'InnoDB 버퍼풀 히트율 감시', alloc: '100m / 128MB', cpuU: '12m (12%)', cpuP: 12, memU: '28MB (22%)', memP: 22, lat: '0.4ms', port: 'local', state: 'Running' },
-          { rank: 6, type: 'daemon', typeName: '로그', name: 'systemd-journald', desc: '시스템 및 바이너리 로그 관리', alloc: '100m / 128MB', cpuU: '15m (15%)', cpuP: 15, memU: '42MB (33%)', memP: 33, lat: '-', port: 'system', state: 'Running' },
-          { rank: 7, type: 'gw', typeName: '네트워크', name: 'wireguard-db-endpoint', desc: 'DB 전용 암호화 통신 채널', alloc: '100m / 128MB', cpuU: '20m (20%)', cpuP: 20, memU: '38MB (30%)', memP: 30, lat: '1.1ms', port: '51820', state: 'Running' },
-          { rank: 8, type: 'daemon', typeName: '유지보수', name: 'cron-logrotate', desc: '쿼리 로그 및 감사파일 회전', alloc: '100m / 128MB', cpuU: '8m (8%)', cpuP: 8, memU: '22MB (17%)', memP: 17, lat: '-', port: 'cron', state: 'Running' },
-          { rank: 9, type: 'daemon', typeName: '보안', name: 'auditd-security-daemon', desc: 'DB 시스템 콜 접근 감사', alloc: '100m / 128MB', cpuU: '14m (14%)', cpuP: 14, memU: '32MB (25%)', memP: 25, lat: '-', port: 'kernel', state: 'Running' },
-          { rank: 10, type: 'daemon', typeName: '모니터링', name: 'node-exporter', desc: 'OS 커널 및 호스트 자원 지표', alloc: '100m / 128MB', cpuU: '15m (15%)', cpuP: 15, memU: '30MB (23%)', memP: 23, lat: '1.8ms', port: '9100', state: 'Running' }
+          { type: 'data', typeName: '데이터베이스', name: 'mariadb-galera-cluster', desc: '메인 트랜잭션 DB 엔진 (ACID)', alloc: '800m / 2,048MB', cpuU: '310m (39%)', cpuP: 39, memU: '890MB (43%)', memP: 43, lat: '0.8ms', port: '3306', state: 'Running', runtime: '52일 08h', uptimeHours: 1256 },
+          { type: 'daemon', typeName: '상시작용', name: 'ssh-backup-receiver', desc: 'AWS DR 역방향 동기화 수신 계정', alloc: '200m / 512MB', cpuU: '25m (13%)', cpuP: 13, memU: '45MB (9%)', memP: 9, lat: '1.5ms', port: '22', state: 'Running', runtime: '48일 12h', uptimeHours: 1164 },
+          { type: 'daemon', typeName: '모니터링', name: 'mysqld-exporter', desc: 'MySQL 메트릭 프로메테우스 전송', alloc: '100m / 128MB', cpuU: '18m (18%)', cpuP: 18, memU: '36MB (28%)', memP: 28, lat: '2.0ms', port: '9104', state: 'Running', runtime: '30일 05h', uptimeHours: 725 },
+          { type: 'data', typeName: '백업', name: 'xtrabackup-cron-scheduler', desc: '무중단 물리 백업 스케줄러', alloc: '200m / 256MB', cpuU: '10m (5%)', cpuP: 5, memU: '48MB (19%)', memP: 19, lat: '-', port: 'cron', state: 'Running', runtime: '22일 19h', uptimeHours: 547 },
+          { type: 'data', typeName: '데이터', name: 'innodb-buffer-monitor', desc: 'InnoDB 버퍼풀 히트율 감시', alloc: '100m / 128MB', cpuU: '12m (12%)', cpuP: 12, memU: '28MB (22%)', memP: 22, lat: '0.4ms', port: 'local', state: 'Running', runtime: '41일 07h', uptimeHours: 991 },
+          { type: 'daemon', typeName: '로그', name: 'systemd-journald', desc: '시스템 및 바이너리 로그 관리', alloc: '100m / 128MB', cpuU: '15m (15%)', cpuP: 15, memU: '42MB (33%)', memP: 33, lat: '-', port: 'system', state: 'Running', runtime: '55일 11h', uptimeHours: 1331 },
+          { type: 'gw', typeName: '네트워크', name: 'wireguard-db-endpoint', desc: 'DB 전용 암호화 통신 채널', alloc: '100m / 128MB', cpuU: '20m (20%)', cpuP: 20, memU: '38MB (30%)', memP: 30, lat: '1.1ms', port: '51820', state: 'Running', runtime: '50일 03h', uptimeHours: 1203 },
+          { type: 'daemon', typeName: '유지보수', name: 'cron-logrotate', desc: '쿼리 로그 및 감사파일 회전', alloc: '100m / 128MB', cpuU: '8m (8%)', cpuP: 8, memU: '22MB (17%)', memP: 17, lat: '-', port: 'cron', state: 'Running', runtime: '55일 00h', uptimeHours: 1320 },
+          { type: 'daemon', typeName: '보안', name: 'auditd-security-daemon', desc: 'DB 시스템 콜 접근 감사', alloc: '100m / 128MB', cpuU: '14m (14%)', cpuP: 14, memU: '32MB (25%)', memP: 25, lat: '-', port: 'kernel', state: 'Running', runtime: '55일 02h', uptimeHours: 1322 },
+          { type: 'daemon', typeName: '모니터링', name: 'node-exporter', desc: 'OS 커널 및 호스트 자원 지표', alloc: '100m / 128MB', cpuU: '15m (15%)', cpuP: 15, memU: '30MB (23%)', memP: 23, lat: '1.8ms', port: '9100', state: 'Running', runtime: '30일 05h', uptimeHours: 725 }
         ]
       },
       'aws-ctl': {
@@ -1600,16 +1605,16 @@ bash scripts/setup_aws_dr_addons.sh`,
         netSpeed: '22ms (AWS Direct Mesh)',
         status: '정상 가동 (Active)',
         services: [
-          { rank: 1, type: 'data', typeName: 'DR 관제', name: 'duck-hsagent-dr-engine', desc: '온프렘 헬스체크 및 승격 판정', alloc: '400m / 512MB', cpuU: '85m (21%)', cpuP: 21, memU: '132MB (26%)', memP: 26, lat: '1.4ms', port: '8080', state: 'Running' },
-          { rank: 2, type: 'data', typeName: 'DR/DNS', name: 'route53-failover-syncer', desc: 'DNS 가중치 및 자동 절체 제어', alloc: '200m / 256MB', cpuU: '30m (15%)', cpuP: 15, memU: '54MB (21%)', memP: 21, lat: '45ms', port: 'aws-api', state: 'Running' },
-          { rank: 3, type: 'daemon', typeName: '모니터링', name: 'cloudwatch-metric-collector', desc: 'AWS 리소스 상태 주기적 동기화', alloc: '150m / 256MB', cpuU: '28m (19%)', cpuP: 19, memU: '48MB (19%)', memP: 19, lat: '52ms', port: '443', state: 'Running' },
-          { rank: 4, type: 'daemon', typeName: '상시작용', name: 'aws-ssm-agent', desc: '인프라 원격 보안 관리 세션', alloc: '100m / 128MB', cpuU: '12m (12%)', cpuP: 12, memU: '38MB (30%)', memP: 30, lat: '-', port: 'ssm', state: 'Running' },
-          { rank: 5, type: 'gw', typeName: '네트워크', name: 'wireguard-aws-connector', desc: '하이브리드 클라우드 터널 관리', alloc: '200m / 256MB', cpuU: '35m (18%)', cpuP: 18, memU: '46MB (18%)', memP: 18, lat: '22ms', port: '51820', state: 'Running' },
-          { rank: 6, type: 'daemon', typeName: '알림', name: 'dr-alert-webhook-dispatcher', desc: '비상 절체 시 슬랙/웹훅 전송', alloc: '100m / 128MB', cpuU: '10m (10%)', cpuP: 10, memU: '24MB (19%)', memP: 19, lat: '18ms', port: '9090', state: 'Running' },
-          { rank: 7, type: 'data', typeName: '데이터', name: 'state-database-sqlite', desc: '장애 이력 및 페일오버 상태 보관', alloc: '100m / 128MB', cpuU: '15m (15%)', cpuP: 15, memU: '34MB (27%)', memP: 27, lat: '0.3ms', port: 'local', state: 'Running' },
-          { rank: 8, type: 'daemon', typeName: '진단', name: 'health-probe-worker', desc: '10~15초 주기 순차 프로브 데몬', alloc: '150m / 256MB', cpuU: '22m (15%)', cpuP: 15, memU: '40MB (16%)', memP: 16, lat: '12ms', port: 'async', state: 'Running' },
-          { rank: 9, type: 'daemon', typeName: '시스템', name: 'systemd-resolved', desc: 'AWS 엔드포인트 도메인 해석', alloc: '100m / 128MB', cpuU: '8m (8%)', cpuP: 8, memU: '20MB (16%)', memP: 16, lat: '0.5ms', port: '53', state: 'Running' },
-          { rank: 10, type: 'daemon', typeName: '스토리지', name: 'amazon-ebs-autoscale', desc: '백업 디스크 볼륨 용량 감시', alloc: '100m / 128MB', cpuU: '10m (10%)', cpuP: 10, memU: '26MB (20%)', memP: 20, lat: '-', port: 'api', state: 'Running' }
+          { type: 'data', typeName: 'DR 관제', name: 'duck-hsagent-dr-engine', desc: '온프렘 헬스체크 및 승격 판정', alloc: '400m / 512MB', cpuU: '85m (21%)', cpuP: 21, memU: '132MB (26%)', memP: 26, lat: '1.4ms', port: '8080', state: 'Running', runtime: '26일 15h', uptimeHours: 639 },
+          { type: 'data', typeName: 'DR/DNS', name: 'route53-failover-syncer', desc: 'DNS 가중치 및 자동 절체 제어', alloc: '200m / 256MB', cpuU: '30m (15%)', cpuP: 15, memU: '54MB (21%)', memP: 21, lat: '45ms', port: 'aws-api', state: 'Running', runtime: '26일 14h', uptimeHours: 638 },
+          { type: 'daemon', typeName: '모니터링', name: 'cloudwatch-metric-collector', desc: 'AWS 리소스 상태 주기적 동기화', alloc: '150m / 256MB', cpuU: '28m (19%)', cpuP: 19, memU: '48MB (19%)', memP: 19, lat: '52ms', port: '443', state: 'Running', runtime: '33일 08h', uptimeHours: 798 },
+          { type: 'daemon', typeName: '상시작용', name: 'aws-ssm-agent', desc: '인프라 원격 보안 관리 세션', alloc: '100m / 128MB', cpuU: '12m (12%)', cpuP: 12, memU: '38MB (30%)', memP: 30, lat: '-', port: 'ssm', state: 'Running', runtime: '44일 21h', uptimeHours: 1077 },
+          { type: 'gw', typeName: '네트워크', name: 'wireguard-aws-connector', desc: '하이브리드 클라우드 터널 관리', alloc: '200m / 256MB', cpuU: '35m (18%)', cpuP: 18, memU: '46MB (18%)', memP: 18, lat: '22ms', port: '51820', state: 'Running', runtime: '40일 19h', uptimeHours: 979 },
+          { type: 'daemon', typeName: '알림', name: 'dr-alert-webhook-dispatcher', desc: '비상 절체 시 슬랙/웹훅 전송', alloc: '100m / 128MB', cpuU: '10m (10%)', cpuP: 10, memU: '24MB (19%)', memP: 19, lat: '18ms', port: '9090', state: 'Running', runtime: '26일 10h', uptimeHours: 634 },
+          { type: 'data', typeName: '데이터', name: 'state-database-sqlite', desc: '장애 이력 및 페일오버 상태 보관', alloc: '100m / 128MB', cpuU: '15m (15%)', cpuP: 15, memU: '34MB (27%)', memP: 27, lat: '0.3ms', port: 'local', state: 'Running', runtime: '26일 15h', uptimeHours: 639 },
+          { type: 'daemon', typeName: '진단', name: 'health-probe-worker', desc: '10~15초 주기 순차 프로브 데몬', alloc: '150m / 256MB', cpuU: '22m (15%)', cpuP: 15, memU: '40MB (16%)', memP: 16, lat: '12ms', port: 'async', state: 'Running', runtime: '26일 12h', uptimeHours: 636 },
+          { type: 'daemon', typeName: '시스템', name: 'systemd-resolved', desc: 'AWS 엔드포인트 도메인 해석', alloc: '100m / 128MB', cpuU: '8m (8%)', cpuP: 8, memU: '20MB (16%)', memP: 16, lat: '0.5ms', port: '53', state: 'Running', runtime: '45일 02h', uptimeHours: 1082 },
+          { type: 'daemon', typeName: '스토리지', name: 'amazon-ebs-autoscale', desc: '백업 디스크 볼륨 용량 감시', alloc: '100m / 128MB', cpuU: '10m (10%)', cpuP: 10, memU: '26MB (20%)', memP: 20, lat: '-', port: 'api', state: 'Running', runtime: '35일 06h', uptimeHours: 846 }
         ]
       },
       'aws-dr': {
@@ -1622,16 +1627,16 @@ bash scripts/setup_aws_dr_addons.sh`,
         netSpeed: '24ms (Standby Route)',
         status: 'Standby 대기 (정상 가동)',
         services: [
-          { rank: 1, type: 'data', typeName: 'DR 대기', name: 'dr-pilot-light-agent', desc: 'L3 승격 대기 핫스탠바이 파드', alloc: '400m / 512MB', cpuU: '15m (4%)', cpuP: 4, memU: '48MB (9%)', memP: 9, lat: '24ms', port: '9000', state: 'Standby' },
-          { rank: 2, type: 'data', typeName: '데이터 동기화', name: 'dr-rsync-backup-syncer', desc: '정기 데이터 스냅샷 수신 동기화', alloc: '300m / 512MB', cpuU: '20m (7%)', cpuP: 7, memU: '64MB (13%)', memP: 13, lat: '26ms', port: 'rsync', state: 'Standby' },
-          { rank: 3, type: 'daemon', typeName: '시스템', name: 'k3s-standby-core', desc: 'DR 복구용 쿠버네티스 대기 코어', alloc: '500m / 1,024MB', cpuU: '45m (9%)', cpuP: 9, memU: '168MB (16%)', memP: 16, lat: '1.2ms', port: '6443', state: 'Standby' },
-          { rank: 4, type: 'web', typeName: '웹/API 대기', name: 'minwon-backend-standby', desc: '비상 승격 시 즉각 RW 전환 대기', alloc: '500m / 1,024MB', cpuU: '10m (2%)', cpuP: 2, memU: '52MB (5%)', memP: 5, lat: '-', port: '8080', state: 'Standby' },
-          { rank: 5, type: 'gw', typeName: '보안/관문', name: 'traefik-standby-router', desc: 'AWS 인그레스 대기 라우터', alloc: '200m / 256MB', cpuU: '15m (8%)', cpuP: 8, memU: '40MB (16%)', memP: 16, lat: '-', port: '80, 443', state: 'Standby' },
-          { rank: 6, type: 'daemon', typeName: '시스템', name: 'coredns-standby', desc: 'DR 클러스터 내부 네임서비스', alloc: '100m / 128MB', cpuU: '10m (10%)', cpuP: 10, memU: '28MB (22%)', memP: 22, lat: '0.6ms', port: '53', state: 'Standby' },
-          { rank: 7, type: 'data', typeName: '데이터', name: 'mariadb-standby-replica', desc: '온프렘 DB 복제본 대기 엔진', alloc: '800m / 2,048MB', cpuU: '25m (3%)', cpuP: 3, memU: '120MB (6%)', memP: 6, lat: '0.9ms', port: '3306', state: 'Standby' },
-          { rank: 8, type: 'daemon', typeName: '상시작용', name: 'aws-ssm-dr-agent', desc: 'AWS Systems Manager 제어 데몬', alloc: '100m / 128MB', cpuU: '10m (10%)', cpuP: 10, memU: '34MB (27%)', memP: 27, lat: '-', port: 'ssm', state: 'Standby' },
-          { rank: 9, type: 'gw', typeName: '네트워크', name: 'flannel-dr-cni', desc: 'DR 클러스터 CNI 네트워크', alloc: '150m / 256MB', cpuU: '12m (8%)', cpuP: 8, memU: '32MB (13%)', memP: 13, lat: '0.5ms', port: 'vxlan', state: 'Standby' },
-          { rank: 10, type: 'data', typeName: 'DR 자동화', name: 'failover-trigger-listener', desc: 'L3 승격 신호 수신 대기 소켓', alloc: '100m / 128MB', cpuU: '14m (14%)', cpuP: 14, memU: '36MB (28%)', memP: 28, lat: '15ms', port: 'event', state: 'Standby' }
+          { type: 'data', typeName: 'DR 대기', name: 'dr-pilot-light-agent', desc: 'L3 승격 대기 핫스탠바이 파드', alloc: '400m / 512MB', cpuU: '15m (4%)', cpuP: 4, memU: '48MB (9%)', memP: 9, lat: '24ms', port: '9000', state: 'Standby', runtime: '20일 08h', uptimeHours: 488 },
+          { type: 'data', typeName: '데이터 동기화', name: 'dr-rsync-backup-syncer', desc: '정기 데이터 스냅샷 수신 동기화', alloc: '300m / 512MB', cpuU: '20m (7%)', cpuP: 7, memU: '64MB (13%)', memP: 13, lat: '26ms', port: 'rsync', state: 'Standby', runtime: '20일 06h', uptimeHours: 486 },
+          { type: 'daemon', typeName: '시스템', name: 'k3s-standby-core', desc: 'DR 복구용 쿠버네티스 대기 코어', alloc: '500m / 1,024MB', cpuU: '45m (9%)', cpuP: 9, memU: '168MB (16%)', memP: 16, lat: '1.2ms', port: '6443', state: 'Standby', runtime: '25일 12h', uptimeHours: 612 },
+          { type: 'web', typeName: '웹/API 대기', name: 'minwon-backend-standby', desc: '비상 승격 시 즉각 RW 전환 대기', alloc: '500m / 1,024MB', cpuU: '10m (2%)', cpuP: 2, memU: '52MB (5%)', memP: 5, lat: '-', port: '8080', state: 'Standby', runtime: '15일 04h', uptimeHours: 364 },
+          { type: 'gw', typeName: '보안/관문', name: 'traefik-standby-router', desc: 'AWS 인그레스 대기 라우터', alloc: '200m / 256MB', cpuU: '15m (8%)', cpuP: 8, memU: '40MB (16%)', memP: 16, lat: '-', port: '80, 443', state: 'Standby', runtime: '25일 10h', uptimeHours: 610 },
+          { type: 'daemon', typeName: '시스템', name: 'coredns-standby', desc: 'DR 클러스터 내부 네임서비스', alloc: '100m / 128MB', cpuU: '10m (10%)', cpuP: 10, memU: '28MB (22%)', memP: 22, lat: '0.6ms', port: '53', state: 'Standby', runtime: '25일 11h', uptimeHours: 611 },
+          { type: 'data', typeName: '데이터', name: 'mariadb-standby-replica', desc: '온프렘 DB 복제본 대기 엔진', alloc: '800m / 2,048MB', cpuU: '25m (3%)', cpuP: 3, memU: '120MB (6%)', memP: 6, lat: '0.9ms', port: '3306', state: 'Standby', runtime: '22일 16h', uptimeHours: 544 },
+          { type: 'daemon', typeName: '상시작용', name: 'aws-ssm-dr-agent', desc: 'AWS Systems Manager 제어 데몬', alloc: '100m / 128MB', cpuU: '10m (10%)', cpuP: 10, memU: '34MB (27%)', memP: 27, lat: '-', port: 'ssm', state: 'Standby', runtime: '30일 18h', uptimeHours: 738 },
+          { type: 'gw', typeName: '네트워크', name: 'flannel-dr-cni', desc: 'DR 클러스터 CNI 네트워크', alloc: '150m / 256MB', cpuU: '12m (8%)', cpuP: 8, memU: '32MB (13%)', memP: 13, lat: '0.5ms', port: 'vxlan', state: 'Standby', runtime: '25일 11h', uptimeHours: 611 },
+          { type: 'data', typeName: 'DR 자동화', name: 'failover-trigger-listener', desc: 'L3 승격 신호 수신 대기 소켓', alloc: '100m / 128MB', cpuU: '14m (14%)', cpuP: 14, memU: '36MB (28%)', memP: 28, lat: '15ms', port: 'event', state: 'Standby', runtime: '20일 07h', uptimeHours: 487 }
         ]
       }
     };
@@ -1697,6 +1702,20 @@ bash scripts/setup_aws_dr_addons.sh`,
 
     // 6. SORT & FILTER CONTROLLER
     let currentServiceFilter = 'all';
+    let currentSortMode = 'type'; // 종류별 (기본)
+
+    function setSortMode(mode) {
+      currentSortMode = mode;
+      const btns = document.querySelectorAll('#sort-tabs-group .sort-btn');
+      btns.forEach(b => {
+        if (b.getAttribute('data-sort') === mode) {
+          b.classList.add('active');
+        } else {
+          b.classList.remove('active');
+        }
+      });
+      applySortAndFilter();
+    }
 
     function setServiceFilter(type) {
       currentServiceFilter = type;
@@ -1711,11 +1730,43 @@ bash scripts/setup_aws_dr_addons.sh`,
       applySortAndFilter();
     }
 
+    function getResourceScore(allocStr) {
+      if (!allocStr) return 0;
+      let cpu = 0;
+      let mem = 0;
+      const mCpu = allocStr.match(/([0-9]+)m/);
+      if (mCpu) cpu = parseInt(mCpu[1]);
+      const mMem = allocStr.match(/([0-9,]+)MB/);
+      if (mMem) mem = parseInt(mMem[1].replace(/,/g, ''));
+      return cpu * 2 + mem;
+    }
+
+    function sortServiceList(list, mode) {
+      list.sort((a, b) => {
+        if (mode === 'type') {
+          return a.typeName.localeCompare(b.typeName, 'ko') || a.name.localeCompare(b.name);
+        }
+        if (mode === 'service') {
+          return a.desc.localeCompare(b.desc, 'ko') || a.name.localeCompare(b.name);
+        }
+        if (mode === 'resource') {
+          return getResourceScore(b.alloc) - getResourceScore(a.alloc);
+        }
+        if (mode === 'name') {
+          return a.name.localeCompare(b.name);
+        }
+        if (mode === 'runtime') {
+          return (b.uptimeHours || 0) - (a.uptimeHours || 0);
+        }
+        return a.name.localeCompare(b.name);
+      });
+      return list;
+    }
+
     function applySortAndFilter() {
       const grid = document.getElementById('matrix-5col-grid');
       if (!grid) return;
 
-      const sortMode = document.getElementById('sort-select')?.value || 'rank';
       const instanceKeys = ['kt-edge', 'onprem-cp1', 'onprem-db', 'aws-ctl', 'aws-dr'];
 
       grid.innerHTML = instanceKeys.map(key => {
@@ -1728,46 +1779,34 @@ bash scripts/setup_aws_dr_addons.sh`,
           list = list.filter(s => s.type === currentServiceFilter);
         }
 
-        // 2. Sort
-        list.sort((a, b) => {
-          if (sortMode === 'cpu') return b.cpuP - a.cpuP;
-          if (sortMode === 'mem') return b.memP - a.memP;
-          if (sortMode === 'lat') {
-            const latA = a.lat.includes('ms') ? parseFloat(a.lat) : 9999;
-            const latB = b.lat.includes('ms') ? parseFloat(b.lat) : 9999;
-            return latA - latB;
-          }
-          if (sortMode === 'type') {
-            return a.typeName.localeCompare(b.typeName);
-          }
-          return a.rank - b.rank; // default rank
-        });
+        // 2. Sort without rank distinction
+        sortServiceList(list, currentSortMode);
 
-        // 3. Compact Rows
+        // 3. Compact Rows (순위 구분 없는 5대 기준 정렬)
         const rowsHtml = list.length === 0 
           ? `<div style="padding: 24px 10px; text-align: center; color: var(--text-muted); font-size: 11px;">해당 유형의 서비스가 없습니다.</div>`
           : list.map(s => {
               const stateClass = s.state === 'Running' ? 'badge-running' : 'badge-standby';
-              const rankClass = s.rank <= 3 ? 'rank-top3' : '';
               const typeClass = `type-${s.type}`;
 
               return `
                 <div class="compact-service-row" onclick="openDetailModal('${key}', '${s.name}')" title="클릭 시 상세 모달 열기">
                   <div class="svc-row-top">
                     <div class="svc-row-left">
-                      <span class="rank-badge ${rankClass}">#${s.rank}</span>
                       <span class="type-badge ${typeClass}">${s.typeName}</span>
                       <span class="svc-row-name" title="${s.name}">${s.name}</span>
                     </div>
                     <span class="${stateClass}" style="font-size: 9px; padding: 1px 5px;">${s.state}</span>
                   </div>
                   <div class="svc-row-bot">
-                    <div style="display: flex; align-items: center; gap: 5px;">
-                      <span>CPU ${s.cpuP}%</span>
-                      <div class="mini-meter-track" style="width: 28px;"><div class="mini-meter-fill fill-blue" style="width: ${s.cpuP}%;"></div></div>
-                      <span>RAM ${s.memP}%</span>
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                      <span style="color: #cbd5e1; font-weight: 600;">${s.alloc}</span>
+                      <span>(CPU ${s.cpuP}%)</span>
                     </div>
-                    <span style="color: #38bdf8; font-weight: 600;">${s.lat}</span>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <span style="color: #94a3b8;">${s.runtime}</span>
+                      <span style="color: #38bdf8; font-weight: 600;">${s.lat}</span>
+                    </div>
                   </div>
                 </div>
               `;
@@ -1847,10 +1886,10 @@ bash scripts/setup_aws_dr_addons.sh`,
             </div>
 
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; font-family: var(--font-mono); font-size: 11px;">
-              <div class="spec-item"><span class="spec-k">할당 리소스</span><span class="spec-v">${targetSvc.alloc}</span></div>
+              <div class="spec-item"><span class="spec-k">리소스크기 (할당)</span><span class="spec-v">${targetSvc.alloc}</span></div>
               <div class="spec-item"><span class="spec-k">CPU 실제 사용량</span><span class="spec-v" style="color: #38bdf8;">${targetSvc.cpuU}</span></div>
               <div class="spec-item"><span class="spec-k">메모리 실제 사용량</span><span class="spec-v" style="color: #34d399;">${targetSvc.memU}</span></div>
-              <div class="spec-item"><span class="spec-k">지연율 & 포트</span><span class="spec-v" style="color: #fbbf24;">${targetSvc.lat} · ${targetSvc.port}</span></div>
+              <div class="spec-item"><span class="spec-k">실행시간 & 지연율</span><span class="spec-v" style="color: #fbbf24;">${targetSvc.runtime} · ${targetSvc.lat}</span></div>
             </div>
 
             <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 2px;">
@@ -1883,16 +1922,17 @@ bash scripts/setup_aws_dr_addons.sh`,
         </div>
       `;
 
-      // Full table of services
-      const tableRowsHtml = data.services.map(s => {
+      // Full table of services (sorted by currentSortMode without rank)
+      let modalList = data.services.slice();
+      sortServiceList(modalList, currentSortMode);
+
+      const tableRowsHtml = modalList.map(s => {
         const isSelected = targetSvcName === s.name ? 'style="background: rgba(56, 189, 248, 0.12); border-left: 3px solid #38bdf8;"' : '';
-        const rankClass = s.rank <= 3 ? 'rank-top3' : '';
         const stateClass = s.state === 'Running' ? 'badge-running' : 'badge-standby';
         const typeClass = `type-${s.type}`;
 
         return `
           <tr ${isSelected} onclick="openDetailModal('${instKey}', '${s.name}')" style="cursor: pointer;" title="클릭하여 이 서비스 집중 분석">
-            <td style="text-align: center;"><span class="rank-badge ${rankClass}">#${s.rank}</span></td>
             <td><span class="type-badge ${typeClass}">${s.typeName}</span></td>
             <td>
               <div class="svc-box">
@@ -1907,8 +1947,8 @@ bash scripts/setup_aws_dr_addons.sh`,
                 <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: ${s.cpuP}%;"></div></div>
               </div>
             </td>
+            <td><span style="color:#94a3b8; font-family:var(--font-mono); font-size:11px;">${s.runtime}</span></td>
             <td><span style="color:#38bdf8; font-weight:700;">${s.lat}</span></td>
-            <td><span style="color:var(--text-muted);">${s.port}</span></td>
             <td style="text-align: center;"><span class="${stateClass}">${s.state}</span></td>
           </tr>
         `;
@@ -1919,14 +1959,13 @@ bash scripts/setup_aws_dr_addons.sh`,
           <table class="data-table">
             <thead>
               <tr>
-                <th style="width: 5%; text-align: center;">순위</th>
-                <th style="width: 12%;">서비스유형</th>
-                <th style="width: 27%;">서비스명 & 역할 (클릭 시 상단 분석)</th>
-                <th style="width: 14%;">할당 리소스</th>
-                <th style="width: 18%;">실제 사용량 (점유율)</th>
-                <th style="width: 10%;">응답속도</th>
-                <th style="width: 8%;">포트</th>
-                <th style="width: 6%; text-align: center;">상태</th>
+                <th style="width: 13%;">종류 (유형)</th>
+                <th style="width: 26%;">서비스명 & 역할 (클릭 시 집중 분석)</th>
+                <th style="width: 15%;">리소스크기 (할당)</th>
+                <th style="width: 17%;">실제 사용량 (점유율)</th>
+                <th style="width: 12%;">실행시간 (가동)</th>
+                <th style="width: 9%;">지연율</th>
+                <th style="width: 8%; text-align: center;">상태</th>
               </tr>
             </thead>
             <tbody>
@@ -1939,7 +1978,7 @@ bash scripts/setup_aws_dr_addons.sh`,
       modalBody.innerHTML = `
         ${summaryBoxHtml}
         ${focusedHtml}
-        <div style="font-size: 12px; font-weight: 700; color: #cbd5e1; margin-top: 4px;">전체 Top 10 서비스 목록 (행을 클릭하면 상단에서 상세 분석됩니다)</div>
+        <div style="font-size: 12px; font-weight: 700; color: #cbd5e1; margin-top: 4px;">전체 서비스 목록 (순위 구분 없이 선택된 기준으로 정렬됨 · 행 클릭 시 집중 분석)</div>
         ${tableHtml}
       `;
 
