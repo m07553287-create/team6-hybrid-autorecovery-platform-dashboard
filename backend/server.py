@@ -4,7 +4,8 @@
 FIGTEAM CMP v2 Transition Landing Portal
 - 아이콘+이모지 제거, 긴 설명문 제거
 - 직관적인 B2B 상용 콘솔 UI, 한글 제목 및 영문 병기
-- KT_CI5 DR 조율 지침 md 규격 반영
+- 비밀번호(figteam) 인증 게이트웨이
+- 2개 핵심 영역: 설치/설정 매뉴얼, 대시보드
 """
 
 import sys
@@ -20,7 +21,7 @@ LANDING_HTML = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FIGTEAM 하이브리드 멀티클라우드 콘솔 v2</title>
+  <title>FIGTEAM 하이브리드 멀티클라우드 콘솔</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -37,7 +38,6 @@ LANDING_HTML = """<!DOCTYPE html>
       --primary-hover: #1d4ed8;
       --border-color: #374151;
       --green: #10b981;
-      --yellow: #f59e0b;
       --font-mono: 'JetBrains Mono', monospace;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -79,6 +79,11 @@ LANDING_HTML = """<!DOCTYPE html>
       border-radius: 4px;
       font-family: var(--font-mono);
     }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
     .header-status {
       display: flex;
       align-items: center;
@@ -93,7 +98,89 @@ LANDING_HTML = """<!DOCTYPE html>
       background: var(--green);
       box-shadow: 0 0 8px var(--green);
     }
-    /* MAIN CONTAINER */
+    .logout-btn {
+      background: transparent;
+      border: 1px solid var(--surface-border);
+      color: var(--text-sub);
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s ease;
+    }
+    .logout-btn:hover {
+      background: #1f2937;
+      color: #fff;
+      border-color: #4b5563;
+    }
+
+    /* LOGIN VIEW */
+    .login-wrapper {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .login-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      width: 100%;
+      max-width: 380px;
+      padding: 32px 28px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .login-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .login-input {
+      width: 100%;
+      height: 42px;
+      background: #0f172a;
+      border: 1px solid var(--surface-border);
+      border-radius: 6px;
+      padding: 0 14px;
+      font-size: 14px;
+      color: #fff;
+      font-family: inherit;
+      transition: border-color 0.2s ease;
+    }
+    .login-input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .login-error {
+      font-size: 12px;
+      color: #ef4444;
+      margin-bottom: 14px;
+      text-align: center;
+    }
+    .login-submit-btn {
+      width: 100%;
+      height: 42px;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+    .login-submit-btn:hover {
+      background: var(--primary-hover);
+    }
+
+    /* MAIN CONTAINER (AUTHENTICATED) */
     main {
       flex: 1;
       max-width: 1080px;
@@ -120,6 +207,7 @@ LANDING_HTML = """<!DOCTYPE html>
       font-size: 13px;
       color: var(--text-muted);
     }
+
     /* NAVIGATION CARDS */
     .section-title {
       font-size: 14px;
@@ -183,65 +271,7 @@ LANDING_HTML = """<!DOCTYPE html>
       font-weight: 600;
       color: #38bdf8;
     }
-    /* TABLE - ARCHITECTURE SPECS */
-    .table-container {
-      background: var(--surface);
-      border: 1px solid var(--surface-border);
-      border-radius: 8px;
-      overflow: hidden;
-      margin-bottom: 40px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-      text-align: left;
-    }
-    th {
-      background: #162032;
-      color: #94a3b8;
-      font-weight: 600;
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--surface-border);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-    }
-    td {
-      padding: 14px 16px;
-      border-bottom: 1px solid #1f2937;
-      color: #e5e7eb;
-    }
-    tr:last-child td {
-      border-bottom: none;
-    }
-    tr:hover td {
-      background: rgba(30, 41, 59, 0.4);
-    }
-    .col-mono {
-      font-family: var(--font-mono);
-      color: #cbd5e1;
-      font-size: 12.5px;
-    }
-    .badge-status {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 11.5px;
-      font-weight: 600;
-    }
-    .badge-active {
-      background: rgba(16, 185, 129, 0.15);
-      color: #34d399;
-      border: 1px solid rgba(16, 185, 129, 0.3);
-    }
-    .badge-standby {
-      background: rgba(245, 158, 11, 0.15);
-      color: #fbbf24;
-      border: 1px solid rgba(245, 158, 11, 0.3);
-    }
+
     /* FOOTER */
     footer {
       border-top: 1px solid var(--surface-border);
@@ -260,21 +290,90 @@ LANDING_HTML = """<!DOCTYPE html>
       <span>FIGTEAM 하이브리드 멀티클라우드</span>
       <span class="brand-tag">v2.0</span>
     </div>
-    <div class="header-status">
-      <div class="status-dot-active"></div>
-      <span>핵심 인프라 및 GitOps 연계 정상 가동</span>
+    <div class="header-right">
+      <div class="header-status">
+        <div class="status-dot-active"></div>
+        <span>인프라 및 GitOps 연계 정상 가동</span>
+      </div>
+      <button type="button" class="logout-btn" id="logout-btn" onclick="logout()" style="display:none;">로그아웃</button>
     </div>
   </header>
 
-  <!-- MAIN -->
-  <main>
+  <!-- LOGIN VIEW -->
+  <div id="login-container" class="login-wrapper">
+    <div class="login-card">
+      <div class="login-title">비밀번호 인증</div>
+      <form id="login-form" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <input type="password" id="auth-pwd" class="login-input" placeholder="비밀번호" autofocus autocomplete="current-password" required>
+        </div>
+        <div id="login-error" class="login-error" style="display: none;">비밀번호가 올바르지 않습니다.</div>
+        <button type="submit" class="login-submit-btn">로그인</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- AUTHENTICATED DASHBOARD VIEW -->
+  <main id="portal-container" style="display: none;">
     <div class="page-header">
-      <div class="page-title">통합 포털 및 저장소</div>
+      <div class="page-title">통합 포털 및 운영 관리</div>
       <div class="version-label">GitOps v2 Transition</div>
     </div>
 
-    <!-- PRIMARY ACCESS CARDS -->
-    <div class="section-title">주요 서비스 및 저장소 연결</div>
+    <!-- SECTION 1: 설치/설정 매뉴얼 -->
+    <div class="section-title">설치 및 설정 매뉴얼</div>
+    <div class="card-grid">
+      <!-- 1. KT Cloud Edge 설정 -->
+      <a href="https://github.com/m07553287-create/team6-hybrid-autorecovery-platform-dashboard/blob/main/scripts/setup_ktcloud_edge_addons.sh" target="_blank" rel="noopener noreferrer" class="nav-card">
+        <div>
+          <div class="card-head">
+            <span class="card-name">KT Cloud Edge 설정</span>
+            <span class="card-category">Edge Gateway</span>
+          </div>
+          <div class="card-target">scripts/setup_ktcloud_edge_addons.sh</div>
+        </div>
+        <div class="card-action">스크립트 확인 ➔</div>
+      </a>
+
+      <!-- 2. AWS DR 설정 -->
+      <a href="https://github.com/m07553287-create/team6-hybrid-autorecovery-platform-dashboard/blob/main/scripts/setup_aws_dr_addons.sh" target="_blank" rel="noopener noreferrer" class="nav-card">
+        <div>
+          <div class="card-head">
+            <span class="card-name">AWS DR 설정</span>
+            <span class="card-category">Disaster Recovery</span>
+          </div>
+          <div class="card-target">scripts/setup_aws_dr_addons.sh</div>
+        </div>
+        <div class="card-action">스크립트 확인 ➔</div>
+      </a>
+
+      <!-- 3. 온프레미스 오픈스택 설정 -->
+      <a href="https://github.com/m07553287-create/team6-hybrid-autorecovery-platform-dashboard/blob/main/scripts/setup_onprem_openstack_addons.sh" target="_blank" rel="noopener noreferrer" class="nav-card">
+        <div>
+          <div class="card-head">
+            <span class="card-name">온프레미스 오픈스택 설정</span>
+            <span class="card-category">OpenStack / DB</span>
+          </div>
+          <div class="card-target">scripts/setup_onprem_openstack_addons.sh</div>
+        </div>
+        <div class="card-action">스크립트 확인 ➔</div>
+      </a>
+
+      <!-- 4. 클라우드 설정 로드맵 -->
+      <a href="https://github.com/m07553287-create/team6-hybrid-autorecovery-platform-dashboard/blob/main/docs/CLOUD_SETUP_ROADMAP_AND_SCRIPTS.md" target="_blank" rel="noopener noreferrer" class="nav-card">
+        <div>
+          <div class="card-head">
+            <span class="card-name">설치 및 설정 순서 로드맵</span>
+            <span class="card-category">Manual Guide</span>
+          </div>
+          <div class="card-target">docs/CLOUD_SETUP_ROADMAP_AND_SCRIPTS.md</div>
+        </div>
+        <div class="card-action">매뉴얼 열기 ➔</div>
+      </a>
+    </div>
+
+    <!-- SECTION 2: 대시보드 -->
+    <div class="section-title">대시보드</div>
     <div class="card-grid">
       <!-- 1. GitHub Platform Repo -->
       <a href="https://github.com/prgrmany/team6-hybrid-autorecovery-platform" target="_blank" rel="noopener noreferrer" class="nav-card">
@@ -299,59 +398,6 @@ LANDING_HTML = """<!DOCTYPE html>
         </div>
         <div class="card-action">저장소 열기 ➔</div>
       </a>
-
-      <!-- 3. Civil Petition Service -->
-      <a href="https://minwon.ktci5.kr" target="_blank" rel="noopener noreferrer" class="nav-card">
-        <div>
-          <div class="card-head">
-            <span class="card-name">민원청구 서비스</span>
-            <span class="card-category">Service Endpoint</span>
-          </div>
-          <div class="card-target">minwon.ktci5.kr (KT Edge WAF / 온프렘 K8s)</div>
-        </div>
-        <div class="card-action">서비스 접속 ➔</div>
-      </a>
-    </div>
-
-    <!-- ARCHITECTURE & INFRASTRUCTURE SPEC (조율 지침 반영) -->
-    <div class="section-title">아키텍처 확정 규격 및 인프라 가동 현황</div>
-    <div class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th>컴포넌트</th>
-            <th>호스트 / 네트워크</th>
-            <th>확정 역할 및 연계</th>
-            <th>상태</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>온프레미스 K3s</strong></td>
-            <td class="col-mono">k8s-cp1 (172.20.0.86)</td>
-            <td>마스터 & 워커 단일 통합 노드 (All-in-One · 4 vCPU / 6.5GB RAM)</td>
-            <td><span class="badge-status badge-active">정상 가동</span></td>
-          </tr>
-          <tr>
-            <td><strong>OpenStack DB</strong></td>
-            <td class="col-mono">db-01 (10.10.2.10)</td>
-            <td>온프렘·AWS 중앙 백업 대상 (평시 백업 / AWS DR 쓰기 발생 시 백업 수신)</td>
-            <td><span class="badge-status badge-active">정상 가동</span></td>
-          </tr>
-          <tr>
-            <td><strong>KT Cloud Edge</strong></td>
-            <td class="col-mono">kt-edge (14.63.212.190)</td>
-            <td>트래픽 관문 & WAF · WireGuard 터널 A/B 엔드포인트</td>
-            <td><span class="badge-status badge-active">정상 가동</span></td>
-          </tr>
-          <tr>
-            <td><strong>AWS DR K3s</strong></td>
-            <td class="col-mono">aws-dr (10.200.0.4)</td>
-            <td>Pilot-Light 대기 (L3 승격 시 Primary RW 전환 및 10.10.2.10 백업 전송)</td>
-            <td><span class="badge-status badge-standby">복구 대기</span></td>
-          </tr>
-        </tbody>
-      </table>
     </div>
   </main>
 
@@ -359,6 +405,55 @@ LANDING_HTML = """<!DOCTYPE html>
   <footer>
     KT Cloud CI5 팀6 하이브리드 멀티클라우드 플랫폼 · Zero Trust Network Architecture
   </footer>
+
+  <script>
+    const AUTH_KEY = 'figteam_auth_token';
+
+    function checkAuth() {
+      const isAuth = sessionStorage.getItem(AUTH_KEY) === 'valid';
+      const loginContainer = document.getElementById('login-container');
+      const portalContainer = document.getElementById('portal-container');
+      const logoutBtn = document.getElementById('logout-btn');
+
+      if (isAuth) {
+        loginContainer.style.display = 'none';
+        portalContainer.style.display = 'block';
+        if (logoutBtn) logoutBtn.style.display = 'inline-block';
+      } else {
+        loginContainer.style.display = 'flex';
+        portalContainer.style.display = 'none';
+        if (logoutBtn) logoutBtn.style.display = 'none';
+        const pwdInput = document.getElementById('auth-pwd');
+        if (pwdInput) {
+          pwdInput.value = '';
+          pwdInput.focus();
+        }
+      }
+    }
+
+    function handleLogin(e) {
+      if (e) e.preventDefault();
+      const pwdInput = document.getElementById('auth-pwd');
+      const errorBox = document.getElementById('login-error');
+      const val = pwdInput.value.trim();
+
+      if (val === 'figteam') {
+        sessionStorage.setItem(AUTH_KEY, 'valid');
+        errorBox.style.display = 'none';
+        checkAuth();
+      } else {
+        errorBox.style.display = 'block';
+        pwdInput.select();
+      }
+    }
+
+    function logout() {
+      sessionStorage.removeItem(AUTH_KEY);
+      checkAuth();
+    }
+
+    window.addEventListener('DOMContentLoaded', checkAuth);
+  </script>
 </body>
 </html>
 """
