@@ -447,115 +447,115 @@
     .inst-resource-hero {
       background: #090e1a;
       border-bottom: 1px solid #1e293b;
-      padding: 9px 10px;
+      padding: 8px 10px;
       display: flex;
       flex-direction: column;
-      gap: 7px;
+      gap: 6px;
       flex-shrink: 0;
     }
-    .hero-header-line {
+    .hero-meter-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .meter-head {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 6px;
+      font-family: var(--font-mono);
     }
-    .hero-resource-spec {
+    .meter-label-wrap {
       display: flex;
       align-items: center;
-      gap: 4px;
-      font-family: var(--font-mono);
-      min-width: 0;
+      gap: 5px;
     }
-    .hero-dim-label {
+    .meter-badge {
+      font-size: 9.5px;
+      font-weight: 800;
+      padding: 1px 4px;
+      border-radius: 3px;
+      line-height: 1.2;
+    }
+    .cpu-badge {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+    .ram-badge {
+      background: rgba(168, 85, 247, 0.15);
+      color: #c084fc;
+      border: 1px solid rgba(168, 85, 247, 0.35);
+    }
+    .meter-val-used {
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .cpu-used { color: #38bdf8; }
+    .ram-used { color: #c084fc; }
+    .meter-val-total {
       font-size: 11px;
       color: #94a3b8;
       font-weight: 600;
     }
-    .hero-spec-text {
-      font-size: 13px;
+    .meter-pct {
+      font-size: 11.5px;
       font-weight: 800;
-      color: #ffffff;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      margin-left: 1px;
     }
-    .hero-free-pill {
-      background: rgba(16, 185, 129, 0.16);
-      border: 1px solid rgba(16, 185, 129, 0.45);
-      border-radius: 4px;
-      padding: 2px 7px;
+    .cpu-pct { color: #38bdf8; }
+    .ram-pct { color: #c084fc; }
+    .meter-free-wrap {
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 3px;
+      font-size: 11px;
       font-family: var(--font-mono);
-      flex-shrink: 0;
-    }
-    .free-pill-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: #10b981;
-      box-shadow: 0 0 6px #10b981;
-    }
-    .free-pill-label {
-      font-size: 10.5px;
-      color: #a7f3d0;
-      font-weight: 700;
-    }
-    .free-pill-val {
-      font-size: 12.5px;
-      font-weight: 800;
-      color: #34d399;
-      white-space: nowrap;
-    }
-    .hero-gauge-track {
-      width: 100%;
-      height: 5px;
-      background: #1e293b;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.28);
       border-radius: 3px;
-      display: flex;
-      overflow: hidden;
+      padding: 1px 5px;
     }
-    .hero-gauge-used {
-      background: #38bdf8;
-      height: 100%;
-    }
-    .hero-gauge-free {
-      background: #10b981;
-      height: 100%;
-    }
-    .hero-metrics-trio {
-      display: grid;
-      grid-template-columns: 1.15fr 0.85fr 1fr;
-      gap: 5px;
-      background: #0d1526;
-      border: 1px solid #1e293b;
-      border-radius: 4px;
-      padding: 6px 8px;
-      font-family: var(--font-mono);
-    }
-    .hero-trio-cell {
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-      min-width: 0;
-    }
-    .trio-k {
+    .free-k {
+      color: #6ee7b7;
       font-size: 10px;
-      color: #94a3b8;
       font-weight: 600;
-      text-transform: uppercase;
     }
-    .trio-v {
-      font-size: 12px;
+    .free-v {
+      color: #34d399;
       font-weight: 800;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      font-size: 11.5px;
     }
-    .cell-used .trio-v { color: #38bdf8; }
-    .cell-lat .trio-v { color: #fbbf24; }
-    .cell-count .trio-v { color: #e2e8f0; }
+    .meter-gauge-track {
+      width: 100%;
+      height: 4px;
+      background: #1e293b;
+      border-radius: 2px;
+      display: flex;
+      overflow: hidden;
+    }
+    .meter-gauge-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+    .cpu-fill { background: linear-gradient(90deg, #0284c7, #38bdf8); }
+    .ram-fill { background: linear-gradient(90deg, #7e22ce, #c084fc); }
+    .hero-sub-stats {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 3px;
+      border-top: 1px dashed rgba(30, 41, 59, 0.8);
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+    }
+    .hero-stat-pill {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .stat-k { color: #94a3b8; }
+    .stat-v { font-weight: 700; }
     .compact-service-list {
       flex: 1;
       overflow-y: auto;
@@ -1636,9 +1636,19 @@ bash scripts/setup_aws_dr_addons.sh`,
         ip: '14.63.212.190',
         totalAlloc: '2 vCPU / 4.0GB RAM / 50GB SSD',
         totalAllocSummary: '2 vCPU / 4.0GB RAM',
-        usedSummary: '0.36 vCPU (18%)',
+        cpuTotal: '2 vCPU',
+        cpuUsed: '0.36 vCPU',
+        cpuPct: 18,
+        cpuFree: '1.64 vCPU',
+        cpuFreePct: 82,
+        memTotal: '4.0 GB',
+        memUsed: '1.68 GB',
+        memPct: 42,
+        memFree: '2.32 GB',
+        memFreePct: 58,
+        usedSummary: '0.36 vCPU (18%) / 1.68GB (42%)',
         usedPct: 18,
-        freeSummary: '1.64 vCPU',
+        freeSummary: '1.64 vCPU / 2.32GB',
         freePct: 82,
         netLatency: '2.1ms',
         currentUsage: '0.36 vCPU (18%) / 1.68GB (42%)',
@@ -1664,9 +1674,19 @@ bash scripts/setup_aws_dr_addons.sh`,
         ip: '172.20.0.86',
         totalAlloc: '4 vCPU / 6.5GB RAM / 100GB SSD',
         totalAllocSummary: '4 vCPU / 6.5GB RAM',
-        usedSummary: '1.84 vCPU (46%)',
+        cpuTotal: '4 vCPU',
+        cpuUsed: '1.84 vCPU',
+        cpuPct: 46,
+        cpuFree: '2.16 vCPU',
+        cpuFreePct: 54,
+        memTotal: '6.5 GB',
+        memUsed: '4.42 GB',
+        memPct: 68,
+        memFree: '2.08 GB',
+        memFreePct: 32,
+        usedSummary: '1.84 vCPU (46%) / 4.42GB (68%)',
         usedPct: 46,
-        freeSummary: '2.16 vCPU',
+        freeSummary: '2.16 vCPU / 2.08GB',
         freePct: 54,
         netLatency: '0.8ms',
         currentUsage: '1.84 vCPU (46%) / 4.42GB (68%)',
@@ -1692,9 +1712,19 @@ bash scripts/setup_aws_dr_addons.sh`,
         ip: '10.10.2.10',
         totalAlloc: '2 vCPU / 4.0GB RAM / 80GB SSD',
         totalAllocSummary: '2 vCPU / 4.0GB RAM',
-        usedSummary: '0.44 vCPU (22%)',
+        cpuTotal: '2 vCPU',
+        cpuUsed: '0.44 vCPU',
+        cpuPct: 22,
+        cpuFree: '1.56 vCPU',
+        cpuFreePct: 78,
+        memTotal: '4.0 GB',
+        memUsed: '2.04 GB',
+        memPct: 51,
+        memFree: '1.96 GB',
+        memFreePct: 49,
+        usedSummary: '0.44 vCPU (22%) / 2.04GB (51%)',
         usedPct: 22,
-        freeSummary: '1.56 vCPU',
+        freeSummary: '1.56 vCPU / 1.96GB',
         freePct: 78,
         netLatency: '0.4ms',
         currentUsage: '0.44 vCPU (22%) / 2.04GB (51%)',
@@ -1720,9 +1750,19 @@ bash scripts/setup_aws_dr_addons.sh`,
         ip: '10.200.0.10',
         totalAlloc: '2 vCPU / 4.0GB RAM / 40GB EBS',
         totalAllocSummary: '2 vCPU / 4.0GB RAM',
-        usedSummary: '0.24 vCPU (12%)',
+        cpuTotal: '2 vCPU',
+        cpuUsed: '0.24 vCPU',
+        cpuPct: 12,
+        cpuFree: '1.76 vCPU',
+        cpuFreePct: 88,
+        memTotal: '4.0 GB',
+        memUsed: '1.36 GB',
+        memPct: 34,
+        memFree: '2.64 GB',
+        memFreePct: 66,
+        usedSummary: '0.24 vCPU (12%) / 1.36GB (34%)',
         usedPct: 12,
-        freeSummary: '1.76 vCPU',
+        freeSummary: '1.76 vCPU / 2.64GB',
         freePct: 88,
         netLatency: '22ms',
         currentUsage: '0.24 vCPU (12%) / 1.36GB (34%)',
@@ -1748,9 +1788,19 @@ bash scripts/setup_aws_dr_addons.sh`,
         ip: '10.200.0.4',
         totalAlloc: '4 vCPU / 8.0GB RAM / 100GB EBS',
         totalAllocSummary: '4 vCPU / 8.0GB RAM',
-        usedSummary: '0.16 vCPU (4%)',
+        cpuTotal: '4 vCPU',
+        cpuUsed: '0.16 vCPU',
+        cpuPct: 4,
+        cpuFree: '3.84 vCPU',
+        cpuFreePct: 96,
+        memTotal: '8.0 GB',
+        memUsed: '1.28 GB',
+        memPct: 16,
+        memFree: '6.72 GB',
+        memFreePct: 84,
+        usedSummary: '0.16 vCPU (4%) / 1.28GB (16%)',
         usedPct: 4,
-        freeSummary: '3.84 vCPU',
+        freeSummary: '3.84 vCPU / 6.72GB',
         freePct: 96,
         netLatency: '24ms',
         currentUsage: '0.16 vCPU (4%) / 1.28GB (16%)',
@@ -1956,33 +2006,53 @@ bash scripts/setup_aws_dr_addons.sh`,
             </div>
 
             <div class="inst-resource-hero">
-              <div class="hero-header-line">
-                <div class="hero-resource-spec">
-                  <span class="hero-dim-label">자원:</span>
-                  <span class="hero-spec-text">${data.totalAllocSummary || data.totalAlloc}</span>
+              <!-- CPU 자원 현황 -->
+              <div class="hero-meter-row">
+                <div class="meter-head">
+                  <div class="meter-label-wrap">
+                    <span class="meter-badge cpu-badge">CPU</span>
+                    <strong class="meter-val-used cpu-used">${data.cpuUsed}</strong>
+                    <span class="meter-val-total">/ ${data.cpuTotal}</span>
+                    <span class="meter-pct cpu-pct">${data.cpuPct}%</span>
+                  </div>
+                  <div class="meter-free-wrap" title="가용 CPU 여유">
+                    <span class="free-k">여유:</span>
+                    <strong class="free-v">${data.cpuFree} (${data.cpuFreePct}%)</strong>
+                  </div>
                 </div>
-                <div class="hero-free-pill" title="가용 여유 리소스">
-                  <span class="free-pill-dot"></span>
-                  <span class="free-pill-label">여유:</span>
-                  <strong class="free-pill-val">${data.freeSummary} (${data.freePct}%)</strong>
+                <div class="meter-gauge-track" title="CPU 사용: ${data.cpuPct}% | 여유: ${data.cpuFreePct}%">
+                  <div class="meter-gauge-fill cpu-fill" style="width: ${data.cpuPct}%;"></div>
                 </div>
               </div>
-              <div class="hero-gauge-track" title="사용: ${data.usedPct}% | 여유: ${data.freePct}%">
-                <div class="hero-gauge-used" style="width: ${data.usedPct}%;"></div>
-                <div class="hero-gauge-free" style="width: ${data.freePct}%;"></div>
+
+              <!-- RAM 자원 현황 -->
+              <div class="hero-meter-row">
+                <div class="meter-head">
+                  <div class="meter-label-wrap">
+                    <span class="meter-badge ram-badge">RAM</span>
+                    <strong class="meter-val-used ram-used">${data.memUsed}</strong>
+                    <span class="meter-val-total">/ ${data.memTotal}</span>
+                    <span class="meter-pct ram-pct">${data.memPct}%</span>
+                  </div>
+                  <div class="meter-free-wrap" title="가용 RAM 여유">
+                    <span class="free-k">여유:</span>
+                    <strong class="free-v">${data.memFree} (${data.memFreePct}%)</strong>
+                  </div>
+                </div>
+                <div class="meter-gauge-track" title="RAM 사용: ${data.memPct}% | 여유: ${data.memFreePct}%">
+                  <div class="meter-gauge-fill ram-fill" style="width: ${data.memPct}%;"></div>
+                </div>
               </div>
-              <div class="hero-metrics-trio">
-                <div class="hero-trio-cell cell-used">
-                  <span class="trio-k">사용:</span>
-                  <strong class="trio-v">${data.usedSummary}</strong>
+
+              <!-- 보조 지표 (지연 / 서비스) -->
+              <div class="hero-sub-stats">
+                <div class="hero-stat-pill">
+                  <span class="stat-k">지연:</span>
+                  <strong class="stat-v" style="color: #fbbf24;">${data.netLatency}</strong>
                 </div>
-                <div class="hero-trio-cell cell-lat">
-                  <span class="trio-k">지연:</span>
-                  <strong class="trio-v">${data.netLatency}</strong>
-                </div>
-                <div class="hero-trio-cell cell-count">
-                  <span class="trio-k">서비스:</span>
-                  <strong class="trio-v">${list.length}개 서비스</strong>
+                <div class="hero-stat-pill">
+                  <span class="stat-k">서비스:</span>
+                  <strong class="stat-v" style="color: #cbd5e1;">${list.length}개 활성</strong>
                 </div>
               </div>
             </div>
@@ -2051,20 +2121,20 @@ bash scripts/setup_aws_dr_addons.sh`,
         `;
       }
 
-      // Summary 5-cell with highlighted free headroom
+      // Summary 5-cell with CPU & RAM separate status
       const summaryBoxHtml = `
         <div class="modal-summary-box">
           <div class="summary-cell">
             <span class="summary-k">총 할당 규격</span>
             <span class="summary-v">${data.totalAllocSummary || data.totalAlloc}</span>
           </div>
-          <div class="summary-cell">
-            <span class="summary-k">현재 사용량 (점유율)</span>
-            <span class="summary-v" style="color: #38bdf8;">${data.usedSummary} (${data.usedPct}%)</span>
+          <div class="summary-cell" style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.28); border-radius: 4px; padding: 3px 6px;">
+            <span class="summary-k" style="color: #7dd3fc;">CPU 사용 (가용 여유)</span>
+            <span class="summary-v" style="color: #38bdf8;">${data.cpuUsed} / ${data.cpuTotal} (${data.cpuPct}%) <span style="font-size:10px; color:#34d399;">+${data.cpuFree}</span></span>
           </div>
-          <div class="summary-cell" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 4px; padding: 3px 6px;">
-            <span class="summary-k" style="color: #6ee7b7;">가용 여유 자원</span>
-            <span class="summary-v" style="color: #34d399;">${data.freeSummary} (${data.freePct}%)</span>
+          <div class="summary-cell" style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.28); border-radius: 4px; padding: 3px 6px;">
+            <span class="summary-k" style="color: #d8b4fe;">RAM 사용 (가용 여유)</span>
+            <span class="summary-v" style="color: #c084fc;">${data.memUsed} / ${data.memTotal} (${data.memPct}%) <span style="font-size:10px; color:#34d399;">+${data.memFree}</span></span>
           </div>
           <div class="summary-cell">
             <span class="summary-k">네트워크 지연율</span>
