@@ -1373,7 +1373,7 @@ PORTAL_HTML = """<!DOCTYPE html>
           <!-- 6-PROPERTY GRID -->
           <div class="kt-props-grid">
             <div class="prop-item">
-              <div class="prop-label">Floating IP (외부 공인/대민망)</div>
+              <div class="prop-label">Floating IP (외부 공인/민원망)</div>
               <div class="prop-val" id="os-floating-ip" style="color:#38bdf8;">192.168.120.226</div>
             </div>
             <div class="prop-item">
@@ -1570,7 +1570,7 @@ PORTAL_HTML = """<!DOCTYPE html>
             <!-- CITIZEN ACCESS -->
             <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:10px; text-align:center;">
               <div style="font-size:18px;">👤 ➔ 🛡️</div>
-              <div style="font-size:12px; font-weight:800; color:#fff;">대민 사용자 & Cloudflare</div>
+              <div style="font-size:12px; font-weight:800; color:#fff;">민원 사용자 & Cloudflare</div>
               <div style="font-size:10px; color:#94a3b8;">HTTPS Anycast WAF 종료</div>
             </div>
 
@@ -1784,7 +1784,7 @@ PORTAL_HTML = """<!DOCTYPE html>
           <!-- DETAILED SOP ACTIONS -->
           <div style="background:#090e17; padding:12px 16px; border-radius:8px; border:1px solid #334155; font-size:12px; color:#cbd5e1; line-height:1.6;" id="v3-sop-text">
             <b>[v3.0 정상 가동 트래픽 & 보안 흐름]</b><br>
-            • <b>대민 진입</b>: HTTPS 요청이 KT Edge-GW(14.63.212.190)에 도착하여 TLS 종료 및 Nginx WAF 검사를 받습니다.<br>
+            • <b>민원 접수 진입</b>: HTTPS 요청이 KT Edge-GW(14.63.212.190)에 도착하여 TLS 종료 및 Nginx WAF 검사를 받습니다.<br>
             • <b>터널 A 전송</b>: 온프렘 WireGuard 게이트웨이로 단방향 요청 전달 ➔ ingress-nginx ➔ <code>web ×2</code> ➔ <code>minwon-api ×2</code> ➔ <code>MySQL Primary</code> 커밋.<br>
             • <b>터널 B 복제</b>: MySQL GTID 이벤트가 터널 B를 타고 AWS Replica(super_read_only=ON)로 비동기 복제되고 관제 메트릭이 수집됩니다.
           </div>
@@ -2109,7 +2109,7 @@ PORTAL_HTML = """<!DOCTYPE html>
       horizon: { title: "☁️ OpenStack Horizon IaaS 콘솔", url: "https://horizon.ktci5.kr/dashboard/project/" },
       grafana: { title: "📈 Grafana 통합 관제 대시보드", url: "https://grafana.ktci5.kr" },
       argocd: { title: "🚀 Argo CD GitOps 배포 콘솔", url: "https://argocd.ktci5.kr" },
-      minwon: { title: "🏛️ 민원청구 24시 센터 (대민 서비스)", url: "https://openstack.ktci5.kr" },
+      minwon: { title: "🏛️ 민원청구 24시 센터 (민원 접수 서비스)", url: "https://openstack.ktci5.kr" },
       ktedge: { title: "🌐 KT Cloud Edge 관리 콘솔", url: "https://kt-edge.ktci5.kr" }
     };
 
@@ -2529,7 +2529,7 @@ PORTAL_HTML = """<!DOCTYPE html>
       }
 
       let actionKr = "";
-      if (action === 'stop') actionKr = "전원을 끄시겠습니까? (vCPU/RAM 과금이 중단되며 대민 진입점이 대기 상태로 전환됩니다)";
+      if (action === 'stop') actionKr = "전원을 끄시겠습니까? (vCPU/RAM 과금이 중단되며 민원 접수 진입점이 대기 상태로 전환됩니다)";
       if (action === 'start') actionKr = "전원을 켜시겠습니까? (부팅 후 약 1분 이내에 Nginx 및 WireGuard가 자동 가동됩니다)";
       if (action === 'reboot') actionKr = "가상머신을 재부팅하시겠습니까?";
 
@@ -2962,7 +2962,7 @@ PORTAL_HTML = """<!DOCTYPE html>
           ? `전원을 끄시겠습니까?
 
 ⚠️ [중요 경고] 이 노드는 Primary MySQL 원장 DB 및 K8s Control Plane입니다!
-노드를 끄면 대민 서비스가 중단되고 AWS DR Failover가 발생합니다.`
+노드를 끄면 민원 접수 서비스가 중단되고 AWS DR Failover가 발생합니다.`
           : `전원을 끄시겠습니까? (노드가 정지 상태로 전환됩니다)`;
       } else if (action === 'start') {
         actionKr = `전원을 켜시겠습니까? (부팅 후 약 30초 내에 K8s 및 서비스가 정상화됩니다)`;
@@ -3196,7 +3196,7 @@ PORTAL_HTML = """<!DOCTYPE html>
         bDb.innerText = 'OFFLINE ⚫'; bDb.style.background = '#1e293b';
         tDb.innerText = 'AWS 및 온프렘 DB 전체 통신 두절'; tDb.style.color = '#64748b';
         bAws.innerText = 'OFFLINE ⚫'; bAws.style.background = '#1e293b';
-        tAwsPods.innerText = 'GitHub Pages(dr.ktci5.kr)로 대민 비상 접수 중'; tAwsPods.style.color = '#38bdf8';
+        tAwsPods.innerText = 'GitHub Pages(dr.ktci5.kr)로 민원 비상 접수 중'; tAwsPods.style.color = '#38bdf8';
       }
     }
 
@@ -3312,7 +3312,7 @@ PORTAL_HTML = """<!DOCTYPE html>
         pathDbSync.className.baseVal = "flow-line line-yellow";
 
         sopText.innerHTML = "<b>[v3.0 정상 가동 트래픽 & 보안 흐름]</b><br>" +
-          "• <b>대민 진입</b>: HTTPS 요청이 KT Edge-GW(14.63.212.190)에 도착하여 TLS 종료 및 Nginx WAF 검사를 받습니다.<br>" +
+          "• <b>민원 접수 진입</b>: HTTPS 요청이 KT Edge-GW(14.63.212.190)에 도착하여 TLS 종료 및 Nginx WAF 검사를 받습니다.<br>" +
           "• <b>터널 A 전송</b>: 온프렘 WireGuard 게이트웨이로 단방향 요청 전달 ➔ ingress-nginx ➔ <code>web ×2</code> ➔ <code>minwon-api ×2</code> ➔ <code>MySQL Primary</code> 커밋.<br>" +
           "• <b>터널 B 복제</b>: MySQL GTID 이벤트가 터널 B를 타고 AWS Replica(super_read_only=ON)로 비동기 복제되고 관제 메트릭이 수집됩니다.";
 
@@ -3336,7 +3336,7 @@ PORTAL_HTML = """<!DOCTYPE html>
 
         sopText.innerHTML = "<b>[L1 K8s 자가치유 상세 매커니즘]</b><br>" +
           "• <b>장애 감지</b>: <code>minwon-api</code> 파드 OOM 또는 프로세스 크래시 감지 (livenessProbe <code>/healthz?live=1</code> 실패).<br>" +
-          "• <b>자동 조치</b>: K8s Kubelet이 컨테이너를 즉각 재시작하며, HPA 및 <code>web ×2</code> 다중 복제본이 트래픽을 흡수하여 대민 서비스는 무중단 유지됩니다.<br>" +
+          "• <b>자동 조치</b>: K8s Kubelet이 컨테이너를 즉각 재시작하며, HPA 및 <code>web ×2</code> 다중 복제본이 트래픽을 흡수하여 민원 접수 서비스는 무중단 유지됩니다.<br>" +
           "• <b>판단 주체</b>: K8s (Orchestrator 및 사람 개입 불필요).";
 
         addDrLog("[v3.0-FLOW] 2단계: L1 Pod 크래시 감지 및 K8s 자동 재기동 활성화 (RTO: 초 단위)", "warn");
@@ -3357,7 +3357,7 @@ PORTAL_HTML = """<!DOCTYPE html>
         pathTunnelB.className.baseVal = "flow-line line-blue";
 
         sopText.innerHTML = "<b>[L2 서비스 무응답 복구 프로세스]</b><br>" +
-          "• <b>감지 지표</b>: 대민 S1 프로브가 1분 이상 응답 없음(Timeout) 감지.<br>" +
+          "• <b>감지 지표</b>: S1 프로브 프로브가 1분 이상 응답 없음(Timeout) 감지.<br>" +
           "• <b>자동 복구</b>: AWS Orchestrator가 <b>터널 B</b>를 경유하여 온프레미스 대상 <code>ansible-playbook restart_services.yml</code> 원격 실행.<br>" +
           "• <b>복구 대상</b>: 온프렘 Nginx ➔ minwon-app ➔ MySQL ➔ WireGuard 순차 재기동 후 헬스체크 통과 시 NORMAL 복귀.";
 
@@ -3403,7 +3403,7 @@ PORTAL_HTML = """<!DOCTYPE html>
         propSm.style.color = "#ef4444";
         propSignal.innerText = "S1:실패 ∧ S2:실패 ∧ S3:실패 (3신호 확정)";
         propRto.innerText = "목표: ≤ 15분 · RPO: ≤ 15분";
-        propTunnel.innerText = "터널 C 대민 수용 (터널 A·B 두절)";
+        propTunnel.innerText = "터널 C 민원 수용 (터널 A·B 두절)";
 
         zoneOnprem.style.opacity = '0.4';
         zoneOnprem.style.borderColor = '#ef4444';
@@ -3433,7 +3433,7 @@ PORTAL_HTML = """<!DOCTYPE html>
           "1. <b>3-Signal 판정</b>: S1(공인) ∧ S2(터널 B) ∧ S3(터널 A) 3회 연속 실패 ➔ 온프렘 사이트 전면 장애 확정.<br>" +
           "2. <b>펜싱 확인</b>: 온프렘 자가 펜싱 Watchdog에 의해 Primary 쓰기 차단 확인.<br>" +
           "3. <b>Replica 승격 & EC2 확장</b>: AWS MySQL <code>super_read_only = OFF</code> 해제, Pilot-Light EC2 확장 및 k3s 앱 기동.<br>" +
-          "4. <b>Edge 전환</b>: KT Edge-GW upstream을 <b>터널 C(AWS)</b>로 전환 ➔ AWS에서 대민 민원 무중단 접수 재개.";
+          "4. <b>Edge 전환</b>: KT Edge-GW upstream을 <b>터널 C(AWS)</b>로 전환 ➔ AWS에서 민원 무중단 접수 재개.";
 
         addDrLog("[v3.0-FLOW] 5단계: 🚨 L3 사이트 전면 장애 확정! 펜싱 확인 ➔ AWS Replica 승격 ➔ 터널 C 절체 완료!", "err");
 

@@ -1,110 +1,64 @@
 # team6 · 민원불패 하이브리드 자동복구 플랫폼 — 통합 대시보드
 
-`https://figteam.ktci5.kr` 통합 대시보드(CMP · DR 관제 콘솔 v2.5.1)의 소스 저장소입니다.
-화면은 **이 저장소 → GitHub Actions → Cloudflare Pages(`figteam-dashboard`)**로 배포되고, 로그인 · VM 전원 · Horizon SSO 같은 백엔드 요청만 **온프렘 터널**로 전달됩니다.
+`https://figteam.ktci5.kr` 통합 대시보드(CMP · DR 관제 콘솔 v2.0)의 소스 저장소입니다.  
+화면은 **GitHub Actions → GitHub Pages**로 100% 정적 호스팅되며, 핵심 아키텍처 규격 및 인프라 가이드가 본 문서에 상세히 명시되어 있습니다.
 
-```
-브라우저 ─▶ figteam.ktci5.kr (Cloudflare Pages · 이 저장소 main)
-              ├─ /, /login, 정적 화면 ............ public/
-              └─ /api/*, /sso/*, POST /login, /logout
-                    └─ functions/_middleware.js ─▶ BACKEND_ORIGIN (figteam-api.ktci5.kr)
-                                                     └─ minwon-tunnel ─▶ 온프렘 GPU 서버 localhost:18088 (backend/server.py)
-```
+---
 
-같은 출처를 유지하므로 로그인 쿠키(`figteam_session`)와 Horizon SSO 쿠키(`Domain=.ktci5.kr`)가 그대로 동작합니다.
+## 📌 핵심 공식 규격 문서
+> 본 프로젝트의 트래픽 판별 구성안 및 각 클라우드별 세부 컴포넌트 명세는 아래 공식 문서에 정의되어 있습니다.  
+> 👉 **[하이브리드 멀티클라우드 아키텍처 규격 및 트래픽 판별 가이드 (docs/ARCHITECTURE_SPEC_AND_TRAFFIC_GUIDE.md)](docs/ARCHITECTURE_SPEC_AND_TRAFFIC_GUIDE.md)**
 
-## 구조
+---
+
+## 1. 내부 트래픽 vs 외부 트래픽 판별 설정안
+
+본 플랫폼은 민원 접수 외부 인터넷 요청과 클라우드 간 동기화/관제 내부 트래픽을 L3 IP 대역 및 L7 프록시 헤더를 통해 엄격히 분리·판별합니다.
+
+| 트래픽 구분 | 인입 인터페이스 / 소스 대역 | 판별 식별자 / 주입 헤더 | 라우팅 및 보안 규칙 |
+| :--- | :--- | :--- | :--- |
+| **외부 트래픽 (North-South)** | 공인 IP (`14.63.212.190`), `eth0` | `X-Traffic-Type: EXTERNAL`<br/>`X-Real-IP: <사용자IP>` | • Nginx ModSecurity WAF 실시간 검사<br/>• 10초 마이크로캐시 적용<br/>• DB 직접 접근 차단 (403 Forbidden) |
+| **내부 트래픽 (East-West)** | WireGuard (`wg-kt`, `wg0`), `10.200.0.0/24` | `X-Traffic-Type: INTERNAL` | • 터널 암호화(ChaCha20-Poly1305)<br/>• 온프렘 ↔ AWS 간 복제 및 관제 전용 |
+| **격리 DB 백업 트래픽** | 내부 전용망 (`10.10.2.0/24`, `data-net`) | 전용 세그먼트 | • 공인 인터넷 라우팅 차단<br/>• MySQL 8.4 GTID 복제 및 백업 전용 |
+
+### KT Cloud Edge Nginx 자동 분류 설정 (`traffic_classifier.conf`)
+- `geo $remote_addr $traffic_type`: 사설망/터널망(`10.0.0.0/8`, `172.20.0.0/24`, `10.10.2.0/24`)은 `INTERNAL`, 그 외는 `EXTERNAL`로 자동 판별
+- `proxy_set_header X-Traffic-Type $traffic_type;`: 백엔드 앱 및 인그레스로 판별 결과 전송
+- 액세스 로그에 트래픽 유형(`type=$traffic_type`) 분리 기록 및 Prometheus 모니터링 연동
+
+---
+
+## 2. 각 클라우드별 추가 설치 구성요소 정의
+
+3대 클라우드 환경별로 추가 설치 및 가동 중인 핵심 소프트웨어 컴포넌트와 역할 정의입니다.
+
+| 클라우드 환경 | 인스턴스 / IP | 추가 설치 및 가동 구성요소 | 확정 역할 및 주요 기능 |
+| :--- | :--- | :--- | :--- |
+| **KT Cloud (Edge)** | `kt-edge`<br/>(`14.63.212.190`) | • **Nginx 1.24**<br/>• **ModSecurity v3 (WAF)**<br/>• **WireGuard (`wg-kt`)**<br/>• **traffic_classifier** | • 민원 접수 외부 트래픽 수신 및 TLS 1.3 암호화 종료<br/>• OWASP Core Rule Set 기반 웹 공격 차단<br/>• 내부/외부 트래픽 헤더 판별 태깅<br/>• 온프렘(터널 A) 및 AWS(터널 C) 트래픽 라우팅 |
+| **온프레미스 (K8s)** | `k8s-cp1`<br/>(`172.20.0.86`) | • **K3s v1.37.2 (All-in-One)**<br/>• **Traefik Ingress**<br/>• **minwon-app (2 Replicas)**<br/>• **WireGuard Client (`wg0`)** | • 마스터 및 워커 단일 통합 노드 (4 vCPU / 6.5GB RAM)<br/>• 민원 접수 애플리케이션 안정 서빙 (`:30080 NodePort`)<br/>• 평시 `10.10.2.10` DB로 트랜잭션 기록 |
+| **온프레미스 (DB)** | `db-01`<br/>(`10.10.2.10`) | • **MySQL 8.4 LTS Primary**<br/>• **Cinder 30GB 영구 볼륨**<br/>• **GTID 복제 엔진** | • 온프레미스 및 AWS 공용 중앙 백업 대상 (Backup Target)<br/>• 평시: 온프레미스 파드 데이터 보관<br/>• **AWS DR 승격 시: AWS에서 쓰기 발생 시 10.10.2.10으로 백업 수신** |
+| **온프레미스 (호스트)**| `ktci5`<br/>(`10.10.10.8`) | • **cloudflared** (Cloudflare Tunnel)<br/>• **WireGuard Mesh (`wg0`, `wg-kt`)** | • 아웃바운드 0-Trust 터널 연계<br/>• 외부 인바운드 포트 차단 상태로 도메인 보안 라우팅 |
+| **AWS (DR 노드)** | `aws-dr`<br/>(`10.200.0.4`) | • **K3s v1.37.2 (Dormant)**<br/>• **MySQL 8.4 Replica (RO)**<br/>• **WireGuard (`wg-kt`, `wg0`)** | • 평시 읽기 전용 대기 (Pilot-Light, t3.small)<br/>• L3 페일오버 시: `read_only=OFF`로 Primary 승격<br/>• **승격 후 신규 쓰기 트랜잭션 ➔ 온프렘 `10.10.2.10`으로 무유실 백업 전송** |
+| **AWS (관제 엔진)** | `aws-ctl`<br/>(`10.200.0.3`) | • **FastAPI DR Orchestrator**<br/>• **Prometheus / Grafana / Loki**<br/>• **Ansible Playbook 엔진** | • S1(앱)/S2(DB 복제)/S3(네트워크) 3-Signal 통합 관측<br/>• L1 파드 재시작, L2 Ansible 서비스 복구, L3 KT Edge 절체 자동 통제 |
+
+---
+
+## 3. 저장소 디렉토리 구조
 
 | 경로 | 내용 |
 |---|---|
-| `public/` | Pages가 제공하는 화면 — **생성 결과, 직접 고치지 않음** |
-| `functions/_middleware.js` | 백엔드 경로 전달 · 화면 제공 전 세션 확인 |
-| `backend/server.py` | **원본** — 운영 포털(s1 `/opt/figteam-portal/server.py`)과 같은 파일. 테마 포함, 비밀값 없음(설정 파일에서 읽음) |
-| `backend/server.base.py` | (옛 방식) 테마 적용 전 기준본 — `BUILD_FROM_BASE=1 tools/build.sh` 일 때만 사용 |
-| `backend/portal_config.example.json` | 서버 설정 파일 예시 (실제 파일은 저장소에 올리지 않음) |
-| `theme/` | 청사진 테마 · DR 콘솔 · 2D 연결 구성도 엔진(`topo2d.js`) · 생성 스크립트 |
-| `tools/build.sh` | `backend/server.py` 문법 검사 → `public/` 생성 → 비밀값 형태 검사 |
-| `term/` | 통합 터미널 페이지(`term.html`, 포털이 `GET /term` 으로 제공) · 포털 패치 기록 |
-| `tools/sanitize.py` | 운영 원본 → 기준본 (비밀값 제거 · `/api/session` · 로그인 실패 리다이렉트) |
+| `docs/ARCHITECTURE_SPEC_AND_TRAFFIC_GUIDE.md` | **[핵심 규격서]** 트래픽 판별안 및 클라우드별 구성요소 정의서 |
+| `public/` | GitHub Pages 호스팅 정적 파일 (`index.html`, `CNAME`) |
+| `backend/server.py` | 포털 원본 서버 코드 (로컬 및 온프렘 백업용) |
+| `tools/build.sh` | 정적 파일 문법 검사 및 `public/` 생성 빌드 스크립트 |
+| `.github/workflows/deploy-pages.yml` | GitHub Pages 공식 자동 배포 워크플로우 |
 
-## 화면 구성
-메뉴 「인프라 & 가상화」: KT Cloud VM 관리 · AWS EC2 관리 · OpenStack VM 관리 · OpenStack 구조 · **⌨️ 통합 터미널** · OpenStack 연결·상태 · Horizon
+---
 
-- **통합 터미널(`#term` → `/term`)** — KT · AWS · 온프렘 11개 대상 ([term/README.md](term/README.md))
-  - 진입 시 제어 비밀번호 → 로그인 세션 60분 잠금 해제(상단 카운트다운). 잠금 상태에선 읽기 명령도 실행 안 함
-  - 탭 / ⧉ 화면 위 창(드래그·크기·최소화·최대화) / ↗ 새 창(`/term?solo=<대상>`, 다른 모니터), 여러 개 동시
-  - ＋ 추가: 영역 → 대상 → 「확인」·「⚠ 복구」 메뉴 + 명령 입력. 복구·위험 명령은 실행 전 확인, 감사 로그 `term-audit.log`
-  - 제어 비밀번호는 `portal_config.json` `ctrl_pass` — 화면·페이지 소스에 나오지 않음(서버 검증)
-- **KT Cloud VM 관리(`#ktvm`)**: 전원·자원 제어. 예전 내장 터미널은 숨기고 통합 터미널로 연결
-- **AWS EC2 관리(`#awsvm`)**: ctl(러너)·dr(복구) 상태, WG 연결 절차
-- **OpenStack 연결·상태(`#osops`)**: 연결 점검 21항목(실측·수동 구분), 서비스 상태, 자원 현황
-- **DR 관제 콘솔(`#dr`)**: 2D 연결 구성도 · 9개 시나리오 단계별 흐름 · 상세 구성 · 전체 화면
-- **OpenStack VM 관리(`#osvm`) 하단 — OpenStack 구조 · 연결** (`theme/osview.js`)
-  - 구성도 · 경로: Neutron/Nova 실시간 데이터로 외부망 → 라우터 → 내부망 → Compute별 VM · Floating IP · OVN Geneve를 그리고, Cloudflare 애니캐스트부터 VM까지 경로를 단계별로 재생
-  - 서비스 상태: Nova 서비스 · Neutron(OVN) 에이전트 · Cinder 서비스를 노드별로, Keystone 카탈로그
-  - 자원 현황: 하이퍼바이저 vCPU/RAM/디스크, 프로젝트 쿼터, Cinder 볼륨, Glance 이미지, Swift 컨테이너
-  - VM 도구: 콘솔 로그, 스냅샷(확인 후 실행), Horizon 열기 — 삭제 · 네트워크 변경은 Horizon에서
-- 백엔드 API: `GET /api/openstack/overview`(조회 전용, 항목별 실패 격리) · `GET /api/openstack/console-log?id=` · `POST /api/openstack/vm/snapshot`
+## 4. 팀 협업 및 인프라 가이드
 
-## 팀 협업 및 인프라 가이드
-
-- [🛡️ 통합 운영 대시보드 파트별 상세 명세서 (Notion 임베드 최적화)](docs/dashboard-guide.md): Global Header, 2D 인터랙티브 토폴로지, 7단계 시뮬레이터, 3단 망분리, 시스템 제어 액션 툴바, OpenStack/KT Cloud CMP 및 노션 임베드 활용 가이드
-- [📋 KT Cloud 진입점 2인 분업 가이드 및 통합 검증서 (작업자 A · 작업자 B)](docs/kt-cloud-edge-guide.md): KT Cloud Edge-GW VM(`kt-edge-dr-01`) 구축을 위한 2인 역할 분담, 인터페이스 계약표, 11/12~11/13 작업일지 및 4대 합동 Integration Test 실행 매뉴얼
-- [⚙️ OpenStack & 하이브리드 CI/CD · IaC 자동화 분석 보고서 (Terraform · Ansible · GitHub Actions)](docs/ci-cd-iac-automation-guide.md): Jenkins 설치 필요성 검토, 서버리스/에이전트리스 인프라 자동화 아키텍처 비교
-- [🔄 나의 오픈스택 ↔ 타 팀 VM/K8s 연결 조성안 (Plan C)](docs/plan-c-cross-team-interconnect.md): 크로스 팀 상호 백업(Mutual DR), WireGuard P2P 사설망 가상화, IP 충돌 방지 및 제로트러스트 보안 연동 방안
-
-## 수정 · 빌드
-
-```bash
-# 운영에서 고친 경우: 운영 원본을 가져와 원본으로 삼는다
-scp 10.10.10.8:/opt/figteam-portal/server.py backend/server.py
-tools/build.sh          # 문법 검사 · public/ 갱신 · 비밀값 형태 검사
-git add -A && git commit -m "..." && git push   # main 푸시 → Actions가 검사 후 Pages 배포
-```
-> 2026-11-19 부터 `backend/server.py` 가 원본입니다. 운영 포털이 테마 적용 뒤에도 직접 수정돼 왔기 때문에(연결 점검·AWS·터미널 등) 기준본에서 다시 생성하면 그 변경이 사라집니다.
-> `term/term.html` 을 고치면 s1 `/opt/figteam-portal/term.html` 에 복사합니다.
-
-백엔드(`backend/server.py`)가 바뀌었으면 온프렘에도 반영해야 합니다 (아래 2단계).
-
-## 최초 연결 절차
-
-> Cloudflare · 운영 서버 변경입니다. 순서대로 진행하고, 단계마다 확인 후 넘어갑니다.
-
-### 1. 온프렘 설정 파일 (비밀값)
-`/opt/figteam-portal/portal_config.json` — 형식은 `backend/portal_config.example.json`. 권한 `600`.
-기존 `server.py`에 평문으로 있던 포털 · OpenStack 비밀번호는 **교체를 권장**합니다.
-
-### 2. 백엔드 배포
-```bash
-scp backend/server.py 10.10.10.8:/tmp/server.py
-ssh 10.10.10.8 'sudo cp /opt/figteam-portal/server.py /opt/figteam-portal/server.py.bak-$(date +%Y%m%d%H%M) \
-  && sudo cp /tmp/server.py /opt/figteam-portal/server.py && sudo systemctl restart figteam-portal.service \
-  && systemctl is-active figteam-portal.service'
-```
-이 시점에도 기존 `figteam.ktci5.kr`(터널 직결)은 그대로 동작해야 합니다.
-
-### 3. Cloudflare Tunnel — 백엔드 전용 호스트명
-`minwon-tunnel`은 **로컬 관리형**(서버의 cloudflared 설정 파일이 경로를 결정)이라 대시보드/API가 아니라 서버 설정에 추가합니다.
-- DNS: `figteam-api.ktci5.kr` CNAME → 터널 (생성 완료)
-- 서버 설정: `figteam-api.ktci5.kr` → `http://127.0.0.1:18088` (기존 figteam과 같은 서비스) 규칙 추가 후 cloudflared 재시작
-- 권장: Access 애플리케이션 + 서비스 토큰으로 이 호스트명을 막고, 토큰을 Pages 환경변수에 넣음
-
-### 4. Cloudflare Pages 프로젝트 (설정 완료)
-- 프로젝트 `figteam-dashboard` (직접 업로드형) · 환경변수 `BACKEND_ORIGIN=https://figteam-api.ktci5.kr`
-- 배포: `.github/workflows/deploy-pages.yml` — main 푸시 시 `tools/build.sh` 결과가 커밋과 같은지 확인 후 `wrangler pages deploy`
-- 저장소 Secret: `CLOUDFLARE_API_TOKEN`(Pages: Edit 권한), `CLOUDFLARE_ACCOUNT_ID`
-- 아래는 대시보드 Git 연결 방식을 쓸 때의 참고 절차
-
-### 4-b. (참고) 대시보드 Git 연결 방식
-Workers & Pages → Create → Pages → **Connect to Git** → 이 저장소
-- Production branch `main` · Framework 없음 · Build command 비움 · **Build output `public`**
-- 환경변수: `BACKEND_ORIGIN = https://figteam-api.ktci5.kr` (선택: `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`)
-- `<프로젝트>.pages.dev`에서 로그인 · VM 목록 확인 (Horizon SSO 쿠키는 `.ktci5.kr` 전용이라 pages.dev에선 제외)
-
-### 5. 도메인 전환
-- Tunnel의 `figteam.ktci5.kr` Public Hostname 제거 → Pages 프로젝트 Custom domains에 `figteam.ktci5.kr` 추가
-- **되돌리기**: Pages 커스텀 도메인 제거 → Tunnel에 `figteam.ktci5.kr → http://localhost:18088` 다시 추가
-
-## 보안 메모
-- 비밀값은 저장소에 넣지 않습니다 (`.gitignore`, `tools/build.sh` 검사).
-- `origin-kt.ktci5.kr`(DNS 전용)가 KT Edge IP를 공개하고 있습니다 — Edge 443을 Cloudflare IP 대역만 허용하거나 Authenticated Origin Pulls 적용을 권장합니다.
+- [📖 하이브리드 멀티클라우드 아키텍처 규격 및 트래픽 판별 가이드](docs/ARCHITECTURE_SPEC_AND_TRAFFIC_GUIDE.md)
+- [🛡️ 통합 운영 대시보드 파트별 상세 명세서](docs/dashboard-guide.md)
+- [📋 KT Cloud 진입점 2인 분업 가이드 및 통합 검증서](docs/kt-cloud-edge-guide.md)
+- [⚙️ OpenStack & 하이브리드 CI/CD · IaC 자동화 분석 보고서](docs/ci-cd-iac-automation-guide.md)
+- [🔄 나의 오픈스택 ↔ 타 팀 VM/K8s 연결 조성안 (Plan C)](docs/plan-c-cross-team-interconnect.md)

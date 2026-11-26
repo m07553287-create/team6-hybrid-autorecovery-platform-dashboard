@@ -98,7 +98,7 @@
      type: ExternalName
      externalName: 10.200.10.2
    ```
-2. 내 대민 서비스 파드가 `team-x-service`를 통해 타 팀의 VM/파드 기능을 호출하도록 연계.
+2. 내 민원 접수 서비스 파드가 `team-x-service`를 통해 타 팀의 VM/파드 기능을 호출하도록 연계.
 
 ---
 

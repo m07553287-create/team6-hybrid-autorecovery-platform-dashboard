@@ -92,7 +92,7 @@
      ```
 2. **ModSecurity (WAF) 연동 및 보안 룰 검증 (3단계)**
    - ModSecurity v3 및 OWASP CRS (Core Rule Set) 연동 (`SecRuleEngine On`).
-   - **[검증 2] 통과**: 정상 대민 접속(200 OK) 확인 및 SQL Injection 공격 탐지 시 즉시 **403 Forbidden** 차단 확인.
+   - **[검증 2] 통과**: 정상 민원 접속(200 OK) 확인 및 SQL Injection 공격 탐지 시 즉시 **403 Forbidden** 차단 확인.
 3. **DR Upstream 무중단 전환 스위치 구현 (4단계)**
    - 장애 대응 스위칭 스크립트 작성 (`/opt/scripts/dr-switch.sh`):
      ```bash
