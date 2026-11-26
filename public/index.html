@@ -571,6 +571,55 @@
       color: #fff;
       border-color: #3b82f6;
     }
+    .instance-tab-bar {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      background: #090d16;
+      border: 1px solid var(--surface-border);
+      border-radius: 5px;
+      padding: 4px;
+      margin-bottom: 8px;
+      overflow-x: auto;
+    }
+    .inst-tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      padding: 5px 10px;
+      color: var(--text-sub);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+    .inst-tab-btn:hover {
+      background: #141e33;
+      color: #fff;
+    }
+    .inst-tab-btn.active {
+      background: #1e293b;
+      border-color: #3b82f6;
+      color: #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .inst-summary-strip {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #141e33;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 6px 12px;
+      margin-bottom: 8px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+    }
 
     /* RIGHT: SEQUENTIAL ENGINE & LATENCY MONITOR */
     .telemetry-panel {
@@ -930,358 +979,71 @@
 
       <!-- ROW 2: MAIN DASHBOARD SPLIT -->
       <div class="dashboard-split">
-        <!-- LEFT: SERVICE STATUS HIERARCHICAL TABLE (클라우드 > 인스턴스 > 서비스유형 > 서비스) -->
+        <!-- LEFT: INSTANCE TOP 10 RESOURCE & PERFORMANCE HIERARCHY -->
         <div class="pod-table-panel">
           <div class="panel-head">
             <div>
               <div class="panel-title">
-                <span>서비스 현황</span>
-                <span class="rank-badge rank-top3" style="font-size:10px;">Top 10 핵심 서비스</span>
+                <span>인스턴스별 서비스 관제 (Top 10)</span>
+                <span class="rank-badge rank-top3" id="active-inst-title-badge" style="font-size:10px;">온프렘 k8s-cp1</span>
               </div>
-              <div class="panel-sub" style="margin-top:2px;">클라우드 ➔ 인스턴스 ➔ 서비스유형 ➔ 서비스 계층 리소스 관제</div>
+              <div class="panel-sub" style="margin-top:2px;">클라우드 ➔ 인스턴스 ➔ 서비스유형 ➔ 서비스 (할당량 vs 사용량 & 속도)</div>
             </div>
             <div class="filter-chips-row">
-              <button type="button" class="chip-btn active" onclick="filterServices('all')">전체 (10)</button>
+              <button type="button" class="chip-btn active" onclick="filterServices('all')">전체 Top 10</button>
               <button type="button" class="chip-btn" onclick="filterServices('web')">웹/API</button>
               <button type="button" class="chip-btn" onclick="filterServices('daemon')">상시작용</button>
               <button type="button" class="chip-btn" onclick="filterServices('gw')">보안/관문</button>
               <button type="button" class="chip-btn" onclick="filterServices('data')">데이터/DR</button>
             </div>
           </div>
+
+          <!-- INSTANCE SELECTOR TAB BAR -->
+          <div class="instance-tab-bar">
+            <button type="button" class="inst-tab-btn" id="inst-tab-kt-edge" onclick="selectInstanceTop10('kt-edge')">
+              <span class="cloud-tag cloud-kt">KT Cloud</span>
+              <span>kt-edge</span>
+            </button>
+            <button type="button" class="inst-tab-btn active" id="inst-tab-onprem-cp1" onclick="selectInstanceTop10('onprem-cp1')">
+              <span class="cloud-tag cloud-onprem">온프레미스</span>
+              <span>k8s-cp1</span>
+            </button>
+            <button type="button" class="inst-tab-btn" id="inst-tab-onprem-db" onclick="selectInstanceTop10('onprem-db')">
+              <span class="cloud-tag cloud-onprem">온프레미스</span>
+              <span>db-01</span>
+            </button>
+            <button type="button" class="inst-tab-btn" id="inst-tab-aws-ctl" onclick="selectInstanceTop10('aws-ctl')">
+              <span class="cloud-tag cloud-aws">AWS</span>
+              <span>aws-ctl</span>
+            </button>
+            <button type="button" class="inst-tab-btn" id="inst-tab-aws-dr" onclick="selectInstanceTop10('aws-dr')">
+              <span class="cloud-tag cloud-aws">AWS</span>
+              <span>aws-dr (Standby)</span>
+            </button>
+          </div>
+
+          <!-- SELECTED INSTANCE ALLOCATION & PERFORMANCE STRIP -->
+          <div class="inst-summary-strip" id="inst-summary-strip">
+            <!-- Dynamically populated by JS -->
+          </div>
+
+          <!-- HIERARCHICAL TOP 10 TABLE -->
           <div class="table-scroll">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th style="width: 6%; text-align: center;">순위</th>
-                  <th style="width: 14%;">클라우드</th>
-                  <th style="width: 17%;">인스턴스</th>
-                  <th style="width: 14%;">서비스유형</th>
+                  <th style="width: 5%; text-align: center;">순위</th>
+                  <th style="width: 13%;">서비스유형</th>
                   <th style="width: 25%;">서비스명 & 역할</th>
-                  <th style="width: 11%;">CPU 점유</th>
-                  <th style="width: 11%;">메모리 점유</th>
-                  <th style="width: 8%; text-align: center;">상태</th>
+                  <th style="width: 14%;">할당 리소스</th>
+                  <th style="width: 18%;">실제 사용량 (점유율)</th>
+                  <th style="width: 10%;">응답속도</th>
+                  <th style="width: 9%;">포트</th>
+                  <th style="width: 6%; text-align: center;">상태</th>
                 </tr>
               </thead>
               <tbody id="pod-table-body">
-                <!-- 1. KT WAF -->
-                <tr data-type="gw">
-                  <td style="text-align: center;"><span class="rank-badge rank-top3">#1</span></td>
-                  <td><span class="cloud-tag cloud-kt">KT Cloud</span></td>
-                  <td>
-                    <div class="inst-box">
-                      <span class="inst-name">kt-edge</span>
-                      <span class="inst-ip">14.63.212.190</span>
-                    </div>
-                  </td>
-                  <td><span class="type-badge type-gw">보안/관문</span></td>
-                  <td>
-                    <div class="svc-box">
-                      <span class="svc-name">modsecurity-waf-proxy</span>
-                      <span class="svc-desc">L7 인라인 웹방화벽 패킷 검증</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>110m</span><span style="color:var(--text-muted);">22%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: 22%;"></div></div>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>164MB</span><span style="color:var(--text-muted);">41%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-purple" style="width: 41%;"></div></div>
-                    </div>
-                  </td>
-                  <td style="text-align: center;"><span class="badge-running">Running</span></td>
-                </tr>
-
-                <!-- 2. KT WireGuard -->
-                <tr data-type="daemon">
-                  <td style="text-align: center;"><span class="rank-badge rank-top3">#2</span></td>
-                  <td><span class="cloud-tag cloud-kt">KT Cloud</span></td>
-                  <td>
-                    <div class="inst-box">
-                      <span class="inst-name">kt-edge</span>
-                      <span class="inst-ip">14.63.212.190</span>
-                    </div>
-                  </td>
-                  <td><span class="type-badge type-daemon">상시작용</span></td>
-                  <td>
-                    <div class="svc-box">
-                      <span class="svc-name">wireguard-mesh-daemon</span>
-                      <span class="svc-desc">암호화 메쉬 터널 상시 가동</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>60m</span><span style="color:var(--text-muted);">12%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: 12%;"></div></div>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>88MB</span><span style="color:var(--text-muted);">22%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-purple" style="width: 22%;"></div></div>
-                    </div>
-                  </td>
-                  <td style="text-align: center;"><span class="badge-running">Running</span></td>
-                </tr>
-
-                <!-- 3. Onprem Backend -->
-                <tr data-type="web">
-                  <td style="text-align: center;"><span class="rank-badge rank-top3">#3</span></td>
-                  <td><span class="cloud-tag cloud-onprem">온프레미스</span></td>
-                  <td>
-                    <div class="inst-box">
-                      <span class="inst-name">k8s-cp1</span>
-                      <span class="inst-ip">172.20.0.86</span>
-                    </div>
-                  </td>
-                  <td><span class="type-badge type-web">웹/API</span></td>
-                  <td>
-                    <div class="svc-box">
-                      <span class="svc-name">minwon-backend</span>
-                      <span class="svc-desc">민원 접수 핵심 REST API</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>280m</span><span style="color:var(--text-muted);">28%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: 28%;"></div></div>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>412MB</span><span style="color:var(--text-muted);">63%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-purple" style="width: 63%;"></div></div>
-                    </div>
-                  </td>
-                  <td style="text-align: center;"><span class="badge-running">Running</span></td>
-                </tr>
-
-                <!-- 4. Onprem Frontend -->
-                <tr data-type="web">
-                  <td style="text-align: center;"><span class="rank-badge">#4</span></td>
-                  <td><span class="cloud-tag cloud-onprem">온프레미스</span></td>
-                  <td>
-                    <div class="inst-box">
-                      <span class="inst-name">k8s-cp1</span>
-                      <span class="inst-ip">172.20.0.86</span>
-                    </div>
-                  </td>
-                  <td><span class="type-badge type-web">웹/UI</span></td>
-                  <td>
-                    <div class="svc-box">
-                      <span class="svc-name">minwon-frontend</span>
-                      <span class="svc-desc">대민 접수 포털 웹 서빙</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>95m</span><span style="color:var(--text-muted);">10%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: 10%;"></div></div>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>146MB</span><span style="color:var(--text-muted);">22%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-purple" style="width: 22%;"></div></div>
-                    </div>
-                  </td>
-                  <td style="text-align: center;"><span class="badge-running">Running</span></td>
-                </tr>
-
-                <!-- 5. Onprem Traefik -->
-                <tr data-type="gw">
-                  <td style="text-align: center;"><span class="rank-badge">#5</span></td>
-                  <td><span class="cloud-tag cloud-onprem">온프레미스</span></td>
-                  <td>
-                    <div class="inst-box">
-                      <span class="inst-name">k8s-cp1</span>
-                      <span class="inst-ip">172.20.0.86</span>
-                    </div>
-                  </td>
-                  <td><span class="type-badge type-gw">보안/관문</span></td>
-                  <td>
-                    <div class="svc-box">
-                      <span class="svc-name">traefik-ingress-controller</span>
-                      <span class="svc-desc">L7 인그레스 라우팅 & SSL 종단</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>120m</span><span style="color:var(--text-muted);">12%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: 12%;"></div></div>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>184MB</span><span style="color:var(--text-muted);">28%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-purple" style="width: 28%;"></div></div>
-                    </div>
-                  </td>
-                  <td style="text-align: center;"><span class="badge-running">Running</span></td>
-                </tr>
-
-                <!-- 6. Onprem CoreDNS -->
-                <tr data-type="daemon">
-                  <td style="text-align: center;"><span class="rank-badge">#6</span></td>
-                  <td><span class="cloud-tag cloud-onprem">온프레미스</span></td>
-                  <td>
-                    <div class="inst-box">
-                      <span class="inst-name">k8s-cp1</span>
-                      <span class="inst-ip">172.20.0.86</span>
-                    </div>
-                  </td>
-                  <td><span class="type-badge type-daemon">상시작용</span></td>
-                  <td>
-                    <div class="svc-box">
-                      <span class="svc-name">coredns-resolver</span>
-                      <span class="svc-desc">클러스터 내부 도메인 질의 해석</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>45m</span><span style="color:var(--text-muted);">5%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: 5%;"></div></div>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>68MB</span><span style="color:var(--text-muted);">10%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-purple" style="width: 10%;"></div></div>
-                    </div>
-                  </td>
-                  <td style="text-align: center;"><span class="badge-running">Running</span></td>
-                </tr>
-
-                <!-- 7. Onprem DB -->
-                <tr data-type="data">
-                  <td style="text-align: center;"><span class="rank-badge">#7</span></td>
-                  <td><span class="cloud-tag cloud-onprem">온프레미스</span></td>
-                  <td>
-                    <div class="inst-box">
-                      <span class="inst-name">db-01</span>
-                      <span class="inst-ip">10.10.2.10</span>
-                    </div>
-                  </td>
-                  <td><span class="type-badge type-data">데이터</span></td>
-                  <td>
-                    <div class="svc-box">
-                      <span class="svc-name">mariadb-galera-cluster</span>
-                      <span class="svc-desc">메인 트랜잭션 DB 엔진 (ACID)</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>310m</span><span style="color:var(--text-muted);">31%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: 31%;"></div></div>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>890MB</span><span style="color:var(--text-muted);">89%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-purple" style="width: 89%;"></div></div>
-                    </div>
-                  </td>
-                  <td style="text-align: center;"><span class="badge-running">Running</span></td>
-                </tr>
-
-                <!-- 8. Onprem Backup Receiver -->
-                <tr data-type="daemon">
-                  <td style="text-align: center;"><span class="rank-badge">#8</span></td>
-                  <td><span class="cloud-tag cloud-onprem">온프레미스</span></td>
-                  <td>
-                    <div class="inst-box">
-                      <span class="inst-name">db-01</span>
-                      <span class="inst-ip">10.10.2.10</span>
-                    </div>
-                  </td>
-                  <td><span class="type-badge type-daemon">상시작용</span></td>
-                  <td>
-                    <div class="svc-box">
-                      <span class="svc-name">ssh-backup-receiver</span>
-                      <span class="svc-desc">AWS DR 역방향 동기화 수신</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>25m</span><span style="color:var(--text-muted);">3%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: 3%;"></div></div>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>45MB</span><span style="color:var(--text-muted);">5%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-purple" style="width: 5%;"></div></div>
-                    </div>
-                  </td>
-                  <td style="text-align: center;"><span class="badge-running">Running</span></td>
-                </tr>
-
-                <!-- 9. AWS CTL Engine -->
-                <tr data-type="data">
-                  <td style="text-align: center;"><span class="rank-badge">#9</span></td>
-                  <td><span class="cloud-tag cloud-aws">AWS</span></td>
-                  <td>
-                    <div class="inst-box">
-                      <span class="inst-name">aws-ctl</span>
-                      <span class="inst-ip">10.200.0.10</span>
-                    </div>
-                  </td>
-                  <td><span class="type-badge type-dr">DR 관제</span></td>
-                  <td>
-                    <div class="svc-box">
-                      <span class="svc-name">duck-hsagent-dr-engine</span>
-                      <span class="svc-desc">헬스체크 감시 및 승격 판정</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>85m</span><span style="color:var(--text-muted);">9%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: 9%;"></div></div>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>132MB</span><span style="color:var(--text-muted);">13%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-purple" style="width: 13%;"></div></div>
-                    </div>
-                  </td>
-                  <td style="text-align: center;"><span class="badge-running">Running</span></td>
-                </tr>
-
-                <!-- 10. AWS DR Agent -->
-                <tr data-type="data">
-                  <td style="text-align: center;"><span class="rank-badge">#10</span></td>
-                  <td><span class="cloud-tag cloud-aws">AWS</span></td>
-                  <td>
-                    <div class="inst-box">
-                      <span class="inst-name">aws-dr</span>
-                      <span class="inst-ip">10.200.0.4</span>
-                    </div>
-                  </td>
-                  <td><span class="type-badge type-dr">DR 대기</span></td>
-                  <td>
-                    <div class="svc-box">
-                      <span class="svc-name">dr-pilot-light-agent</span>
-                      <span class="svc-desc">Standby 대기 파드 (정상)</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>15m</span><span style="color:var(--text-muted);">2%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-amber" style="width: 2%;"></div></div>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="res-metric-cell">
-                      <div class="res-metric-val"><span>48MB</span><span style="color:var(--text-muted);">5%</span></div>
-                      <div class="mini-meter-track"><div class="mini-meter-fill fill-amber" style="width: 5%;"></div></div>
-                    </div>
-                  </td>
-                  <td style="text-align: center;"><span class="badge-standby">Standby</span></td>
-                </tr>
+                <!-- Dynamically populated by renderInstanceTop10() -->
               </tbody>
             </table>
           </div>
@@ -1417,6 +1179,7 @@
         vSettings.style.display = 'none';
         btnDash.classList.add('active');
         btnSet.classList.remove('active');
+        renderInstanceTop10();
         renderSpeedChart();
       } else {
         vDashboard.style.display = 'none';
@@ -1694,29 +1457,200 @@ bash scripts/setup_aws_dr_addons.sh`,
       `;
     }
 
-    // 5. TOP 10 SERVICE FILTER FUNCTION
+    // 5. INSTANCE-SPECIFIC TOP 10 DATA & CONTROLLER
+    const INSTANCE_TOP10_DATA = {
+      'kt-edge': {
+        cloud: 'KT Cloud',
+        cloudClass: 'cloud-kt',
+        name: 'KT Cloud Edge',
+        ip: '14.63.212.190',
+        totalAlloc: '2 vCPU / 4.0GB RAM / 50GB SSD',
+        currentUsage: '0.36 vCPU (18%) / 1.68GB (42%)',
+        netSpeed: '2.1ms (KT Backbone)',
+        status: '정상 가동 (Active)',
+        services: [
+          { rank: 1, type: 'gw', typeName: '보안/관문', name: 'modsecurity-waf-proxy', desc: 'L7 인라인 웹방화벽 패킷 검증', alloc: '300m / 512MB', cpuU: '110m (37%)', cpuP: 37, memU: '164MB (32%)', memP: 32, lat: '2.1ms', port: '80, 443', state: 'Running' },
+          { rank: 2, type: 'daemon', typeName: '상시작용', name: 'wireguard-mesh-daemon', desc: 'VPN 메쉬 터널 A/B 상시 가동', alloc: '200m / 256MB', cpuU: '60m (30%)', cpuP: 30, memU: '88MB (34%)', memP: 34, lat: '1.2ms', port: '51820/udp', state: 'Running' },
+          { rank: 3, type: 'gw', typeName: '네트워크', name: 'haproxy-edge-router', desc: '역방향 프록시 및 로드밸런싱', alloc: '200m / 256MB', cpuU: '45m (23%)', cpuP: 23, memU: '62MB (24%)', memP: 24, lat: '0.9ms', port: '443', state: 'Running' },
+          { rank: 4, type: 'gw', typeName: '보안', name: 'fail2ban-intrusion-guard', desc: '비인가 무차별 대입 자동차단', alloc: '100m / 128MB', cpuU: '20m (20%)', cpuP: 20, memU: '34MB (27%)', memP: 27, lat: '-', port: 'local', state: 'Running' },
+          { rank: 5, type: 'daemon', typeName: '모니터링', name: 'telegraf-edge-agent', desc: '에지 트래픽 텔레메트리 수집', alloc: '100m / 128MB', cpuU: '25m (25%)', cpuP: 25, memU: '42MB (33%)', memP: 33, lat: '4.5ms', port: '9100', state: 'Running' },
+          { rank: 6, type: 'daemon', typeName: '상시작용', name: 'certbot-ssl-renewer', desc: '와일드카드 Let’s Encrypt 갱신', alloc: '100m / 128MB', cpuU: '10m (10%)', cpuP: 10, memU: '28MB (22%)', memP: 22, lat: '-', port: 'cron', state: 'Running' },
+          { rank: 7, type: 'gw', typeName: '네트워크', name: 'iptables-nat-sync', desc: '커널 레벨 NAT 포워딩 동기화', alloc: '100m / 128MB', cpuU: '15m (15%)', cpuP: 15, memU: '22MB (17%)', memP: 17, lat: '0.4ms', port: 'kernel', state: 'Running' },
+          { rank: 8, type: 'daemon', typeName: '시스템', name: 'cloud-init-agent', desc: 'KT Cloud 가상머신 프로비저닝', alloc: '100m / 128MB', cpuU: '5m (5%)', cpuP: 5, memU: '18MB (14%)', memP: 14, lat: '-', port: 'local', state: 'Running' },
+          { rank: 9, type: 'daemon', typeName: '로그', name: 'rsyslog-audit-forwarder', desc: '감사 로그 원격 전송 데몬', alloc: '100m / 128MB', cpuU: '12m (12%)', cpuP: 12, memU: '32MB (25%)', memP: 25, lat: '1.8ms', port: '514', state: 'Running' },
+          { rank: 10, type: 'daemon', typeName: '헬스체크', name: 'edge-health-checker', desc: '인바운드 라우팅 상태 감시', alloc: '100m / 128MB', cpuU: '18m (18%)', cpuP: 18, memU: '26MB (20%)', memP: 20, lat: '2.4ms', port: '8088', state: 'Running' }
+        ]
+      },
+      'onprem-cp1': {
+        cloud: '온프레미스',
+        cloudClass: 'cloud-onprem',
+        name: '온프렘 k8s-cp1',
+        ip: '172.20.0.86',
+        totalAlloc: '4 vCPU / 6.5GB RAM / 100GB SSD',
+        currentUsage: '1.84 vCPU (46%) / 4.42GB (68%)',
+        netSpeed: '0.8ms (Intranet Core)',
+        status: '정상 가동 (Active)',
+        services: [
+          { rank: 1, type: 'web', typeName: '웹/API', name: 'minwon-backend', desc: '민원 접수 핵심 REST API', alloc: '500m / 1,024MB', cpuU: '280m (56%)', cpuP: 56, memU: '412MB (40%)', memP: 40, lat: '14.2ms', port: '8080', state: 'Running' },
+          { rank: 2, type: 'gw', typeName: '보안/관문', name: 'traefik-ingress-controller', desc: 'L7 인그레스 라우팅 & SSL', alloc: '300m / 512MB', cpuU: '120m (40%)', cpuP: 40, memU: '184MB (36%)', memP: 36, lat: '1.8ms', port: '80, 443', state: 'Running' },
+          { rank: 3, type: 'web', typeName: '웹/UI', name: 'minwon-frontend', desc: '대민 접수 포털 웹 프론트엔드', alloc: '300m / 512MB', cpuU: '95m (32%)', cpuP: 32, memU: '146MB (29%)', memP: 29, lat: '18.5ms', port: '3000', state: 'Running' },
+          { rank: 4, type: 'daemon', typeName: '시스템/코어', name: 'coredns-resolver', desc: '클러스터 내부 도메인 질의 해석', alloc: '200m / 256MB', cpuU: '45m (23%)', cpuP: 23, memU: '68MB (27%)', memP: 27, lat: '0.6ms', port: '53', state: 'Running' },
+          { rank: 5, type: 'gw', typeName: '네트워크', name: 'kube-flannel-cni', desc: '오버레이 파드 네트워크 인터페이스', alloc: '200m / 256MB', cpuU: '35m (18%)', cpuP: 18, memU: '54MB (21%)', memP: 21, lat: '0.5ms', port: 'vxlan', state: 'Running' },
+          { rank: 6, type: 'daemon', typeName: '시스템', name: 'k3s-server-core', desc: '쿠버네티스 컨트롤 플레인 엔진', alloc: '500m / 1,024MB', cpuU: '190m (38%)', cpuP: 38, memU: '480MB (47%)', memP: 47, lat: '1.1ms', port: '6443', state: 'Running' },
+          { rank: 7, type: 'daemon', typeName: '모니터링', name: 'metrics-server', desc: '파드/노드 자원 사용량 집계', alloc: '150m / 256MB', cpuU: '30m (20%)', cpuP: 20, memU: '58MB (23%)', memP: 23, lat: '3.2ms', port: '4443', state: 'Running' },
+          { rank: 8, type: 'daemon', typeName: '스토리지', name: 'local-path-provisioner', desc: '로컬 PV 동적 프로비저닝 CSI', alloc: '100m / 128MB', cpuU: '15m (15%)', cpuP: 15, memU: '32MB (25%)', memP: 25, lat: '0.8ms', port: 'csi', state: 'Running' },
+          { rank: 9, type: 'daemon', typeName: '상시작용', name: 'minwon-worker-queue', desc: '비동기 알림 및 민원 큐 처리', alloc: '200m / 512MB', cpuU: '40m (20%)', cpuP: 20, memU: '94MB (18%)', memP: 18, lat: '2.1ms', port: 'internal', state: 'Running' },
+          { rank: 10, type: 'daemon', typeName: '진단', name: 'node-problem-detector', desc: '노드 커널 및 런타임 이상 진단', alloc: '100m / 128MB', cpuU: '18m (18%)', cpuP: 18, memU: '38MB (30%)', memP: 30, lat: '-', port: 'daemon', state: 'Running' }
+        ]
+      },
+      'onprem-db': {
+        cloud: '온프레미스',
+        cloudClass: 'cloud-onprem',
+        name: '온프렘 db-01',
+        ip: '10.10.2.10',
+        totalAlloc: '2 vCPU / 4.0GB RAM / 80GB SSD',
+        currentUsage: '0.44 vCPU (22%) / 2.04GB (51%)',
+        netSpeed: '0.4ms (Intranet DB)',
+        status: '정상 가동 (Active)',
+        services: [
+          { rank: 1, type: 'data', typeName: '데이터베이스', name: 'mariadb-galera-cluster', desc: '메인 트랜잭션 DB 엔진 (ACID)', alloc: '800m / 2,048MB', cpuU: '310m (39%)', cpuP: 39, memU: '890MB (43%)', memP: 43, lat: '0.8ms', port: '3306', state: 'Running' },
+          { rank: 2, type: 'daemon', typeName: '상시작용', name: 'ssh-backup-receiver', desc: 'AWS DR 역방향 동기화 수신 계정', alloc: '200m / 512MB', cpuU: '25m (13%)', cpuP: 13, memU: '45MB (9%)', memP: 9, lat: '1.5ms', port: '22', state: 'Running' },
+          { rank: 3, type: 'daemon', typeName: '모니터링', name: 'mysqld-exporter', desc: 'MySQL 메트릭 프로메테우스 전송', alloc: '100m / 128MB', cpuU: '18m (18%)', cpuP: 18, memU: '36MB (28%)', memP: 28, lat: '2.0ms', port: '9104', state: 'Running' },
+          { rank: 4, type: 'data', typeName: '백업', name: 'xtrabackup-cron-scheduler', desc: '무중단 물리 백업 스케줄러', alloc: '200m / 256MB', cpuU: '10m (5%)', cpuP: 5, memU: '48MB (19%)', memP: 19, lat: '-', port: 'cron', state: 'Running' },
+          { rank: 5, type: 'data', typeName: '데이터', name: 'innodb-buffer-monitor', desc: 'InnoDB 버퍼풀 히트율 감시', alloc: '100m / 128MB', cpuU: '12m (12%)', cpuP: 12, memU: '28MB (22%)', memP: 22, lat: '0.4ms', port: 'local', state: 'Running' },
+          { rank: 6, type: 'daemon', typeName: '로그', name: 'systemd-journald', desc: '시스템 및 바이너리 로그 관리', alloc: '100m / 128MB', cpuU: '15m (15%)', cpuP: 15, memU: '42MB (33%)', memP: 33, lat: '-', port: 'system', state: 'Running' },
+          { rank: 7, type: 'gw', typeName: '네트워크', name: 'wireguard-db-endpoint', desc: 'DB 전용 암호화 통신 채널', alloc: '100m / 128MB', cpuU: '20m (20%)', cpuP: 20, memU: '38MB (30%)', memP: 30, lat: '1.1ms', port: '51820', state: 'Running' },
+          { rank: 8, type: 'daemon', typeName: '유지보수', name: 'cron-logrotate', desc: '쿼리 로그 및 감사파일 회전', alloc: '100m / 128MB', cpuU: '8m (8%)', cpuP: 8, memU: '22MB (17%)', memP: 17, lat: '-', port: 'cron', state: 'Running' },
+          { rank: 9, type: 'daemon', typeName: '보안', name: 'auditd-security-daemon', desc: 'DB 시스템 콜 접근 감사', alloc: '100m / 128MB', cpuU: '14m (14%)', cpuP: 14, memU: '32MB (25%)', memP: 25, lat: '-', port: 'kernel', state: 'Running' },
+          { rank: 10, type: 'daemon', typeName: '모니터링', name: 'node-exporter', desc: 'OS 커널 및 호스트 자원 지표', alloc: '100m / 128MB', cpuU: '15m (15%)', cpuP: 15, memU: '30MB (23%)', memP: 23, lat: '1.8ms', port: '9100', state: 'Running' }
+        ]
+      },
+      'aws-ctl': {
+        cloud: 'AWS',
+        cloudClass: 'cloud-aws',
+        name: 'AWS CTL',
+        ip: '10.200.0.10',
+        totalAlloc: '2 vCPU / 4.0GB RAM / 40GB EBS',
+        currentUsage: '0.24 vCPU (12%) / 1.36GB (34%)',
+        netSpeed: '22ms (AWS Direct Mesh)',
+        status: '정상 가동 (Active)',
+        services: [
+          { rank: 1, type: 'data', typeName: 'DR 관제', name: 'duck-hsagent-dr-engine', desc: '온프렘 헬스체크 및 승격 판정', alloc: '400m / 512MB', cpuU: '85m (21%)', cpuP: 21, memU: '132MB (26%)', memP: 26, lat: '1.4ms', port: '8080', state: 'Running' },
+          { rank: 2, type: 'data', typeName: 'DR/DNS', name: 'route53-failover-syncer', desc: 'DNS 가중치 및 자동 절체 제어', alloc: '200m / 256MB', cpuU: '30m (15%)', cpuP: 15, memU: '54MB (21%)', memP: 21, lat: '45ms', port: 'aws-api', state: 'Running' },
+          { rank: 3, type: 'daemon', typeName: '모니터링', name: 'cloudwatch-metric-collector', desc: 'AWS 리소스 상태 주기적 동기화', alloc: '150m / 256MB', cpuU: '28m (19%)', cpuP: 19, memU: '48MB (19%)', memP: 19, lat: '52ms', port: '443', state: 'Running' },
+          { rank: 4, type: 'daemon', typeName: '상시작용', name: 'aws-ssm-agent', desc: '인프라 원격 보안 관리 세션', alloc: '100m / 128MB', cpuU: '12m (12%)', cpuP: 12, memU: '38MB (30%)', memP: 30, lat: '-', port: 'ssm', state: 'Running' },
+          { rank: 5, type: 'gw', typeName: '네트워크', name: 'wireguard-aws-connector', desc: '하이브리드 클라우드 터널 관리', alloc: '200m / 256MB', cpuU: '35m (18%)', cpuP: 18, memU: '46MB (18%)', memP: 18, lat: '22ms', port: '51820', state: 'Running' },
+          { rank: 6, type: 'daemon', typeName: '알림', name: 'dr-alert-webhook-dispatcher', desc: '비상 절체 시 슬랙/웹훅 전송', alloc: '100m / 128MB', cpuU: '10m (10%)', cpuP: 10, memU: '24MB (19%)', memP: 19, lat: '18ms', port: '9090', state: 'Running' },
+          { rank: 7, type: 'data', typeName: '데이터', name: 'state-database-sqlite', desc: '장애 이력 및 페일오버 상태 보관', alloc: '100m / 128MB', cpuU: '15m (15%)', cpuP: 15, memU: '34MB (27%)', memP: 27, lat: '0.3ms', port: 'local', state: 'Running' },
+          { rank: 8, type: 'daemon', typeName: '진단', name: 'health-probe-worker', desc: '10~15초 주기 순차 프로브 데몬', alloc: '150m / 256MB', cpuU: '22m (15%)', cpuP: 15, memU: '40MB (16%)', memP: 16, lat: '12ms', port: 'async', state: 'Running' },
+          { rank: 9, type: 'daemon', typeName: '시스템', name: 'systemd-resolved', desc: 'AWS 엔드포인트 도메인 해석', alloc: '100m / 128MB', cpuU: '8m (8%)', cpuP: 8, memU: '20MB (16%)', memP: 16, lat: '0.5ms', port: '53', state: 'Running' },
+          { rank: 10, type: 'daemon', typeName: '스토리지', name: 'amazon-ebs-autoscale', desc: '백업 디스크 볼륨 용량 감시', alloc: '100m / 128MB', cpuU: '10m (10%)', cpuP: 10, memU: '26MB (20%)', memP: 20, lat: '-', port: 'api', state: 'Running' }
+        ]
+      },
+      'aws-dr': {
+        cloud: 'AWS',
+        cloudClass: 'cloud-aws',
+        name: 'AWS DR K3s',
+        ip: '10.200.0.4',
+        totalAlloc: '4 vCPU / 8.0GB RAM / 100GB EBS',
+        currentUsage: '0.16 vCPU (4%) / 1.28GB (16%)',
+        netSpeed: '24ms (Standby Route)',
+        status: 'Standby 대기 (정상 가동)',
+        services: [
+          { rank: 1, type: 'data', typeName: 'DR 대기', name: 'dr-pilot-light-agent', desc: 'L3 승격 대기 핫스탠바이 파드', alloc: '400m / 512MB', cpuU: '15m (4%)', cpuP: 4, memU: '48MB (9%)', memP: 9, lat: '24ms', port: '9000', state: 'Standby' },
+          { rank: 2, type: 'data', typeName: '데이터 동기화', name: 'dr-rsync-backup-syncer', desc: '정기 데이터 스냅샷 수신 동기화', alloc: '300m / 512MB', cpuU: '20m (7%)', cpuP: 7, memU: '64MB (13%)', memP: 13, lat: '26ms', port: 'rsync', state: 'Standby' },
+          { rank: 3, type: 'daemon', typeName: '시스템', name: 'k3s-standby-core', desc: 'DR 복구용 쿠버네티스 대기 코어', alloc: '500m / 1,024MB', cpuU: '45m (9%)', cpuP: 9, memU: '168MB (16%)', memP: 16, lat: '1.2ms', port: '6443', state: 'Standby' },
+          { rank: 4, type: 'web', typeName: '웹/API 대기', name: 'minwon-backend-standby', desc: '비상 승격 시 즉각 RW 전환 대기', alloc: '500m / 1,024MB', cpuU: '10m (2%)', cpuP: 2, memU: '52MB (5%)', memP: 5, lat: '-', port: '8080', state: 'Standby' },
+          { rank: 5, type: 'gw', typeName: '보안/관문', name: 'traefik-standby-router', desc: 'AWS 인그레스 대기 라우터', alloc: '200m / 256MB', cpuU: '15m (8%)', cpuP: 8, memU: '40MB (16%)', memP: 16, lat: '-', port: '80, 443', state: 'Standby' },
+          { rank: 6, type: 'daemon', typeName: '시스템', name: 'coredns-standby', desc: 'DR 클러스터 내부 네임서비스', alloc: '100m / 128MB', cpuU: '10m (10%)', cpuP: 10, memU: '28MB (22%)', memP: 22, lat: '0.6ms', port: '53', state: 'Standby' },
+          { rank: 7, type: 'data', typeName: '데이터', name: 'mariadb-standby-replica', desc: '온프렘 DB 복제본 대기 엔진', alloc: '800m / 2,048MB', cpuU: '25m (3%)', cpuP: 3, memU: '120MB (6%)', memP: 6, lat: '0.9ms', port: '3306', state: 'Standby' },
+          { rank: 8, type: 'daemon', typeName: '상시작용', name: 'aws-ssm-dr-agent', desc: 'AWS Systems Manager 제어 데몬', alloc: '100m / 128MB', cpuU: '10m (10%)', cpuP: 10, memU: '34MB (27%)', memP: 27, lat: '-', port: 'ssm', state: 'Standby' },
+          { rank: 9, type: 'gw', typeName: '네트워크', name: 'flannel-dr-cni', desc: 'DR 클러스터 CNI 네트워크', alloc: '150m / 256MB', cpuU: '12m (8%)', cpuP: 8, memU: '32MB (13%)', memP: 13, lat: '0.5ms', port: 'vxlan', state: 'Standby' },
+          { rank: 10, type: 'data', typeName: 'DR 자동화', name: 'failover-trigger-listener', desc: 'L3 승격 신호 수신 대기 소켓', alloc: '100m / 128MB', cpuU: '14m (14%)', cpuP: 14, memU: '36MB (28%)', memP: 28, lat: '15ms', port: 'event', state: 'Standby' }
+        ]
+      }
+    };
+
+    let currentSelectedInstance = 'onprem-cp1';
+    let currentServiceFilter = 'all';
+
+    function selectInstanceTop10(key) {
+      currentSelectedInstance = key;
+      const tabBtns = document.querySelectorAll('.inst-tab-btn');
+      tabBtns.forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.getElementById(`inst-tab-${key}`);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      renderInstanceTop10();
+    }
+
+    function renderInstanceTop10() {
+      const data = INSTANCE_TOP10_DATA[currentSelectedInstance];
+      if (!data) return;
+
+      // Update badge
+      const badge = document.getElementById('active-inst-title-badge');
+      if (badge) badge.textContent = `${data.cloud} · ${data.name}`;
+
+      // Update Summary Strip
+      const strip = document.getElementById('inst-summary-strip');
+      if (strip) {
+        strip.innerHTML = `
+          <div><strong style="color:#fff;">${data.name}</strong> (${data.ip})</div>
+          <div>할당: <span style="color:#38bdf8;">${data.totalAlloc}</span></div>
+          <div>사용: <span style="color:#34d399;">${data.currentUsage}</span></div>
+          <div>응답: <span style="color:#fbbf24;">${data.netSpeed}</span></div>
+          <div>상태: <span style="color:#34d399;">${data.status}</span></div>
+        `;
+      }
+
+      // Update Table Body
+      const tbody = document.getElementById('pod-table-body');
+      if (!tbody) return;
+
+      tbody.innerHTML = data.services.map(s => {
+        const isVisible = (currentServiceFilter === 'all') ||
+          (currentServiceFilter === 'web' && s.type === 'web') ||
+          (currentServiceFilter === 'daemon' && s.type === 'daemon') ||
+          (currentServiceFilter === 'gw' && s.type === 'gw') ||
+          (currentServiceFilter === 'data' && (s.type === 'data' || s.type === 'dr'));
+
+        const displayStyle = isVisible ? '' : 'display: none;';
+        const rankClass = s.rank <= 3 ? 'rank-top3' : '';
+        const stateClass = s.state === 'Running' ? 'badge-running' : 'badge-standby';
+        const typeClass = `type-${s.type}`;
+
+        return `
+          <tr data-type="${s.type}" style="${displayStyle}">
+            <td style="text-align: center;"><span class="rank-badge ${rankClass}">#${s.rank}</span></td>
+            <td><span class="type-badge ${typeClass}">${s.typeName}</span></td>
+            <td>
+              <div class="svc-box">
+                <span class="svc-name">${s.name}</span>
+                <span class="svc-desc">${s.desc}</span>
+              </div>
+            </td>
+            <td><span style="color:#cbd5e1; font-weight:600;">${s.alloc}</span></td>
+            <td>
+              <div class="res-metric-cell">
+                <div class="res-metric-val"><span>${s.cpuU}</span><span>${s.memU}</span></div>
+                <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: ${s.cpuP}%;"></div></div>
+              </div>
+            </td>
+            <td><span style="color:#38bdf8; font-weight:700;">${s.lat}</span></td>
+            <td><span style="color:var(--text-muted);">${s.port}</span></td>
+            <td style="text-align: center;"><span class="${stateClass}">${s.state}</span></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
     function filterServices(filterType) {
+      currentServiceFilter = filterType;
       const chips = document.querySelectorAll('.chip-btn');
       chips.forEach(c => c.classList.remove('active'));
       event?.currentTarget?.classList?.add('active');
-
-      const rows = document.querySelectorAll('#pod-table-body tr');
-      rows.forEach(r => {
-        const type = r.getAttribute('data-type');
-        if (filterType === 'all') {
-          r.style.display = '';
-        } else if (filterType === 'web' && type === 'web') {
-          r.style.display = '';
-        } else if (filterType === 'daemon' && type === 'daemon') {
-          r.style.display = '';
-        } else if (filterType === 'gw' && type === 'gw') {
-          r.style.display = '';
-        } else if (filterType === 'data' && (type === 'data' || type === 'dr')) {
-          r.style.display = '';
-        } else {
-          r.style.display = 'none';
-        }
-      });
+      renderInstanceTop10();
     }
 
     window.addEventListener('DOMContentLoaded', checkAuth);
