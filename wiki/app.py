@@ -6,7 +6,7 @@ import json
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 
-from wiki import auth
+from wiki import auth, docs
 from wiki.errors import ApiError
 from wiki.db import connect, init_schema
 
@@ -124,5 +124,59 @@ def create_app():
             conn.close()
         response.delete_cookie(auth.COOKIE, path="/api")
         return {"ok": True}
+
+    def with_session(fn):
+        """세션 확인 후 fn(conn, session) 결과를 돌려준다."""
+        def run(request):
+            conn = db()
+            try:
+                return fn(conn, session_of(request, conn))
+            finally:
+                conn.close()
+        return run
+
+    @app.get("/api/tree")
+    def tree(request: Request):
+        return with_session(docs.get_tree)(request)
+
+    @app.post("/api/docs", status_code=201)
+    async def create(request: Request):
+        data = await body_of(request)
+        return with_session(lambda c, s: docs.create_doc(c, s, data))(request)
+
+    @app.put("/api/docs/{doc_id}")
+    async def update(doc_id: int, request: Request):
+        data = await body_of(request)
+        return with_session(lambda c, s: docs.update_doc(c, s, doc_id, data))(request)
+
+    @app.delete("/api/docs/{doc_id}")
+    async def delete(doc_id: int, request: Request):
+        data = await body_of(request)
+        return with_session(lambda c, s: docs.delete_doc(c, s, doc_id, data))(request)
+
+    @app.get("/api/docs/{doc_id}/revisions")
+    def revisions(doc_id: int, request: Request):
+        return with_session(lambda c, s: docs.list_revisions(c, s, doc_id))(request)
+
+    @app.get("/api/docs/{doc_id}/revisions/{rev}")
+    def revision(doc_id: int, rev: int, request: Request):
+        return with_session(lambda c, s: docs.get_revision(c, s, doc_id, rev))(request)
+
+    @app.post("/api/docs/{doc_id}/restore")
+    async def restore(doc_id: int, request: Request):
+        data = await body_of(request)
+        return with_session(lambda c, s: docs.restore_doc(c, s, doc_id, data))(request)
+
+    @app.get("/api/changes")
+    def changes(request: Request, before: int = 0, limit: int = 50):
+        return with_session(lambda c, s: docs.list_changes(c, s, before or None, limit))(request)
+
+    @app.get("/api/scripts")
+    def scripts(request: Request):
+        return with_session(docs.list_scripts)(request)
+
+    @app.get("/api/scripts/{script_id}")
+    def script(script_id: int, request: Request):
+        return with_session(lambda c, s: docs.get_script(c, s, script_id))(request)
 
     return app
