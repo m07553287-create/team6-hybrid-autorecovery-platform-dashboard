@@ -311,18 +311,6 @@ LANDING_HTML = """<!DOCTYPE html>
         </div>
         <div class="card-action">서비스 접속 ➔</div>
       </a>
-
-      <!-- 4. Fallback DR Page -->
-      <a href="https://dr.ktci5.kr" target="_blank" rel="noopener noreferrer" class="nav-card">
-        <div>
-          <div class="card-head">
-            <span class="card-name">비상 접수 센터</span>
-            <span class="card-category">GitHub Fallback</span>
-          </div>
-          <div class="card-target">dr.ktci5.kr (Black Sky DR 복구망)</div>
-        </div>
-        <div class="card-action">센터 열기 ➔</div>
-      </a>
     </div>
 
     <!-- ARCHITECTURE & INFRASTRUCTURE SPEC (조율 지침 반영) -->
