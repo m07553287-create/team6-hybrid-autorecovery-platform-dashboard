@@ -444,18 +444,118 @@
       color: var(--text-muted);
       font-family: var(--font-mono);
     }
-    .inst-card-stats-bar {
-      background: #090d16;
-      border-bottom: 1px solid var(--surface-border);
-      padding: 6px 10px;
+    .inst-resource-hero {
+      background: #090e1a;
+      border-bottom: 1px solid #1e293b;
+      padding: 9px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      flex-shrink: 0;
+    }
+    .hero-header-line {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 10px;
+      gap: 6px;
+    }
+    .hero-resource-spec {
+      display: flex;
+      align-items: center;
+      gap: 4px;
       font-family: var(--font-mono);
-      color: var(--text-sub);
+      min-width: 0;
+    }
+    .hero-dim-label {
+      font-size: 11px;
+      color: #94a3b8;
+      font-weight: 600;
+    }
+    .hero-spec-text {
+      font-size: 13px;
+      font-weight: 800;
+      color: #ffffff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .hero-free-pill {
+      background: rgba(16, 185, 129, 0.16);
+      border: 1px solid rgba(16, 185, 129, 0.45);
+      border-radius: 4px;
+      padding: 2px 7px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--font-mono);
       flex-shrink: 0;
     }
+    .free-pill-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 6px #10b981;
+    }
+    .free-pill-label {
+      font-size: 10.5px;
+      color: #a7f3d0;
+      font-weight: 700;
+    }
+    .free-pill-val {
+      font-size: 12.5px;
+      font-weight: 800;
+      color: #34d399;
+      white-space: nowrap;
+    }
+    .hero-gauge-track {
+      width: 100%;
+      height: 5px;
+      background: #1e293b;
+      border-radius: 3px;
+      display: flex;
+      overflow: hidden;
+    }
+    .hero-gauge-used {
+      background: #38bdf8;
+      height: 100%;
+    }
+    .hero-gauge-free {
+      background: #10b981;
+      height: 100%;
+    }
+    .hero-metrics-trio {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr 1fr;
+      gap: 5px;
+      background: #0d1526;
+      border: 1px solid #1e293b;
+      border-radius: 4px;
+      padding: 6px 8px;
+      font-family: var(--font-mono);
+    }
+    .hero-trio-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      min-width: 0;
+    }
+    .trio-k {
+      font-size: 10px;
+      color: #94a3b8;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .trio-v {
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cell-used .trio-v { color: #38bdf8; }
+    .cell-lat .trio-v { color: #fbbf24; }
+    .cell-count .trio-v { color: #e2e8f0; }
     .compact-service-list {
       flex: 1;
       overflow-y: auto;
@@ -614,7 +714,7 @@
       border-radius: 6px;
       padding: 10px 14px;
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 10px;
       font-family: var(--font-mono);
       font-size: 11px;
@@ -1535,6 +1635,12 @@ bash scripts/setup_aws_dr_addons.sh`,
         name: 'KT Cloud Edge',
         ip: '14.63.212.190',
         totalAlloc: '2 vCPU / 4.0GB RAM / 50GB SSD',
+        totalAllocSummary: '2 vCPU / 4.0GB RAM',
+        usedSummary: '0.36 vCPU (18%)',
+        usedPct: 18,
+        freeSummary: '1.64 vCPU',
+        freePct: 82,
+        netLatency: '2.1ms',
         currentUsage: '0.36 vCPU (18%) / 1.68GB (42%)',
         netSpeed: '2.1ms (KT Backbone)',
         status: '정상 가동 (Active)',
@@ -1557,6 +1663,12 @@ bash scripts/setup_aws_dr_addons.sh`,
         name: '온프렘 k8s-cp1',
         ip: '172.20.0.86',
         totalAlloc: '4 vCPU / 6.5GB RAM / 100GB SSD',
+        totalAllocSummary: '4 vCPU / 6.5GB RAM',
+        usedSummary: '1.84 vCPU (46%)',
+        usedPct: 46,
+        freeSummary: '2.16 vCPU',
+        freePct: 54,
+        netLatency: '0.8ms',
         currentUsage: '1.84 vCPU (46%) / 4.42GB (68%)',
         netSpeed: '0.8ms (Intranet Core)',
         status: '정상 가동 (Active)',
@@ -1579,6 +1691,12 @@ bash scripts/setup_aws_dr_addons.sh`,
         name: '온프렘 db-01',
         ip: '10.10.2.10',
         totalAlloc: '2 vCPU / 4.0GB RAM / 80GB SSD',
+        totalAllocSummary: '2 vCPU / 4.0GB RAM',
+        usedSummary: '0.44 vCPU (22%)',
+        usedPct: 22,
+        freeSummary: '1.56 vCPU',
+        freePct: 78,
+        netLatency: '0.4ms',
         currentUsage: '0.44 vCPU (22%) / 2.04GB (51%)',
         netSpeed: '0.4ms (Intranet DB)',
         status: '정상 가동 (Active)',
@@ -1601,6 +1719,12 @@ bash scripts/setup_aws_dr_addons.sh`,
         name: 'AWS CTL',
         ip: '10.200.0.10',
         totalAlloc: '2 vCPU / 4.0GB RAM / 40GB EBS',
+        totalAllocSummary: '2 vCPU / 4.0GB RAM',
+        usedSummary: '0.24 vCPU (12%)',
+        usedPct: 12,
+        freeSummary: '1.76 vCPU',
+        freePct: 88,
+        netLatency: '22ms',
         currentUsage: '0.24 vCPU (12%) / 1.36GB (34%)',
         netSpeed: '22ms (AWS Direct Mesh)',
         status: '정상 가동 (Active)',
@@ -1623,6 +1747,12 @@ bash scripts/setup_aws_dr_addons.sh`,
         name: 'AWS DR K3s',
         ip: '10.200.0.4',
         totalAlloc: '4 vCPU / 8.0GB RAM / 100GB EBS',
+        totalAllocSummary: '4 vCPU / 8.0GB RAM',
+        usedSummary: '0.16 vCPU (4%)',
+        usedPct: 4,
+        freeSummary: '3.84 vCPU',
+        freePct: 96,
+        netLatency: '24ms',
         currentUsage: '0.16 vCPU (4%) / 1.28GB (16%)',
         netSpeed: '24ms (Standby Route)',
         status: 'Standby 대기 (정상 가동)',
@@ -1825,14 +1955,35 @@ bash scripts/setup_aws_dr_addons.sh`,
               <span class="badge-running" style="font-size: 10px; padding: 2px 6px;">${data.status.includes('Active') ? 'Active' : 'Standby'}</span>
             </div>
 
-            <div class="inst-card-stats-bar">
-              <div style="display: flex; flex-direction: column; gap: 1px;">
-                <span>자원: <strong style="color: #cbd5e1;">${data.totalAlloc.split('/')[0].trim()} / ${data.totalAlloc.split('/')[1]?.trim() || ''}</strong></span>
-                <span>사용: <strong style="color: #34d399;">${data.currentUsage.split('/')[0].trim()}</strong></span>
+            <div class="inst-resource-hero">
+              <div class="hero-header-line">
+                <div class="hero-resource-spec">
+                  <span class="hero-dim-label">자원:</span>
+                  <span class="hero-spec-text">${data.totalAllocSummary || data.totalAlloc}</span>
+                </div>
+                <div class="hero-free-pill" title="가용 여유 리소스">
+                  <span class="free-pill-dot"></span>
+                  <span class="free-pill-label">여유:</span>
+                  <strong class="free-pill-val">${data.freeSummary} (${data.freePct}%)</strong>
+                </div>
               </div>
-              <div style="text-align: right; display: flex; flex-direction: column; gap: 1px;">
-                <span>지연: <strong style="color: #fbbf24;">${data.netSpeed.split(' ')[0]}</strong></span>
-                <span style="color: #94a3b8;">${list.length}개 서비스</span>
+              <div class="hero-gauge-track" title="사용: ${data.usedPct}% | 여유: ${data.freePct}%">
+                <div class="hero-gauge-used" style="width: ${data.usedPct}%;"></div>
+                <div class="hero-gauge-free" style="width: ${data.freePct}%;"></div>
+              </div>
+              <div class="hero-metrics-trio">
+                <div class="hero-trio-cell cell-used">
+                  <span class="trio-k">사용:</span>
+                  <strong class="trio-v">${data.usedSummary}</strong>
+                </div>
+                <div class="hero-trio-cell cell-lat">
+                  <span class="trio-k">지연:</span>
+                  <strong class="trio-v">${data.netLatency}</strong>
+                </div>
+                <div class="hero-trio-cell cell-count">
+                  <span class="trio-k">서비스:</span>
+                  <strong class="trio-v">${list.length}개 서비스</strong>
+                </div>
               </div>
             </div>
 
@@ -1900,24 +2051,28 @@ bash scripts/setup_aws_dr_addons.sh`,
         `;
       }
 
-      // Summary 4-cell
+      // Summary 5-cell with highlighted free headroom
       const summaryBoxHtml = `
         <div class="modal-summary-box">
           <div class="summary-cell">
             <span class="summary-k">총 할당 규격</span>
-            <span class="summary-v">${data.totalAlloc}</span>
+            <span class="summary-v">${data.totalAllocSummary || data.totalAlloc}</span>
           </div>
           <div class="summary-cell">
             <span class="summary-k">현재 사용량 (점유율)</span>
-            <span class="summary-v" style="color: #34d399;">${data.currentUsage}</span>
+            <span class="summary-v" style="color: #38bdf8;">${data.usedSummary} (${data.usedPct}%)</span>
+          </div>
+          <div class="summary-cell" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 4px; padding: 3px 6px;">
+            <span class="summary-k" style="color: #6ee7b7;">가용 여유 자원</span>
+            <span class="summary-v" style="color: #34d399;">${data.freeSummary} (${data.freePct}%)</span>
           </div>
           <div class="summary-cell">
             <span class="summary-k">네트워크 지연율</span>
-            <span class="summary-v" style="color: #fbbf24;">${data.netSpeed}</span>
+            <span class="summary-v" style="color: #fbbf24;">${data.netLatency || data.netSpeed}</span>
           </div>
           <div class="summary-cell">
             <span class="summary-k">인프라 운영 모드</span>
-            <span class="summary-v" style="color: #38bdf8;">${data.status}</span>
+            <span class="summary-v" style="color: #cbd5e1;">${data.status} (${data.services.length}개)</span>
           </div>
         </div>
       `;
