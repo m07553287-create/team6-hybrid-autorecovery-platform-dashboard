@@ -418,36 +418,105 @@ LANDING_HTML = """<!DOCTYPE html>
       z-index: 2;
     }
     table.data-table td {
-      padding: 7px 10px;
+      padding: 6px 10px;
       border-bottom: 1px solid #1e293b;
       color: #e2e8f0;
       font-family: var(--font-mono);
       font-size: 11px;
+      vertical-align: middle;
     }
     table.data-table tr:hover td {
-      background: rgba(30, 42, 71, 0.5);
+      background: rgba(30, 42, 71, 0.45);
     }
-    .inst-badge {
-      font-size: 10.5px;
+    .rank-badge {
+      font-size: 10px;
       font-weight: 700;
-      padding: 2px 7px;
-      border-radius: 4px;
+      font-family: var(--font-mono);
+      padding: 2px 5px;
+      border-radius: 3px;
       background: #1e293b;
-      color: #38bdf8;
-      border: 1px solid #0284c7;
+      color: #94a3b8;
+      border: 1px solid #334155;
+      text-align: center;
+      display: inline-block;
+    }
+    .rank-top3 {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border-color: rgba(245, 158, 11, 0.4);
+    }
+    .cloud-tag {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
       display: inline-block;
       white-space: nowrap;
     }
-    .group-badge {
-      font-size: 10.5px;
+    .cloud-kt {
+      background: rgba(2, 132, 199, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(2, 132, 199, 0.4);
+    }
+    .cloud-onprem {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+    .cloud-aws {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+    .inst-box {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .inst-name {
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .inst-ip {
+      font-size: 9.5px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+    .type-badge {
+      font-size: 10px;
       font-weight: 600;
-      padding: 2px 6px;
+      padding: 1px 6px;
       border-radius: 3px;
-      background: rgba(148, 163, 184, 0.12);
-      color: #cbd5e1;
-      border: 1px solid #334155;
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
       white-space: nowrap;
+    }
+    .type-web {
+      background: rgba(99, 102, 241, 0.15);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.35);
+    }
+    .type-daemon {
+      background: rgba(20, 184, 166, 0.15);
+      color: #5eead4;
+      border: 1px solid rgba(20, 184, 166, 0.35);
+    }
+    .type-gw {
+      background: rgba(14, 165, 233, 0.15);
+      color: #7dd3fc;
+      border: 1px solid rgba(14, 165, 233, 0.35);
+    }
+    .type-data {
+      background: rgba(244, 63, 94, 0.15);
+      color: #fda4af;
+      border: 1px solid rgba(244, 63, 94, 0.35);
+    }
+    .type-dr {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fde68a;
+      border: 1px solid rgba(245, 158, 11, 0.35);
     }
     .svc-box {
       display: flex;
@@ -455,6 +524,7 @@ LANDING_HTML = """<!DOCTYPE html>
       gap: 1px;
     }
     .svc-name {
+      font-size: 11.5px;
       font-weight: 700;
       color: #fff;
     }
@@ -462,12 +532,37 @@ LANDING_HTML = """<!DOCTYPE html>
       font-size: 9.5px;
       color: var(--text-muted);
     }
+    .res-metric-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 10.5px;
+    }
+    .res-metric-val {
+      display: flex;
+      justify-content: space-between;
+    }
+    .mini-meter-track {
+      width: 100%;
+      height: 3px;
+      background: #090d16;
+      border-radius: 1.5px;
+      overflow: hidden;
+    }
+    .mini-meter-fill {
+      height: 100%;
+      border-radius: 1.5px;
+    }
+    .fill-blue { background: #38bdf8; }
+    .fill-purple { background: #a855f7; }
+    .fill-amber { background: #f59e0b; }
     .badge-running {
       color: #34d399;
       background: rgba(16, 185, 129, 0.15);
       padding: 2px 6px;
       border-radius: 3px;
       font-weight: 700;
+      font-size: 10.5px;
     }
     .badge-standby {
       color: #fbbf24;
@@ -475,6 +570,32 @@ LANDING_HTML = """<!DOCTYPE html>
       padding: 2px 6px;
       border-radius: 3px;
       font-weight: 700;
+      font-size: 10.5px;
+    }
+    .filter-chips-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .chip-btn {
+      background: #141e33;
+      border: 1px solid #1e293b;
+      color: var(--text-sub);
+      font-size: 10.5px;
+      padding: 2px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-family: inherit;
+    }
+    .chip-btn:hover {
+      background: #1e293b;
+      color: #fff;
+    }
+    .chip-btn.active {
+      background: var(--primary);
+      color: #fff;
+      border-color: #3b82f6;
     }
 
     /* RIGHT: SEQUENTIAL ENGINE & LATENCY MONITOR */
@@ -835,178 +956,357 @@ LANDING_HTML = """<!DOCTYPE html>
 
       <!-- ROW 2: MAIN DASHBOARD SPLIT -->
       <div class="dashboard-split">
-        <!-- LEFT: SERVICE STATUS HIERARCHICAL TABLE (인스턴스 > 서비스그룹 > 서비스) -->
+        <!-- LEFT: SERVICE STATUS HIERARCHICAL TABLE (클라우드 > 인스턴스 > 서비스유형 > 서비스) -->
         <div class="pod-table-panel">
           <div class="panel-head">
-            <div class="panel-title">
-              <span>서비스 현황</span>
+            <div>
+              <div class="panel-title">
+                <span>서비스 현황</span>
+                <span class="rank-badge rank-top3" style="font-size:10px;">Top 10 핵심 서비스</span>
+              </div>
+              <div class="panel-sub" style="margin-top:2px;">클라우드 ➔ 인스턴스 ➔ 서비스유형 ➔ 서비스 계층 리소스 관제</div>
             </div>
-            <div class="panel-sub">인스턴스 ➔ 서비스그룹 ➔ 서비스 리소스 계층 관제</div>
+            <div class="filter-chips-row">
+              <button type="button" class="chip-btn active" onclick="filterServices('all')">전체 (10)</button>
+              <button type="button" class="chip-btn" onclick="filterServices('web')">웹/API</button>
+              <button type="button" class="chip-btn" onclick="filterServices('daemon')">상시작용</button>
+              <button type="button" class="chip-btn" onclick="filterServices('gw')">보안/관문</button>
+              <button type="button" class="chip-btn" onclick="filterServices('data')">데이터/DR</button>
+            </div>
           </div>
           <div class="table-scroll">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th style="width: 22%;">인스턴스</th>
-                  <th style="width: 24%;">서비스그룹</th>
-                  <th style="width: 28%;">서비스 (파드/컨테이너)</th>
-                  <th style="width: 10%;">CPU</th>
-                  <th style="width: 10%;">메모리</th>
-                  <th style="width: 6%;">상태</th>
+                  <th style="width: 6%; text-align: center;">순위</th>
+                  <th style="width: 14%;">클라우드</th>
+                  <th style="width: 17%;">인스턴스</th>
+                  <th style="width: 14%;">서비스유형</th>
+                  <th style="width: 25%;">서비스명 & 역할</th>
+                  <th style="width: 11%;">CPU 점유</th>
+                  <th style="width: 11%;">메모리 점유</th>
+                  <th style="width: 8%; text-align: center;">상태</th>
                 </tr>
               </thead>
               <tbody id="pod-table-body">
-                <!-- 1. KT Cloud Edge -->
-                <tr>
-                  <td rowspan="2"><span class="inst-badge">KT Cloud Edge</span></td>
-                  <td rowspan="2"><span class="group-badge">네트워크 & WAF 관문</span></td>
+                <!-- 1. KT WAF -->
+                <tr data-type="gw">
+                  <td style="text-align: center;"><span class="rank-badge rank-top3">#1</span></td>
+                  <td><span class="cloud-tag cloud-kt">KT Cloud</span></td>
                   <td>
-                    <div class="svc-box">
-                      <span class="svc-name">wireguard-mesh-daemon</span>
-                      <span class="svc-desc">VPN 메쉬 터널 A/B 관리</span>
+                    <div class="inst-box">
+                      <span class="inst-name">kt-edge</span>
+                      <span class="inst-ip">14.63.212.190</span>
                     </div>
                   </td>
-                  <td>60m</td>
-                  <td>88MB</td>
-                  <td><span class="badge-running">Running</span></td>
-                </tr>
-                <tr>
+                  <td><span class="type-badge type-gw">보안/관문</span></td>
                   <td>
                     <div class="svc-box">
                       <span class="svc-name">modsecurity-waf-proxy</span>
-                      <span class="svc-desc">L7 인라인 방화벽 검증</span>
+                      <span class="svc-desc">L7 인라인 웹방화벽 패킷 검증</span>
                     </div>
                   </td>
-                  <td>110m</td>
-                  <td>164MB</td>
-                  <td><span class="badge-running">Running</span></td>
+                  <td>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>110m</span><span style="color:var(--text-muted);">22%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: 22%;"></div></div>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>164MB</span><span style="color:var(--text-muted);">41%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-purple" style="width: 41%;"></div></div>
+                    </div>
+                  </td>
+                  <td style="text-align: center;"><span class="badge-running">Running</span></td>
                 </tr>
 
-                <!-- 2. Onprem k8s-cp1 -->
-                <tr>
-                  <td rowspan="4"><span class="inst-badge">온프렘 k8s-cp1</span></td>
-                  <td rowspan="2"><span class="group-badge">민원 서비스</span></td>
+                <!-- 2. KT WireGuard -->
+                <tr data-type="daemon">
+                  <td style="text-align: center;"><span class="rank-badge rank-top3">#2</span></td>
+                  <td><span class="cloud-tag cloud-kt">KT Cloud</span></td>
+                  <td>
+                    <div class="inst-box">
+                      <span class="inst-name">kt-edge</span>
+                      <span class="inst-ip">14.63.212.190</span>
+                    </div>
+                  </td>
+                  <td><span class="type-badge type-daemon">상시작용</span></td>
+                  <td>
+                    <div class="svc-box">
+                      <span class="svc-name">wireguard-mesh-daemon</span>
+                      <span class="svc-desc">암호화 메쉬 터널 상시 가동</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>60m</span><span style="color:var(--text-muted);">12%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: 12%;"></div></div>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>88MB</span><span style="color:var(--text-muted);">22%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-purple" style="width: 22%;"></div></div>
+                    </div>
+                  </td>
+                  <td style="text-align: center;"><span class="badge-running">Running</span></td>
+                </tr>
+
+                <!-- 3. Onprem Backend -->
+                <tr data-type="web">
+                  <td style="text-align: center;"><span class="rank-badge rank-top3">#3</span></td>
+                  <td><span class="cloud-tag cloud-onprem">온프레미스</span></td>
+                  <td>
+                    <div class="inst-box">
+                      <span class="inst-name">k8s-cp1</span>
+                      <span class="inst-ip">172.20.0.86</span>
+                    </div>
+                  </td>
+                  <td><span class="type-badge type-web">웹/API</span></td>
                   <td>
                     <div class="svc-box">
                       <span class="svc-name">minwon-backend</span>
-                      <span class="svc-desc">비즈니스 로직 & REST API</span>
+                      <span class="svc-desc">민원 접수 핵심 REST API</span>
                     </div>
                   </td>
-                  <td>280m</td>
-                  <td>412MB</td>
-                  <td><span class="badge-running">Running</span></td>
+                  <td>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>280m</span><span style="color:var(--text-muted);">28%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: 28%;"></div></div>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>412MB</span><span style="color:var(--text-muted);">63%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-purple" style="width: 63%;"></div></div>
+                    </div>
+                  </td>
+                  <td style="text-align: center;"><span class="badge-running">Running</span></td>
                 </tr>
-                <tr>
+
+                <!-- 4. Onprem Frontend -->
+                <tr data-type="web">
+                  <td style="text-align: center;"><span class="rank-badge">#4</span></td>
+                  <td><span class="cloud-tag cloud-onprem">온프레미스</span></td>
+                  <td>
+                    <div class="inst-box">
+                      <span class="inst-name">k8s-cp1</span>
+                      <span class="inst-ip">172.20.0.86</span>
+                    </div>
+                  </td>
+                  <td><span class="type-badge type-web">웹/UI</span></td>
                   <td>
                     <div class="svc-box">
                       <span class="svc-name">minwon-frontend</span>
-                      <span class="svc-desc">사용자 웹 UI 포털</span>
+                      <span class="svc-desc">대민 접수 포털 웹 서빙</span>
                     </div>
                   </td>
-                  <td>95m</td>
-                  <td>146MB</td>
-                  <td><span class="badge-running">Running</span></td>
+                  <td>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>95m</span><span style="color:var(--text-muted);">10%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: 10%;"></div></div>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>146MB</span><span style="color:var(--text-muted);">22%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-purple" style="width: 22%;"></div></div>
+                    </div>
+                  </td>
+                  <td style="text-align: center;"><span class="badge-running">Running</span></td>
                 </tr>
-                <tr>
-                  <td rowspan="2"><span class="group-badge">인그레스 & 코어</span></td>
+
+                <!-- 5. Onprem Traefik -->
+                <tr data-type="gw">
+                  <td style="text-align: center;"><span class="rank-badge">#5</span></td>
+                  <td><span class="cloud-tag cloud-onprem">온프레미스</span></td>
+                  <td>
+                    <div class="inst-box">
+                      <span class="inst-name">k8s-cp1</span>
+                      <span class="inst-ip">172.20.0.86</span>
+                    </div>
+                  </td>
+                  <td><span class="type-badge type-gw">보안/관문</span></td>
                   <td>
                     <div class="svc-box">
                       <span class="svc-name">traefik-ingress-controller</span>
-                      <span class="svc-desc">L7 라우팅 & SSL 종단</span>
+                      <span class="svc-desc">L7 인그레스 라우팅 & SSL 종단</span>
                     </div>
                   </td>
-                  <td>120m</td>
-                  <td>184MB</td>
-                  <td><span class="badge-running">Running</span></td>
+                  <td>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>120m</span><span style="color:var(--text-muted);">12%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: 12%;"></div></div>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>184MB</span><span style="color:var(--text-muted);">28%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-purple" style="width: 28%;"></div></div>
+                    </div>
+                  </td>
+                  <td style="text-align: center;"><span class="badge-running">Running</span></td>
                 </tr>
-                <tr>
+
+                <!-- 6. Onprem CoreDNS -->
+                <tr data-type="daemon">
+                  <td style="text-align: center;"><span class="rank-badge">#6</span></td>
+                  <td><span class="cloud-tag cloud-onprem">온프레미스</span></td>
+                  <td>
+                    <div class="inst-box">
+                      <span class="inst-name">k8s-cp1</span>
+                      <span class="inst-ip">172.20.0.86</span>
+                    </div>
+                  </td>
+                  <td><span class="type-badge type-daemon">상시작용</span></td>
                   <td>
                     <div class="svc-box">
                       <span class="svc-name">coredns-resolver</span>
-                      <span class="svc-desc">클러스터 내부 도메인 질의</span>
+                      <span class="svc-desc">클러스터 내부 도메인 질의 해석</span>
                     </div>
                   </td>
-                  <td>45m</td>
-                  <td>68MB</td>
-                  <td><span class="badge-running">Running</span></td>
+                  <td>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>45m</span><span style="color:var(--text-muted);">5%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: 5%;"></div></div>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>68MB</span><span style="color:var(--text-muted);">10%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-purple" style="width: 10%;"></div></div>
+                    </div>
+                  </td>
+                  <td style="text-align: center;"><span class="badge-running">Running</span></td>
                 </tr>
 
-                <!-- 3. Onprem db-01 -->
-                <tr>
-                  <td rowspan="2"><span class="inst-badge">온프렘 db-01</span></td>
-                  <td rowspan="2"><span class="group-badge">데이터베이스 & 백업</span></td>
+                <!-- 7. Onprem DB -->
+                <tr data-type="data">
+                  <td style="text-align: center;"><span class="rank-badge">#7</span></td>
+                  <td><span class="cloud-tag cloud-onprem">온프레미스</span></td>
+                  <td>
+                    <div class="inst-box">
+                      <span class="inst-name">db-01</span>
+                      <span class="inst-ip">10.10.2.10</span>
+                    </div>
+                  </td>
+                  <td><span class="type-badge type-data">데이터</span></td>
                   <td>
                     <div class="svc-box">
                       <span class="svc-name">mariadb-galera-cluster</span>
-                      <span class="svc-desc">메인 트랜잭션 DB 엔진</span>
+                      <span class="svc-desc">메인 트랜잭션 DB 엔진 (ACID)</span>
                     </div>
                   </td>
-                  <td>310m</td>
-                  <td>890MB</td>
-                  <td><span class="badge-running">Running</span></td>
+                  <td>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>310m</span><span style="color:var(--text-muted);">31%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: 31%;"></div></div>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>890MB</span><span style="color:var(--text-muted);">89%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-purple" style="width: 89%;"></div></div>
+                    </div>
+                  </td>
+                  <td style="text-align: center;"><span class="badge-running">Running</span></td>
                 </tr>
-                <tr>
+
+                <!-- 8. Onprem Backup Receiver -->
+                <tr data-type="daemon">
+                  <td style="text-align: center;"><span class="rank-badge">#8</span></td>
+                  <td><span class="cloud-tag cloud-onprem">온프레미스</span></td>
+                  <td>
+                    <div class="inst-box">
+                      <span class="inst-name">db-01</span>
+                      <span class="inst-ip">10.10.2.10</span>
+                    </div>
+                  </td>
+                  <td><span class="type-badge type-daemon">상시작용</span></td>
                   <td>
                     <div class="svc-box">
                       <span class="svc-name">ssh-backup-receiver</span>
-                      <span class="svc-desc">AWS DR 역방향 백업 수신</span>
+                      <span class="svc-desc">AWS DR 역방향 동기화 수신</span>
                     </div>
                   </td>
-                  <td>25m</td>
-                  <td>45MB</td>
-                  <td><span class="badge-running">Running</span></td>
+                  <td>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>25m</span><span style="color:var(--text-muted);">3%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: 3%;"></div></div>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>45MB</span><span style="color:var(--text-muted);">5%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-purple" style="width: 5%;"></div></div>
+                    </div>
+                  </td>
+                  <td style="text-align: center;"><span class="badge-running">Running</span></td>
                 </tr>
 
-                <!-- 4. AWS CTL -->
-                <tr>
-                  <td rowspan="2"><span class="inst-badge">AWS CTL</span></td>
-                  <td rowspan="2"><span class="group-badge">DR 관제 & 오케스트레이션</span></td>
+                <!-- 9. AWS CTL Engine -->
+                <tr data-type="data">
+                  <td style="text-align: center;"><span class="rank-badge">#9</span></td>
+                  <td><span class="cloud-tag cloud-aws">AWS</span></td>
+                  <td>
+                    <div class="inst-box">
+                      <span class="inst-name">aws-ctl</span>
+                      <span class="inst-ip">10.200.0.10</span>
+                    </div>
+                  </td>
+                  <td><span class="type-badge type-dr">DR 관제</span></td>
                   <td>
                     <div class="svc-box">
                       <span class="svc-name">duck-hsagent-dr-engine</span>
-                      <span class="svc-desc">헬스체크 및 승격 판정</span>
+                      <span class="svc-desc">헬스체크 감시 및 승격 판정</span>
                     </div>
                   </td>
-                  <td>85m</td>
-                  <td>132MB</td>
-                  <td><span class="badge-running">Running</span></td>
-                </tr>
-                <tr>
                   <td>
-                    <div class="svc-box">
-                      <span class="svc-name">route53-failover-syncer</span>
-                      <span class="svc-desc">DNS 가중치 및 자동 절체</span>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>85m</span><span style="color:var(--text-muted);">9%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: 9%;"></div></div>
                     </div>
                   </td>
-                  <td>30m</td>
-                  <td>54MB</td>
-                  <td><span class="badge-running">Running</span></td>
+                  <td>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>132MB</span><span style="color:var(--text-muted);">13%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-purple" style="width: 13%;"></div></div>
+                    </div>
+                  </td>
+                  <td style="text-align: center;"><span class="badge-running">Running</span></td>
                 </tr>
 
-                <!-- 5. AWS DR -->
-                <tr>
-                  <td rowspan="2"><span class="inst-badge">AWS DR K3s</span></td>
-                  <td rowspan="2"><span class="group-badge">재해 복구 대기 (Pilot-Light)</span></td>
+                <!-- 10. AWS DR Agent -->
+                <tr data-type="data">
+                  <td style="text-align: center;"><span class="rank-badge">#10</span></td>
+                  <td><span class="cloud-tag cloud-aws">AWS</span></td>
+                  <td>
+                    <div class="inst-box">
+                      <span class="inst-name">aws-dr</span>
+                      <span class="inst-ip">10.200.0.4</span>
+                    </div>
+                  </td>
+                  <td><span class="type-badge type-dr">DR 대기</span></td>
                   <td>
                     <div class="svc-box">
                       <span class="svc-name">dr-pilot-light-agent</span>
                       <span class="svc-desc">Standby 대기 파드 (정상)</span>
                     </div>
                   </td>
-                  <td>15m</td>
-                  <td>48MB</td>
-                  <td><span class="badge-standby">Standby</span></td>
-                </tr>
-                <tr>
                   <td>
-                    <div class="svc-box">
-                      <span class="svc-name">dr-rsync-backup-syncer</span>
-                      <span class="svc-desc">정기 데이터 스냅샷 동기화</span>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>15m</span><span style="color:var(--text-muted);">2%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-amber" style="width: 2%;"></div></div>
                     </div>
                   </td>
-                  <td>20m</td>
-                  <td>64MB</td>
-                  <td><span class="badge-standby">Standby</span></td>
+                  <td>
+                    <div class="res-metric-cell">
+                      <div class="res-metric-val"><span>48MB</span><span style="color:var(--text-muted);">5%</span></div>
+                      <div class="mini-meter-track"><div class="mini-meter-fill fill-amber" style="width: 5%;"></div></div>
+                    </div>
+                  </td>
+                  <td style="text-align: center;"><span class="badge-standby">Standby</span></td>
                 </tr>
               </tbody>
             </table>
@@ -1403,6 +1703,31 @@ LANDING_HTML = """<!DOCTYPE html>
           <div class="code-block">${data.verify}</div>
         </div>
       `;
+    }
+
+    // 5. TOP 10 SERVICE FILTER FUNCTION
+    function filterServices(filterType) {
+      const chips = document.querySelectorAll('.chip-btn');
+      chips.forEach(c => c.classList.remove('active'));
+      event?.currentTarget?.classList?.add('active');
+
+      const rows = document.querySelectorAll('#pod-table-body tr');
+      rows.forEach(r => {
+        const type = r.getAttribute('data-type');
+        if (filterType === 'all') {
+          r.style.display = '';
+        } else if (filterType === 'web' && type === 'web') {
+          r.style.display = '';
+        } else if (filterType === 'daemon' && type === 'daemon') {
+          r.style.display = '';
+        } else if (filterType === 'gw' && type === 'gw') {
+          r.style.display = '';
+        } else if (filterType === 'data' && (type === 'data' || type === 'dr')) {
+          r.style.display = '';
+        } else {
+          r.style.display = 'none';
+        }
+      });
     }
 
     window.addEventListener('DOMContentLoaded', checkAuth);
