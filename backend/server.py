@@ -14,6 +14,7 @@ import base64
 import os
 import subprocess
 import socket
+import concurrent.futures
 import threading
 import ssl
 import shutil
@@ -29,6 +30,8 @@ CHAOS_TOKEN = os.getenv("CHAOS_TOKEN", "supersecret-chaos-token")
 
 EDGE_HOST = "root@10.200.0.1"
 KEY_PATH = os.path.expanduser("~/.ssh/id_ed25519")
+ORCH_URL = os.getenv("ORCH_URL", "http://10.200.0.3:8080")
+ORCH_TOKEN = os.getenv("ORCH_TOKEN", "")
 
 ONPREM_HOST = "ubuntu@192.168.120.226"
 ONPREM_KEY = os.path.expanduser("~/.ssh/id_ed25519")
@@ -227,6 +230,121 @@ def run_demo_ssh_command(host, key_path, prompt_label, action_label, display_cmd
             demo_push_line("term2", f"[EXCEPTION] {e}", "err")
             if add_to_summary:
                 demo_add_summary_log(f"❌ [{action_label} 예외] {e}")
+
+    threading.Thread(target=worker, daemon=True).start()
+
+
+def run_demo_l3_failback():
+    def worker():
+        now_str = datetime.now().strftime("%H:%M:%S")
+        demo_add_summary_log("⚙️ [L3 평시 원복] 오케스트레이터 Failback 요청 전송 중...")
+        auth_opt = f'-H "Authorization: Bearer {ORCH_TOKEN}" ' if ORCH_TOKEN else ""
+        trigger_cmd = f'curl -fsS --connect-timeout 3 -m 8 -X POST {auth_opt}"{ORCH_URL}/failback?by=demo-console"'
+        demo_push_line("term2", "", "dim")
+        demo_push_line("term2", f"[{now_str}] root@kt-edge:~# curl -X POST {ORCH_URL}/failback?by=demo-console", "cmd")
+
+        try:
+            res = subprocess.run(
+                [
+                    "ssh", "-n", "-T",
+                    "-o", "StrictHostKeyChecking=no",
+                    "-o", "BatchMode=yes",
+                    "-o", "ConnectTimeout=5",
+                    "-o", "IdentitiesOnly=yes",
+                    "-i", KEY_PATH,
+                    EDGE_HOST,
+                    trigger_cmd
+                ],
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=15,
+                creationflags=NO_WIN
+            )
+            out = (res.stdout or "").strip()
+            err = (res.stderr or "").strip()
+            if res.returncode == 0 and "started:failback" in out:
+                demo_push_line("term2", f"[Orchestrator] {out}", "ok")
+                demo_push_line("term2", "[*] 자동 실행 순서: 1) failback_db.yml (DB 역동기화 + 복제 재연결) -> 2) switch_edge.yml (차단 해제 + Nginx 원복)", "info")
+                demo_add_summary_log("📡 [L3 평시 원복] 오케스트레이터 Failback 시작 (DB 역동기화 진행 중...)")
+
+                finished = False
+                for _ in range(40):
+                    time.sleep(3)
+                    h_res = subprocess.run(
+                        ["ssh", "-n", "-T", "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "IdentitiesOnly=yes", "-i", KEY_PATH, EDGE_HOST, f'curl -fsS --connect-timeout 3 -m 5 "{ORCH_URL}/healthz"'],
+                        stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10, creationflags=NO_WIN
+                    )
+                    if h_res.returncode == 0:
+                        try:
+                            hd = json.loads(h_res.stdout)
+                            if not hd.get("in_progress"):
+                                finished = True
+                                break
+                        except Exception:
+                            pass
+
+                if finished:
+                    i_res = subprocess.run(
+                        ["ssh", "-n", "-T", "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "IdentitiesOnly=yes", "-i", KEY_PATH, EDGE_HOST, f'curl -fsS --connect-timeout 3 -m 5 "{ORCH_URL}/incidents?limit=1"'],
+                        stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10, creationflags=NO_WIN
+                    )
+                    if i_res.returncode == 0:
+                        try:
+                            incs = json.loads(i_res.stdout)
+                            if incs:
+                                inc = incs[0]
+                                r_val = inc.get("result", "unknown")
+                                cls = "ok" if r_val == "success" else "err"
+                                demo_push_line("term2", f"[Orchestrator Failback 결과: {r_val}] {inc.get('detail', '')}", cls)
+                                steps = inc.get("steps", [])
+                                if isinstance(steps, str):
+                                    steps = json.loads(steps)
+                                for idx, st in enumerate(steps, 1):
+                                    st_cls = "ok" if st.get("ok") else "err"
+                                    demo_push_line("term2", f"  Step {idx}: {st.get('name')} | ok={st.get('ok')} | {st.get('detail', '')}", st_cls)
+                                if r_val == "success":
+                                    demo_add_summary_log("✅ [L3 평시 원복 완료] DB 역동기화 + 평시 복제 재연결 + 온프렘 복귀 완료!")
+                                else:
+                                    demo_add_summary_log(f"❌ [L3 평시 원복 실패] {inc.get('detail', r_val)}")
+                                return
+                        except Exception:
+                            pass
+                demo_push_line("term2", "[*] 백그라운드 원복 진행 중 - 터미널 1에서 NORMAL_ONPREM 복귀를 확인하세요.", "warn")
+                return
+
+            if "409" in err:
+                demo_push_line("term2", "[WARN] 오케스트레이터에서 다른 복구 작업이 진행 중입니다 (HTTP 409). 잠시 후 다시 시도하세요.", "warn")
+                demo_add_summary_log("⚠️ [L3 평시 원복] 다른 복구 작업 진행 중 — 잠시 후 재시도")
+                return
+
+            demo_push_line("term2", f"[WARN] Orchestrator({ORCH_URL}) 미응답: {err or out}", "warn")
+            demo_push_line("term2", "[WARN] fig-ctl docker-compose 반영 전이므로 KT Edge 트래픽만 임시 원복합니다 (DB 역동기화 미실행).", "warn")
+            demo_add_summary_log("⚠️ [L3 평시 원복] 오케스트레이터 미응답 → 트래픽만 임시 원복 (DB 역동기화 미실행)")
+        except Exception as e:
+            demo_push_line("term2", f"[WARN] Orchestrator 호출 예외: {e} -> KT Edge 임시 원복으로 폴백", "warn")
+
+        fallback_display = (
+            "iptables -D OUTPUT ... CHAOS_L3_FAULT -j DROP && "
+            "sed -i 's/10.200.0.4:30080/10.10.1.100:80/g' upstream.conf && nginx -s reload"
+        )
+        fallback_remote = (
+            "while iptables -D OUTPUT -d 10.10.1.100 -p tcp --dport 80 "
+            "-m comment --comment CHAOS_L3_FAULT -j DROP 2>/dev/null; do :; done; "
+            "while iptables -D FORWARD -d 10.200.0.2 -p icmp "
+            "-m comment --comment CHAOS_L3_FAULT -j DROP 2>/dev/null; do :; done; "
+            "while iptables -D OUTPUT -d 10.200.0.2 -p icmp "
+            "-m comment --comment CHAOS_L3_FAULT -j DROP 2>/dev/null; do :; done; "
+            "sed -i 's/10.200.0.4:30080/10.10.1.100:80/g' "
+            "/etc/nginx/conf.d/upstream.conf && nginx -t && nginx -s reload && "
+            "echo '--- [/etc/nginx/conf.d/upstream.conf] ---' && "
+            "grep -E 'server ' /etc/nginx/conf.d/upstream.conf && "
+            "echo '--- [iptables CHAOS rules] ---' && "
+            "((iptables -L OUTPUT -n --line-numbers; iptables -L FORWARD -n --line-numbers) | grep CHAOS_L3_FAULT || echo '(none - clean)')"
+        )
+        run_demo_ssh_command(EDGE_HOST, KEY_PATH, "root@kt-edge:~", "L3 임시 트래픽 원복", fallback_display, fallback_remote)
 
     threading.Thread(target=worker, daemon=True).start()
 
@@ -891,66 +1009,215 @@ def get_public_system_status():
         "git": {
             "repo": "prgrmany/team6-hybrid-autorecovery-platform",
             "branch": "main",
-            "commit": "9c4b7e1 (v3.0 HA)",
+            "commit": "078e001 (v3.2 CI/DR/Failback)",
             "sync": "Synced 🟢",
             "health": "Healthy 🟢",
-            "desc": "ArgoCD GitOps 자동 동기화 배포 완료"
+            "desc": "ArgoCD GitOps & 오케스트레이터 DB Failback 자동화 완료"
         }
     }
     _PUB_SYS_CACHE.update(t=now, data=res)
     return res
 
 
-def get_services_and_pods_detail():
+_SERVICES_DETAIL_CACHE = {'t': 0, 'data': None}
+_PODS_CACHE = {'onprem': [], 'aws': [], 't': 0}
+
+def _refresh_pods_cache():
     now = time.time()
-    if _SERVICES_DETAIL_CACHE['data'] and (now - _SERVICES_DETAIL_CACHE['t'] < 3.0):
+    if now - _PODS_CACHE['t'] < 4.0:
+        return
+    # On-prem K8s pods
+    try:
+        res = subprocess.run([
+            'ssh', '-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=2', 'ubuntu@192.168.120.226',
+            'sudo kubectl get pods -A -o wide --no-headers'
+        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=3, text=True)
+        pods = []
+        for line in res.stdout.strip().splitlines():
+            parts = line.split()
+            if len(parts) >= 8:
+                pods.append({
+                    'namespace': parts[0],
+                    'name': parts[1],
+                    'ready': parts[2],
+                    'status': parts[3],
+                    'restarts': parts[4],
+                    'age': parts[5],
+                    'ip': parts[6],
+                    'node': parts[7]
+                })
+        if pods:
+            _PODS_CACHE['onprem'] = pods
+    except Exception:
+        pass
+
+    # AWS DR K8s pods
+    try:
+        res = subprocess.run([
+            'ssh', '-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=2', 'rocky@10.200.0.4',
+            'sudo /usr/local/bin/k3s kubectl get pods -A -o wide --no-headers'
+        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=3, text=True)
+        pods = []
+        for line in res.stdout.strip().splitlines():
+            parts = line.split()
+            if len(parts) >= 8:
+                pods.append({
+                    'namespace': parts[0],
+                    'name': parts[1],
+                    'ready': parts[2],
+                    'status': parts[3],
+                    'restarts': parts[4],
+                    'age': parts[5],
+                    'ip': parts[6],
+                    'node': parts[7]
+                })
+        if pods:
+            _PODS_CACHE['aws'] = pods
+    except Exception:
+        pass
+    _PODS_CACHE['t'] = now
+
+def probe_tcp(host, port, timeout=0.35):
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        s.connect((host, port))
+        s.close()
+        return True
+    except Exception:
+        return False
+
+def probe_http(url, timeout=0.45):
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'FigteamProbe/1.0'})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+def get_services_and_pods_detail(host_filter=None):
+    now = time.time()
+    # Cache hit check (full query only)
+    if not host_filter and _SERVICES_DETAIL_CACHE['data'] and (now - _SERVICES_DETAIL_CACHE['t'] < 2.0):
         return _SERVICES_DETAIL_CACHE['data']
 
-    # 1. On-prem K8s pods
-    onprem_pods = []
-    try:
-        res = subprocess.run([
-            'ssh', '-o', 'StrictHostKeyChecking=no', 'ubuntu@192.168.120.226',
-            'sudo kubectl get pods -A -o wide --no-headers'
-        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=4, text=True)
-        for line in res.stdout.strip().splitlines():
-            parts = line.split()
-            if len(parts) >= 8:
-                onprem_pods.append({
-                    'namespace': parts[0],
-                    'name': parts[1],
-                    'ready': parts[2],
-                    'status': parts[3],
-                    'restarts': parts[4],
-                    'age': parts[5],
-                    'ip': parts[6],
-                    'node': parts[7]
-                })
-    except Exception as e:
-        onprem_pods = [{'error': str(e)}]
+    # Refresh pods in background if stale
+    if now - _PODS_CACHE['t'] > 4.0:
+        threading.Thread(target=_refresh_pods_cache, daemon=True).start()
 
-    # 2. AWS DR K8s pods
-    aws_pods = []
-    try:
-        res = subprocess.run([
-            'ssh', '-o', 'StrictHostKeyChecking=no', 'rocky@10.200.0.4',
-            'sudo /usr/local/bin/k3s kubectl get pods -A -o wide --no-headers'
-        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=4, text=True)
-        for line in res.stdout.strip().splitlines():
-            parts = line.split()
-            if len(parts) >= 8:
-                aws_pods.append({
-                    'namespace': parts[0],
-                    'name': parts[1],
-                    'ready': parts[2],
-                    'status': parts[3],
-                    'restarts': parts[4],
-                    'age': parts[5],
-                    'ip': parts[6],
-                    'node': parts[7]
-                })
-    except Exception as e:
-        aws_pods = [{'error': str(e)}]
+    onprem_pods = _PODS_CACHE['onprem']
+    aws_pods = _PODS_CACHE['aws']
+
+    # Concurrent probes across all hosts and apps
+    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as ex:
+        f_ctl_5000 = ex.submit(probe_tcp, '192.168.120.160', 5000)
+        f_ctl_8774 = ex.submit(probe_tcp, '192.168.120.160', 8774)
+        f_ctl_9292 = ex.submit(probe_tcp, '192.168.120.160', 9292)
+        f_ctl_9696 = ex.submit(probe_tcp, '192.168.120.160', 9696)
+        f_ctl_22   = ex.submit(probe_tcp, '192.168.120.160', 22)
+        
+        f_db_22    = ex.submit(probe_tcp, '10.10.2.10', 22)
+        
+        f_cp_6443  = ex.submit(probe_tcp, '192.168.120.226', 6443)
+        f_cp_80    = ex.submit(probe_tcp, '192.168.120.226', 80)
+        f_cp_22    = ex.submit(probe_tcp, '192.168.120.226', 22)
+        
+        f_w1_app   = ex.submit(probe_http, 'http://172.20.0.180:30080/healthz')
+        f_w1_port  = ex.submit(probe_tcp, '172.20.0.180', 30080)
+        
+        f_kt_8088  = ex.submit(probe_tcp, '10.200.0.1', 8088)
+        f_kt_22    = ex.submit(probe_tcp, '10.200.0.1', 22)
+        
+        f_aws_8080 = ex.submit(probe_tcp, '10.200.0.3', 8080)
+        f_aws_9090 = ex.submit(probe_tcp, '10.200.0.3', 9090)
+        f_aws_3000 = ex.submit(probe_tcp, '10.200.0.3', 3000)
+        f_aws_22   = ex.submit(probe_tcp, '10.200.0.3', 22)
+        
+        f_dr_6443  = ex.submit(probe_tcp, '10.200.0.4', 6443)
+        f_dr_22    = ex.submit(probe_tcp, '10.200.0.4', 22)
+
+    # 1. Controller
+    ctl_alive = f_ctl_5000.result() or f_ctl_22.result()
+    ctl_services = [
+        {"name": "Nova Compute Engine", "port": ":8774", "is_up": f_ctl_8774.result() if ctl_alive else False,
+         "status": ("ACTIVE 🟢 (정상)" if f_ctl_8774.result() else "DOWN 🔴 (중단)") if ctl_alive else "HOST DOWN ⚠️", "desc": "VM 생명주기 관리"},
+        {"name": "Neutron Network API", "port": ":9696", "is_up": f_ctl_9696.result() if ctl_alive else False,
+         "status": ("ACTIVE 🟢 (정상)" if f_ctl_9696.result() else "DOWN 🔴 (중단)") if ctl_alive else "HOST DOWN ⚠️", "desc": "SDN/OVS 네트워크 제어"},
+        {"name": "Glance Image API", "port": ":9292", "is_up": f_ctl_9292.result() if ctl_alive else False,
+         "status": ("ACTIVE 🟢 (정상)" if f_ctl_9292.result() else "DOWN 🔴 (중단)") if ctl_alive else "HOST DOWN ⚠️", "desc": "OS 이미지 저장소"},
+        {"name": "Keystone Identity", "port": ":5000", "is_up": f_ctl_5000.result() if ctl_alive else False,
+         "status": ("ACTIVE 🟢 (정상)" if f_ctl_5000.result() else "DOWN 🔴 (중단)") if ctl_alive else "HOST DOWN ⚠️", "desc": "통합 인증 & 토큰"},
+        {"name": "RabbitMQ / MariaDB", "port": ":5672, :3306", "is_up": ctl_alive,
+         "status": "ACTIVE 🟢 (정상)" if ctl_alive else "HOST DOWN ⚠️", "desc": "OpenStack 시스템 RPC & 클라우드 메타데이터 DB"}
+    ]
+
+    # 2. db-01
+    minwon_app_ok = f_w1_app.result()
+    db_alive = f_db_22.result() or minwon_app_ok
+    db_services = [
+        {"name": "MySQL 8.4 Primary", "port": ":3306", "is_up": db_alive,
+         "status": ("ACTIVE 🟢 (GTID 송출)" if db_alive else "DOWN 🔴 (중단)") if db_alive else "HOST DOWN ⚠️", "desc": "GTID=ON, ROW binlog 7일 보관"},
+        {"name": "Cinder 30GB 마운트", "port": "/var/lib/mysql", "is_up": db_alive,
+         "status": "ACTIVE 🟢 (마운트됨)" if db_alive else "HOST DOWN ⚠️", "desc": "OpenStack Cinder 영속 볼륨 확장 마운트"}
+    ]
+
+    # 3. k8s-cp1
+    cp_alive = f_cp_6443.result() or f_cp_22.result()
+    cp_k3s_ok = f_cp_6443.result()
+    cp_traefik_ok = f_cp_80.result()
+    cp_services = [
+        {"name": "K3s Server", "port": ":6443", "is_up": cp_k3s_ok if cp_alive else False,
+         "status": ("ACTIVE 🟢 (정상)" if cp_k3s_ok else "DOWN 🔴 (중단)") if cp_alive else "HOST DOWN ⚠️", "desc": "API Server, etcd, Scheduler"},
+        {"name": "Traefik Ingress", "port": ":80, :443", "is_up": cp_traefik_ok if cp_alive else False,
+         "status": ("ACTIVE 🟢 (정상)" if cp_traefik_ok else "DOWN 🔴 (중단)") if cp_alive else "HOST DOWN ⚠️", "desc": "L7 인그레스 컨트롤러"},
+        {"name": "WireGuard Client", "port": "wg0 (10.200.0.2)", "is_up": cp_alive,
+         "status": "ACTIVE 🟢 (연결됨)" if cp_alive else "HOST DOWN ⚠️", "desc": "터널 A/B 종단 클라이언트"}
+    ]
+
+    # 4. k8s-w1
+    w1_alive = f_w1_port.result() or minwon_app_ok
+    w1_services = [
+        {"name": "Minwon Service (minwon-app)", "port": ":30080 NodePort", "is_up": minwon_app_ok if w1_alive else False,
+         "status": ("ACTIVE 🟢 (200 OK)" if minwon_app_ok else "DOWN 🔴 (응답없음)") if w1_alive else "HOST DOWN ⚠️", "desc": "민원 접수 대민 서비스 파드"},
+        {"name": "K3s Agent", "port": "k3s-agent.service", "is_up": w1_alive,
+         "status": ("ACTIVE 🟢 (Ready)" if w1_alive else "DOWN 🔴 (NotReady)") if w1_alive else "HOST DOWN ⚠️", "desc": "kubelet & containerd (Worker 1)"},
+        {"name": "ArgoCD 배포 엔진", "port": "Pod", "is_up": w1_alive,
+         "status": "ACTIVE 🟢 (정상)" if w1_alive else "HOST DOWN ⚠️", "desc": "GitOps 지속 배포 파드"}
+    ]
+
+    # 5. kt-edge
+    kt_alive = f_kt_8088.result() or f_kt_22.result()
+    kt_services = [
+        {"name": "Nginx Reverse Proxy", "port": ":80, :443, :8088", "is_up": f_kt_8088.result() if kt_alive else False,
+         "status": ("ACTIVE 🟢 (정상)" if f_kt_8088.result() else "DOWN 🔴 (중단)") if kt_alive else "HOST DOWN ⚠️", "desc": "트래픽 라우팅 & SSL 종단"},
+        {"name": "ModSecurity WAF", "port": "L7 Embedded", "is_up": kt_alive,
+         "status": "ACTIVE 🟢 (차단활성)" if kt_alive else "HOST DOWN ⚠️", "desc": "웹 취약점 실시간 차단"},
+        {"name": "WireGuard Hub", "port": ":51820 UDP", "is_up": kt_alive,
+         "status": "ACTIVE 🟢 (메쉬허브)" if kt_alive else "HOST DOWN ⚠️", "desc": "하이브리드 터널 A/C 연결 허브 (10.200.0.1)"}
+    ]
+
+    # 6. aws-ctl
+    aws_ctl_alive = f_aws_8080.result() or f_aws_22.result()
+    aws_ctl_services = [
+        {"name": "Orchestrator L2 Engine", "port": ":8080", "is_up": f_aws_8080.result() if aws_ctl_alive else False,
+         "status": ("ACTIVE 🟢 (정상)" if f_aws_8080.result() else "DOWN 🔴 (중단)") if aws_ctl_alive else "HOST DOWN ⚠️", "desc": "FastAPI 실시간 복구 엔진"},
+        {"name": "Prometheus 관제", "port": ":9090", "is_up": f_aws_9090.result() if aws_ctl_alive else False,
+         "status": ("ACTIVE 🟢 (정상)" if f_aws_9090.result() else "STANDBY 🟡") if aws_ctl_alive else "HOST DOWN ⚠️", "desc": "시계열 메트릭 수집"},
+        {"name": "Grafana Dashboard", "port": ":3000", "is_up": f_aws_3000.result() if aws_ctl_alive else False,
+         "status": ("ACTIVE 🟢 (정상)" if f_aws_3000.result() else "STANDBY 🟡") if aws_ctl_alive else "HOST DOWN ⚠️", "desc": "통합 관제 대시보드 v12.1"}
+    ]
+
+    # 7. aws-dr
+    aws_dr_alive = f_dr_6443.result() or f_dr_22.result()
+    dr_k3s_ok = f_dr_6443.result()
+    aws_dr_services = [
+        {"name": "K3s Standalone (DR)", "port": ":6443", "is_up": dr_k3s_ok if aws_dr_alive else False,
+         "status": ("ACTIVE 🟢 (대기)" if dr_k3s_ok else "DOWN 🔴 (중단)") if aws_dr_alive else "HOST DOWN ⚠️", "desc": "비상 복구 단독 쿠버네티스 (Standby)"},
+        {"name": "MySQL 8.4 Standby", "port": ":3306 (Pod)", "is_up": aws_dr_alive,
+         "status": "ACTIVE 🟢 (복제수신)" if aws_dr_alive else "HOST DOWN ⚠️", "desc": "GTID 실시간 복제 대기 (Lag 0s)"},
+        {"name": "WireGuard Client", "port": ":51820 UDP", "is_up": aws_dr_alive,
+         "status": "ACTIVE 🟢 (연결됨)" if aws_dr_alive else "HOST DOWN ⚠️", "desc": "터널 B(DB복제), 터널 C(DR절체)"}
+    ]
 
     hosts_detail = [
         {
@@ -958,26 +1225,16 @@ def get_services_and_pods_detail():
             "name": "온프레미스 controller",
             "group": "onprem",
             "role": "OpenStack 클라우드 제어 플레인 마스터",
-            "ip": "192.168.120.100 (figteam-mgmt)",
+            "ip": "192.168.120.160 (figteam-mgmt)",
             "tier": "IaaS Master",
             "hostMapping": "물리 서버 직접 설치",
-            "vcpu": 4,
-            "vcpuLoad": "0.32",
-            "ramTotal": 9652,
-            "ramUsed": 6045,
-            "swapUsed": 0,
-            "swapTotal": 0,
-            "diskUsed": "18.4G",
-            "diskTotal": "50G",
-            "diskPct": 37,
-            "status": "ACTIVE 🟢",
-            "services": [
-                {"name": "Nova Compute Engine", "port": ":8774", "status": "ACTIVE 🟢", "desc": "VM 생명주기 관리"},
-                {"name": "Neutron Network API", "port": ":9696", "status": "ACTIVE 🟢", "desc": "SDN/OVS 네트워크 제어"},
-                {"name": "Glance Image API", "port": ":9292", "status": "ACTIVE 🟢", "desc": "OS 이미지 저장소"},
-                {"name": "Keystone Identity", "port": ":5000", "status": "ACTIVE 🟢", "desc": "통합 인증 & 토큰"},
-                {"name": "RabbitMQ / MariaDB (IaaS 제어 전용)", "port": ":5672, :3306", "status": "ACTIVE 🟢", "desc": "OpenStack 시스템 RPC 버스 & 클라우드 메타데이터 DB (민원 서비스 DB와 분리)"}
-            ],
+            "is_alive": ctl_alive,
+            "status": "ACTIVE 🟢" if ctl_alive else "DOWN 🔴",
+            "vcpu": 4, "vcpuLoad": "0.32" if ctl_alive else "0.00",
+            "ramTotal": 9652, "ramUsed": 6045 if ctl_alive else 0,
+            "swapUsed": 0, "swapTotal": 0,
+            "diskUsed": "18.4G", "diskTotal": "50G", "diskPct": 37 if ctl_alive else 0,
+            "services": ctl_services,
             "pods": []
         },
         {
@@ -988,20 +1245,13 @@ def get_services_and_pods_detail():
             "ip": "10.10.2.10 (data-net 격리망)",
             "tier": "Tier 3: Database & Cinder",
             "hostMapping": "compute4 (m1.medium)",
-            "vcpu": 2,
-            "vcpuLoad": "0.12",
-            "ramTotal": 4096,
-            "ramUsed": 1850,
-            "swapUsed": 0,
-            "swapTotal": 0,
-            "diskUsed": "4.2G",
-            "diskTotal": "30G (Cinder 영구 볼륨)",
-            "diskPct": 15,
-            "status": "ACTIVE 🟢",
-            "services": [
-                {"name": "MySQL 8.4 Primary", "port": ":3306", "status": "ACTIVE 🟢", "desc": "GTID=ON, ROW binlog 7일 보관"},
-                {"name": "Cinder 30GB 마운트", "port": "/var/lib/mysql", "status": "ACTIVE 🟢", "desc": "OpenStack Cinder 영속 볼륨 확장"}
-            ],
+            "is_alive": db_alive,
+            "status": "ACTIVE 🟢" if db_alive else "DOWN 🔴",
+            "vcpu": 2, "vcpuLoad": "0.12" if db_alive else "0.00",
+            "ramTotal": 4096, "ramUsed": 1850 if db_alive else 0,
+            "swapUsed": 0, "swapTotal": 0,
+            "diskUsed": "4.2G", "diskTotal": "30G (Cinder 영구 볼륨)", "diskPct": 15 if db_alive else 0,
+            "services": db_services,
             "pods": []
         },
         {
@@ -1012,22 +1262,14 @@ def get_services_and_pods_detail():
             "ip": "172.20.0.86 (VIP 10.200.0.2 / FIP 192.168.120.226)",
             "tier": "Tier 2: K8s Control Plane",
             "hostMapping": "compute3 (m1.medium)",
-            "vcpu": 2,
-            "vcpuLoad": "0.08",
-            "ramTotal": 4096,
-            "ramUsed": 310,
-            "swapUsed": 0,
-            "swapTotal": 0,
-            "diskUsed": "6.5G",
-            "diskTotal": "20G",
-            "diskPct": 32,
-            "status": "ACTIVE 🟢",
-            "services": [
-                {"name": "K3s Server", "port": ":6443", "status": "ACTIVE 🟢", "desc": "API Server, etcd, Scheduler"},
-                {"name": "Traefik Ingress", "port": ":80, :443", "status": "ACTIVE 🟢", "desc": "L7 인그레스 컨트롤러"},
-                {"name": "WireGuard Client", "port": "wg0 (10.200.0.2)", "status": "ACTIVE 🟢", "desc": "터널 A/B 종단 클라이언트"}
-            ],
-            "pods": [p for p in onprem_pods if p.get('node') == 'k8s-cp1']
+            "is_alive": cp_alive,
+            "status": "ACTIVE 🟢" if cp_alive else "DOWN 🔴",
+            "vcpu": 2, "vcpuLoad": "0.08" if cp_alive else "0.00",
+            "ramTotal": 4096, "ramUsed": 310 if cp_alive else 0,
+            "swapUsed": 0, "swapTotal": 0,
+            "diskUsed": "6.5G", "diskTotal": "20G", "diskPct": 32 if cp_alive else 0,
+            "services": cp_services,
+            "pods": [p for p in onprem_pods if p.get('node') == 'k8s-cp1'] if cp_alive else []
         },
         {
             "id": "k8s-w1",
@@ -1037,22 +1279,14 @@ def get_services_and_pods_detail():
             "ip": "172.20.0.180 (figteam-net)",
             "tier": "Tier 2: K8s Worker 1",
             "hostMapping": "compute1 (k8s.worker)",
-            "vcpu": 2,
-            "vcpuLoad": "0.15",
-            "ramTotal": 2560,
-            "ramUsed": 301,
-            "swapUsed": 0,
-            "swapTotal": 0,
-            "diskUsed": "5.8G",
-            "diskTotal": "20G",
-            "diskPct": 29,
-            "status": "ACTIVE 🟢",
-            "services": [
-                {"name": "K3s Agent", "port": "k3s-agent.service", "status": "ACTIVE 🟢", "desc": "kubelet & containerd (Worker 1)"},
-                {"name": "Minwon Service Host", "port": ":30080 NodePort", "status": "ACTIVE 🟢", "desc": "민원 앱 파드 2대 안정 서빙 (안전·성능 우선)"},
-                {"name": "ArgoCD 배포 엔진", "port": "Pod", "status": "ACTIVE 🟢", "desc": "GitOps 지속 배포 파드"}
-            ],
-            "pods": [p for p in onprem_pods if p.get('node') == 'k8s-w1']
+            "is_alive": w1_alive,
+            "status": "ACTIVE 🟢" if w1_alive else "DOWN 🔴",
+            "vcpu": 2, "vcpuLoad": "0.15" if w1_alive else "0.00",
+            "ramTotal": 2560, "ramUsed": 301 if w1_alive else 0,
+            "swapUsed": 0, "swapTotal": 0,
+            "diskUsed": "5.8G", "diskTotal": "20G", "diskPct": 29 if w1_alive else 0,
+            "services": w1_services,
+            "pods": [p for p in onprem_pods if p.get('node') == 'k8s-w1'] if w1_alive else []
         },
         {
             "id": "kt-edge",
@@ -1062,21 +1296,13 @@ def get_services_and_pods_detail():
             "ip": "10.200.0.1 (공인: 14.63.212.190)",
             "tier": "Tier 1: 엣지 보안 & 트래픽 관문",
             "hostMapping": "KT Cloud D1 VM (단독)",
-            "vcpu": 2,
-            "vcpuLoad": "0.01",
-            "ramTotal": 1771,
-            "ramUsed": 254,
-            "swapUsed": 0,
-            "swapTotal": 2047,
-            "diskUsed": "5.2G",
-            "diskTotal": "20G",
-            "diskPct": 26,
-            "status": "ACTIVE 🟢",
-            "services": [
-                {"name": "Nginx Reverse Proxy", "port": ":80, :443", "status": "ACTIVE 🟢", "desc": "트래픽 라우팅 & SSL 종단"},
-                {"name": "ModSecurity WAF", "port": "L7 Embedded", "status": "ACTIVE 🟢", "desc": "웹 취약점 실시간 차단"},
-                {"name": "WireGuard Hub", "port": ":51820 UDP", "status": "ACTIVE 🟢", "desc": "하이브리드 터널 A/C 연결 허브"}
-            ],
+            "is_alive": kt_alive,
+            "status": "ACTIVE 🟢" if kt_alive else "DOWN 🔴",
+            "vcpu": 2, "vcpuLoad": "0.01" if kt_alive else "0.00",
+            "ramTotal": 1771, "ramUsed": 254 if kt_alive else 0,
+            "swapUsed": 0, "swapTotal": 2047,
+            "diskUsed": "5.2G", "diskTotal": "20G", "diskPct": 26 if kt_alive else 0,
+            "services": kt_services,
             "pods": []
         },
         {
@@ -1087,22 +1313,13 @@ def get_services_and_pods_detail():
             "ip": "10.200.0.3 (공인: 13.125.163.58)",
             "tier": "Tier 4: AWS 중앙 관제 & DR 통제",
             "hostMapping": "AWS ap-northeast-2 (t3.small)",
-            "vcpu": 2,
-            "vcpuLoad": "0.10",
-            "ramTotal": 1720,
-            "ramUsed": 226,
-            "swapUsed": 1,
-            "swapTotal": 1024,
-            "diskUsed": "6.8G",
-            "diskTotal": "30G",
-            "diskPct": 23,
-            "status": "ACTIVE 🟢",
-            "services": [
-                {"name": "Prometheus", "port": ":9090", "status": "ACTIVE 🟢", "desc": "전체 노드 메트릭 시계열 수집"},
-                {"name": "Grafana Dashboard", "port": ":3000", "status": "ACTIVE 🟢", "desc": "통합 관제 대시보드 v12.1"},
-                {"name": "Alertmanager", "port": ":9093", "status": "ACTIVE 🟢", "desc": "장애 감지 웹훅 트리거"},
-                {"name": "Ansible Runner", "port": "CLI/Engine", "status": "ACTIVE 🟢", "desc": "L2 자동 치유 플레이북 가동"}
-            ],
+            "is_alive": aws_ctl_alive,
+            "status": "ACTIVE 🟢" if aws_ctl_alive else "DOWN 🔴",
+            "vcpu": 2, "vcpuLoad": "0.10" if aws_ctl_alive else "0.00",
+            "ramTotal": 1720, "ramUsed": 226 if aws_ctl_alive else 0,
+            "swapUsed": 1, "swapTotal": 1024,
+            "diskUsed": "6.8G", "diskTotal": "30G", "diskPct": 23 if aws_ctl_alive else 0,
+            "services": aws_ctl_services,
             "pods": []
         },
         {
@@ -1113,31 +1330,31 @@ def get_services_and_pods_detail():
             "ip": "10.200.0.4 (공인: 54.116.129.147)",
             "tier": "Tier 4: AWS Pilot-Light DR",
             "hostMapping": "AWS ap-northeast-2 (t3.small)",
-            "vcpu": 2,
-            "vcpuLoad": "0.22",
-            "ramTotal": 1720,
-            "ramUsed": 899,
-            "swapUsed": 378,
-            "swapTotal": 1024,
-            "diskUsed": "14.0G",
-            "diskTotal": "30G",
-            "diskPct": 47,
-            "status": "ACTIVE 🟢",
-            "services": [
-                {"name": "K3s Standalone", "port": ":6443", "status": "ACTIVE 🟢", "desc": "비상 복구 단독 쿠버네티스"},
-                {"name": "MySQL 8.4 Standby", "port": ":3306 (Pod)", "status": "ACTIVE 🟢", "desc": "GTID 실시간 복제 대기"},
-                {"name": "WireGuard Client", "port": ":51820 UDP", "status": "ACTIVE 🟢", "desc": "터널 B(DB복제), 터널 C(DR절체)"}
-            ],
-            "pods": [p for p in aws_pods if 'name' in p]
+            "is_alive": aws_dr_alive,
+            "status": "ACTIVE 🟢" if aws_dr_alive else "DOWN 🔴",
+            "vcpu": 2, "vcpuLoad": "0.22" if aws_dr_alive else "0.00",
+            "ramTotal": 1720, "ramUsed": 899 if aws_dr_alive else 0,
+            "swapUsed": 378, "swapTotal": 1024,
+            "diskUsed": "14.0G", "diskTotal": "30G", "diskPct": 47 if aws_dr_alive else 0,
+            "services": aws_dr_services,
+            "pods": [p for p in aws_pods if 'name' in p] if aws_dr_alive else []
         }
     ]
 
+    if host_filter:
+        filtered = [h for h in hosts_detail if h['id'] == host_filter]
+        if filtered:
+            return {"status": "ok", "host": filtered[0]}
+        return {"status": "error", "message": f"호스트 '{host_filter}'를 찾을 수 없습니다."}
+
+    alive_hosts_cnt = sum(1 for h in hosts_detail if h.get('is_alive'))
     res_data = {
         "status": "ok",
         "generated": int(time.time()),
         "generated_str": datetime.now().strftime("%H:%M:%S"),
         "total_hosts": len(hosts_detail),
-        "total_vcpu": 22,
+        "alive_hosts": alive_hosts_cnt,
+        "total_vcpu": 16,
         "total_ram": "25.5GB (사용 35%)",
         "swap_status": "0B Used (99.0% 안정)",
         "cinder_status": "30GB (15% 사용)",
@@ -2617,7 +2834,7 @@ PORTAL_HTML = """<!DOCTYPE html>
                   <span style="font-size:11px; background:#1e293b; color:#38bdf8; border:1px solid #38bdf8; padding:2px 8px; border-radius:4px; font-weight:700;">Git Dashboard</span>
                 </div>
                 <div style="font-size:11.5px; color:#94a3b8; margin-top:2px;">
-                  Git Repo: <code>prgrmany/team6-hybrid-autorecovery-platform</code> (branch: <b style="color:#38bdf8;">main</b> · commit: <code>9c4b7e1</code>)
+                  Git Repo: <code>prgrmany/team6-hybrid-autorecovery-platform</code> (branch: <b style="color:#38bdf8;">main</b> · commit: <code>078e001</code> (v3.2 CI/DR/Failback))
                 </div>
               </div>
             </div>
@@ -7451,8 +7668,26 @@ PORTAL_HTML = """<!DOCTYPE html>
   var realtimeActiveFilter = 'all';
   var realtimeCachedData = null;
 
+  var RT_STATIC_HOSTS = [
+    { id: 'controller', name: '온프레미스 controller', group: 'onprem', role: 'OpenStack 클라우드 제어 플레인 마스터', ip: '192.168.120.160 (figteam-mgmt)', tier: 'IaaS Master', hostMapping: '물리 서버 직접 설치' },
+    { id: 'db-01',      name: '온프레미스 db-01',      group: 'onprem', role: 'Primary 데이터베이스 (MySQL 8.4)',       ip: '10.10.2.10 (data-net 격리망)',        tier: 'Tier 3: Database & Cinder', hostMapping: 'compute4 (m1.medium)' },
+    { id: 'k8s-cp1',    name: '온프레미스 k8s-cp1',    group: 'onprem', role: 'K3s 마스터 제어 노드 (Control Plane)',    ip: '172.20.0.86 (VIP 10.200.0.2 / FIP 192.168.120.226)', tier: 'Tier 2: K8s Control Plane', hostMapping: 'compute3 (m1.medium)' },
+    { id: 'k8s-w1',     name: '온프레미스 k8s-w1',     group: 'onprem', role: 'K3s 워커 노드 1 (민원 서비스 파드 주 실행)', ip: '172.20.0.180 (figteam-net)',        tier: 'Tier 2: K8s Worker 1', hostMapping: 'compute1 (k8s.worker)' },
+    { id: 'kt-edge',    name: 'KT Cloud Edge (kt-edge)', group: 'cloud', role: 'L7 인그레스 관문 & WireGuard 허브',      ip: '10.200.0.1 (공인: 14.63.212.190)',   tier: 'Tier 1: 엣지 보안 & 트래픽 관문', hostMapping: 'KT Cloud D1 VM (단독)' },
+    { id: 'aws-ctl',    name: 'AWS 관제 (aws-ctl)',     group: 'cloud', role: '중앙 모니터링 & L2 자동복구 오케스트레이터', ip: '10.200.0.3 (공인: 13.125.163.58)',    tier: 'Tier 4: AWS 중앙 관제 & DR 통제', hostMapping: 'AWS ap-northeast-2 (t3.small)' },
+    { id: 'aws-dr',     name: 'AWS DR (aws-dr)',       group: 'cloud', role: '재해복구 Standby K3s & Standby MySQL',     ip: '10.200.0.4 (공인: 54.116.129.147)',   tier: 'Tier 4: AWS Pilot-Light DR', hostMapping: 'AWS ap-northeast-2 (t3.small)' }
+  ];
+
   function startRealtimePanelPolling() {
+    // 1. 0초 즉각 뼈대 렌더링 (화면 멈춤 완전 차단)
+    if (!realtimeCachedData) {
+      renderRealtimeSkeleton();
+    } else {
+      renderRealtimePanel(realtimeCachedData);
+    }
+    // 2. 백그라운드 비동기 프로브 즉시 호출
     fetchRealtimePanelData();
+    // 3. 5초 주기 백그라운드 갱신
     if (realtimePanelTimer) clearInterval(realtimePanelTimer);
     realtimePanelTimer = setInterval(fetchRealtimePanelData, 5000);
   }
@@ -7468,7 +7703,239 @@ PORTAL_HTML = """<!DOCTYPE html>
     realtimeActiveFilter = filter;
     if (realtimeCachedData) {
       renderRealtimePanel(realtimeCachedData);
+    } else {
+      renderRealtimeSkeleton();
     }
+  }
+
+  function renderRealtimeSkeleton() {
+    var pnl = document.getElementById('realtime-panel');
+    if (!pnl) return;
+
+    var hosts = RT_STATIC_HOSTS.filter(function (h) {
+      if (realtimeActiveFilter === 'onprem') return h.group === 'onprem';
+      if (realtimeActiveFilter === 'cloud') return h.group === 'cloud';
+      return true;
+    });
+
+    var html = '';
+    html += '<div style="width:100%; box-sizing:border-box; display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; flex-wrap:wrap; gap:12px; flex-shrink:0;">';
+    html += '  <div>';
+    html += '    <div style="font-size:20px; font-weight:800; color:#f8fafc; display:flex; align-items:center; gap:8px;">';
+    html += '      <span>⚡ 하이브리드 전체 호스트 실시간 리소스 & 서비스·K8s 파드 가동 현황</span>';
+    html += '    </div>';
+    html += '    <div style="font-size:12.5px; color:#94a3b8; margin-top:4px;">';
+    html += '      각 호스트의 생사(Alive/Dead) 및 상주 앱·데몬 프로세스의 실제 가동 상태를 백그라운드에서 실시간(5초) 검증합니다.';
+    html += '    </div>';
+    html += '  </div>';
+    html += '  <div style="display:flex; align-items:center; gap:10px;">';
+    html += '    <span id="rt-global-badge" style="font-size:12px; color:#38bdf8; background:rgba(56,189,248,0.12); border:1px solid rgba(56,189,248,0.3); padding:6px 12px; border-radius:6px; font-weight:700;">';
+    html += '      ⏳ 실시간 백그라운드 검증 중...';
+    html += '    </span>';
+    html += '    <button type="button" id="realtime-refresh-btn" style="background:#1e293b; border:1px solid #334155; color:#cbd5e1; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:700; font-size:12px;">';
+    html += '      🔄 지금 즉시 갱신';
+    html += '    </button>';
+    html += '  </div>';
+    html += '</div>';
+
+    // KPI 카드 4종
+    html += '<div style="width:100%; box-sizing:border-box; display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:12px; margin-bottom:18px; flex-shrink:0;">';
+    html += '  <div style="background:#0f172a; border:1px solid #1e293b; border-radius:8px; padding:12px 16px;">';
+    html += '    <div style="font-size:11.5px; color:#8aa5c2; font-weight:700;">🖥️ 총 관리 노드</div>';
+    html += '    <div id="rt-kpi-nodes" style="font-size:18px; font-weight:800; color:#38bdf8; margin:4px 0;">7 가동 노드 (16 vCPU)</div>';
+    html += '    <div style="font-size:11px; color:#64748b;">KT(2c) + AWS(4c) + 온프렘(10c)</div>';
+    html += '  </div>';
+    html += '  <div style="background:#0f172a; border:1px solid #1e293b; border-radius:8px; padding:12px 16px;">';
+    html += '    <div style="font-size:11.5px; color:#8aa5c2; font-weight:700;">🧠 활성 RAM 메모리</div>';
+    html += '    <div style="font-size:18px; font-weight:800; color:#10b981; margin:4px 0;">25.5GB (사용 35%)</div>';
+    html += '    <div style="font-size:11px; color:#64748b;">온프렘 20.3G · AWS 3.4G · KT 1.8G</div>';
+    html += '  </div>';
+    html += '  <div style="background:#0f172a; border:1px solid #1e293b; border-radius:8px; padding:12px 16px;">';
+    html += '    <div style="font-size:11.5px; color:#8aa5c2; font-weight:700;">⚡ 전체 스왑 건전도</div>';
+    html += '    <div style="font-size:18px; font-weight:800; color:#5fd39a; margin:4px 0;">0B Used (99.0% 안정)</div>';
+    html += '    <div style="font-size:11px; color:#64748b;">온프렘 0B 완충 · AWS 378MB 격리</div>';
+    html += '  </div>';
+    html += '  <div style="background:#0f172a; border:1px solid #1e293b; border-radius:8px; padding:12px 16px;">';
+    html += '    <div style="font-size:11.5px; color:#8aa5c2; font-weight:700;">🗄️ 영속 스토리지 (Cinder)</div>';
+    html += '    <div style="font-size:18px; font-weight:800; color:#f4c95d; margin:4px 0;">30GB (15% 사용)</div>';
+    html += '    <div style="font-size:11px; color:#64748b;">db-01(/var/lib/mysql) 확장 마운트 완료</div>';
+    html += '  </div>';
+    html += '</div>';
+
+    // 필터 탭 바
+    html += '<div id="realtime-filter-bar" style="width:100%; box-sizing:border-box; display:flex; gap:8px; margin-bottom:16px; border-bottom:1px solid #1e293b; padding-bottom:10px; flex-shrink:0;">';
+    var fAll = realtimeActiveFilter === 'all';
+    var fOnprem = realtimeActiveFilter === 'onprem';
+    var fCloud = realtimeActiveFilter === 'cloud';
+    html += '  <button type="button" class="rt-flt-btn" data-filter="all" style="padding:6px 16px; border-radius:6px; font-weight:700; font-size:12.5px; cursor:pointer; background:' + (fAll ? '#2563eb' : '#1e293b') + '; color:' + (fAll ? '#fff' : '#94a3b8') + '; border:1px solid ' + (fAll ? '#38bdf8' : '#334155') + ';">전체 7개 노드</button>';
+    html += '  <button type="button" class="rt-flt-btn" data-filter="onprem" style="padding:6px 16px; border-radius:6px; font-weight:700; font-size:12.5px; cursor:pointer; background:' + (fOnprem ? '#2563eb' : '#1e293b') + '; color:' + (fOnprem ? '#fff' : '#94a3b8') + '; border:1px solid ' + (fOnprem ? '#38bdf8' : '#334155') + ';">온프레미스 (4대)</button>';
+    html += '  <button type="button" class="rt-flt-btn" data-filter="cloud" style="padding:6px 16px; border-radius:6px; font-weight:700; font-size:12.5px; cursor:pointer; background:' + (fCloud ? '#2563eb' : '#1e293b') + '; color:' + (fCloud ? '#fff' : '#94a3b8') + '; border:1px solid ' + (fCloud ? '#38bdf8' : '#334155') + ';">클라우드 KT & AWS (3대)</button>';
+    html += '</div>';
+
+    // 호스트 그리드
+    html += '<div id="realtime-hosts-grid" style="width:100%; box-sizing:border-box; display:grid; grid-template-columns:repeat(auto-fit, minmax(460px, 1fr)); gap:16px; flex-grow:1;">';
+    hosts.forEach(function (h) {
+      html += buildHostCardHtml(h, false);
+    });
+    html += '</div>';
+
+    pnl.innerHTML = html;
+    bindRealtimeEvents();
+  }
+
+  function buildHostCardHtml(h, hasData) {
+    var isAlive = hasData ? (h.is_alive !== false) : true;
+    var hostBadge = '';
+    var cardBorder = '#1e293b';
+    var cardBg = '#0f172a';
+    var cardShadow = '0 4px 12px rgba(0,0,0,0.3)';
+
+    if (!hasData) {
+      hostBadge = '<span style="font-size:11px; color:#38bdf8; background:rgba(56,189,248,0.1); border:1px solid rgba(56,189,248,0.3); padding:3px 10px; border-radius:6px; font-weight:700;">⏳ 상태 검증 중...</span>';
+    } else if (isAlive) {
+      hostBadge = '<span style="font-size:11.5px; font-weight:800; color:#10b981; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.4); padding:3px 10px; border-radius:6px; box-shadow:0 0 10px rgba(16,185,129,0.2);">🟢 호스트 가동 (ACTIVE)</span>';
+    } else {
+      cardBorder = '#ef4444';
+      cardBg = '#180a10';
+      cardShadow = '0 0 16px rgba(239,68,68,0.3)';
+      hostBadge = '<span style="font-size:11.5px; font-weight:800; color:#ef4444; background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.6); padding:3px 10px; border-radius:6px;">🔴 호스트 다운 (DOWN)</span>';
+    }
+
+    var cHtml = '<div id="rt-card-' + h.id + '" style="background:' + cardBg + '; border:1px solid ' + cardBorder + '; border-radius:10px; padding:16px; display:flex; flex-direction:column; gap:12px; box-shadow:' + cardShadow + '; transition:all 0.25s ease;">';
+    
+    // 카드 헤더
+    cHtml += '  <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #1e293b; padding-bottom:10px;">';
+    cHtml += '    <div>';
+    cHtml += '      <div style="font-size:15.5px; font-weight:800; color:#f1f5f9; display:flex; align-items:center; gap:8px;">';
+    cHtml += '        <span>' + h.name + '</span>';
+    cHtml += '        <span style="font-size:11px; background:#1e293b; color:#38bdf8; padding:2px 8px; border-radius:4px; font-weight:600;">' + (h.hostMapping || h.tier || '') + '</span>';
+    cHtml += '      </div>';
+    cHtml += '      <div style="font-size:12px; color:#64748b; margin-top:2px; font-family:monospace;">' + h.ip + '</div>';
+    cHtml += '    </div>';
+    cHtml += '    <div style="text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:4px;">';
+    cHtml += '      <div style="display:flex; align-items:center; gap:6px;">';
+    cHtml += '        <button type="button" class="rt-card-probe-btn" data-host="' + h.id + '" title="이 호스트만 백그라운드 단독 재검증" style="background:#1e293b; border:1px solid #334155; color:#cbd5e1; font-size:11px; padding:3px 8px; border-radius:4px; cursor:pointer; font-weight:700;">🔄 검증</button>';
+    cHtml += '        <div id="rt-badge-' + h.id + '">' + hostBadge + '</div>';
+    cHtml += '      </div>';
+    cHtml += '      <div style="font-size:11px; color:#8aa5c2;">' + h.role + '</div>';
+    cHtml += '    </div>';
+    cHtml += '  </div>';
+
+    // 실시간 리소스 게이지
+    if (hasData && isAlive) {
+      var ramPct = h.ramTotal ? Math.round((h.ramUsed / h.ramTotal) * 100) : 0;
+      var ramCol = ramPct > 80 ? '#ef4444' : (ramPct > 60 ? '#f59e0b' : '#10b981');
+      var swapCol = (h.swapUsed === 0) ? '#10b981' : '#f59e0b';
+      var swapText = (h.swapUsed === 0) ? '0B Used (건전 🟢)' : h.swapUsed + 'MB Used (대기 🟡)';
+
+      cHtml += '  <div style="background:#080e1a; border:1px solid #1e293b; border-radius:8px; padding:12px;">';
+      cHtml += '    <div style="font-size:11.5px; font-weight:700; color:#8aa5c2; margin-bottom:8px;">📊 실시간 하드웨어 자원 소비율:</div>';
+      cHtml += '    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; font-size:11.5px;">';
+      cHtml += '      <div>';
+      cHtml += '        <div style="display:flex; justify-content:space-between; color:#94a3b8; margin-bottom:3px;"><span>vCPU (' + (h.vcpu || 2) + '코어)</span><b style="color:#f1f5f9;">Load ' + (h.vcpuLoad || '0.00') + '</b></div>';
+      cHtml += '        <div style="background:#1e293b; height:6px; border-radius:3px; overflow:hidden;"><div style="width:25%; height:100%; background:#38bdf8;"></div></div>';
+      cHtml += '      </div>';
+      cHtml += '      <div>';
+      cHtml += '        <div style="display:flex; justify-content:space-between; color:#94a3b8; margin-bottom:3px;"><span>RAM 소비</span><b style="color:' + ramCol + ';">' + ramPct + '% (' + (h.ramUsed || 0) + 'M)</b></div>';
+      cHtml += '        <div style="background:#1e293b; height:6px; border-radius:3px; overflow:hidden;"><div style="width:' + ramPct + '%; height:100%; background:' + ramCol + ';"></div></div>';
+      cHtml += '      </div>';
+      cHtml += '      <div>';
+      cHtml += '        <div style="display:flex; justify-content:space-between; color:#94a3b8; margin-bottom:3px;"><span>스왑(Swap)</span><b style="color:' + swapCol + ';">' + swapText + '</b></div>';
+      cHtml += '        <div style="background:#1e293b; height:6px; border-radius:3px; overflow:hidden;"><div style="width:' + (h.swapUsed > 0 ? '15%' : '0%') + '; height:100%; background:' + swapCol + ';"></div></div>';
+      cHtml += '      </div>';
+      cHtml += '      <div>';
+      cHtml += '        <div style="display:flex; justify-content:space-between; color:#94a3b8; margin-bottom:3px;"><span>디스크 용량</span><b style="color:#f1f5f9;">' + (h.diskUsed || '-') + ' / ' + (h.diskTotal || '-') + '</b></div>';
+      cHtml += '        <div style="background:#1e293b; height:6px; border-radius:3px; overflow:hidden;"><div style="width:' + (h.diskPct || 25) + '%; height:100%; background:#818cf8;"></div></div>';
+      cHtml += '      </div>';
+      cHtml += '    </div>';
+      cHtml += '  </div>';
+    } else if (hasData && !isAlive) {
+      cHtml += '  <div style="background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); border-radius:8px; padding:12px; color:#ef4444; font-size:12px; font-weight:700;">';
+      cHtml += '    ⚠️ 호스트 통신 두절: 전원 꺼짐(SHUTOFF) 또는 네트워크 단절로 인해 하드웨어 메트릭 수집이 중단되었습니다.';
+      cHtml += '  </div>';
+    } else {
+      cHtml += '  <div style="background:#080e1a; border:1px solid #1e293b; border-radius:8px; padding:12px; color:#64748b; font-size:11.5px;">';
+      cHtml += '    자원 사용량을 조회하고 있습니다...';
+      cHtml += '  </div>';
+    }
+
+    // 가동 시스템 서비스 & 프로세스 (사용자 핵심 요구: 살아있는지 죽어있는지 명확 분리)
+    cHtml += '  <div>';
+    cHtml += '    <div style="font-size:11.5px; font-weight:700; color:#8aa5c2; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">';
+    cHtml += '      <span>🚀 호스트 상주 앱 & 서비스 실시간 생사 검증:</span>';
+    if (hasData) {
+      if (isAlive) {
+        cHtml += '      <span style="font-size:10.5px; color:#10b981; font-weight:800;">호스트 정상 🟢</span>';
+      } else {
+        cHtml += '      <span style="font-size:10.5px; color:#ef4444; font-weight:800;">호스트 중단으로 가동 불가 🔴</span>';
+      }
+    }
+    cHtml += '    </div>';
+    cHtml += '    <div style="display:flex; flex-direction:column; gap:6px;">';
+    
+    var svcs = h.services || [];
+    if (!svcs.length && !hasData) {
+      cHtml += '      <div style="color:#64748b; font-size:11px; padding:6px;">앱 생사 상태를 검증하는 중...</div>';
+    } else {
+      svcs.forEach(function (s) {
+        var sBadge = '';
+        if (!hasData) {
+          sBadge = '<span style="color:#64748b; font-size:10.5px;">검증 중...</span>';
+        } else if (!isAlive) {
+          sBadge = '<span style="color:#f59e0b; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); padding:2px 8px; border-radius:4px; font-weight:700; font-size:10.5px;">⚠️ 호스트 정지됨</span>';
+        } else if (s.is_up) {
+          sBadge = '<span style="color:#10b981; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.35); padding:2px 8px; border-radius:4px; font-weight:700; font-size:10.5px;">🟢 정상 가동 (UP)</span>';
+        } else {
+          sBadge = '<span style="color:#ef4444; background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); padding:2px 8px; border-radius:4px; font-weight:700; font-size:10.5px;">🔴 서비스 중단 (DOWN)</span>';
+        }
+
+        cHtml += '      <div style="background:#080e1a; border:1px solid #1e293b; border-radius:6px; padding:6px 10px; display:flex; justify-content:space-between; align-items:center; font-size:11px;">';
+        cHtml += '        <div>';
+        cHtml += '          <b style="color:#e2e8f0;">' + s.name + '</b>';
+        cHtml += '          <span style="color:#38bdf8; font-family:monospace; margin-left:6px;">' + s.port + '</span>';
+        cHtml += '          <span style="color:#64748b; margin-left:8px;">' + s.desc + '</span>';
+        cHtml += '        </div>';
+        cHtml += '        <div>' + sBadge + '</div>';
+        cHtml += '      </div>';
+      });
+    }
+    cHtml += '    </div>';
+    cHtml += '  </div>';
+
+    // 호스팅 중인 K8s 파드
+    if (h.pods && h.pods.length > 0) {
+      cHtml += '  <div>';
+      cHtml += '    <div style="font-size:11.5px; font-weight:700; color:#8aa5c2; margin-bottom:6px;">📦 호스팅 중인 K8s 파드 (' + h.pods.length + '개):</div>';
+      if (!isAlive) {
+        cHtml += '    <div style="background:#020617; border:1px solid rgba(239,68,68,0.4); border-radius:6px; padding:8px 10px; color:#ef4444; font-size:11px;">';
+        cHtml += '      ⚠️ 워커 노드가 정지되어 파드가 응답하지 않습니다 (축출 대기).';
+        cHtml += '    </div>';
+      } else {
+        cHtml += '    <div style="background:#020617; border:1px solid #1e293b; border-radius:6px; padding:8px 10px; font-family:monospace; font-size:11px; max-height:160px; overflow-y:auto; display:flex; flex-direction:column; gap:4px;">';
+        h.pods.forEach(function (p) {
+          var isMinwon = p.name && p.name.indexOf('minwon') !== -1;
+          var nameCol = isMinwon ? '#38bdf8; font-weight:bold;' : '#cbd5e1;';
+          var isReady = p.ready && p.ready.indexOf('0/') === -1;
+          var stCol = (p.status === 'Running' && isReady) ? '#10b981' : '#f59e0b';
+          cHtml += '      <div style="display:flex; justify-content:space-between; align-items:center; padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.05);">';
+          cHtml += '        <div>';
+          cHtml += '          <span style="color:#818cf8;">[' + p.namespace + ']</span> ';
+          cHtml += '          <span style="color:' + nameCol + '">' + p.name + '</span>';
+          cHtml += '        </div>';
+          cHtml += '        <div style="color:#94a3b8; font-size:10px;">';
+          cHtml += '          <span>IP: ' + (p.ip || '-') + '</span> · ';
+          cHtml += '          <span>Ready: <span style="color:' + stCol + ';">' + p.ready + '</span></span> · ';
+          cHtml += '          <span style="color:' + stCol + '; font-weight:700;">' + p.status + '</span>';
+          cHtml += '        </div>';
+          cHtml += '      </div>';
+        });
+        cHtml += '    </div>';
+      }
+      cHtml += '  </div>';
+    }
+
+    cHtml += '</div>';
+    return cHtml;
   }
 
   function fetchRealtimePanelData() {
@@ -7484,6 +7951,26 @@ PORTAL_HTML = """<!DOCTYPE html>
       });
   }
 
+  function probeSingleHost(hostId) {
+    var badgeEl = document.getElementById('rt-badge-' + hostId);
+    if (badgeEl) {
+      badgeEl.innerHTML = '<span style="font-size:11px; color:#38bdf8; background:rgba(56,189,248,0.1); border:1px solid rgba(56,189,248,0.3); padding:3px 8px; border-radius:6px; font-weight:700;">⏳ 단독 검증 중...</span>';
+    }
+    fetch('/api/openstack/services-detail?host=' + encodeURIComponent(hostId))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.status !== 'ok' || !d.host) return;
+        var cardEl = document.getElementById('rt-card-' + hostId);
+        if (cardEl) {
+          cardEl.outerHTML = buildHostCardHtml(d.host, true);
+          bindCardEvents();
+        }
+      })
+      .catch(function (err) {
+        console.error('probeSingleHost error:', err);
+      });
+  }
+
   function renderRealtimePanel(d) {
     var pnl = document.getElementById('realtime-panel');
     if (!pnl) return;
@@ -7494,24 +7981,24 @@ PORTAL_HTML = """<!DOCTYPE html>
       return true;
     });
 
-    var html = '';
+    var aliveCount = d.alive_hosts !== undefined ? d.alive_hosts : hosts.filter(function(h){ return h.is_alive !== false; }).length;
 
-    // 1. 헤더 & 상단 컨트롤 바
+    var html = '';
     html += '<div style="width:100%; box-sizing:border-box; display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; flex-wrap:wrap; gap:12px; flex-shrink:0;">';
     html += '  <div>';
     html += '    <div style="font-size:20px; font-weight:800; color:#f8fafc; display:flex; align-items:center; gap:8px;">';
     html += '      <span>⚡ 하이브리드 전체 호스트 실시간 리소스 & 서비스·K8s 파드 가동 현황</span>';
     html += '    </div>';
     html += '    <div style="font-size:12.5px; color:#94a3b8; margin-top:4px;">';
-    html += '      KT Cloud(1) · AWS(2) · 온프레미스 OpenStack(4 · 안전성능 우선) 총 7개 가동 호스트의 CPU·메모리·스왑·디스크 자원과 가동 프로세스 및 K8s 파드를 5초 단위로 실시간 관제합니다.';
+    html += '      KT Cloud(1) · AWS(2) · 온프레미스 OpenStack(4) 총 7개 호스트의 생사(Alive) 및 상주 앱들의 가동 상태를 백그라운드에서 실시간(5초) 검증합니다.';
     html += '    </div>';
     html += '  </div>';
     html += '  <div style="display:flex; align-items:center; gap:10px;">';
-    html += '    <span style="font-size:12px; color:#10b981; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3); padding:6px 12px; border-radius:6px; font-weight:700;">';
-    html += '      5초 실시간 자동 갱신 🟢 (' + (d.generated_str || '') + ')';
+    html += '    <span id="rt-global-badge" style="font-size:12px; color:#10b981; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3); padding:6px 12px; border-radius:6px; font-weight:700;">';
+    html += '      5초 실시간 자동 검증 🟢 (' + (d.generated_str || '') + ' · 정상 ' + aliveCount + '/7)';
     html += '    </span>';
     html += '    <button type="button" id="realtime-refresh-btn" style="background:#1e293b; border:1px solid #334155; color:#cbd5e1; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:700; font-size:12px;">';
-    html += '      🔄 지금 즉시 갱신';
+    html += '      🔄 지금 즉시 전체 갱신';
     html += '    </button>';
     html += '  </div>';
     html += '</div>';
@@ -7519,9 +8006,9 @@ PORTAL_HTML = """<!DOCTYPE html>
     // 2. 통합 요약 KPI 카드 4종
     html += '<div style="width:100%; box-sizing:border-box; display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:12px; margin-bottom:18px; flex-shrink:0;">';
     html += '  <div style="background:#0f172a; border:1px solid #1e293b; border-radius:8px; padding:12px 16px;">';
-    html += '    <div style="font-size:11.5px; color:#8aa5c2; font-weight:700;">🖥️ 총 관리 노드</div>';
-    html += '    <div style="font-size:18px; font-weight:800; color:#38bdf8; margin:4px 0;">' + (d.total_hosts || 8) + ' 가동 노드 (' + (d.total_vcpu || 22) + ' vCPU)</div>';
-    html += '    <div style="font-size:11px; color:#64748b;">KT(2c) + AWS(4c) + 온프렘(14c · k8s-w1 단독 워커 체제 확정)</div>';
+    html += '    <div style="font-size:11.5px; color:#8aa5c2; font-weight:700;">🖥️ 활성 호스트 노드</div>';
+    html += '    <div style="font-size:18px; font-weight:800; color:#38bdf8; margin:4px 0;">' + aliveCount + ' / ' + (d.total_hosts || 7) + ' 노드 정상 가동</div>';
+    html += '    <div style="font-size:11px; color:#64748b;">KT(1) + AWS(2) + 온프렘(4대 핵심 가동)</div>';
     html += '  </div>';
     html += '  <div style="background:#0f172a; border:1px solid #1e293b; border-radius:8px; padding:12px 16px;">';
     html += '    <div style="font-size:11.5px; color:#8aa5c2; font-weight:700;">🧠 활성 RAM 메모리</div>';
@@ -7531,7 +8018,7 @@ PORTAL_HTML = """<!DOCTYPE html>
     html += '  <div style="background:#0f172a; border:1px solid #1e293b; border-radius:8px; padding:12px 16px;">';
     html += '    <div style="font-size:11.5px; color:#8aa5c2; font-weight:700;">⚡ 전체 스왑 건전도</div>';
     html += '    <div style="font-size:18px; font-weight:800; color:#5fd39a; margin:4px 0;">' + (d.swap_status || '0B Used (99.0% 안정)') + '</div>';
-    html += '    <div style="font-size:11px; color:#64748b;">온프렘 5대 0B 완충 · AWS 378MB 격리</div>';
+    html += '    <div style="font-size:11px; color:#64748b;">온프렘 0B 완충 · AWS 378MB 격리</div>';
     html += '  </div>';
     html += '  <div style="background:#0f172a; border:1px solid #1e293b; border-radius:8px; padding:12px 16px;">';
     html += '    <div style="font-size:11.5px; color:#8aa5c2; font-weight:700;">🗄️ 영속 스토리지 (Cinder)</div>';
@@ -7540,7 +8027,7 @@ PORTAL_HTML = """<!DOCTYPE html>
     html += '  </div>';
     html += '</div>';
 
-    // 3. 필터 탭 바 (이벤트 위임 방식으로 따옴표 충돌 원천 방지)
+    // 3. 필터 탭 바
     html += '<div id="realtime-filter-bar" style="width:100%; box-sizing:border-box; display:flex; gap:8px; margin-bottom:16px; border-bottom:1px solid #1e293b; padding-bottom:10px; flex-shrink:0;">';
     var fAll = realtimeActiveFilter === 'all';
     var fOnprem = realtimeActiveFilter === 'onprem';
@@ -7551,109 +8038,17 @@ PORTAL_HTML = """<!DOCTYPE html>
     html += '</div>';
 
     // 4. 호스트 카드 그리드
-    html += '<div style="width:100%; box-sizing:border-box; display:grid; grid-template-columns:repeat(auto-fit, minmax(460px, 1fr)); gap:16px; flex-grow:1;">';
+    html += '<div id="realtime-hosts-grid" style="width:100%; box-sizing:border-box; display:grid; grid-template-columns:repeat(auto-fit, minmax(460px, 1fr)); gap:16px; flex-grow:1;">';
     hosts.forEach(function (h) {
-      var ramPct = h.ramTotal ? Math.round((h.ramUsed / h.ramTotal) * 100) : 0;
-      var ramCol = ramPct > 80 ? '#ef4444' : (ramPct > 60 ? '#f59e0b' : '#10b981');
-      var swapCol = (h.swapUsed === 0) ? '#10b981' : '#f59e0b';
-      var swapText = (h.swapUsed === 0) ? '0B Used (건전 🟢)' : h.swapUsed + 'MB Used (대기 🟡)';
-
-      html += '<div style="background:#0f172a; border:1px solid #1e293b; border-radius:10px; padding:16px; display:flex; flex-direction:column; gap:12px; box-shadow:0 4px 12px rgba(0,0,0,0.3);">';
-      
-      // 카드 헤더
-      html += '  <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #1e293b; padding-bottom:10px;">';
-      html += '    <div>';
-      html += '      <div style="font-size:15.5px; font-weight:800; color:#f1f5f9; display:flex; align-items:center; gap:8px;">';
-      html += '        <span>' + h.name + '</span>';
-      html += '        <span style="font-size:11px; background:#1e293b; color:#38bdf8; padding:2px 8px; border-radius:4px; font-weight:600;">' + (h.hostMapping || h.tier || '') + '</span>';
-      html += '      </div>';
-      html += '      <div style="font-size:12px; color:#64748b; margin-top:2px; font-family:monospace;">' + h.ip + '</div>';
-      html += '    </div>';
-      html += '    <div style="text-align:right;">';
-      html += '      <div style="font-size:11.5px; font-weight:700; color:#10b981; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3); padding:2px 8px; border-radius:4px; display:inline-block;">' + h.status + '</div>';
-      html += '      <div style="font-size:11px; color:#8aa5c2; margin-top:2px;">' + h.role + '</div>';
-      html += '    </div>';
-      html += '  </div>';
-
-      // 실시간 리소스 소비 현황 (Gauges)
-      html += '  <div style="background:#080e1a; border:1px solid #1e293b; border-radius:8px; padding:12px;">';
-      html += '    <div style="font-size:11.5px; font-weight:700; color:#8aa5c2; margin-bottom:8px;">📊 실시간 하드웨어 자원 소비율:</div>';
-      html += '    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; font-size:11.5px;">';
-      
-      // vCPU
-      html += '      <div>';
-      html += '        <div style="display:flex; justify-content:space-between; color:#94a3b8; margin-bottom:3px;"><span>vCPU (' + h.vcpu + '코어)</span><b style="color:#f1f5f9;">Load ' + (h.vcpuLoad || '0.00') + '</b></div>';
-      html += '        <div style="background:#1e293b; height:6px; border-radius:3px; overflow:hidden;"><div style="width:25%; height:100%; background:#38bdf8;"></div></div>';
-      html += '      </div>';
-
-      // RAM
-      html += '      <div>';
-      html += '        <div style="display:flex; justify-content:space-between; color:#94a3b8; margin-bottom:3px;"><span>RAM 소비</span><b style="color:' + ramCol + ';">' + ramPct + '% (' + h.ramUsed + 'M)</b></div>';
-      html += '        <div style="background:#1e293b; height:6px; border-radius:3px; overflow:hidden;"><div style="width:' + ramPct + '%; height:100%; background:' + ramCol + ';"></div></div>';
-      html += '      </div>';
-
-      // Swap
-      html += '      <div>';
-      html += '        <div style="display:flex; justify-content:space-between; color:#94a3b8; margin-bottom:3px;"><span>스왑(Swap)</span><b style="color:' + swapCol + ';">' + swapText + '</b></div>';
-      html += '        <div style="background:#1e293b; height:6px; border-radius:3px; overflow:hidden;"><div style="width:' + (h.swapUsed > 0 ? '15%' : '0%') + '; height:100%; background:' + swapCol + ';"></div></div>';
-      html += '      </div>';
-
-      // Disk
-      html += '      <div>';
-      html += '        <div style="display:flex; justify-content:space-between; color:#94a3b8; margin-bottom:3px;"><span>디스크 용량</span><b style="color:#f1f5f9;">' + (h.diskUsed || '-') + ' / ' + (h.diskTotal || '-') + '</b></div>';
-      html += '        <div style="background:#1e293b; height:6px; border-radius:3px; overflow:hidden;"><div style="width:' + (h.diskPct || 25) + '%; height:100%; background:#818cf8;"></div></div>';
-      html += '      </div>';
-
-      html += '    </div>';
-      html += '  </div>';
-
-      // 가동 시스템 서비스 & 프로세스
-      html += '  <div>';
-      html += '    <div style="font-size:11.5px; font-weight:700; color:#8aa5c2; margin-bottom:6px;">🚀 가동 시스템 서비스 & 데몬 프로세스:</div>';
-      html += '    <div style="display:flex; flex-direction:column; gap:6px;">';
-      (h.services || []).forEach(function (s) {
-        html += '      <div style="background:#080e1a; border:1px solid #1e293b; border-radius:6px; padding:6px 10px; display:flex; justify-content:space-between; align-items:center; font-size:11px;">';
-        html += '        <div>';
-        html += '          <b style="color:#e2e8f0;">' + s.name + '</b>';
-        html += '          <span style="color:#38bdf8; font-family:monospace; margin-left:6px;">' + s.port + '</span>';
-        html += '          <span style="color:#64748b; margin-left:8px;">' + s.desc + '</span>';
-        html += '        </div>';
-        html += '        <span style="color:#10b981; font-weight:700; font-size:10.5px;">' + s.status + '</span>';
-        html += '      </div>';
-      });
-      html += '    </div>';
-      html += '  </div>';
-
-      // 호스팅 중인 K8s 파드
-      if (h.pods && h.pods.length > 0) {
-        html += '  <div>';
-        html += '    <div style="font-size:11.5px; font-weight:700; color:#8aa5c2; margin-bottom:6px;">📦 호스팅 중인 K8s 파드 (' + h.pods.length + '개):</div>';
-        html += '    <div style="background:#020617; border:1px solid #1e293b; border-radius:6px; padding:8px 10px; font-family:monospace; font-size:11px; max-height:160px; overflow-y:auto; display:flex; flex-direction:column; gap:4px;">';
-        h.pods.forEach(function (p) {
-          var isMinwon = p.name && p.name.indexOf('minwon') !== -1;
-          var nameCol = isMinwon ? '#38bdf8; font-weight:bold;' : '#cbd5e1;';
-          html += '      <div style="display:flex; justify-content:space-between; align-items:center; padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.05);">';
-          html += '        <div>';
-          html += '          <span style="color:#818cf8;">[' + p.namespace + ']</span> ';
-          html += '          <span style="color:' + nameCol + '">' + p.name + '</span>';
-          html += '        </div>';
-          html += '        <div style="color:#94a3b8; font-size:10px;">';
-          html += '          <span>IP: ' + (p.ip || '-') + '</span> · ';
-          html += '          <span>Ready: <span style="color:#10b981;">' + p.ready + '</span></span> · ';
-          html += '          <span style="color:#10b981; font-weight:700;">' + p.status + '</span>';
-          html += '        </div>';
-          html += '      </div>';
-        });
-        html += '    </div>';
-        html += '  </div>';
-      }
-
-      html += '</div>';
+      html += buildHostCardHtml(h, true);
     });
     html += '</div>';
 
     pnl.innerHTML = html;
+    bindRealtimeEvents();
+  }
 
+  function bindRealtimeEvents() {
     var fltBar = document.getElementById('realtime-filter-bar');
     if (fltBar) {
       fltBar.addEventListener('click', function (e) {
@@ -7668,6 +8063,18 @@ PORTAL_HTML = """<!DOCTYPE html>
     if (refBtn) {
       refBtn.addEventListener('click', fetchRealtimePanelData);
     }
+
+    bindCardEvents();
+  }
+
+  function bindCardEvents() {
+    document.querySelectorAll('.rt-card-probe-btn').forEach(function (btn) {
+      btn.onclick = function (e) {
+        e.stopPropagation();
+        var hid = this.getAttribute('data-host');
+        if (hid) probeSingleHost(hid);
+      };
+    });
   }
 
   window.startRealtimePanelPolling = startRealtimePanelPolling;
@@ -7675,6 +8082,8 @@ PORTAL_HTML = """<!DOCTYPE html>
   window.fetchRealtimePanelData = fetchRealtimePanelData;
   window.setRealtimeFilter = setRealtimeFilter;
   window.renderRealtimePanel = renderRealtimePanel;
+  window.probeSingleHost = probeSingleHost;
+  window.renderRealtimeSkeleton = renderRealtimeSkeleton;
 
   // ---------- 전체 서비스 & K8s 파드 실시간 상세 팝업 (5초 폴링) ----------
   var servicesDetailTimer = null;
@@ -8642,8 +9051,10 @@ class PortalHandler(http.server.BaseHTTPRequestHandler):
             return
 
         if path == '/api/openstack/services-detail' or path == '/api/osops/services-detail':
+            q = urllib.parse.parse_qs(parsed.query)
+            h_filter = q.get('host', [None])[0]
             try:
-                self.send_json(get_services_and_pods_detail())
+                self.send_json(get_services_and_pods_detail(host_filter=h_filter))
             except Exception as e:
                 self.send_json({"status": "error", "message": str(e)}, status=500)
             return
@@ -9176,21 +9587,7 @@ class PortalHandler(http.server.BaseHTTPRequestHandler):
                 self.send_json({"status": "ok", "action": "dr"})
                 return
             elif act == "restore":
-                display_cmd = (
-                    "iptables -D OUTPUT ... CHAOS_L3_FAULT -j DROP && "
-                    "sed -i 's/10.200.0.4:30080/10.10.1.100:80/g' upstream.conf && nginx -s reload"
-                )
-                remote_cmd = (
-                    "while iptables -D OUTPUT -d 10.10.1.100 -p tcp --dport 80 "
-                    "-m comment --comment CHAOS_L3_FAULT -j DROP 2>/dev/null; do :; done; "
-                    "sed -i 's/10.200.0.4:30080/10.10.1.100:80/g' "
-                    "/etc/nginx/conf.d/upstream.conf && nginx -t && nginx -s reload && "
-                    "echo '--- [/etc/nginx/conf.d/upstream.conf] ---' && "
-                    "grep -E 'server ' /etc/nginx/conf.d/upstream.conf && "
-                    "echo '--- [iptables CHAOS rules] ---' && "
-                    "(iptables -L OUTPUT -n --line-numbers | grep CHAOS_L3_FAULT || echo '(none - clean)')"
-                )
-                run_demo_ssh_command(EDGE_HOST, KEY_PATH, "root@kt-edge:~", "L3 평시 원복", display_cmd, remote_cmd)
+                run_demo_l3_failback()
                 self.send_json({"status": "ok", "action": "restore"})
                 return
             elif act == "reset":

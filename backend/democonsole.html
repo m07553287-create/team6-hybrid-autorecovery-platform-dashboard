@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>재해복구 통합 시연 콘솔 v0.3 (L1·L2·L3)</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: #0b1120;
+    color: #f8fafc;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow: hidden;
+  }
+  .workspace {
+    display: grid;
+    grid-template-columns: 455px minmax(0, 1fr);
+    gap: 14px;
+    height: 100vh;
+    padding: 14px;
+  }
+  .left-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    overflow-y: auto;
+    padding-right: 4px;
+    min-height: 0;
+  }
+  .header {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .header h2 {
+    margin: 0;
+    font-size: 16.5px;
+    white-space: nowrap;
+  }
+  .badge {
+    display: inline-block;
+    text-align: center;
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 13px;
+  }
+  .bg-green { background: #059669; color: white; }
+  .bg-red { background: #dc2626; color: white; animation: pulse 1s infinite; }
+  .bg-blue { background: #2563eb; color: white; }
+  @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.55; } 100% { opacity: 1; } }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 9px;
+  }
+  .card {
+    background: #1e293b;
+    border-radius: 10px;
+    padding: 11px 8px;
+    text-align: center;
+    border: 1px solid #334155;
+  }
+  .card-title { font-size: 11px; color: #94a3b8; margin-bottom: 5px; }
+  .card-val { font-size: 18px; font-weight: bold; word-break: break-all; }
+  .card-sub { font-size: 11px; color: #64748b; margin-top: 3px; }
+
+  .btn-panel {
+    background: #1e293b;
+    border-radius: 10px;
+    padding: 13px;
+    border: 1px solid #334155;
+  }
+  .btn-panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .level-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .tab-btn {
+    padding: 8px 6px;
+    border-radius: 7px;
+    border: 1px solid #334155;
+    background: #0f172a;
+    color: #94a3b8;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  .tab-btn.active-l1 { background: #0284c7; color: white; border-color: #38bdf8; }
+  .tab-btn.active-l2 { background: #d97706; color: white; border-color: #fbbf24; }
+  .tab-btn.active-l3 { background: #dc2626; color: white; border-color: #f87171; }
+  .tab-desc {
+    font-size: 11.5px;
+    color: #94a3b8;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 6px;
+    padding: 7px 10px;
+    margin-bottom: 9px;
+    line-height: 1.4;
+  }
+  .btn-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  button {
+    padding: 11px 13px;
+    border: none;
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  .btn-fault { background: #dc2626; color: white; }
+  .btn-dr { background: #eab308; color: #111827; }
+  .btn-restore { background: #10b981; color: white; }
+  .btn-blue { background: #2563eb; color: white; }
+  .btn-purple { background: #7c3aed; color: white; }
+  .btn-slate { background: #334155; color: #f1f5f9; }
+  .btn-mini {
+    background: #334155;
+    color: #e2e8f0;
+    padding: 5px 10px;
+    font-size: 12px;
+    border-radius: 6px;
+  }
+  button:hover { opacity: 0.88; transform: translateY(-1px); }
+  button:active { transform: translateY(0); }
+
+  .report-box {
+    flex: 1;
+    min-height: 160px;
+    background: #1e293b;
+    border-radius: 10px;
+    padding: 13px;
+    border: 1px solid #334155;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .report-list {
+    flex: 1;
+    overflow-y: auto;
+    margin-top: 8px;
+  }
+  .log-item {
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+    padding: 5px 0;
+    border-bottom: 1px solid #334155;
+    line-height: 1.4;
+  }
+
+  .right-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+  .right-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #111827;
+    border: 1px solid #1f2937;
+    border-radius: 8px;
+    padding: 8px 14px;
+  }
+  .right-title {
+    font-size: 13px;
+    font-weight: bold;
+    color: #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 8px #22c55e;
+    display: inline-block;
+  }
+  .terms-grid {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    gap: 10px;
+    overflow: hidden;
+  }
+  .terms-grid.rows {
+    grid-template-rows: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .terms-grid.cols {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .term-box {
+    display: flex;
+    flex-direction: column;
+    background: #020617;
+    border: 1px solid #334155;
+    border-radius: 9px;
+    overflow: hidden;
+    min-height: 0;
+    min-width: 0;
+  }
+  .term-head {
+    background: #0f172a;
+    border-bottom: 1px solid #1e293b;
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #cbd5e1;
+    font-family: 'Consolas', monospace;
+  }
+  .term-dots { display: flex; gap: 5px; margin-right: 8px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .dot-r { background: #ef4444; }
+  .dot-y { background: #f59e0b; }
+  .dot-g { background: #22c55e; }
+  .term-head-left { display: flex; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .term-body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: auto;
+    padding: 8px 10px;
+    font-family: 'Cascadia Mono', 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.42;
+    white-space: pre;
+  }
+  .t-line { margin: 0; }
+  .c-ok   { color: #4ade80; }
+  .c-aws  { color: #38bdf8; }
+  .c-err  { color: #f87171; font-weight: bold; }
+  .c-warn { color: #fbbf24; }
+  .c-cmd  { color: #facc15; font-weight: bold; }
+  .c-info { color: #e2e8f0; }
+  .c-dim  { color: #64748b; }
+
+  @media (max-width: 1100px) {
+    html, body { overflow: auto; height: auto; }
+    .workspace { grid-template-columns: 1fr; height: auto; }
+    .term-box { height: 260px; }
+  }
+</style>
+</head>
+<body>
+<div class="workspace">
+  <div class="left-pane">
+    <div class="header">
+      <div class="header-top">
+        <h2>🎮 재해복구 통합 시연 콘솔 v0.3</h2>
+      </div>
+      <div id="site-badge" class="badge bg-green">🟢 정상 서비스 (온프렘 k8s-cp1)</div>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-title">현재 HTTP 응답</div>
+        <div id="stat-code" class="card-val" style="color: #10b981;">200 OK</div>
+        <div id="stat-lat" class="card-sub">- ms</div>
+      </div>
+      <div class="card">
+        <div class="card-title">활성 파드 (백엔드)</div>
+        <div id="stat-pod" class="card-val" style="font-size: 12.5px; color: #38bdf8;">k8s-cp1</div>
+        <div id="stat-site" class="card-sub">site: onprem</div>
+      </div>
+      <div class="card">
+        <div class="card-title">실측된 RTO</div>
+        <div id="stat-rto" class="card-val" style="color: #f59e0b;">-</div>
+        <div id="stat-rto-sub" class="card-sub">목표 &lt; 30초</div>
+      </div>
+    </div>
+
+    <div class="btn-panel">
+      <div class="btn-panel-head">
+        <span style="font-weight: bold; font-size: 14px;">⚡ 장애 단계별 시연 제어 (L1 · L2 · L3)</span>
+        <button class="btn-mini" onclick="runAction('reset')">🧹 초기화</button>
+      </div>
+
+      <div class="level-tabs">
+        <button id="tab-l1" class="tab-btn" onclick="switchTab('l1')">L1 자가치유</button>
+        <button id="tab-l2" class="tab-btn" onclick="switchTab('l2')">L2 서비스복구</button>
+        <button id="tab-l3" class="tab-btn active-l3" onclick="switchTab('l3')">L3 AWS DR</button>
+      </div>
+
+      <div id="pane-l1" class="tab-pane">
+        <div class="tab-desc">
+          <b>[L1] K8s 파드 자가치유:</b> 파드 1개 강제 종료 시 나머지 파드가 무중단 유지 + K8s가 5초 내 자동 재생성
+          <div id="onprem-ssh-note-l1" style="margin-top:3px; color:#fbbf24;"></div>
+        </div>
+        <div class="btn-stack">
+          <button class="btn-purple" onclick="runL1Crash()">💥 L1-1. 앱 파드 강제 크래시 (POST /chaos/crash)</button>
+          <button class="btn-fault" onclick="runAction('l1_delete_pod')">🗑️ L1-2. K8s 파드 1개 삭제 (kubectl delete pod)</button>
+          <button class="btn-slate" onclick="runAction('l1_status')">🔎 L1-3. 온프렘 파드 현황 조회 (kubectl get pods)</button>
+        </div>
+      </div>
+
+      <div id="pane-l2" class="tab-pane">
+        <div class="tab-desc">
+          <b>[L2] 서비스 중단 &amp; 복구:</b> Deployment 전체 중단 → 프로메테우스 감지 → 오케스트레이터 / Ansible 복구
+          <div id="onprem-ssh-note-l2" style="margin-top:3px; color:#fbbf24;"></div>
+        </div>
+        <div class="btn-stack">
+          <button class="btn-fault" onclick="runAction('l2_fault')">⛔ L2-1. 온프렘 Deployment 중단 (replicas=0)</button>
+          <button class="btn-dr" onclick="runAction('l2_recover')">🔧 L2-2. L2 복구 실행 (scale=2 &amp; rollout restart)</button>
+          <button class="btn-slate" onclick="runAction('l2_status')">🔎 L2-3. 온프렘 Deployment/Pod 상태 조회</button>
+        </div>
+      </div>
+
+      <div id="pane-l3" class="tab-pane active">
+        <div class="tab-desc">
+          <b>[L3] 온프렘 전면 재해 &amp; AWS DR 전환:</b> KT Edge 차단 → AWS DR 무중단 스위칭 → DB 역동기화 + 평시 원복
+        </div>
+        <div class="btn-stack">
+          <button class="btn-fault" onclick="runAction('fault')">🔴 L3-1. L3 장애 주입 (KT Edge 차단)</button>
+          <button class="btn-dr" onclick="runAction('dr')">🟡 L3-2. AWS DR 즉시 복구 (Nginx 스위칭)</button>
+          <button class="btn-restore" onclick="runAction('restore')">🟢 L3-3. 평시 원복 (DB 역동기화 + Failback)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="report-box">
+      <div style="font-weight: bold; font-size: 14px;">📑 시연 타임라인 요약</div>
+      <div id="logs" class="report-list">
+        <div class="log-item" style="color: #94a3b8;">시연 대기 중입니다. 상단 탭(L1·L2·L3)을 선택해 테스트하세요.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right-pane">
+    <div class="right-toolbar">
+      <div class="right-title">
+        <span class="live-dot"></span>
+        <span>실시간 라이브 터미널 (실서버 원시 입출력)</span>
+      </div>
+      <div style="display:flex; gap:6px;">
+        <button class="btn-mini" id="layout-btn" onclick="toggleLayout()">배치 전환: 가로 3열로 보기</button>
+      </div>
+    </div>
+
+    <div id="terms-grid" class="terms-grid rows">
+      <div class="term-box">
+        <div class="term-head">
+          <div class="term-head-left">
+            <span class="term-dots"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span></span>
+            <span>터미널 1 · measure_rto 실시간 측정기 (0.5s)</span>
+          </div>
+          <span style="color:#4ade80;">LIVE</span>
+        </div>
+        <div id="term1" class="term-body"></div>
+      </div>
+
+      <div class="term-box">
+        <div class="term-head">
+          <div class="term-head-left">
+            <span class="term-dots"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span></span>
+            <span>터미널 2 · 제어 명령 입출력 (KT Edge / On-Prem K8s / Orchestrator)</span>
+          </div>
+          <span style="color:#fbbf24;">EXEC</span>
+        </div>
+        <div id="term2" class="term-body"></div>
+      </div>
+
+      <div class="term-box">
+        <div class="term-head">
+          <div class="term-head-left">
+            <span class="term-dots"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span></span>
+            <span>__TERM3_TITLE__</span>
+          </div>
+          <span style="color:#38bdf8;">STREAM</span>
+        </div>
+        <div id="term3" class="term-body"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const prevSig = { term1: '', term2: '', term3: '', logs: '' };
+let isCols = false;
+let currentPod = 'k8s-cp1';
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function switchTab(lvl) {
+  ['l1', 'l2', 'l3'].forEach(k => {
+    document.getElementById('tab-' + k).className = 'tab-btn' + (k === lvl ? ' active-' + k : '');
+    document.getElementById('pane-' + k).className = 'tab-pane' + (k === lvl ? ' active' : '');
+  });
+}
+
+function toggleLayout() {
+  const grid = document.getElementById('terms-grid');
+  const btn = document.getElementById('layout-btn');
+  isCols = !isCols;
+  if (isCols) {
+    grid.className = 'terms-grid cols';
+    btn.innerText = '배치 전환: 세로 3단으로 보기';
+  } else {
+    grid.className = 'terms-grid rows';
+    btn.innerText = '배치 전환: 가로 3열로 보기';
+  }
+}
+
+function renderTerm(id, lines) {
+  const sig = lines.length + ':' + (lines.length ? lines[lines.length - 1].text : '');
+  if (prevSig[id] === sig) return;
+  prevSig[id] = sig;
+
+  const el = document.getElementById(id);
+  const nearBottom = (el.scrollHeight - el.scrollTop - el.clientHeight) < 60;
+  el.innerHTML = lines.map(item =>
+    '<div class="t-line c-' + item.cls + '">' + escHtml(item.text) + '</div>'
+  ).join('');
+  if (nearBottom || el.scrollTop === 0) {
+    el.scrollTop = el.scrollHeight;
+  }
+}
+
+function runL1Crash() {
+  if (currentPod === 'k8s-cp1') {
+    const ok = confirm(
+      '⚠️ 주의: 현재 온프렘 응답이 k8s-cp1 (임시 systemd 상태)입니다.\n' +
+      'K8s 파드 전환 전에 크래시 API를 호출하면 자동 재시작이 안 될 수 있습니다.\n\n' +
+      '그래도 POST /chaos/crash 를 전송하시겠습니까?'
+    );
+    if (!ok) return;
+  }
+  runAction('l1_crash');
+}
+
+async function update() {
+  try {
+    const res = await fetch('/api/status');
+    const d = await res.json();
+    currentPod = d.pod || 'unknown';
+
+    const codeEl = document.getElementById('stat-code');
+    codeEl.innerText = d.status_code === 200 ? '200 OK' : (d.status_code === 0 ? '0 (다운)' : d.status_code);
+    codeEl.style.color = d.status_code === 200 ? '#10b981' : '#ef4444';
+    document.getElementById('stat-lat').innerText = d.latency_ms + ' ms';
+
+    document.getElementById('stat-pod').innerText = d.pod;
+    document.getElementById('stat-site').innerText = 'site: ' + d.site;
+
+    const rtoEl = document.getElementById('stat-rto');
+    if (d.rto_seconds !== null && d.rto_seconds !== undefined) {
+      rtoEl.innerText = d.rto_seconds + ' 초';
+    } else if (d.is_outage) {
+      rtoEl.innerText = d.elapsed_outage + 's...';
+    } else {
+      rtoEl.innerText = '-';
+    }
+
+    const badge = document.getElementById('site-badge');
+    if (d.phase === 'NORMAL_ONPREM') {
+      badge.className = 'badge bg-green';
+      badge.innerText = '🟢 정상 서비스 (온프렘 ' + d.pod + ')';
+    } else if (d.phase === 'OUTAGE_DOWN') {
+      badge.className = 'badge bg-red';
+      badge.innerText = '🚨 장애 발생! 서비스 다운 중';
+    } else if (d.phase === 'RECOVERED_AWS') {
+      badge.className = 'badge bg-blue';
+      badge.innerText = '🛡️ 복구 완료! AWS DR 서비스 중';
+    }
+
+    const noteText = d.onprem_configured
+      ? '✅ 온프렘 K8s SSH 연동됨'
+      : '⏳ 온프렘 SSH 대기 중 (ONPREM_HOST 입력 시 kubectl 버튼 즉시 활성화)';
+    document.getElementById('onprem-ssh-note-l1').innerText = noteText;
+    document.getElementById('onprem-ssh-note-l2').innerText = noteText;
+
+    const logSig = d.logs.length + ':' + (d.logs.length ? d.logs[d.logs.length - 1] : '');
+    if (prevSig.logs !== logSig) {
+      prevSig.logs = logSig;
+      if (d.logs.length > 0) {
+        document.getElementById('logs').innerHTML = d.logs
+          .slice()
+          .reverse()
+          .map(l => '<div class="log-item">' + escHtml(l) + '</div>')
+          .join('');
+      } else {
+        document.getElementById('logs').innerHTML =
+          '<div class="log-item" style="color: #94a3b8;">시연 대기 중입니다. 상단 탭(L1·L2·L3)을 선택해 테스트하세요.</div>';
+      }
+    }
+
+    renderTerm('term1', d.term1 || []);
+    renderTerm('term2', d.term2 || []);
+    renderTerm('term3', d.term3 || []);
+  } catch (e) {}
+}
+
+async function runAction(act) {
+  try {
+    await fetch('/api/action/' + act, { method: 'POST' });
+    update();
+  } catch (e) {
+    alert('요청 실패: ' + e);
+  }
+}
+
+setInterval(update, 500);
+update();
+</script>
+</body>
+</html>
