@@ -786,23 +786,37 @@ lsblk; df -h /var/lib/mysql"""},
         {
             "id": "backup", "name": "백업", "status": "live",
             "design": [
-                "cron */15: /opt/minwon-backup/run-backup.sh → backup-binlog.sh · transfer-binlog.sh (15분 binlog) · transfer-full.sh (일 1회 전체).",
-                "db-01 은 인터넷 직통이 없다(실측: S3 HTTPS 000). 전송은 rsync over ssh 로 rocky@10.200.0.4(AWS dr, WG 경유)에 보내고, S3 동기화는 dr 쪽에서 한다(로그: 'AWS Binlog 전송 완료 · S3 Binlog 동기화 완료').",
-                "로그 /var/log/minwon-backup.log.",
+                "15분 binlog: cron(root) */15 → /opt/minwon-backup/run-backup.sh → `FLUSH BINARY LOGS` → backup-binlog.sh(닫힌 binlog 를 /var/backups/mysql/binlog 로 복사·cmp 검증) → transfer-binlog.sh(rsync → aws-dr /var/backups/minwon/incoming/binlog) → aws-dr upload-binlog.sh(`aws s3 sync`, SSE AES256).",
+                "일 1회 전체: /etc/cron.d/mysql-backup 02:30 /usr/local/sbin/mysql-backup.sh(mysqldump --single-transaction --set-gtid-purged=ON, 7일 보관) → /etc/cron.d/mysql-full-s3 03:00 transfer-full.sh → aws-dr upload-full.sh.",
+                "db-01 은 인터넷 직통이 없다(실측: S3 HTTPS 000). 그래서 S3 업로드는 aws-dr 이 한다. 전송 키는 /home/ubuntu/.ssh/id_ed25519_minwon_backup.",
+                "모든 단계가 flock 으로 중복 실행을 막는다.",
             ],
             "config": [
-                {"label": "crontab (root)", "code": "*/15 * * * * /bin/bash /opt/minwon-backup/run-backup.sh >> /var/log/minwon-backup.log 2>&1"},
+                {"label": "cron (root crontab + /etc/cron.d)", "code": r"""*/15 * * * * /bin/bash /opt/minwon-backup/run-backup.sh >> /var/log/minwon-backup.log 2>&1
+30 2 * * * root /usr/local/sbin/mysql-backup.sh                                   # /etc/cron.d/mysql-backup
+0 3 * * * root /bin/bash /opt/minwon-backup/transfer-full.sh >> /var/log/minwon-full-backup.log 2>&1   # /etc/cron.d/mysql-full-s3"""},
+                {"label": "스크립트 연결 순서 (파일명을 누르면 실제 내용)", "code": r"""db-01  /opt/minwon-backup/run-backup.sh
+        ├─ /opt/minwon-backup/backup-binlog.sh
+        ├─ /opt/minwon-backup/transfer-binlog.sh   ──rsync──▶ aws-dr
+        └─ ssh aws-dr upload-binlog.sh             ──S3──▶ minwon-db/binlog/
+db-01  /usr/local/sbin/mysql-backup.sh  (02:30 덤프)
+db-01  /opt/minwon-backup/transfer-full.sh (03:00) ──rsync──▶ aws-dr upload-full.sh ──S3──▶ minwon-db/full/"""},
             ],
             "commands": [
-                {"cat": "조회", "label": "최근 백업", "code": r"""sudo crontab -l | grep -v '^#'
-sudo tail -20 /var/log/minwon-backup.log"""},
+                {"cat": "조회", "label": "최근 백업", "code": r"""sudo crontab -l | grep -v '^#'; sudo cat /etc/cron.d/mysql-backup /etc/cron.d/mysql-full-s3
+sudo tail -5 /var/log/minwon-backup.log
+sudo tail -3 /var/log/minwon-full-backup.log
+ls -lt /var/backups/mysql | head"""},
                 {"cat": "적용", "label": "수동 실행", "code": "sudo bash /opt/minwon-backup/run-backup.sh"},
             ],
             "verify": [
-                {"label": "15분 안에 기록", "code": "sudo tail -3 /var/log/minwon-backup.log", "expect": "최근 15분 이내 성공 로그"},
+                {"label": "15분 안에 두 줄", "code": "sudo tail -2 /var/log/minwon-backup.log", "expect": "'AWS Binlog 전송 완료' 와 'S3 Binlog 동기화 완료'"},
             ],
             "trouble": [
-                ["전송 실패 (rsync/ssh)", "db-01 → 10.200.0.4 경로 · ssh 키", "`timeout 3 bash -c '</dev/tcp/10.200.0.4/22'` · 로그 마지막 줄", "WG(허브·dr) 핸드셰이크, rt-data → s1 → wg-kt 경로, dr authorized_keys 확인"],
+                ["전송 실패 (rsync/ssh)", "db-01 → 10.200.0.4 경로 · 백업 키", "`timeout 3 bash -c '</dev/tcp/10.200.0.4/22'` · 로그 마지막 줄", "WG(허브·dr) 핸드셰이크, rt-data → s1 → wg-kt 경로, dr authorized_keys 확인"],
+                ["'ERROR: 이미 실행 중'", "flock 잠금", "`ls -l /run/lock/minwon-*.lock` · `pgrep -af minwon`", "앞 실행이 끝났는지 확인. 멈춘 rsync 가 있으면 종료"],
+                ["'ERROR: 기존 백업 불일치'", "같은 이름 binlog 가 다른 내용", "`cmp /var/lib/mysql/<binlog> /var/backups/mysql/binlog/<binlog>`", "덮어쓰지 않고 멈추는 게 정상. 원인(서버 재구축 등) 확인 후 수동 정리"],
+                ["S3 동기화 실패", "aws-dr 의 IAM 권한·aws CLI", "aws-dr: `aws sts get-caller-identity`", "인스턴스 역할(S3 쓰기) 확인"],
             ],
         },
     ],
@@ -1130,7 +1144,7 @@ PAGES["inst-awsdr"] = {
     "tag": "10.200.0.4 · 10.51.1.165",
     "status": "live",
     "steps": "S5 · S10",
-    "desc": "평시 읽기 전용 대기. 단일 노드 k3s 에 앱 1개와 MySQL 복제본(StatefulSet)을 둔다. L3 승격 시 read_only 를 끄고 KT Edge 가 이쪽으로 전환한다.",
+    "desc": "평시 읽기 전용 대기. 단일 노드 k3s 에 앱 1개와 MySQL 복제본(StatefulSet)을 둔다. 승격 스크립트는 펜싱 검증이 붙기 전까지 막혀 있다(fail-closed). db-01 백업을 받아 S3 로 올리는 중계 역할도 한다.",
     "specs": [
         ["EC2", "t3.small · Rocky 8.10 · 30GB"], ["RAM", "1.7 GiB (+swap 2G)"],
         ["VPC", "10.51.0.0/16 · 공인 54.116.129.147"], ["k3s", "v1.37.2+k3s1 (cgroup v1)"],
@@ -1193,7 +1207,9 @@ sudo $K kubectl -n minwon-dr get deploy,sts,svc,pods"""},
             "design": [
                 "minwon-mysql-0 이 db-01(10.10.2.10:3306)에서 GTID Auto_Position 복제. 실측 IO/SQL Yes, 지연 0초, read_only=1.",
                 "minwon-mysql-tunnel.service: `k3s kubectl port-forward --address 10.200.0.4 svc/minwon-mysql 13306:3306` — failback 때 db-01 이 dr 을 원본으로 복제받는 통로.",
-                "/opt/minwon-dr: preflight · check-replica · check-gtid · check-fencing · promote-mysql · prepare-reverse-replication · failback-precheck · validate-replica.",
+                "/opt/minwon-dr 스크립트는 **안전하게 실패(fail-closed)** 하도록 만들어져 있다(실측): /opt/minwon-dr/promote-mysql.sh 와 /opt/minwon-dr/check-fencing.sh 는 온프렘 쓰기 차단(펜싱)을 독립적으로 검증하는 장치가 붙기 전까지 BLOCKED 를 출력하고 exit 1.",
+                "그래서 /opt/minwon-dr/preflight.sh <최종 GTID> 는 validate-replica.sh → check-gtid.sh 를 통과해도 마지막 check-fencing.sh 에서 반드시 멈춘다. 현재 자동 승격은 불가 — 의도된 상태.",
+                "prepare-reverse-replication.sh 는 failback-precheck.sh 만 돌리고 '역방향 복제 자동 실행은 아직 미구현' 으로 exit 2.",
             ],
             "config": [
                 {"label": "/opt/minwon-dr/mysql-reverse-tunnel.sh", "code": r"""set -euo pipefail
@@ -1203,19 +1219,20 @@ exec /usr/local/bin/k3s kubectl port-forward --address 10.200.0.4 -n minwon-dr s
                 {"cat": "조회", "label": "복제 상태", "code": r"""sudo /usr/local/bin/k3s kubectl -n minwon-dr exec minwon-mysql-0 -- \
   sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "show replica status\G"' 2>/dev/null \
   | grep -E 'Source_Host|Replica_IO_Running|Replica_SQL_Running:|Seconds_Behind|Last_.*Error:'
-sudo bash /opt/minwon-dr/check-replica.sh"""},
-                {"cat": "적용", "label": "승격·되돌림 (L3 시나리오에서만)", "code": r"""sudo bash /opt/minwon-dr/preflight.sh
-sudo bash /opt/minwon-dr/check-fencing.sh     # 온프렘 쓰기 차단 확인 전에는 승격 금지
-sudo bash /opt/minwon-dr/promote-mysql.sh
-# 복귀: failback-precheck.sh → prepare-reverse-replication.sh"""},
+sudo bash /opt/minwon-dr/check-replica.sh      # 읽기만 함 (DB 변경 없음)"""},
+                {"cat": "검증", "label": "승격 사전 점검 (현재는 펜싱 단계에서 BLOCKED 가 정상)", "code": r"""# 최종 GTID 는 db-01 에서: sudo mysql -N -e "select @@gtid_executed"
+sudo bash /opt/minwon-dr/preflight.sh '<db-01 최종 GTID>'
+#  → validate-replica.sh PASS → check-gtid.sh PASS → check-fencing.sh BLOCKED (exit 1)
+sudo bash /opt/minwon-dr/failback-precheck.sh   # 되돌림 전 상태·온프렘 3306 도달"""},
             ],
             "verify": [
-                {"label": "평시 기준", "code": "sudo bash /opt/minwon-dr/check-replica.sh", "expect": "IO Yes · SQL Yes · 지연 0 · read_only 1"},
+                {"label": "평시 기준", "code": "sudo bash /opt/minwon-dr/validate-replica.sh", "expect": "PASS: Replica 복제 상태 정상"},
             ],
             "trouble": [
                 ["Replica_IO_Running: Connecting", "db-01 3306 경로 / sg-db 10.200.0.4", "`timeout 3 bash -c '</dev/tcp/10.10.2.10/3306'`", "sg-db·허브 AllowedIPs(10.10.2.0/24) 확인"],
                 ["GTID 오류 1236", "binlog 만료(7일)", "Last_IO_Error", "백업에서 재시드"],
                 ["역터널 서비스 반복 재시작", "API·파드 미준비", "`journalctl -u minwon-mysql-tunnel -n 30`", "minwon-mysql-0 Ready 확인"],
+                ["promote-mysql.sh 가 BLOCKED", "펜싱 검증기 미연동 (의도된 상태)", "/opt/minwon-dr/check-fencing.sh 내용", "자동 승격은 막혀 있음. 승격은 온프렘 쓰기 차단을 사람이 확인한 뒤 수동 절차로만"],
             ],
         },
     ],
@@ -1342,5 +1359,84 @@ NAV = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# 서비스 영역(도메인) — '서비스 기준' 렌즈의 대분류. 한 영역이 여러 도메인에 속할 수 있다.
+# ---------------------------------------------------------------------------
+DOMAINS = [
+    {"id": "network", "name": "네트워크", "short": "망", "desc": "주소·라우팅·터널. 패킷이 어느 길로 가고 오는지."},
+    {"id": "security", "name": "보안", "short": "보안", "desc": "누가 어디로 들어올 수 있는지. 보안그룹·WAF·키·공개 범위."},
+    {"id": "web", "name": "웹 진입", "short": "웹", "desc": "사용자 요청이 들어오는 입구. 도메인·프록시·업스트림."},
+    {"id": "compute", "name": "컴퓨트·k8s", "short": "k8s", "desc": "VM 과 쿠버네티스 노드를 만들고 붙이는 일."},
+    {"id": "app", "name": "앱 배포", "short": "앱", "desc": "민원 앱을 어디에 몇 개 띄우고 어떻게 늘리는지."},
+    {"id": "data", "name": "데이터베이스", "short": "DB", "desc": "원본 DB, 복제, 백업."},
+    {"id": "dr", "name": "DR·관제", "short": "DR", "desc": "장애 판정, 승격, 되돌림."},
+    {"id": "ops", "name": "접근·운영", "short": "운영", "desc": "노드 접속 경로와 운영 도구."},
+]
+
+AREA_DOMAINS = {
+    "inst-s1.access": ["ops", "security"], "inst-s1.vmnet": ["network"],
+    "inst-s1.wg": ["network", "security"], "inst-s1.cfd": ["web", "security"],
+    "inst-controller.svc": ["compute"], "inst-controller.net": ["network"],
+    "inst-controller.sg": ["security", "network"], "inst-controller.image": ["compute"],
+    "inst-controller.server": ["compute"],
+    "inst-cp1.k3s": ["compute"], "inst-cp1.cni": ["network", "compute"], "inst-cp1.app": ["app"],
+    "inst-cp1.hpa": ["app", "compute"], "inst-cp1.argocd": ["app", "ops"],
+    "inst-w1.agent": ["compute"],
+    "inst-db01.mysql": ["data"], "inst-db01.backup": ["data", "dr"],
+    "inst-ktedge.wg": ["network"], "inst-ktedge.nginx": ["web", "security"],
+    "inst-ktedge.nat": ["security", "network"],
+    "inst-ktw1.pre": ["compute"], "inst-ktw1.wg": ["network", "security"], "inst-ktw1.join": ["compute"],
+    "inst-ktw1.ha": ["app", "web"], "inst-ktw1.hpa": ["app", "compute"],
+    "inst-awsdr.wg": ["network"], "inst-awsdr.k3s": ["compute"], "inst-awsdr.mysql": ["data", "dr"],
+    "inst-awsctl.api": ["dr", "ops"],
+}
+
+INSTANCE_SHORT = {
+    "inst-s1": "s1", "inst-controller": "controller", "inst-cp1": "cp1", "inst-w1": "w1",
+    "inst-db01": "db-01", "inst-ktedge": "kt-edge", "inst-ktw1": "kt-w1",
+    "inst-awsdr": "aws-dr", "inst-awsctl": "aws-ctl",
+}
+INSTANCE_ORDER = list(INSTANCE_SHORT)
+REFERENCE = [["overview", "전체 구성과 변수표"], ["design-kt", "KT 확장 설계"], ["trouble", "오류 확인 색인"]]
+
+
+# ---------------------------------------------------------------------------
+# *.sh 링크 — 화면 안의 경로·파일명이 자동으로 링크가 된다. file 은 content/scripts/ 아래(→ public/scripts/).
+# 공개 저장소라 사본은 전부 읽고 비밀값 없음을 확인한 것만 둔다(S3 버킷 이름은 가림).
+# ---------------------------------------------------------------------------
+SCRIPTS = [
+    {"keys": ["~/bin/openstack-vm.sh", "openstack-vm.sh"], "file": "s1/openstack-vm.sh", "host": "s1", "path": "~/bin/openstack-vm.sh", "status": "live"},
+    {"keys": ["/opt/minwon-backup/run-backup.sh", "run-backup.sh"], "file": "db-01/run-backup.sh", "host": "db-01", "path": "/opt/minwon-backup/run-backup.sh", "status": "live"},
+    {"keys": ["/opt/minwon-backup/backup-binlog.sh", "backup-binlog.sh"], "file": "db-01/backup-binlog.sh", "host": "db-01", "path": "/opt/minwon-backup/backup-binlog.sh", "status": "live"},
+    {"keys": ["/opt/minwon-backup/transfer-binlog.sh", "transfer-binlog.sh"], "file": "db-01/transfer-binlog.sh", "host": "db-01", "path": "/opt/minwon-backup/transfer-binlog.sh", "status": "live"},
+    {"keys": ["/opt/minwon-backup/transfer-full.sh", "transfer-full.sh"], "file": "db-01/transfer-full.sh", "host": "db-01", "path": "/opt/minwon-backup/transfer-full.sh", "status": "live"},
+    {"keys": ["/usr/local/sbin/mysql-backup.sh", "mysql-backup.sh"], "file": "db-01/mysql-backup.sh", "host": "db-01", "path": "/usr/local/sbin/mysql-backup.sh", "status": "live"},
+    {"keys": ["upload-binlog.sh"], "file": "aws-dr/upload-binlog.sh", "host": "aws-dr", "path": "/home/rocky/minwon-backup/upload-binlog.sh", "status": "live"},
+    {"keys": ["upload-full.sh"], "file": "aws-dr/upload-full.sh", "host": "aws-dr", "path": "/home/rocky/minwon-backup/upload-full.sh", "status": "live"},
+] + [
+    {"keys": ["/opt/minwon-dr/" + n + ".sh", n + ".sh"], "file": "aws-dr/" + n + ".sh", "host": "aws-dr", "path": "/opt/minwon-dr/" + n + ".sh", "status": "live"}
+    for n in ["preflight", "check-replica", "check-gtid", "check-fencing", "promote-mysql",
+              "prepare-reverse-replication", "failback-precheck", "validate-replica", "mysql-reverse-tunnel"]
+] + [
+    {"keys": ["/root/kt-w1-preflight.sh", "kt-w1-preflight.sh"], "file": "kt-w1/kt-w1-preflight.sh", "host": "kt-w1", "path": "/root/kt-w1-preflight.sh", "status": "design",
+     "generate": ["inst-ktw1", "pre", 0]},
+    {"keys": ["tools/build.sh"], "url": "https://github.com/m07553287-create/team6-hybrid-autorecovery-platform-dashboard/blob/main/tools/build.sh", "host": "저장소", "path": "tools/build.sh", "status": "live"},
+    {"keys": ["/usr/local/bin/k3s-agent-uninstall.sh"], "url": "https://docs.k3s.io/installation/uninstall", "host": "k3s 공식 문서", "path": "k3s-agent-uninstall.sh (설치 시 자동 생성)", "status": "live"},
+]
+
+
 def data():
-    return {"measured": MEASURED, "vars": VARIABLES, "steps": STEPS, "pages": PAGES, "nav": NAV}
+    for pid in INSTANCE_ORDER:
+        page = PAGES[pid]
+        page["short"] = INSTANCE_SHORT[pid]
+        for a in page["areas"]:
+            key = pid + "." + a["id"]
+            assert key in AREA_DOMAINS, "도메인 미지정: " + key
+            a["domains"] = AREA_DOMAINS[key]
+    for key in AREA_DOMAINS:
+        pid, aid = key.split(".")
+        assert any(a["id"] == aid for a in PAGES[pid]["areas"]), "없는 영역: " + key
+    return {"measured": MEASURED, "vars": VARIABLES, "steps": STEPS, "pages": PAGES, "nav": NAV,
+            "domains": DOMAINS, "instances": INSTANCE_ORDER, "reference": REFERENCE,
+            "default": {"lens": "inst", "major": "inst-s1", "minor": "access"},
+            "scripts": [{k: v for k, v in x.items() if k != "generate"} for x in SCRIPTS]}

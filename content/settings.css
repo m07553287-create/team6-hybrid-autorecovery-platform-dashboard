@@ -1,36 +1,90 @@
-    /* ===== [설정] 화면 확장 스타일 (content/settings.css) ===== */
+    /* ===== [설정] 화면: 렌즈 > 대분류 > 중분류 > 설명 (content/settings.css) ===== */
+    #view-settings .settings-layout { grid-template-columns: 300px 260px minmax(0, 1fr); }
+    #cfg-nav.settings-sidebar { display: contents; padding: 0; }
+    .cfg-col { min-height: 0; overflow-y: auto; padding: 14px 10px 24px; border-right: 1px solid var(--surface-border); }
+    .cfg-col-major { background: #0c1322; }
+    .cfg-col-minor { background: #0f172a; }
     .settings-body > * { flex-shrink: 0; }
-    .cfg-nav-top { padding: 4px 10px 10px; border-bottom: 1px solid var(--surface-border); margin-bottom: 4px; }
-    .cfg-nav-title { font-size: 13px; font-weight: 700; color: #fff; }
-    .cfg-nav-sub { font-size: 10.5px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 2px; }
-    .cfg-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+    #view-settings .settings-body { padding: 20px 36px 48px; gap: 18px; }
+
+    /* 렌즈 전환 */
+    .cfg-lens { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: #070b14; border: 1px solid var(--surface-border); border-radius: 8px; padding: 4px; }
+    .cfg-lens-btn { background: transparent; border: 0; border-radius: 5px; color: var(--text-sub); font-size: 12.5px; font-weight: 600; font-family: inherit; padding: 9px 6px; cursor: pointer; }
+    .cfg-lens-btn:hover { color: #fff; background: var(--surface-card); }
+    .cfg-lens-btn.active { background: var(--primary); color: #fff; }
+    .cfg-lens-hint { font-size: 11.5px; color: var(--text-muted); margin: 8px 2px 10px; line-height: 1.45; }
+
+    /* 인스턴스 × 서비스 매트릭스 */
+    .cfg-matrix { border: 1px solid var(--surface-border); border-radius: 8px; padding: 8px 8px 6px; background: #070b14; margin-bottom: 14px; }
+    .cfg-mx-row { display: grid; grid-template-columns: 76px repeat(8, 1fr); align-items: center; border-radius: 4px; }
+    .cfg-mx-row.on { background: rgba(37, 99, 235, .16); }
+    .cfg-mx-headrow { margin-bottom: 2px; }
+    .cfg-mx-label { font-family: var(--font-mono); font-size: 10px; overflow: hidden; text-overflow: ellipsis; color: var(--text-sub); padding-left: 4px; white-space: nowrap; }
+    .cfg-mx-col { font-size: 10px; color: var(--text-muted); text-align: center; padding: 2px 0; border-radius: 3px; }
+    .cfg-mx-col.on { color: #fff; background: rgba(37, 99, 235, .35); }
+    .cfg-mx-cell { height: 20px; display: flex; align-items: center; justify-content: center; background: transparent; border: 0; padding: 0; }
+    button.cfg-mx-cell { cursor: pointer; border-radius: 4px; }
+    .cfg-mx-cell i { width: 8px; height: 8px; border-radius: 50%; background: #334155; transition: transform .12s ease; }
+    .cfg-mx-cell.design i { background: transparent; box-shadow: inset 0 0 0 1.5px #b45309; }
+    .cfg-mx-cell.lit i { background: #60a5fa; }
+    .cfg-mx-cell.lit.design i { background: transparent; box-shadow: inset 0 0 0 1.5px #fbbf24; }
+    .cfg-mx-cell.here i { width: 12px; height: 12px; background: #fff; box-shadow: 0 0 0 3px rgba(96, 165, 250, .45); }
+    button.cfg-mx-cell:hover i { transform: scale(1.35); }
+    button.cfg-mx-cell:focus-visible, .cfg-lens-btn:focus-visible, .cfg-item:focus-visible, .cfg-pager-btn:focus-visible, .cfg-copy:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; }
+
+    /* 대분류·중분류 목록 */
+    .cfg-col-head { font-size: 11.5px; font-weight: 700; color: var(--text-muted); padding: 2px 6px 6px; }
+    .cfg-list-major, .cfg-list-minor { display: flex; flex-direction: column; gap: 2px; }
+    .cfg-item { display: flex; flex-direction: column; gap: 3px; text-align: left; width: 100%; background: transparent; border: 1px solid transparent; border-left: 3px solid transparent;
+      border-radius: 5px; padding: 8px 10px; color: var(--text-sub); cursor: pointer; font-family: inherit; }
+    .cfg-item:hover { background: var(--surface-card); color: #fff; }
+    .cfg-item.active { background: #141e33; color: #fff; border-left-color: var(--primary); }
+    .cfg-item-name { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+    .cfg-item-sub { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+    .cfg-item-minor .cfg-item-name { font-size: 13px; }
+    .cfg-count { margin-left: auto; font-size: 11px; color: var(--text-muted); font-weight: 500; }
+    .cfg-empty { font-size: 12px; color: var(--text-muted); padding: 6px; line-height: 1.5; }
+    .cfg-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+    /* 클라우드 색 */
     .cfg-c-onprem { background: #a78bfa; color: #0b0f19; }
     .cfg-c-openstack { background: #f97316; color: #0b0f19; }
     .cfg-c-kt { background: #ef4444; color: #fff; }
     .cfg-c-aws { background: #f59e0b; color: #0b0f19; }
     .cfg-cloud { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
-    .cfg-badge { font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 10px; border: 1px solid; white-space: nowrap; }
+    .cfg-badge { font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 10px; border: 1px solid; white-space: nowrap; vertical-align: 2px; }
     .cfg-st-live { color: #34d399; border-color: #065f46; background: rgba(16,185,129,.08); }
     .cfg-st-design { color: #fbbf24; border-color: #78350f; background: rgba(245,158,11,.08); }
     .cfg-st-nolook { color: #94a3b8; border-color: #475569; background: rgba(148,163,184,.08); }
-    .cfg-steps-line { font-size: 12px; color: var(--text-sub); margin-top: 6px; }
-    .cfg-steps-line a, .cfg-step-link { color: var(--blue); text-decoration: none; margin-left: 6px; }
-    .cfg-steps-line a:hover, .cfg-step-link:hover { text-decoration: underline; }
+
+    /* 설명 */
+    .cfg-crumb { font-size: 12px; color: var(--text-muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .cfg-crumb-sep { color: #475569; }
+    .cfg-head { border-bottom: 1px solid var(--surface-border); padding-bottom: 14px; display: flex; flex-direction: column; gap: 8px; }
+    .cfg-head-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .cfg-head-inst { font-size: 13px; color: #cbd5e1; font-weight: 600; }
+    .cfg-head-title { font-size: 24px; font-weight: 700; color: #fff; line-height: 1.25; }
+    .cfg-head-domains { font-size: 12.5px; color: var(--text-sub); }
+    .cfg-dom-link { color: var(--blue); text-decoration: none; font-weight: 600; }
+    .cfg-dom-link:hover { text-decoration: underline; }
+    .cfg-domain-note { font-size: 12.5px; color: var(--text-sub); background: rgba(37,99,235,.08); border: 1px solid rgba(37,99,235,.3); border-radius: 6px; padding: 8px 12px; }
+    .cfg-domain-note b { color: #fff; margin-right: 6px; }
+    .cfg-inst { border: 1px solid var(--surface-border); border-radius: 6px; background: var(--surface); padding: 10px 14px; }
+    .cfg-inst summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: #cbd5e1; }
+    .cfg-inst[open] summary { margin-bottom: 10px; }
+    .cfg-inst .manual-desc { margin: 0 0 10px; max-width: 80ch; }
+    .cfg-step-head { flex-direction: row; gap: 16px; align-items: flex-start; }
+    .cfg-step-no { font-family: var(--font-mono); font-weight: 700; font-size: 26px; color: var(--blue); min-width: 56px; }
     .manual-desc b, .cfg-list b { color: #fff; }
     .cfg-ic { font-family: var(--font-mono); font-size: 11.5px; background: #1e293b; color: #e2e8f0; padding: 1px 5px; border-radius: 3px; }
-    .cfg-area-tabs { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--surface-border); padding-bottom: 10px; }
-    .cfg-area-tab { background: var(--surface); border: 1px solid var(--surface-border); color: var(--text-sub); border-radius: 5px;
-      padding: 7px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; display: inline-flex; gap: 6px; align-items: center; }
-    .cfg-area-tab:hover { color: #fff; background: var(--surface-hover); }
-    .cfg-area-tab.active { color: #fff; border-color: #3b82f6; background: #141e33; }
-    .cfg-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: -6px; }
-    .cfg-chip { font-size: 11.5px; color: var(--text-sub); text-decoration: none; border: 1px dashed #334155; border-radius: 12px; padding: 2px 10px; }
+    .cfg-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .cfg-chip { font-size: 12px; color: var(--text-sub); text-decoration: none; border: 1px solid #334155; border-radius: 12px; padding: 3px 11px; }
     .cfg-chip:hover { color: #fff; border-color: #3b82f6; }
-    .cfg-list { padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #cbd5e1; line-height: 1.55; }
+    .cfg-list { padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; color: #cbd5e1; line-height: 1.6; max-width: 90ch; }
     .cfg-code { border: 1px solid var(--surface-border); border-radius: 5px; overflow: hidden; background: #06090e; }
     .cfg-code-head { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #0b1220; border-bottom: 1px solid var(--surface-border); }
-    .cfg-code-label { font-size: 12px; color: #cbd5e1; font-weight: 600; flex: 1; font-family: var(--font-mono); }
-    .cfg-code pre { margin: 0; padding: 10px 14px; font-family: var(--font-mono); font-size: 12px; color: #7dd3fc; line-height: 1.55; overflow-x: auto; white-space: pre; }
+    .cfg-code-label { font-size: 12px; color: #cbd5e1; font-weight: 600; flex: 1; }
+    .cfg-code pre { margin: 0; padding: 10px 14px; font-family: var(--font-mono); font-size: 12px; color: #7dd3fc; line-height: 1.6; overflow-x: auto; white-space: pre; }
     .cfg-copy { background: transparent; border: 1px solid #334155; color: var(--text-sub); font-size: 11px; border-radius: 4px; padding: 2px 8px; cursor: pointer; font-family: inherit; }
     .cfg-copy:hover { color: #fff; border-color: #3b82f6; }
     .cfg-cat { font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 3px; }
@@ -44,22 +98,50 @@
     .cfg-table th { text-align: left; background: #0b1220; color: var(--text-sub); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--surface-border); white-space: nowrap; }
     .cfg-table td { padding: 8px 10px; border-bottom: 1px solid #172033; color: #cbd5e1; vertical-align: top; line-height: 1.5; }
     .cfg-table tr:last-child td { border-bottom: none; }
-    .cfg-vars td:first-child, .cfg-trouble td:nth-child(2) { font-family: var(--font-mono); color: #fde68a; white-space: nowrap; }
+    .cfg-vars td:first-child, .cfg-trouble td:nth-child(2) { font-family: var(--font-mono); color: #fde68a; }
     .cfg-trouble td:first-child { color: #fca5a5; }
     .cfg-h { font-size: 15px; color: #fff; margin-top: 4px; }
     .cfg-legend { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12.5px; color: var(--text-sub); }
-    .cfg-step-list { display: flex; flex-direction: column; gap: 10px; }
-    .cfg-step { display: grid; grid-template-columns: 54px 1fr; gap: 12px; background: var(--surface); border: 1px solid var(--surface-border); border-radius: 6px; padding: 12px; }
-    .cfg-step-no { font-family: var(--font-mono); font-weight: 700; font-size: 15px; color: var(--blue); text-align: center; padding-top: 2px; }
-    .cfg-step-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-    .cfg-step-title { font-size: 14px; font-weight: 700; color: #fff; }
-    .cfg-step-where { font-size: 11px; font-weight: 500; color: var(--text-muted); font-family: var(--font-mono); margin-left: 6px; }
-    .cfg-step-link { font-size: 12.5px; font-weight: 600; margin-left: 0 !important; align-self: flex-start; }
-    .cfg-step-why { font-size: 12.5px; color: var(--text-sub); line-height: 1.5; }
     .cfg-search { width: 100%; background: var(--surface); border: 1px solid var(--surface-border); color: #fff; border-radius: 5px; padding: 9px 12px; font-size: 13px; font-family: inherit; }
-    @media (max-width: 900px) {
-      .settings-layout { grid-template-columns: 1fr !important; grid-template-rows: auto 1fr; }
-      .settings-sidebar { max-height: 34vh; border-right: none; border-bottom: 1px solid var(--surface-border); }
-      .settings-body { padding: 16px !important; }
+    .cfg-pager { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
+    .cfg-pager-btn { text-align: left; background: var(--surface); border: 1px solid var(--surface-border); color: #fff; border-radius: 6px; padding: 10px 14px; cursor: pointer; font-size: 13px; font-weight: 600; line-height: 1.4; font-family: inherit; }
+    .cfg-pager-btn:last-child { text-align: right; }
+    .cfg-pager-btn span { display: block; font-size: 11px; color: var(--text-muted); font-weight: 500; }
+    .cfg-pager-btn:hover { border-color: #3b82f6; }
+
+    /* *.sh 링크와 스크립트 보기 */
+    .cfg-sh { color: #fcd34d; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; cursor: pointer; }
+    .cfg-sh:hover { color: #fde68a; text-decoration-style: solid; }
+    .cfg-sh-ext::after { content: " ↗"; font-size: .85em; }
+    .cfg-sh:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; border-radius: 2px; }
+    #cfg-viewer { margin: auto; width: min(1100px, 92vw); max-height: 86vh; padding: 0; border: 1px solid #334155; border-radius: 10px; background: #0b1220; color: #e2e8f0; display: none; flex-direction: column; }
+    #cfg-viewer[open] { display: flex; }
+    #cfg-viewer::backdrop { background: rgba(2, 6, 15, .72); }
+    .cfg-vw-head { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; padding: 16px 20px 12px; border-bottom: 1px solid #1e293b; }
+    .cfg-vw-meta { display: flex; gap: 8px; align-items: center; }
+    .cfg-vw-host { font-size: 12px; font-weight: 700; color: #cbd5e1; background: #1e293b; padding: 2px 8px; border-radius: 4px; }
+    .cfg-vw-title { grid-column: 1; font-family: var(--font-mono); font-size: 16px; font-weight: 700; color: #fcd34d; word-break: break-all; }
+    .cfg-vw-actions { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 6px; align-items: flex-start; }
+    .cfg-vw-actions a.cfg-copy { text-decoration: none; display: inline-block; }
+    .cfg-copy:disabled { opacity: .45; cursor: default; }
+    .cfg-vw-used { font-size: 12px; color: var(--text-sub); padding: 8px 20px; border-bottom: 1px solid #1e293b; }
+    .cfg-vw-used a { color: var(--blue); text-decoration: none; }
+    .cfg-vw-used a:hover { text-decoration: underline; }
+    .cfg-vw-body { margin: 0; padding: 12px 0; overflow: auto; flex: 1; min-height: 120px; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; color: #bae6fd; background: #06090e; counter-reset: ln; white-space: pre; }
+    .cfg-ln { display: inline-block; min-width: 100%; padding-right: 20px; }
+    .cfg-ln::before { counter-increment: ln; content: counter(ln); display: inline-block; width: 44px; margin-right: 14px; text-align: right; color: #475569; user-select: none; }
+    .cfg-ln:hover { background: rgba(148, 163, 184, .08); }
+    .cfg-vw-note { font-size: 11.5px; color: var(--text-muted); padding: 10px 20px 14px; border-top: 1px solid #1e293b; }
+    @media (prefers-reduced-motion: reduce) { .cfg-mx-cell i { transition: none; } }
+    @media (max-width: 1280px) {
+      #view-settings .settings-layout { grid-template-columns: 300px minmax(0, 1fr); grid-template-rows: minmax(0, 1.3fr) minmax(0, 1fr); }
+      .cfg-col-major { grid-column: 1; grid-row: 1; }
+      .cfg-col-minor { grid-column: 1; grid-row: 2; border-top: 1px solid var(--surface-border); }
+      #view-settings .settings-body { grid-column: 2; grid-row: 1 / span 2; }
+    }
+    @media (max-width: 860px) {
+      #view-settings .settings-layout { display: flex !important; flex-direction: column; overflow-y: auto; }
+      .cfg-col { overflow: visible; border-right: 0; border-bottom: 1px solid var(--surface-border); }
+      #view-settings .settings-body { overflow: visible; padding: 16px; }
       .spec-grid { grid-template-columns: repeat(2, 1fr) !important; }
     }
