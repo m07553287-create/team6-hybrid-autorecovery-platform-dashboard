@@ -22,9 +22,30 @@ import email
 from datetime import datetime
 
 # ==============================================================================
-# 팀6 하이브리드 멀티클라우드 운영 포털 (v2 롤백 베이스 · 시연 엔진 삭제 완료)
+# 재해복구 통합 시연 콘솔 v0.3 엔진 (L1 · L2 · L3 실시간 라이브 터미널 연계)
 # ==============================================================================
+TARGET_URL = "https://minwon.ktci5.kr"
+CHAOS_TOKEN = os.getenv("CHAOS_TOKEN", "supersecret-chaos-token")
+
+EDGE_HOST = "root@10.200.0.1"
+KEY_PATH = os.path.expanduser("~/.ssh/id_ed25519")
+
+ONPREM_HOST = "ubuntu@192.168.120.226"
+ONPREM_KEY = os.path.expanduser("~/.ssh/id_ed25519")
+ONPREM_JUMP = ""
+K8S_NS = "minwon-sample"
+K8S_DEPLOY = "minwon-app"
+KUBECONFIG_REMOTE = "/etc/rancher/k3s/k3s.yaml"
+
+TERM3_TITLE = "터미널 3 · KT Edge Nginx 실시간 로그 (tail -F /var/log/nginx/*.log)"
+TERM3_HOST = EDGE_HOST
+TERM3_KEY = KEY_PATH
+TERM3_CMD = "tail -n 12 -F /var/log/nginx/*.log 2>/dev/null"
+
+NO_WIN = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
 ppt_lock = threading.Lock()
+term3_proc = None
 
 UPLOAD_DIR = "/opt/figteam-portal/uploads"
 if not os.path.exists(UPLOAD_DIR):
@@ -100,354 +121,6 @@ ppt_state = {
     },
     "participants_count": 5
 }
-
-demo_state = {
-    "status_code": 200,
-    "latency_ms": 0.0,
-    "site": "onprem",
-    "pod": "minwon-app",
-    "phase": "NORMAL_ONPREM",
-    "rto_seconds": None,
-    "elapsed_outage": 0.0,
-    "down_start_str": None,
-    "recovered_str": None,
-    "is_outage": False,
-    "onprem_configured": True,
-    "logs": [],
-    "term1": [],
-    "term2": [],
-    "term3": []
-}
-
-def demo_push_line(key, text, cls="info", limit=180):
-    with demo_lock:
-        demo_state[key].append({"cls": cls, "text": text})
-        if len(demo_state[key]) > limit:
-            demo_state[key] = demo_state[key][-limit:]
-
-def demo_add_summary_log(msg):
-    now_str = datetime.now().strftime("%H:%M:%S")
-    with demo_lock:
-        demo_state["logs"].append(f"[{now_str}] {msg}")
-        if len(demo_state["logs"]) > 40:
-            demo_state["logs"] = demo_state["logs"][-40:]
-
-def run_demo_ssh_command(host, key_path, prompt_label, action_label, display_cmd, remote_cmd, jump_host="", add_to_summary=True):
-    def worker():
-        now_str = datetime.now().strftime("%H:%M:%S")
-        if not host:
-            msg = f"⚠️ [{action_label}] ONPREM_HOST 미설정"
-            demo_push_line("term2", "", "dim")
-            demo_push_line("term2", f"[{now_str}] {msg}", "warn")
-            if add_to_summary:
-                demo_add_summary_log(msg)
-            return
-
-        if add_to_summary:
-            demo_add_summary_log(f"⚙️ [{action_label}] 명령 전송 중...")
-
-        demo_push_line("term2", "", "dim")
-        demo_push_line("term2", f"[{now_str}] {prompt_label}# {display_cmd}", "cmd")
-
-        cmd = [
-            "ssh",
-            "-n", "-T",
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "BatchMode=yes",
-            "-o", "ConnectTimeout=5"
-        ]
-        if os.path.exists(key_path):
-            cmd += ["-i", key_path]
-        if jump_host:
-            proxy_cmd = f'ssh -n -T -o StrictHostKeyChecking=no -W %h:%p {jump_host}'
-            cmd += ["-o", f"ProxyCommand={proxy_cmd}"]
-        cmd += [host, remote_cmd]
-
-        try:
-            res = subprocess.run(
-                cmd,
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=30,
-                creationflags=NO_WIN
-            )
-            out_text = (res.stdout or "").rstrip()
-            err_text = (res.stderr or "").rstrip()
-
-            if out_text:
-                for line in out_text.splitlines():
-                    cls = "info"
-                    if any(k in line for k in ("10.200.0.4", "10.10.1.100", "clean", "Running", "successfully rolled out", "scaled", "restarted")):
-                        cls = "ok"
-                    if any(k in line for k in ("DROP", "CHAOS_L3_FAULT", "Terminating", "deleted", "Error", "CrashLoop")):
-                        cls = "err"
-                    demo_push_line("term2", line, cls)
-
-            if err_text:
-                for line in err_text.splitlines():
-                    cls = "ok" if ("syntax is ok" in line or "test is successful" in line) else "warn"
-                    demo_push_line("term2", line, cls)
-
-            if res.returncode == 0:
-                demo_push_line("term2", "[exit code: 0] OK", "ok")
-                if add_to_summary:
-                    demo_add_summary_log(f"📡 [{action_label}] 명령 적용 완료")
-            else:
-                demo_push_line("term2", f"[exit code: {res.returncode}] FAILED", "err")
-                if add_to_summary:
-                    brief = (err_text or out_text or f"exit={res.returncode}").splitlines()[0]
-                    demo_add_summary_log(f"❌ [{action_label} 실패] {brief}")
-        except Exception as e:
-            demo_push_line("term2", f"[EXCEPTION] {e}", "err")
-            if add_to_summary:
-                demo_add_summary_log(f"❌ [{action_label} 예외] {e}")
-
-    threading.Thread(target=worker, daemon=True).start()
-
-def run_demo_l1_http_crash():
-    def worker():
-        now_str = datetime.now().strftime("%H:%M:%S")
-        url = f"{TARGET_URL}/chaos/crash"
-        demo_add_summary_log("💥 [L1 앱 크래시] POST /chaos/crash 전송 중...")
-        demo_push_line("term2", "", "dim")
-        demo_push_line("term2", f'[{now_str}] $ curl -X POST {url} -H "X-Chaos-Token: ****"', "cmd")
-
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        req = urllib.request.Request(
-            url,
-            data=b"",
-            method="POST",
-            headers={
-                "X-Chaos-Token": CHAOS_TOKEN,
-                "User-Agent": "Demo-Console/0.3"
-            }
-        )
-        try:
-            with urllib.request.urlopen(req, context=ctx, timeout=5.0) as resp:
-                body = resp.read().decode("utf-8", errors="ignore").strip()
-                demo_push_line("term2", f"HTTP {resp.getcode()} {body}", "warn")
-                demo_add_summary_log(f"💥 [L1 앱 크래시] 트리거 응답 수신 (HTTP {resp.getcode()}) — 자가치유 관찰 중")
-        except urllib.error.HTTPError as e:
-            if e.code == 403:
-                demo_push_line("term2", "HTTP 403 Forbidden: Invalid Chaos Token (CHAOS_TOKEN 확인 필요)", "err")
-                demo_add_summary_log("❌ [L1 크래시 실패] 403 토큰 불일치 (CHAOS_TOKEN 확인 필요)")
-            elif e.code in (502, 503, 504):
-                demo_push_line("term2", f"HTTP {e.code} (타겟 프로세스 즉시 종료로 연결 끊김 - 크래시 성공!)", "ok")
-                demo_add_summary_log("💥 [L1 크래시 주입 완료] 파드 프로세스 종료 확인 — K8s 자가치유 관찰 중")
-            else:
-                demo_push_line("term2", f"HTTP {e.code}: {e.reason}", "err")
-                demo_add_summary_log(f"⚠️ [L1 크래시] HTTP {e.code} ({e.reason})")
-        except Exception as e:
-            demo_push_line("term2", f"[Connection Closed] {e} (프로세스 os._exit 종료로 인한 정상 끊김)", "ok")
-            demo_add_summary_log("💥 [L1 크래시 주입 완료] 프로세스 즉시 종료 확인 — 자가치유 관찰 중")
-
-    threading.Thread(target=worker, daemon=True).start()
-
-def demo_term3_stream_loop():
-    global term3_proc
-    demo_push_line("term3", f"[*] Connecting SSH log stream -> {TERM3_HOST}", "dim")
-    demo_push_line("term3", f"$ {TERM3_CMD}", "cmd")
-
-    while True:
-        cmd = [
-            "ssh",
-            "-n", "-T",
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "BatchMode=yes",
-            "-o", "ConnectTimeout=5",
-            "-o", "ServerAliveInterval=15"
-        ]
-        if os.path.exists(TERM3_KEY):
-            cmd += ["-i", TERM3_KEY]
-        cmd += [TERM3_HOST, TERM3_CMD]
-
-        try:
-            proc = subprocess.Popen(
-                cmd,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                bufsize=1,
-                creationflags=NO_WIN
-            )
-            term3_proc = proc
-            for raw in proc.stdout:
-                line = raw.rstrip("\r\n")
-                if not line:
-                    continue
-                lower = line.lower()
-                if any(k in lower for k in ("error", "timed out")) or any(c in line for c in (" 499 ", " 500 ", " 502 ", " 503 ", " 504 ")):
-                    cls = "err"
-                elif " 200 " in line or " 304 " in line:
-                    cls = "ok"
-                elif line.startswith("==>"):
-                    cls = "cmd"
-                else:
-                    cls = "info"
-                demo_push_line("term3", line, cls)
-            proc.wait()
-            demo_push_line("term3", "[!] Stream disconnected. Reconnecting in 3s...", "warn")
-        except Exception as e:
-            demo_push_line("term3", f"[!] Stream error: {e} (retry in 3s)", "err")
-        time.sleep(3)
-
-def demo_probe_loop():
-    global demo_reset_requested
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-
-    start_wall_time = time.time()
-    down_start_time = None
-    recovered_time = None
-    last_onprem_pod = None
-
-    demo_push_line("term1", "=" * 78, "dim")
-    demo_push_line("term1", "[*] L1 / L2 / L3 Real-time Measurement Started (v0.3)", "cmd")
-    demo_push_line("term1", f"[*] Target : {TARGET_URL} | Interval: 0.5s", "dim")
-    demo_push_line("term1", "=" * 78, "dim")
-
-    while True:
-        with demo_lock:
-            if demo_reset_requested:
-                demo_reset_requested = False
-                start_wall_time = time.time()
-                down_start_time = None
-                recovered_time = None
-                last_onprem_pod = None
-                demo_state["rto_seconds"] = None
-                demo_state["elapsed_outage"] = 0.0
-                demo_state["down_start_str"] = None
-                demo_state["recovered_str"] = None
-                demo_state["is_outage"] = False
-                demo_state["logs"] = []
-                demo_state["term1"] = [
-                    {"cls": "cmd", "text": "[*] Measurement Reset - Ready for clean demo"}
-                ]
-
-        now = datetime.now()
-        t_now_ms = now.strftime("%H:%M:%S.%f")[:-3]
-        now_str = now.strftime("%H:%M:%S")
-        elapsed = round(time.time() - start_wall_time, 1)
-
-        t0 = time.time()
-        status_code = 0
-        site_name = "unknown"
-        pod_name = "unknown"
-
-        try:
-            req = urllib.request.Request(TARGET_URL, headers={"User-Agent": "Demo-Console/0.3"})
-            with urllib.request.urlopen(req, context=ctx, timeout=2.0) as resp:
-                status_code = resp.getcode()
-                latency_ms = round((time.time() - t0) * 1000, 1)
-                body = resp.read().decode("utf-8", errors="ignore")
-
-                pod_m = re.search(r"POD:\s*([a-zA-Z0-9-]+)", body, re.I)
-                if pod_m:
-                    pod_name = pod_m.group(1).strip()
-                elif "minwon-app-" in body:
-                    sub = re.search(r"(minwon-app-[a-zA-Z0-9-]+)", body)
-                    pod_name = sub.group(1).strip() if sub else "minwon-app"
-                elif "k8s-cp1" in body:
-                    pod_name = "k8s-cp1"
-
-                site_m = re.search(r"SITE:\s*(onprem|aws|dr)\b", body, re.I)
-                if site_m:
-                    raw_s = site_m.group(1).lower()
-                    site_name = "aws" if raw_s in ("aws", "dr") else "onprem"
-                elif "k8s-cp1" in pod_name:
-                    site_name = "onprem"
-                elif "minwon-app-" in pod_name:
-                    site_name = "aws"
-        except Exception:
-            status_code = 0
-            latency_ms = round((time.time() - t0) * 1000, 1)
-
-        event_line = None
-        event_cls = "info"
-
-        with demo_lock:
-            if status_code == 200 and site_name == "onprem":
-                if down_start_time is not None and recovered_time is None:
-                    rto = round(time.time() - down_start_time, 2)
-                    demo_state["rto_seconds"] = rto
-                    demo_state["recovered_str"] = now_str
-                    demo_state["logs"].append(f"[{now_str}] ✅ [L1/L2 복구 완료] 온프렘 자체 정상화! (RTO: {rto}초, Pod: {pod_name})")
-                    event_line = f"[+] >>> [ONPREM RECOVERED] at {t_now_ms} | RTO: {rto}s | Pod: {pod_name} <<<"
-                    event_cls = "cmd"
-                elif demo_state["phase"] == "RECOVERED_AWS":
-                    demo_state["logs"].append(f"[{now_str}] 🟢 [원복 완료] 온프렘({pod_name}) 정상 복귀 확인")
-                    event_line = f"[*] >>> [FAILBACK COMPLETED] at {t_now_ms} | Site: onprem ({pod_name}) <<<"
-                    event_cls = "ok"
-                elif last_onprem_pod and pod_name != "unknown" and pod_name != last_onprem_pod:
-                    demo_state["logs"].append(f"[{now_str}] 🔄 [파드 전환 확인] {last_onprem_pod} → {pod_name}")
-                    event_line = f"[*] >>> [POD CHANGED] {last_onprem_pod} -> {pod_name} (Zero-Downtime) <<<"
-                    event_cls = "aws"
-
-                if pod_name != "unknown":
-                    last_onprem_pod = pod_name
-                phase = "NORMAL_ONPREM"
-                down_start_time = None
-                recovered_time = None
-                demo_state["is_outage"] = False
-                demo_state["elapsed_outage"] = 0.0
-
-            elif status_code != 200 or site_name == "unknown":
-                phase = "OUTAGE_DOWN"
-                if down_start_time is None:
-                    down_start_time = time.time()
-                    recovered_time = None
-                    demo_state["rto_seconds"] = None
-                    demo_state["down_start_str"] = now_str
-                    demo_state["is_outage"] = True
-                    demo_state["logs"].append(f"[{now_str}] 🚨 [장애 발생] 온프렘 응답 중단 (HTTP {status_code})")
-                    event_line = f"[!] >>> [FAULT DETECTED] at {t_now_ms} (HTTP {status_code}) <<<"
-                    event_cls = "err"
-                demo_state["elapsed_outage"] = round(time.time() - down_start_time, 1)
-
-            elif status_code == 200 and site_name == "aws":
-                phase = "RECOVERED_AWS"
-                if down_start_time is not None and recovered_time is None:
-                    recovered_time = time.time()
-                    rto = round(recovered_time - down_start_time, 2)
-                    demo_state["rto_seconds"] = rto
-                    demo_state["recovered_str"] = now_str
-                    demo_state["is_outage"] = False
-                    demo_state["elapsed_outage"] = rto
-                    demo_state["logs"].append(f"[{now_str}] ✅ [L3 복구 완료] AWS DR 정상화! (RTO: {rto}초)")
-                    event_line = f"[+] >>> [L3 RECOVERY COMPLETED] at {t_now_ms} | RTO: {rto}s <<<"
-                    event_cls = "cmd"
-            else:
-                phase = demo_state["phase"]
-
-            demo_state["status_code"] = status_code
-            demo_state["latency_ms"] = latency_ms
-            demo_state["site"] = site_name
-            demo_state["pod"] = pod_name
-            demo_state["phase"] = phase
-
-        if event_line:
-            demo_push_line("term1", event_line, event_cls)
-
-        flag = "[OK] " if status_code == 200 else "[ERR]"
-        line_cls = "ok" if status_code == 200 else "err"
-        if status_code == 200 and site_name == "aws":
-            line_cls = "aws"
-        raw_line = (
-            f"{flag} {t_now_ms} (+{elapsed:5.1f}s) | Code: {status_code:3} | "
-            f"{latency_ms:6.1f}ms | Site: {site_name:7} | Pod: {pod_name:27} | {phase}"
-        )
-        demo_push_line("term1", raw_line, line_cls)
-
-        time.sleep(0.5)
 
 PORT = 18088
 PORTAL_CONFIG_PATH = os.environ.get("FIGTEAM_CONFIG", "/opt/figteam-portal/portal_config.json")
@@ -1629,135 +1302,6 @@ PORTAL_HTML = """<!DOCTYPE html>
     body { background: var(--bp-ground); color: var(--bp-ink); height: 100vh; overflow: hidden; display: flex; flex-direction: column; -webkit-font-smoothing: antialiased; }
     :focus-visible { outline: 2px solid var(--bp-pencil); outline-offset: 2px; }
 
-    
-    /* TOP NAVIGATION MENU (사이드바 대체) */
-    .top-nav {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin-left: 14px;
-      flex-shrink: 0;
-    }
-    .top-nav-item {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      border: 1px solid transparent;
-      border-radius: 6px;
-      color: var(--bp-ink-2);
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      user-select: none;
-      white-space: nowrap;
-      transition: all 0.15s ease;
-      background: transparent;
-    }
-    .top-nav-item:hover {
-      color: var(--bp-ink);
-      background: rgba(230,238,245,0.08);
-      border-color: rgba(230,238,245,0.2);
-    }
-    .top-nav-item.active {
-      color: #0b1120 !important;
-      background: var(--bp-pencil) !important;
-      border-color: var(--bp-pencil) !important;
-      font-weight: 700 !important;
-    }
-
-    /* DROPDOWN MENU */
-    .top-dropdown {
-      position: relative;
-      display: inline-block;
-    }
-    .top-dropdown-btn {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      border: 1px solid rgba(230,238,245,0.22);
-      border-radius: 6px;
-      color: var(--bp-ink-2);
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      user-select: none;
-      white-space: nowrap;
-      background: rgba(15,45,79,0.5);
-      transition: all 0.15s ease;
-    }
-    .top-dropdown:hover .top-dropdown-btn, .top-dropdown-btn.active {
-      color: #F7D684;
-      background: rgba(15,45,79,0.95);
-      border-color: #F7D684;
-    }
-    .top-dropdown-btn .arrow {
-      font-size: 10px;
-      transition: transform 0.2s ease;
-    }
-    .top-dropdown:hover .top-dropdown-btn .arrow {
-      transform: rotate(180deg);
-    }
-    .top-dropdown-menu {
-      display: none;
-      position: absolute;
-      top: 100%;
-      left: 0;
-      min-width: 200px;
-      background: #0f172a;
-      border: 1px solid #334155;
-      border-radius: 8px;
-      box-shadow: 0 12px 28px rgba(0,0,0,0.65);
-      padding: 6px 0;
-      z-index: 1000;
-      margin-top: 4px;
-      backdrop-filter: blur(8px);
-    }
-    .top-dropdown:hover .top-dropdown-menu {
-      display: block;
-      animation: fadeIn 0.15s ease-out;
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(-4px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .dropdown-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 9px 15px;
-      color: #cbd5e1;
-      font-size: 12.5px;
-      font-weight: 500;
-      cursor: pointer;
-      text-decoration: none;
-      transition: background 0.15s, color 0.15s;
-    }
-    .dropdown-item:hover {
-      background: #1e293b;
-      color: #f8fafc;
-    }
-    .dropdown-item.active {
-      background: rgba(244,201,93,0.18);
-      color: #F4C95D;
-      font-weight: 700;
-    }
-    .dropdown-item .ext-tag {
-      font-size: 11px;
-      color: #94a3b8;
-    }
-    .dropdown-divider {
-      height: 1px;
-      background: #334155;
-      margin: 4px 0;
-    }
-
-    /* SIDEBAR 완전 제거 및 화면 100% Full Width 확장 */
-    aside { display: none !important; width: 0 !important; }
-    .app-container { display: flex; width: 100% !important; height: calc(100vh - 56px); overflow: hidden; }
-    main { width: 100% !important; max-width: 100% !important; flex: 1 !important; }
-
     /* TOP NAVIGATION BAR — 도면 상단 테두리 */
     header { height: 56px; background: var(--bp-deep); border-bottom: 2px solid var(--bp-ink); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; z-index: 100; }
     .brand { display: flex; align-items: center; gap: 12px; font-size: 16px; font-weight: 600; color: var(--bp-ink); letter-spacing: -.01em; }
@@ -2599,48 +2143,10 @@ PORTAL_HTML = """<!DOCTYPE html>
 
   <!-- HEADER -->
   <header>
-        <div class="brand">
-      <span>FIGTEAM</span>
+    <div class="brand">
+      <span>⚡ FIGTEAM</span>
       <span class="brand-tag">HYBRID CMP</span>
     </div>
-
-    <!-- TOP NAVIGATION MENU BAR (드롭다운 & 사이드바 대체 · 시연 삭제 완료) -->
-    <nav class="top-nav" id="top-main-nav">
-      <div class="top-nav-item active" data-key="overview" onclick="switchTab('overview')">
-        <span>대시보드</span>
-      </div>
-      <div class="top-nav-item" data-key="operation" onclick="switchTab('operation')">
-        <span>구성도</span>
-      </div>
-      <div class="top-nav-item" data-key="infra" onclick="switchTab('infra')">
-        <span>OpenStack 구조</span>
-      </div>
-      <div class="top-nav-item" data-key="term" onclick="switchTab('term')">
-        <span>통합 웹 터미널</span>
-      </div>
-
-      <!-- 서비스 드롭다운 (시연 콘솔 제외) -->
-      <div class="top-dropdown" id="top-dropdown-services">
-        <div class="top-dropdown-btn" id="top-dropdown-trigger">
-          <span>외부 서비스</span>
-          <span class="arrow">▾</span>
-        </div>
-        <div class="top-dropdown-menu">
-          <div class="dropdown-item" data-key="ppt" onclick="switchTab('ppt')">
-            <span>📊 라이브 PPT 회의실</span>
-          </div>
-          <div class="dropdown-divider"></div>
-          <a class="dropdown-item" href="https://minwon.ktci5.kr" target="_blank" rel="noopener">
-            <span>🏛️ 민원청구 24시 센터</span>
-            <span class="ext-tag">↗</span>
-          </a>
-          <a class="dropdown-item" href="https://kt-edge.ktci5.kr" target="_blank" rel="noopener">
-            <span>🌐 KT Cloud Edge 웹</span>
-            <span class="ext-tag">↗</span>
-          </a>
-        </div>
-      </div>
-    </nav>
     
     <div class="status-group">
       <div class="chip">
@@ -2667,7 +2173,76 @@ PORTAL_HTML = """<!DOCTYPE html>
   </header>
 
   <div class="app-container">
-    <!-- SIDEBAR REMOVED -->
+    <!-- SIDEBAR -->
+    <aside>
+      <ul class="menu-list">
+        <div class="menu-header">통합 콘솔 메뉴</div>
+        
+        <li class="menu-item active" data-key="overview" onclick="switchTab('overview')">
+          <span>통합 인프라 개요</span>
+        </li>
+        
+        <div class="menu-header">운영 & 고가용성 (HA)</div>
+        <li class="menu-item" data-key="dr" onclick="switchTab('dr')">
+          <span>운영 대시보드</span>
+        </li>
+
+        <div class="menu-header">인프라 & 가상화</div>
+        <li class="menu-item" data-key="ktvm" onclick="switchTab('ktvm')">
+          <span>KT Cloud VM 관리</span>
+        </li>
+        <li class="menu-item" data-key="awsvm" onclick="switchTab('awsvm')">
+          <span>AWS EC2 관리</span>
+        </li>
+        <li class="menu-item" data-key="osvm" onclick="switchTab('osvm')">
+          <span>OpenStack VM 관리</span>
+        </li>
+        <li class="menu-item" data-key="osnet" onclick="switchTab('osnet')">
+          <span>OpenStack 구조</span>
+        </li>
+        <li class="menu-item" data-key="term" onclick="switchTab('term')">
+          <span>통합 터미널</span>
+        </li>
+        <li class="menu-item" data-key="osops" onclick="switchTab('osops')">
+          <span>자원 상태확인</span>
+        </li>
+        <li class="menu-item" data-key="realtime" onclick="switchTab('realtime')">
+          <span>실시간 상태확인</span>
+        </li>
+        <li class="menu-item" data-key="horizon" onclick="switchTab('horizon')">
+          <span>OpenStack Horizon</span>
+        </li>
+        
+        <div class="menu-header">복구 자동화 & 옵저버빌리티</div>
+        <li class="menu-item" data-key="orchestrator" onclick="switchTab('orchestrator')">
+          <span>복구 오케스트레이터</span>
+        </li>
+        <li class="menu-item" data-key="chaos" onclick="switchTab('chaos')">
+          <span>RTO 실측 & 카오스 도구</span>
+        </li>
+        <li class="menu-item" data-key="grafana" onclick="switchTab('grafana')">
+          <span>AWS 통합 관제 메트릭</span>
+        </li>
+        
+        <div class="menu-header">서비스 엔드포인트</div>
+        <li class="menu-item" data-key="minwon" onclick="switchTab('minwon')">
+          <span>민원청구 24시 센터</span>
+        </li>
+        <li class="menu-item" data-key="ktedge" onclick="switchTab('ktedge')">
+          <span>KT Cloud Edge 웹</span>
+        </li>
+
+        <div class="menu-header">라이브 회의실</div>
+        <li class="menu-item" data-key="ppt" onclick="switchTab('ppt')">
+          <span>라이브 PPT 회의실</span>
+        </li>
+      </ul>
+      
+      <div class="sidebar-footer">
+        FIGTEAM Multi-Cloud Console v3.3<br>
+        Inbound Port 0 (Zero Trust)
+      </div>
+    </aside>
 
     <!-- MAIN WORKSPACE -->
     <main id="main-workspace">
@@ -3980,8 +3555,6 @@ PORTAL_HTML = """<!DOCTYPE html>
         </div>
       </section>
 
-      
-
       <!-- 2.11 PPT PRESENTATION PANEL (LIVE TEAM PRESENTATION) -->
       <section id="ppt-panel" style="display: none; flex: 1; flex-direction: column; height: 100%; min-height: 0; padding: 0;">
         <iframe id="ppt-frame" src="/ppt" title="팀6 라이브 PPT 회의실" style="flex: 1; width: 100%; height: 100%; border: 0; background: #080e1a;"></iframe>
@@ -4229,7 +3802,7 @@ PORTAL_HTML = """<!DOCTYPE html>
       argocd: { title: "🚀 Argo CD (온프렘 삭제 완료 · 오케스트레이터로 이관)", url: "https://argocd.ktci5.kr" },
       minwon: { title: "🏛️ 민원청구 24시 센터 (민원접수 서비스)", url: "https://minwon.ktci5.kr" },
       ktedge: { title: "🌐 KT Cloud Edge 관리 콘솔", url: "https://kt-edge.ktci5.kr" },
-            ppt: { title: "📊 팀6 하이브리드 멀티클라우드 DR 시연 라이브 PPT 회의실", url: "" }
+      ppt: { title: "📊 팀6 하이브리드 멀티클라우드 DR 시연 라이브 PPT 회의실", url: "" }
     };
 
     let currentTab = 'overview';
@@ -4346,31 +3919,15 @@ PORTAL_HTML = """<!DOCTYPE html>
       'orchestrator', 'chaos', 'grafana', 'ppt'
     ];
 
-    function clearDemoLogs() {
-      const logBox = document.getElementById('demo-logs-box');
-      if (logBox) logBox.innerHTML = '<div style="color: #64748B;">로그가 초기화되었습니다.</div>';
-    }
 
     function switchTab(key) {
       if (!SERVICES[key]) return;
       currentTab = key;
 
-            // 1. 탑 네비게이션 & 드롭다운 active 메뉴 갱신
-      document.querySelectorAll('.top-nav-item, .dropdown-item').forEach(el => el.classList.remove('active'));
-      const activeNav = document.querySelector('.top-nav-item[data-key="' + key + '"]');
-      if (activeNav) activeNav.classList.add('active');
-
-      const activeDrop = document.querySelector('.dropdown-item[data-key="' + key + '"]');
-      if (activeDrop) activeDrop.classList.add('active');
-
-      const dropTrigger = document.getElementById('top-dropdown-trigger');
-      if (dropTrigger) {
-        if (['ppt', 'minwon', 'ktedge'].indexOf(key) !== -1) {
-          dropTrigger.classList.add('active');
-        } else {
-          dropTrigger.classList.remove('active');
-        }
-      }
+      // 1. 사이드바 active 메뉴 갱신
+      document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+      const activeItem = document.querySelector('.menu-item[data-key="' + key + '"]');
+      if (activeItem) activeItem.classList.add('active');
 
       // 2. 패널 DOM 요소 획득
       const iframePanel = document.getElementById('iframe-panel');
@@ -8744,8 +8301,7 @@ class PortalHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(b'{"status":"fallback"}')
             return
 
-        
-        
+
         # 실시간 라이브 PPT 회의실 독립 페이지
         if path == '/ppt':
             try:
@@ -9042,8 +8598,6 @@ class PortalHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 self.send_json({"status": "error", "message": f"업로드 처리 실패: {str(e)}"}, status=500)
             return
-
-        
 
         if path == '/api/openstack/vm/snapshot':
             length = int(self.headers.get('Content-Length', 0))
