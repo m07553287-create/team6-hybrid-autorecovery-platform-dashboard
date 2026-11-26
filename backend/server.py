@@ -958,10 +958,10 @@ LANDING_HTML = """<!DOCTYPE html>
   <div id="login-container" class="login-wrapper">
     <div class="login-card">
       <div class="login-title">비밀번호 인증</div>
-      <form id="login-form" onsubmit="handleLogin(event)">
-        <input type="password" id="auth-pwd" class="login-input" placeholder="비밀번호" autofocus autocomplete="current-password" required>
+      <form id="login-form" onsubmit="handleLogin(event); return false;">
+        <input type="password" id="auth-pwd" class="login-input" placeholder="비밀번호" autofocus autocomplete="current-password" onkeydown="if(event.key==='Enter') { handleLogin(event); }" required>
         <div id="login-error" class="login-error" style="display: none;">비밀번호가 올바르지 않습니다.</div>
-        <button type="submit" class="login-submit-btn">로그인</button>
+        <button type="button" class="login-submit-btn" onclick="handleLogin(event)">로그인</button>
       </form>
     </div>
   </div>
@@ -1129,17 +1129,6 @@ LANDING_HTML = """<!DOCTYPE html>
       engineRunning = true;
       probeStep();
       setInterval(probeStep, 15000);
-    }
-        timerCountdown--;
-        const label = document.getElementById('timer-label');
-        if (label) label.textContent = `12초 순차 수집 중 (${timerCountdown}s)`;
-        if (timerCountdown <= 0) {
-          timerCountdown = 12;
-          probeStep();
-        }
-      }, 1000);
-
-      window.addEventListener('resize', renderSpeedChart);
     }
 
     // 4. MANUAL & CONFIGURATION SITE DATA
