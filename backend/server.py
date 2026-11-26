@@ -354,24 +354,68 @@ LANDING_HTML = """<!DOCTYPE html>
     .fill-green { background: var(--green); }
     .fill-amber { background: var(--yellow); }
 
-    /* ROW 2: MAIN DASHBOARD SPLIT (POD TABLE & REALTIME PIPELINE) */
-    .dashboard-split {
-      flex: 1;
-      display: grid;
-      grid-template-columns: 1.8fr 1.2fr;
-      gap: 10px;
-      min-height: 0;
+    /* DASHBOARD FULL STREAM LAYOUT (클릭 없이 한번에 하나의 페이지에서 바로 보여지는 뷰) */
+    .dashboard-full-stream {
+      width: 100%;
+      height: 100%;
+      overflow-y: auto;
+      padding: 12px 16px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
     }
-
-    /* LEFT: POD / CONTAINER SERVICE STATUS TABLE */
-    .pod-table-panel {
+    .instance-card-block {
       background: var(--surface);
       border: 1px solid var(--surface-border);
       border-radius: 6px;
-      padding: 12px;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
-      min-height: 0;
+    }
+    .instance-block-header {
+      background: #141e33;
+      border-bottom: 1px solid var(--border-color);
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .inst-head-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .inst-title-lg {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .inst-ip-lg {
+      font-size: 11px;
+      color: var(--text-sub);
+      font-family: var(--font-mono);
+    }
+    .inst-metrics-inline {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 11.5px;
+      font-family: var(--font-mono);
+    }
+    .inst-metric-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-sub);
+    }
+    .inst-metric-pill strong {
+      color: #fff;
+    }
+    .table-container-embedded {
+      width: 100%;
+      overflow-x: auto;
     }
     .panel-head {
       display: flex;
@@ -869,7 +913,7 @@ LANDING_HTML = """<!DOCTYPE html>
         <span id="current-clock">2026-11-26 00:00:00 KST</span>
         <span>·</span>
         <div class="pulse-dot"></div>
-        <span id="timer-label">12초 순차 수집 중 (5s)</span>
+        <span id="timer-label">인프라 텔레메트리 연동</span>
       </div>
     </div>
 
@@ -922,190 +966,10 @@ LANDING_HTML = """<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- VIEW 1: DASHBOARD VIEW (FHD FIXED) -->
+  <!-- VIEW 1: DASHBOARD VIEW (FHD FIXED / CLICK-FREE ONE-PAGE CONSOLE) -->
   <div id="view-dashboard" class="view-container">
-    <div class="dashboard-layout">
-      <!-- ROW 1: NODE RESOURCE MONITORING CARDS -->
-      <div class="node-resource-row">
-        <!-- 1. KT Edge -->
-        <div class="node-card">
-          <div class="node-card-head">
-            <span class="node-title">KT Cloud Edge</span>
-            <span class="node-state-pill state-green">Active</span>
-          </div>
-          <div class="node-meta">14.63.212.190 · 2 vCPU / 4GB</div>
-          <div class="progress-bar-group">
-            <div class="progress-item"><span>CPU</span><span id="kt-cpu-val">18%</span></div>
-            <div class="progress-track"><div class="progress-fill fill-green" id="kt-cpu-fill" style="width: 18%;"></div></div>
-            <div class="progress-item"><span>RAM</span><span id="kt-mem-val">42% (1.7GB)</span></div>
-            <div class="progress-track"><div class="progress-fill" id="kt-mem-fill" style="width: 42%;"></div></div>
-          </div>
-        </div>
-
-        <!-- 2. Onprem k8s-cp1 -->
-        <div class="node-card">
-          <div class="node-card-head">
-            <span class="node-title">온프렘 k8s-cp1</span>
-            <span class="node-state-pill state-green">Active</span>
-          </div>
-          <div class="node-meta">172.20.0.86 · 4 vCPU / 6.5GB</div>
-          <div class="progress-bar-group">
-            <div class="progress-item"><span>CPU</span><span id="k8s-cpu-val">46%</span></div>
-            <div class="progress-track"><div class="progress-fill fill-amber" id="k8s-cpu-fill" style="width: 46%;"></div></div>
-            <div class="progress-item"><span>RAM</span><span id="k8s-mem-val">68% (4.4GB)</span></div>
-            <div class="progress-track"><div class="progress-fill fill-amber" id="k8s-mem-fill" style="width: 68%;"></div></div>
-          </div>
-        </div>
-
-        <!-- 3. Onprem db-01 -->
-        <div class="node-card">
-          <div class="node-card-head">
-            <span class="node-title">온프렘 db-01</span>
-            <span class="node-state-pill state-green">Active</span>
-          </div>
-          <div class="node-meta">10.10.2.10 · 2 vCPU / 4GB</div>
-          <div class="progress-bar-group">
-            <div class="progress-item"><span>CPU</span><span id="db-cpu-val">22%</span></div>
-            <div class="progress-track"><div class="progress-fill fill-green" id="db-cpu-fill" style="width: 22%;"></div></div>
-            <div class="progress-item"><span>RAM</span><span id="db-mem-val">51% (2.0GB)</span></div>
-            <div class="progress-track"><div class="progress-fill" id="db-mem-fill" style="width: 51%;"></div></div>
-          </div>
-        </div>
-
-        <!-- 4. AWS CTL -->
-        <div class="node-card">
-          <div class="node-card-head">
-            <span class="node-title">AWS CTL</span>
-            <span class="node-state-pill state-green">Active</span>
-          </div>
-          <div class="node-meta">10.200.0.10 · 2 vCPU / 4GB</div>
-          <div class="progress-bar-group">
-            <div class="progress-item"><span>CPU</span><span id="ctl-cpu-val">12%</span></div>
-            <div class="progress-track"><div class="progress-fill fill-green" id="ctl-cpu-fill" style="width: 12%;"></div></div>
-            <div class="progress-item"><span>RAM</span><span id="ctl-mem-val">34% (1.4GB)</span></div>
-            <div class="progress-track"><div class="progress-fill" id="ctl-mem-fill" style="width: 34%;"></div></div>
-          </div>
-        </div>
-
-        <!-- 5. AWS DR (Standby is Normal) -->
-        <div class="node-card" style="border-color: #475569;">
-          <div class="node-card-head">
-            <span class="node-title">AWS DR K3s</span>
-            <span class="node-state-pill state-amber">Standby</span>
-          </div>
-          <div class="node-meta">10.200.0.4 · 4 vCPU / 8GB</div>
-          <div class="progress-bar-group">
-            <div class="progress-item"><span>CPU</span><span>4% (대기)</span></div>
-            <div class="progress-track"><div class="progress-fill fill-green" style="width: 4%;"></div></div>
-            <div class="progress-item"><span>RAM</span><span>16% (1.3GB)</span></div>
-            <div class="progress-track"><div class="progress-fill fill-green" style="width: 16%;"></div></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ROW 2: MAIN DASHBOARD SPLIT -->
-      <div class="dashboard-split">
-        <!-- LEFT: INSTANCE TOP 10 RESOURCE & PERFORMANCE HIERARCHY -->
-        <div class="pod-table-panel">
-          <div class="panel-head">
-            <div>
-              <div class="panel-title">
-                <span>인스턴스별 서비스 관제 (Top 10)</span>
-                <span class="rank-badge rank-top3" id="active-inst-title-badge" style="font-size:10px;">온프렘 k8s-cp1</span>
-              </div>
-              <div class="panel-sub" style="margin-top:2px;">클라우드 ➔ 인스턴스 ➔ 서비스유형 ➔ 서비스 (할당량 vs 사용량 & 속도)</div>
-            </div>
-            <div class="filter-chips-row">
-              <button type="button" class="chip-btn active" onclick="filterServices('all')">전체 Top 10</button>
-              <button type="button" class="chip-btn" onclick="filterServices('web')">웹/API</button>
-              <button type="button" class="chip-btn" onclick="filterServices('daemon')">상시작용</button>
-              <button type="button" class="chip-btn" onclick="filterServices('gw')">보안/관문</button>
-              <button type="button" class="chip-btn" onclick="filterServices('data')">데이터/DR</button>
-            </div>
-          </div>
-
-          <!-- INSTANCE SELECTOR TAB BAR -->
-          <div class="instance-tab-bar">
-            <button type="button" class="inst-tab-btn" id="inst-tab-kt-edge" onclick="selectInstanceTop10('kt-edge')">
-              <span class="cloud-tag cloud-kt">KT Cloud</span>
-              <span>kt-edge</span>
-            </button>
-            <button type="button" class="inst-tab-btn active" id="inst-tab-onprem-cp1" onclick="selectInstanceTop10('onprem-cp1')">
-              <span class="cloud-tag cloud-onprem">온프레미스</span>
-              <span>k8s-cp1</span>
-            </button>
-            <button type="button" class="inst-tab-btn" id="inst-tab-onprem-db" onclick="selectInstanceTop10('onprem-db')">
-              <span class="cloud-tag cloud-onprem">온프레미스</span>
-              <span>db-01</span>
-            </button>
-            <button type="button" class="inst-tab-btn" id="inst-tab-aws-ctl" onclick="selectInstanceTop10('aws-ctl')">
-              <span class="cloud-tag cloud-aws">AWS</span>
-              <span>aws-ctl</span>
-            </button>
-            <button type="button" class="inst-tab-btn" id="inst-tab-aws-dr" onclick="selectInstanceTop10('aws-dr')">
-              <span class="cloud-tag cloud-aws">AWS</span>
-              <span>aws-dr (Standby)</span>
-            </button>
-          </div>
-
-          <!-- SELECTED INSTANCE ALLOCATION & PERFORMANCE STRIP -->
-          <div class="inst-summary-strip" id="inst-summary-strip">
-            <!-- Dynamically populated by JS -->
-          </div>
-
-          <!-- HIERARCHICAL TOP 10 TABLE -->
-          <div class="table-scroll">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th style="width: 5%; text-align: center;">순위</th>
-                  <th style="width: 13%;">서비스유형</th>
-                  <th style="width: 25%;">서비스명 & 역할</th>
-                  <th style="width: 14%;">할당 리소스</th>
-                  <th style="width: 18%;">실제 사용량 (점유율)</th>
-                  <th style="width: 10%;">응답속도</th>
-                  <th style="width: 9%;">포트</th>
-                  <th style="width: 6%; text-align: center;">상태</th>
-                </tr>
-              </thead>
-              <tbody id="pod-table-body">
-                <!-- Dynamically populated by renderInstanceTop10() -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- RIGHT: 10~15초 순차 수집 관제 & DR 복구 흐름 -->
-        <div class="telemetry-panel">
-          <div class="panel-head">
-            <div class="panel-title">접속 속도 & DR 복구 관제 (12초 순차 수집)</div>
-            <div class="panel-sub" id="last-ping-time">최근 수집: 대기 중</div>
-          </div>
-
-          <div class="metric-row">
-            <div class="metric-box">
-              <div class="metric-label">외부 접속 속도 (Public Edge)</div>
-              <div class="metric-val"><span id="ext-speed-val">--</span> <span style="font-size:12px; color:var(--text-muted);">ms</span></div>
-            </div>
-            <div class="metric-box">
-              <div class="metric-label">내부 접속 속도 (WireGuard)</div>
-              <div class="metric-val"><span id="int-speed-val">--</span> <span style="font-size:12px; color:var(--text-muted);">ms</span></div>
-            </div>
-          </div>
-
-          <div class="chart-box">
-            <div style="font-size:10.5px; color:var(--text-muted); display:flex; justify-content:space-between; margin-bottom:4px;">
-              <span>응답 지연시간 추이 (최근 15회차)</span>
-              <span><span style="color:#38bdf8;">■ 외부</span> &nbsp;<span style="color:#10b981;">■ 내부</span></span>
-            </div>
-            <canvas id="speed-canvas"></canvas>
-          </div>
-
-          <div class="log-box" id="speed-log-box">
-            <div>[INIT] 10~15초 순차 정보 수집 엔진 대기 중...</div>
-          </div>
-        </div>
-      </div>
+    <div class="dashboard-full-stream" id="dashboard-full-stream">
+      <!-- 5대 인스턴스별 요약정보와 Top 10 리소스/속도 테이블이 클릭 없이 한번에 펼쳐짐 -->
     </div>
   </div>
 
@@ -1205,8 +1069,7 @@ LANDING_HTML = """<!DOCTYPE html>
         vSettings.style.display = 'none';
         btnDash.classList.add('active');
         btnSet.classList.remove('active');
-        renderInstanceTop10();
-        renderSpeedChart();
+        renderAllInstancesTop10();
       } else {
         vDashboard.style.display = 'none';
         vSettings.style.display = 'grid';
@@ -1256,85 +1119,17 @@ LANDING_HTML = """<!DOCTYPE html>
       intHistory.push(intMs);
       if (intHistory.length > 15) intHistory.shift();
 
-      // UI 갱신
+      // UI 갱신 (선택적)
       const extValEl = document.getElementById('ext-speed-val');
-      const intValEl = document.getElementById('int-speed-val');
-      const lastPingEl = document.getElementById('last-ping-time');
       if (extValEl) extValEl.textContent = extMs;
-      if (intValEl) intValEl.textContent = intMs;
-      if (lastPingEl) lastPingEl.textContent = `최근 수집: ${timeLabel}`;
-
-      // 노드 자원 실시간 미세 변동 반영 (시뮬레이션)
-      const ktCpu = Math.min(35, Math.max(14, Math.round(18 + (Math.random() * 6 - 3))));
-      const k8sCpu = Math.min(65, Math.max(38, Math.round(46 + (Math.random() * 8 - 4))));
-      const dbCpu = Math.min(32, Math.max(16, Math.round(22 + (Math.random() * 6 - 3))));
-
-      const ktEl = document.getElementById('kt-cpu-val');
-      const ktFill = document.getElementById('kt-cpu-fill');
-      if (ktEl && ktFill) { ktEl.textContent = ktCpu + '%'; ktFill.style.width = ktCpu + '%'; }
-
-      const k8sEl = document.getElementById('k8s-cpu-val');
-      const k8sFill = document.getElementById('k8s-cpu-fill');
-      if (k8sEl && k8sFill) { k8sEl.textContent = k8sCpu + '%'; k8sFill.style.width = k8sCpu + '%'; }
-
-      const dbEl = document.getElementById('db-cpu-val');
-      const dbFill = document.getElementById('db-cpu-fill');
-      if (dbEl && dbFill) { dbEl.textContent = dbCpu + '%'; dbFill.style.width = dbCpu + '%'; }
-
-      // 로그 추가
-      const logBox = document.getElementById('speed-log-box');
-      if (logBox) {
-        const item = document.createElement('div');
-        item.innerHTML = `<span style="color:#64748b;">[${timeLabel}]</span> 외부: <span style="color:#38bdf8;">${extMs}ms</span> | 내부: <span style="color:#10b981;">${intMs}ms</span> | <span style="color:#34d399;">AWS Standby 정상</span>`;
-        logBox.appendChild(item);
-        logBox.scrollTop = logBox.scrollHeight;
-      }
-
-      renderSpeedChart();
-    }
-
-    function renderSpeedChart() {
-      const canvas = document.getElementById('speed-canvas');
-      if (!canvas || canvas.clientWidth === 0) return;
-      const ctx = canvas.getContext('2d');
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
-      canvas.width = w;
-      canvas.height = h;
-
-      ctx.clearRect(0, 0, w, h);
-
-      // 격자
-      ctx.strokeStyle = '#1e293b';
-      ctx.lineWidth = 1;
-      for (let y = 0; y < h; y += h / 3) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-      }
-
-      const maxVal = Math.max(40, ...extHistory) * 1.2;
-      function drawLine(arr, color) {
-        if (arr.length < 2) return;
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        const step = w / (arr.length - 1);
-        arr.forEach((v, i) => {
-          const x = i * step;
-          const y = h - (v / maxVal) * (h - 8) - 4;
-          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        });
-        ctx.stroke();
-      }
-      drawLine(extHistory, '#38bdf8');
-      drawLine(intHistory, '#10b981');
     }
 
     function initTelemetryEngine() {
       if (engineRunning) return;
       engineRunning = true;
       probeStep();
-
-      setInterval(() => {
+      setInterval(probeStep, 15000);
+    }
         timerCountdown--;
         const label = document.getElementById('timer-label');
         if (label) label.textContent = `12초 순차 수집 중 (${timerCountdown}s)`;
@@ -1582,86 +1377,83 @@ LANDING_HTML = """<!DOCTYPE html>
       }
     };
 
-    let currentSelectedInstance = 'onprem-cp1';
-    let currentServiceFilter = 'all';
+    // 5. RENDER ALL INSTANCES TOP 10 IN ONE SINGLE PAGE (CLICK-FREE)
+    function renderAllInstancesTop10() {
+      const container = document.getElementById('dashboard-full-stream');
+      if (!container) return;
 
-    function selectInstanceTop10(key) {
-      currentSelectedInstance = key;
-      const tabBtns = document.querySelectorAll('.inst-tab-btn');
-      tabBtns.forEach(btn => btn.classList.remove('active'));
-      const activeBtn = document.getElementById(`inst-tab-${key}`);
-      if (activeBtn) activeBtn.classList.add('active');
+      const instanceKeys = ['kt-edge', 'onprem-cp1', 'onprem-db', 'aws-ctl', 'aws-dr'];
 
-      renderInstanceTop10();
-    }
+      container.innerHTML = instanceKeys.map(key => {
+        const data = INSTANCE_TOP10_DATA[key];
+        if (!data) return '';
 
-    function renderInstanceTop10() {
-      const data = INSTANCE_TOP10_DATA[currentSelectedInstance];
-      if (!data) return;
+        const rowsHtml = data.services.map(s => {
+          const rankClass = s.rank <= 3 ? 'rank-top3' : '';
+          const stateClass = s.state === 'Running' ? 'badge-running' : 'badge-standby';
+          const typeClass = `type-${s.type}`;
 
-      // Update badge
-      const badge = document.getElementById('active-inst-title-badge');
-      if (badge) badge.textContent = `${data.cloud} · ${data.name}`;
-
-      // Update Summary Strip
-      const strip = document.getElementById('inst-summary-strip');
-      if (strip) {
-        strip.innerHTML = `
-          <div><strong style="color:#fff;">${data.name}</strong> (${data.ip})</div>
-          <div>할당: <span style="color:#38bdf8;">${data.totalAlloc}</span></div>
-          <div>사용: <span style="color:#34d399;">${data.currentUsage}</span></div>
-          <div>응답: <span style="color:#fbbf24;">${data.netSpeed}</span></div>
-          <div>상태: <span style="color:#34d399;">${data.status}</span></div>
-        `;
-      }
-
-      // Update Table Body
-      const tbody = document.getElementById('pod-table-body');
-      if (!tbody) return;
-
-      tbody.innerHTML = data.services.map(s => {
-        const isVisible = (currentServiceFilter === 'all') ||
-          (currentServiceFilter === 'web' && s.type === 'web') ||
-          (currentServiceFilter === 'daemon' && s.type === 'daemon') ||
-          (currentServiceFilter === 'gw' && s.type === 'gw') ||
-          (currentServiceFilter === 'data' && (s.type === 'data' || s.type === 'dr'));
-
-        const displayStyle = isVisible ? '' : 'display: none;';
-        const rankClass = s.rank <= 3 ? 'rank-top3' : '';
-        const stateClass = s.state === 'Running' ? 'badge-running' : 'badge-standby';
-        const typeClass = `type-${s.type}`;
+          return `
+            <tr data-type="${s.type}">
+              <td style="text-align: center;"><span class="rank-badge ${rankClass}">#${s.rank}</span></td>
+              <td><span class="type-badge ${typeClass}">${s.typeName}</span></td>
+              <td>
+                <div class="svc-box">
+                  <span class="svc-name">${s.name}</span>
+                  <span class="svc-desc">${s.desc}</span>
+                </div>
+              </td>
+              <td><span style="color:#cbd5e1; font-weight:600;">${s.alloc}</span></td>
+              <td>
+                <div class="res-metric-cell">
+                  <div class="res-metric-val"><span>${s.cpuU}</span><span>${s.memU}</span></div>
+                  <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: ${s.cpuP}%;"></div></div>
+                </div>
+              </td>
+              <td><span style="color:#38bdf8; font-weight:700;">${s.lat}</span></td>
+              <td><span style="color:var(--text-muted);">${s.port}</span></td>
+              <td style="text-align: center;"><span class="${stateClass}">${s.state}</span></td>
+            </tr>
+          `;
+        }).join('');
 
         return `
-          <tr data-type="${s.type}" style="${displayStyle}">
-            <td style="text-align: center;"><span class="rank-badge ${rankClass}">#${s.rank}</span></td>
-            <td><span class="type-badge ${typeClass}">${s.typeName}</span></td>
-            <td>
-              <div class="svc-box">
-                <span class="svc-name">${s.name}</span>
-                <span class="svc-desc">${s.desc}</span>
+          <div class="instance-card-block" id="block-${key}">
+            <div class="instance-block-header">
+              <div class="inst-head-left">
+                <span class="cloud-tag ${data.cloudClass}">${data.cloud}</span>
+                <span class="inst-title-lg">${data.name}</span>
+                <span class="inst-ip-lg">(${data.ip})</span>
               </div>
-            </td>
-            <td><span style="color:#cbd5e1; font-weight:600;">${s.alloc}</span></td>
-            <td>
-              <div class="res-metric-cell">
-                <div class="res-metric-val"><span>${s.cpuU}</span><span>${s.memU}</span></div>
-                <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: ${s.cpuP}%;"></div></div>
+              <div class="inst-metrics-inline">
+                <div class="inst-metric-pill">할당: <strong>${data.totalAlloc}</strong></div>
+                <div class="inst-metric-pill">사용: <strong style="color:#34d399;">${data.currentUsage}</strong></div>
+                <div class="inst-metric-pill">속도: <strong style="color:#fbbf24;">${data.netSpeed}</strong></div>
+                <div class="inst-metric-pill">상태: <strong style="color:#38bdf8;">${data.status}</strong></div>
               </div>
-            </td>
-            <td><span style="color:#38bdf8; font-weight:700;">${s.lat}</span></td>
-            <td><span style="color:var(--text-muted);">${s.port}</span></td>
-            <td style="text-align: center;"><span class="${stateClass}">${s.state}</span></td>
-          </tr>
+            </div>
+            <div class="table-container-embedded">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th style="width: 5%; text-align: center;">순위</th>
+                    <th style="width: 12%;">서비스유형</th>
+                    <th style="width: 27%;">서비스명 & 역할</th>
+                    <th style="width: 14%;">할당 리소스</th>
+                    <th style="width: 18%;">실제 사용량 (점유율)</th>
+                    <th style="width: 10%;">응답속도</th>
+                    <th style="width: 8%;">포트</th>
+                    <th style="width: 6%; text-align: center;">상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rowsHtml}
+                </tbody>
+              </table>
+            </div>
+          </div>
         `;
       }).join('');
-    }
-
-    function filterServices(filterType) {
-      currentServiceFilter = filterType;
-      const chips = document.querySelectorAll('.chip-btn');
-      chips.forEach(c => c.classList.remove('active'));
-      event?.currentTarget?.classList?.add('active');
-      renderInstanceTop10();
     }
 
     window.addEventListener('DOMContentLoaded', checkAuth);
