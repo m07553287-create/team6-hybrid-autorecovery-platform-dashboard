@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 FIGTEAM CMP v2 Transition Landing Portal
-- 포트 18088 가동
-- https://figteam.ktci5.kr/ 접속 시 GitHub 저장소 및 v2 대시보드로 이동할 수 있는 빈페이지 버전업 랜딩 화면 제공
+- 아이콘+이모지 제거, 긴 설명문 제거
+- 직관적인 B2B 상용 콘솔 UI, 한글 제목 및 영문 병기
+- KT_CI5 DR 조율 지침 md 규격 반영
 """
 
 import sys
@@ -19,318 +20,356 @@ LANDING_HTML = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FIGTEAM Hybrid Cloud Portal v2 · Version Upgrade</title>
+  <title>FIGTEAM 하이브리드 멀티클라우드 콘솔 v2</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #090d16;
-      --card-bg: rgba(17, 24, 39, 0.75);
-      --card-border: rgba(59, 130, 246, 0.2);
-      --card-hover: rgba(59, 130, 246, 0.4);
-      --text: #f1f5f9;
-      --subtext: #94a3b8;
-      --accent: #38bdf8;
-      --accent-glow: rgba(56, 189, 248, 0.25);
+      --bg: #0b0f19;
+      --surface: #111827;
+      --surface-border: #1f2937;
+      --surface-hover: #1e293b;
+      --text-main: #f9fafb;
+      --text-sub: #9ca3af;
+      --text-muted: #6b7280;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --border-color: #374151;
       --green: #10b981;
-      --green-glow: rgba(16, 185, 129, 0.25);
-      --purple: #a855f7;
+      --yellow: #f59e0b;
+      --font-mono: 'JetBrains Mono', monospace;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background-color: var(--bg);
-      background-image: 
-        radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.12) 0px, transparent 50%),
-        radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.1) 0px, transparent 50%),
-        radial-gradient(at 50% 50%, rgba(16, 185, 129, 0.05) 0px, transparent 50%);
-      color: var(--text);
-      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+      color: var(--text-main);
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
-      align-items: center;
-      padding: 40px 20px;
     }
-    .container {
-      width: 100%;
-      max-width: 980px;
-      margin: auto;
-      text-align: center;
-    }
-    .badge-wrap {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(56, 189, 248, 0.1);
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      padding: 6px 16px;
-      border-radius: 9999px;
-      margin-bottom: 24px;
+    /* GNB */
+    header {
+      height: 56px;
+      border-bottom: 1px solid var(--surface-border);
+      background: rgba(17, 24, 39, 0.8);
       backdrop-filter: blur(8px);
-    }
-    .badge-dot {
-      width: 8px;
-      height: 8px;
-      background: var(--green);
-      border-radius: 50%;
-      box-shadow: 0 0 10px var(--green);
-      animation: pulse 2s infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(1.2); }
-    }
-    .badge-text {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--accent);
-      letter-spacing: 0.5px;
-    }
-    h1 {
-      font-size: clamp(32px, 5vw, 48px);
-      font-weight: 800;
-      line-height: 1.2;
-      margin-bottom: 16px;
-      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 50%, #94a3b8 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      letter-spacing: -0.02em;
-    }
-    .desc {
-      font-size: clamp(15px, 2vw, 17px);
-      color: var(--subtext);
-      max-width: 680px;
-      margin: 0 auto 40px;
-      line-height: 1.7;
-    }
-    .cards-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 20px;
-      margin-bottom: 40px;
-      text-align: left;
-    }
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 16px;
-      padding: 28px 24px;
-      backdrop-filter: blur(12px);
-      transition: all 0.25s ease;
       display: flex;
-      flex-direction: column;
+      align-items: center;
       justify-content: space-between;
-      position: relative;
-      overflow: hidden;
+      padding: 0 28px;
     }
-    .card::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0; height: 3px;
-      background: linear-gradient(90deg, transparent, var(--accent), transparent);
-      opacity: 0;
-      transition: opacity 0.3s ease;
-    }
-    .card:hover {
-      border-color: var(--card-hover);
-      transform: translateY(-4px);
-      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4), 0 0 20px var(--accent-glow);
-    }
-    .card:hover::before {
-      opacity: 1;
-    }
-    .card-icon {
-      font-size: 32px;
-      margin-bottom: 16px;
-    }
-    .card-title {
-      font-size: 19px;
+    .brand-title {
+      font-size: 15px;
       font-weight: 700;
+      letter-spacing: -0.01em;
       color: #fff;
-      margin-bottom: 8px;
-    }
-    .card-desc {
-      font-size: 13.5px;
-      color: var(--subtext);
-      line-height: 1.6;
-      margin-bottom: 24px;
-      flex-grow: 1;
-    }
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 12px 20px;
-      border-radius: 10px;
-      font-size: 14px;
-      font-weight: 700;
-      text-decoration: none;
-      transition: all 0.2s ease;
-      cursor: pointer;
-    }
-    .btn-primary {
-      background: linear-gradient(135deg, #0284c7, #0369a1);
-      color: #fff;
-      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4);
-    }
-    .btn-primary:hover {
-      background: linear-gradient(135deg, #0369a1, #075985);
-      transform: translateY(-1px);
-    }
-    .btn-github {
-      background: #1e293b;
-      border: 1px solid #334155;
-      color: #f8fafc;
-    }
-    .btn-github:hover {
-      background: #334155;
-      color: #fff;
-    }
-    .btn-service {
-      background: rgba(16, 185, 129, 0.15);
-      border: 1px solid rgba(16, 185, 129, 0.4);
-      color: #34d399;
-    }
-    .btn-service:hover {
-      background: rgba(16, 185, 129, 0.25);
-      color: #6ee7b7;
-    }
-    .infra-status-bar {
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid rgba(51, 65, 85, 0.6);
-      border-radius: 12px;
-      padding: 16px 20px;
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-around;
-      align-items: center;
-      gap: 16px;
-      margin-top: 10px;
-      backdrop-filter: blur(8px);
-    }
-    .status-item {
       display: flex;
       align-items: center;
       gap: 10px;
-      font-size: 13px;
     }
-    .status-dot {
+    .brand-tag {
+      font-size: 11px;
+      font-weight: 600;
+      background: #1e293b;
+      color: #38bdf8;
+      border: 1px solid #0284c7;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+    }
+    .header-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12.5px;
+      color: var(--text-sub);
+    }
+    .status-dot-active {
       width: 7px;
       height: 7px;
       border-radius: 50%;
       background: var(--green);
+      box-shadow: 0 0 8px var(--green);
     }
-    .status-label {
-      color: var(--subtext);
+    /* MAIN CONTAINER */
+    main {
+      flex: 1;
+      max-width: 1080px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 48px 24px 64px;
     }
-    .status-val {
+    .page-header {
+      margin-bottom: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-bottom: 1px solid var(--surface-border);
+      padding-bottom: 20px;
+    }
+    .page-title {
+      font-size: 26px;
       font-weight: 700;
-      color: #e2e8f0;
-      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: -0.02em;
+      color: #fff;
+    }
+    .version-label {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    /* NAVIGATION CARDS */
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+      margin-bottom: 14px;
+    }
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+    .nav-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      min-height: 120px;
+    }
+    .nav-card:hover {
+      background: var(--surface-hover);
+      border-color: var(--border-color);
+      transform: translateY(-2px);
+    }
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+    .card-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .card-category {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+    .card-target {
+      font-size: 12.5px;
+      color: var(--text-sub);
+      font-family: var(--font-mono);
+      word-break: break-all;
+      margin-bottom: 16px;
+    }
+    .card-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #38bdf8;
+    }
+    /* TABLE - ARCHITECTURE SPECS */
+    .table-container {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 40px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+    }
+    th {
+      background: #162032;
+      color: #94a3b8;
+      font-weight: 600;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--surface-border);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid #1f2937;
+      color: #e5e7eb;
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    tr:hover td {
+      background: rgba(30, 41, 59, 0.4);
+    }
+    .col-mono {
+      font-family: var(--font-mono);
+      color: #cbd5e1;
       font-size: 12.5px;
     }
-    footer {
-      font-size: 12px;
-      color: #64748b;
-      text-align: center;
-      margin-top: 40px;
-      line-height: 1.8;
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11.5px;
+      font-weight: 600;
     }
-    footer a { color: #94a3b8; text-decoration: none; }
-    footer a:hover { color: var(--accent); }
+    .badge-active {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .badge-standby {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    /* FOOTER */
+    footer {
+      border-top: 1px solid var(--surface-border);
+      padding: 24px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      background: var(--bg);
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <!-- Version Badge -->
-    <div class="badge-wrap">
-      <div class="badge-dot"></div>
-      <div class="badge-text">FIGTEAM CMP v2.0 UPGRADE & GITOPS</div>
+  <!-- GNB -->
+  <header>
+    <div class="brand-title">
+      <span>FIGTEAM 하이브리드 멀티클라우드</span>
+      <span class="brand-tag">v2.0</span>
+    </div>
+    <div class="header-status">
+      <div class="status-dot-active"></div>
+      <span>핵심 인프라 및 GitOps 연계 정상 가동</span>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <main>
+    <div class="page-header">
+      <div class="page-title">통합 포털 및 저장소</div>
+      <div class="version-label">GitOps v2 Transition</div>
     </div>
 
-    <!-- Hero Title -->
-    <h1>하이브리드 멀티클라우드 v2 대시보드</h1>
-    <p class="desc">
-      기존 오픈스택 단일형 포털이 <strong>GitOps 기반 v2 모듈형 대시보드</strong>로 버전 업그레이드되었습니다.<br>
-      아래 공식 GitHub 저장소 및 최신 v2 대시보드, 운영 엔드포인트로 바로 접속하실 수 있습니다.
-    </p>
-
-    <!-- Cards Grid -->
-    <div class="cards-grid">
+    <!-- PRIMARY ACCESS CARDS -->
+    <div class="section-title">주요 서비스 및 저장소 연결</div>
+    <div class="card-grid">
       <!-- 1. GitHub Platform Repo -->
-      <div class="card">
+      <a href="https://github.com/prgrmany/team6-hybrid-autorecovery-platform" target="_blank" rel="noopener noreferrer" class="nav-card">
         <div>
-          <div class="card-icon">🐙</div>
-          <div class="card-title">GitHub 공식 저장소</div>
-          <div class="card-desc">
-            팀6 하이브리드 멀티클라우드 자동복구 플랫폼 메인 소스코드, K8s GitOps 매니페스트, Terraform/Ansible IaC 및 카오스 엔지니어링 명세.
+          <div class="card-head">
+            <span class="card-name">플랫폼 메인 저장소</span>
+            <span class="card-category">GitHub / GitOps</span>
           </div>
+          <div class="card-target">prgrmany/team6-hybrid-autorecovery-platform</div>
         </div>
-        <a href="https://github.com/prgrmany/team6-hybrid-autorecovery-platform" target="_blank" rel="noopener noreferrer" class="btn btn-github">
-          <span>GitHub 저장소 방문</span> ➔
-        </a>
-      </div>
+        <div class="card-action">저장소 열기 ➔</div>
+      </a>
 
-      <!-- 2. v2 Dashboard Repo -->
-      <div class="card">
+      <!-- 2. GitHub Dashboard Repo -->
+      <a href="https://github.com/m07553287-create/team6-hybrid-autorecovery-platform-dashboard" target="_blank" rel="noopener noreferrer" class="nav-card">
         <div>
-          <div class="card-icon">📊</div>
-          <div class="card-title">v2 대시보드 저장소</div>
-          <div class="card-desc">
-            경량화된 차세대 CMP 통합 관제 대시보드 v2 소스코드, Cloudflare Pages 배포 파이프라인 및 멀티클라우드 UI 모듈.
+          <div class="card-head">
+            <span class="card-name">대시보드 저장소</span>
+            <span class="card-category">GitHub / CMP</span>
           </div>
+          <div class="card-target">m07553287-create/team6-hybrid-autorecovery-platform-dashboard</div>
         </div>
-        <a href="https://github.com/m07553287-create/team6-hybrid-autorecovery-platform-dashboard" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
-          <span>v2 대시보드 바로가기</span> ➔
-        </a>
-      </div>
+        <div class="card-action">저장소 열기 ➔</div>
+      </a>
 
-      <!-- 3. Minwon Live Service -->
-      <div class="card">
+      <!-- 3. Civil Petition Service -->
+      <a href="https://minwon.ktci5.kr" target="_blank" rel="noopener noreferrer" class="nav-card">
         <div>
-          <div class="card-icon">🏛️</div>
-          <div class="card-title">민원청구 24시 센터</div>
-          <div class="card-desc">
-            KT Cloud Edge WAF, 온프레미스 K3s 클러스터, AWS Pilot-Light DR로 상시 무중단 서빙되는 대민 서비스 실가동 엔드포인트.
+          <div class="card-head">
+            <span class="card-name">민원청구 서비스</span>
+            <span class="card-category">Service Endpoint</span>
           </div>
+          <div class="card-target">minwon.ktci5.kr (KT Edge WAF / 온프렘 K8s)</div>
         </div>
-        <a href="https://minwon.ktci5.kr" target="_blank" rel="noopener noreferrer" class="btn btn-service">
-          <span>민원 서비스 접속</span> ➔
-        </a>
-      </div>
+        <div class="card-action">서비스 접속 ➔</div>
+      </a>
+
+      <!-- 4. Fallback DR Page -->
+      <a href="https://dr.ktci5.kr" target="_blank" rel="noopener noreferrer" class="nav-card">
+        <div>
+          <div class="card-head">
+            <span class="card-name">비상 접수 센터</span>
+            <span class="card-category">GitHub Fallback</span>
+          </div>
+          <div class="card-target">dr.ktci5.kr (Black Sky DR 복구망)</div>
+        </div>
+        <div class="card-action">센터 열기 ➔</div>
+      </a>
     </div>
 
-    <!-- Backbone Infrastructure Live Status -->
-    <div class="infra-status-bar">
-      <div class="status-item">
-        <div class="status-dot"></div>
-        <span class="status-label">온프렘 오픈스택:</span>
-        <span class="status-val">ACTIVE (db-01 / k8s-cp1)</span>
-      </div>
-      <div class="status-item">
-        <div class="status-dot"></div>
-        <span class="status-label">KT Cloud Edge:</span>
-        <span class="status-val">14.63.212.190 (WAF Ready)</span>
-      </div>
-      <div class="status-item">
-        <div class="status-dot"></div>
-        <span class="status-label">AWS DR:</span>
-        <span class="status-val">Pilot-Light (Standby)</span>
-      </div>
-      <div class="status-item">
-        <div class="status-dot"></div>
-        <span class="status-label">WireGuard:</span>
-        <span class="status-val">Mesh Tunnels UP</span>
-      </div>
+    <!-- ARCHITECTURE & INFRASTRUCTURE SPEC (조율 지침 반영) -->
+    <div class="section-title">아키텍처 확정 규격 및 인프라 가동 현황</div>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>컴포넌트</th>
+            <th>호스트 / 네트워크</th>
+            <th>확정 역할 및 연계</th>
+            <th>상태</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>온프레미스 K3s</strong></td>
+            <td class="col-mono">k8s-cp1 (172.20.0.86)</td>
+            <td>마스터 & 워커 단일 통합 노드 (All-in-One · 4 vCPU / 6.5GB RAM)</td>
+            <td><span class="badge-status badge-active">정상 가동</span></td>
+          </tr>
+          <tr>
+            <td><strong>OpenStack DB</strong></td>
+            <td class="col-mono">db-01 (10.10.2.10)</td>
+            <td>온프렘·AWS 중앙 백업 대상 (평시 백업 / AWS DR 쓰기 발생 시 백업 수신)</td>
+            <td><span class="badge-status badge-active">정상 가동</span></td>
+          </tr>
+          <tr>
+            <td><strong>KT Cloud Edge</strong></td>
+            <td class="col-mono">kt-edge (14.63.212.190)</td>
+            <td>트래픽 관문 & WAF · WireGuard 터널 A/B 엔드포인트</td>
+            <td><span class="badge-status badge-active">정상 가동</span></td>
+          </tr>
+          <tr>
+            <td><strong>AWS DR K3s</strong></td>
+            <td class="col-mono">aws-dr (10.200.0.4)</td>
+            <td>Pilot-Light 대기 (L3 승격 시 Primary RW 전환 및 10.10.2.10 백업 전송)</td>
+            <td><span class="badge-status badge-standby">복구 대기</span></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
-  </div>
+  </main>
 
+  <!-- FOOTER -->
   <footer>
-    FIGTEAM Multi-Cloud Automation Platform v2 · Zero Trust Architecture<br>
-    Copyright &copy; 2026 FIGTEAM Team 6. All rights reserved.
+    KT Cloud CI5 팀6 하이브리드 멀티클라우드 플랫폼 · Zero Trust Network Architecture
   </footer>
 </body>
 </html>
@@ -351,7 +390,7 @@ class LandingHandler(BaseHTTPRequestHandler):
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.send_header('Cache-Control', 'no-cache, no-store')
             self.end_headers()
-            self.wfile.write(b'{"status":"ok","version":"v2-landing","message":"FIGTEAM CMP v2 Landing Page"}')
+            self.wfile.write(b'{"status":"ok","version":"v2-landing","message":"FIGTEAM CMP v2 Portal"}')
             return
 
         # Main Landing Page
@@ -370,7 +409,6 @@ class LandingHandler(BaseHTTPRequestHandler):
         self.wfile.write(b'{"status":"ok"}')
 
     def log_message(self, format, *args):
-        # 간결한 한 줄 로그
         sys.stderr.write(f"[{self.log_date_time_string()}] {self.client_address[0]} {format % args}\n")
 
 class ReusableTCPServer(socketserver.TCPServer):
@@ -378,11 +416,11 @@ class ReusableTCPServer(socketserver.TCPServer):
 
 def run():
     with ReusableTCPServer(("0.0.0.0", PORT), LandingHandler) as httpd:
-        print(f"[FIGTEAM PORTAL v2] Landing server running on port {PORT}")
+        print(f"[FIGTEAM PORTAL v2] Professional landing running on port {PORT}")
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
-            print("\nShutting down landing server.")
+            print("\nShutting down server.")
 
 if __name__ == '__main__':
     run()
