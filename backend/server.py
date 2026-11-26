@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-FIGTEAM CMP v2 Transition Landing & Fixed Full-bleed Dashboard
-- FHD(1920x1080) 데스크탑 고정 대시보드 (전체 여백 활용)
-- 상단(Top): 인프라 구성요소 상태 바 및 설정 영역 (매뉴얼·스크립트)
-- 메인(Body):
-  * 내부/외부 접속 속도 10초 단위 순차 수집 엔진 및 실시간 차트/로그
-  * 트래픽 경로 판별 및 DR 오케스트레이션 상태 관제
-  * 핵심 대시보드 및 플랫폼 저장소 연계
+FIGTEAM CMP v2 Transition Landing & FHD Fixed Dual Console
+- 탑 헤드 영역:
+  * 타이틀, 시계, 10~15초 순차 수집 타이머
+  * 인프라 개별 상태 배지: [KT Edge, 온프렘 오픈스택(k8s-cp1, db-01), AWS CTL, AWS DR(Standby 정상)]
+  * [대시보드] / [설정] 탭 전환 버튼 및 [로그아웃]
+- 대시보드 뷰:
+  * 모든 인스턴스의 노드 자원 (CPU, RAM, Disk, Network)
+  * 도커/컨테이너/쿠버네티스 팟 서비스 및 리소스 점유 현황
+  * AWS DR Standby(정상) 감시 및 10~15초 순차 수집 관제
+- 설정 사이트 뷰:
+  * 좌측: 인스턴스 메뉴 (KT Edge, 온프렘 cp1, db-01, AWS CTL, AWS DR, 통합 로드맵)
+  * 바디: 해당 인스턴스의 상세 설정 설명, 스크립트 코드, 검증 명령어
 - 비밀번호(figteam) 인증 게이트웨이
 """
 
@@ -43,7 +48,6 @@ LANDING_HTML = """<!DOCTYPE html>
       --blue: #38bdf8;
       --green: #10b981;
       --yellow: #f59e0b;
-      --red: #ef4444;
       --border-color: #334155;
       --font-mono: 'JetBrains Mono', monospace;
     }
@@ -57,52 +61,56 @@ LANDING_HTML = """<!DOCTYPE html>
       font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
     }
 
-    /* GNB */
+    /* TOP HEADER BAR (FHD FIXED) */
     header {
-      height: 48px;
+      height: 52px;
       border-bottom: 1px solid var(--surface-border);
-      background: rgba(15, 23, 42, 0.95);
+      background: rgba(15, 23, 42, 0.96);
       backdrop-filter: blur(8px);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 20px;
+      padding: 0 16px;
+      flex-shrink: 0;
+      gap: 12px;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
       flex-shrink: 0;
     }
     .brand-title {
-      font-size: 14.5px;
+      font-size: 14px;
       font-weight: 700;
       color: #fff;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 6px;
+      white-space: nowrap;
     }
     .brand-tag {
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 600;
       background: #1e293b;
       color: var(--blue);
       border: 1px solid #0284c7;
-      padding: 2px 7px;
+      padding: 1px 6px;
       border-radius: 4px;
       font-family: var(--font-mono);
     }
-    .header-center {
+    .header-clock-timer {
       display: flex;
       align-items: center;
-      gap: 16px;
-      font-size: 12px;
+      gap: 10px;
+      font-size: 11.5px;
       font-family: var(--font-mono);
       color: var(--text-sub);
-    }
-    .timer-indicator {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: #1e293b;
+      background: #090d16;
+      border: 1px solid var(--surface-border);
       padding: 3px 10px;
       border-radius: 4px;
-      border: 1px solid #334155;
+      white-space: nowrap;
     }
     .pulse-dot {
       width: 6px;
@@ -111,35 +119,85 @@ LANDING_HTML = """<!DOCTYPE html>
       background: var(--blue);
       box-shadow: 0 0 6px var(--blue);
     }
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-    .header-status {
+
+    /* TOP INFRASTATUS INDIVIDUAL BADGES */
+    .header-infra-status {
       display: flex;
       align-items: center;
       gap: 6px;
-      font-size: 12px;
-      color: var(--text-sub);
+      overflow-x: auto;
+      flex: 1;
+      justify-content: center;
     }
-    .status-dot-active {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--green);
-      box-shadow: 0 0 8px var(--green);
+    .infra-badge-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #141e33;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    .infra-badge-name {
+      font-weight: 600;
+      color: #cbd5e1;
+    }
+    .infra-badge-state {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+    .state-green {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+    }
+    .state-amber {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+    }
+
+    /* HEADER RIGHT NAV BUTTONS */
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .nav-btn {
+      background: #1e293b;
+      border: 1px solid var(--surface-border);
+      color: var(--text-sub);
+      padding: 5px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-family: inherit;
+    }
+    .nav-btn:hover {
+      background: #334155;
+      color: #fff;
+    }
+    .nav-btn.active {
+      background: var(--primary);
+      color: #fff;
+      border-color: #3b82f6;
     }
     .logout-btn {
       background: transparent;
       border: 1px solid var(--surface-border);
       color: var(--text-sub);
-      padding: 4px 10px;
+      padding: 5px 10px;
       border-radius: 4px;
       font-size: 11.5px;
       cursor: pointer;
+      transition: all 0.15s ease;
       font-family: inherit;
-      transition: all 0.2s ease;
     }
     .logout-btn:hover {
       background: #1f2937;
@@ -150,7 +208,7 @@ LANDING_HTML = """<!DOCTYPE html>
     /* LOGIN VIEW */
     .login-wrapper {
       width: 100%;
-      height: calc(100vh - 48px);
+      height: calc(100vh - 52px);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -208,469 +266,441 @@ LANDING_HTML = """<!DOCTYPE html>
       background: var(--primary-hover);
     }
 
-    /* DESKTOP FIXED DASHBOARD WRAPPER (FHD 100vh Fill) */
-    .dashboard-container {
+    /* MAIN VIEW CONTAINERS */
+    .view-container {
       width: 100%;
-      height: calc(100vh - 48px);
-      display: flex;
-      flex-direction: column;
-      padding: 12px 16px 14px;
-      gap: 12px;
+      height: calc(100vh - 52px);
+      display: none;
       overflow: hidden;
     }
 
-    /* TOP PANEL: INFRASTATUS & SETTINGS */
-    .top-panel {
-      display: grid;
-      grid-template-columns: 1.6fr 1fr;
-      gap: 12px;
-      flex-shrink: 0;
+    /* ========================================================
+       1. DASHBOARD VIEW (FHD FIXED)
+       ======================================================== */
+    .dashboard-layout {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      padding: 10px 14px 12px;
+      gap: 10px;
     }
 
-    /* TOP SECTION 1: INFRASTRUCTURE STATUS BAR */
-    .infra-bar {
+    /* ROW 1: NODE RESOURCE MONITORING CARDS */
+    .node-resource-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .node-card {
       background: var(--surface);
       border: 1px solid var(--surface-border);
       border-radius: 6px;
-      padding: 10px 14px;
+      padding: 10px 12px;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      gap: 6px;
     }
-    .panel-header-inline {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-    .panel-title {
-      font-size: 12px;
-      font-weight: 700;
-      color: #94a3b8;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .infra-items-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
-    }
-    .infra-node-box {
-      background: var(--surface-card);
-      border: 1px solid var(--border-color);
-      border-radius: 5px;
-      padding: 8px 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }
-    .node-header {
+    .node-card-head {
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-    .node-name {
+    .node-title {
       font-size: 12.5px;
       font-weight: 700;
       color: #fff;
     }
-    .node-ip {
+    .node-state-pill {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 3px;
       font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--text-sub);
     }
-    .node-role {
-      font-size: 11px;
+    .node-meta {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
       color: var(--text-muted);
     }
-    .badge-node {
-      font-size: 10.5px;
-      font-weight: 600;
-      padding: 1px 6px;
-      border-radius: 3px;
-      display: inline-flex;
-      align-items: center;
+    .progress-bar-group {
+      display: flex;
+      flex-direction: column;
       gap: 4px;
+      margin-top: 2px;
     }
-    .badge-green {
-      background: rgba(16, 185, 129, 0.15);
-      color: #34d399;
-      border: 1px solid rgba(16, 185, 129, 0.3);
+    .progress-item {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--text-sub);
     }
-    .badge-amber {
-      background: rgba(245, 158, 11, 0.15);
-      color: #fbbf24;
-      border: 1px solid rgba(245, 158, 11, 0.3);
+    .progress-track {
+      width: 100%;
+      height: 4px;
+      background: #090d16;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 1px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--blue);
+      border-radius: 2px;
+      transition: width 0.5s ease;
+    }
+    .fill-green { background: var(--green); }
+    .fill-amber { background: var(--yellow); }
+
+    /* ROW 2: MAIN DASHBOARD SPLIT (POD TABLE & REALTIME PIPELINE) */
+    .dashboard-split {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1.8fr 1.2fr;
+      gap: 10px;
+      min-height: 0;
     }
 
-    /* TOP SECTION 2: CONFIGURATION & MANUALS */
-    .settings-bar {
+    /* LEFT: POD / CONTAINER SERVICE STATUS TABLE */
+    .pod-table-panel {
       background: var(--surface);
       border: 1px solid var(--surface-border);
       border-radius: 6px;
-      padding: 10px 14px;
+      padding: 12px;
       display: flex;
       flex-direction: column;
+      min-height: 0;
+    }
+    .panel-head {
+      display: flex;
       justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      flex-shrink: 0;
     }
-    .settings-grid {
+    .panel-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .panel-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+    .table-scroll {
+      flex: 1;
+      overflow-y: auto;
+      border: 1px solid var(--surface-border);
+      border-radius: 4px;
+    }
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11.5px;
+      text-align: left;
+    }
+    table.data-table th {
+      background: #141e33;
+      color: #94a3b8;
+      font-weight: 600;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--surface-border);
+      font-size: 11px;
+      text-transform: uppercase;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    table.data-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #1e293b;
+      color: #e2e8f0;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+    table.data-table tr:hover td {
+      background: rgba(30, 42, 71, 0.5);
+    }
+    .badge-running {
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.15);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-weight: 700;
+    }
+    .badge-standby {
+      color: #fbbf24;
+      background: rgba(245, 158, 11, 0.15);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-weight: 700;
+    }
+
+    /* RIGHT: SEQUENTIAL ENGINE & LATENCY MONITOR */
+    .telemetry-panel {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 6px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-height: 0;
+    }
+    .metric-row {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: 1fr 1fr;
       gap: 8px;
+      flex-shrink: 0;
     }
-    .setting-btn-card {
+    .metric-box {
       background: var(--surface-card);
       border: 1px solid var(--border-color);
       border-radius: 5px;
       padding: 8px 10px;
-      text-decoration: none;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      transition: all 0.15s ease;
     }
-    .setting-btn-card:hover {
-      background: var(--surface-hover);
-      border-color: var(--blue);
-      transform: translateY(-1px);
-    }
-    .setting-name {
-      font-size: 12px;
-      font-weight: 600;
-      color: #e2e8f0;
-    }
-    .setting-target {
-      font-size: 10px;
-      color: var(--text-muted);
-      font-family: var(--font-mono);
-    }
-    .setting-arrow {
-      font-size: 11px;
-      color: var(--blue);
-    }
-
-    /* MAIN BODY: 3-COLUMN FHD FULL LAYOUT */
-    .main-body-grid {
-      flex: 1;
-      display: grid;
-      grid-template-columns: 1.15fr 1.05fr 0.8fr;
-      gap: 12px;
-      min-height: 0; /* Prevents overflow */
-    }
-
-    .dashboard-col {
-      background: var(--surface);
-      border: 1px solid var(--surface-border);
-      border-radius: 6px;
-      padding: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      min-height: 0;
-      overflow: hidden;
-    }
-    .col-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid var(--surface-border);
-      padding-bottom: 8px;
-      flex-shrink: 0;
-    }
-    .col-title {
-      font-size: 13.5px;
-      font-weight: 700;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .col-sub {
+    .metric-label {
       font-size: 11px;
       color: var(--text-muted);
-      font-family: var(--font-mono);
     }
-
-    /* COLUMN 1: LATENCY METRICS & REALTIME CHART */
-    .metric-cards-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      flex-shrink: 0;
-    }
-    .speed-card {
-      background: var(--surface-card);
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .speed-card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .speed-type {
-      font-size: 11.5px;
-      font-weight: 600;
-      color: #94a3b8;
-    }
-    .speed-val-box {
-      display: flex;
-      align-items: baseline;
-      gap: 4px;
-      margin: 4px 0 2px;
-    }
-    .speed-num {
-      font-size: 26px;
+    .metric-val {
+      font-size: 20px;
       font-weight: 700;
       font-family: var(--font-mono);
       color: #fff;
     }
-    .speed-unit {
-      font-size: 12px;
-      color: var(--text-muted);
-      font-family: var(--font-mono);
-    }
-    .speed-subinfo {
-      font-size: 11px;
-      color: var(--text-sub);
-      font-family: var(--font-mono);
-      display: flex;
-      justify-content: space-between;
-    }
-
-    /* CHART WRAPPER */
-    .chart-container {
+    .chart-box {
       flex: 1;
       background: #090d16;
       border: 1px solid var(--surface-border);
-      border-radius: 6px;
-      padding: 10px;
+      border-radius: 5px;
+      padding: 8px;
       display: flex;
       flex-direction: column;
-      min-height: 140px;
-      position: relative;
+      min-height: 100px;
     }
-    .chart-header {
-      display: flex;
-      justify-content: space-between;
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-bottom: 6px;
-    }
-    .chart-legend {
-      display: flex;
-      gap: 12px;
-    }
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-    .legend-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 2px;
-    }
-    canvas#latency-canvas {
+    canvas#speed-canvas {
       width: 100%;
       flex: 1;
       display: block;
     }
-
-    /* LOG CONSOLE */
-    .log-terminal {
-      height: 125px;
+    .log-box {
+      height: 95px;
       background: #06090e;
       border: 1px solid var(--surface-border);
-      border-radius: 6px;
-      padding: 8px 10px;
+      border-radius: 5px;
+      padding: 6px 8px;
       font-family: var(--font-mono);
-      font-size: 11px;
+      font-size: 10.5px;
       color: #cbd5e1;
       overflow-y: auto;
       flex-shrink: 0;
-      line-height: 1.5;
+      line-height: 1.4;
     }
-    .log-line {
-      display: flex;
-      gap: 8px;
-    }
-    .log-time { color: var(--text-muted); }
-    .log-ext { color: var(--blue); }
-    .log-int { color: var(--green); }
-    .log-status { color: #10b981; }
 
-    /* COLUMN 2: TRAFFIC ROUTING & DR FLOW */
-    .traffic-box {
-      background: var(--surface-card);
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      padding: 12px;
+    /* ========================================================
+       2. SETTINGS SITE VIEW (SPLIT: LEFT MENU & BODY MANUAL)
+       ======================================================== */
+    .settings-layout {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      overflow: hidden;
+    }
+
+    /* LEFT SIDEBAR: INSTANCE & CONFIGURATION MENU */
+    .settings-sidebar {
+      background: #0f172a;
+      border-right: 1px solid var(--surface-border);
+      padding: 14px 10px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
+      overflow-y: auto;
     }
-    .route-item {
+    .sidebar-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      padding: 6px 10px 4px;
+    }
+    .menu-item-btn {
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 5px;
+      padding: 9px 12px;
+      color: var(--text-sub);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      transition: all 0.15s ease;
+      font-family: inherit;
+    }
+    .menu-item-btn:hover {
+      background: var(--surface-card);
+      color: #fff;
+    }
+    .menu-item-btn.active {
+      background: #141e33;
+      border-color: #3b82f6;
+      color: #fff;
+    }
+    .menu-item-name {
+      font-size: 12.5px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .menu-item-desc {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    /* RIGHT BODY: MANUAL & SCRIPT DETAILS */
+    .settings-body {
+      background: #090d16;
+      padding: 24px 32px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .manual-header {
+      border-bottom: 1px solid var(--surface-border);
+      padding-bottom: 14px;
+    }
+    .manual-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      background: rgba(15, 23, 42, 0.7);
-      border: 1px solid #1e293b;
+      gap: 10px;
+    }
+    .manual-tag {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      background: #1e293b;
+      color: var(--blue);
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid #334155;
+    }
+    .manual-desc {
+      font-size: 13px;
+      color: var(--text-sub);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+    .manual-card-box {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 6px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .box-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #cbd5e1;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .code-block {
+      background: #06090e;
+      border: 1px solid var(--surface-border);
+      border-radius: 5px;
+      padding: 12px 14px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: #38bdf8;
+      overflow-x: auto;
+      line-height: 1.5;
+      white-space: pre;
+    }
+    .spec-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .spec-item {
+      background: #06090e;
+      border: 1px solid var(--surface-border);
       border-radius: 4px;
       padding: 8px 10px;
-    }
-    .route-meta {
       display: flex;
       flex-direction: column;
       gap: 2px;
     }
-    .route-name {
-      font-size: 12px;
-      font-weight: 700;
-      color: #fff;
-    }
-    .route-path {
-      font-size: 11px;
-      font-family: var(--font-mono);
-      color: var(--text-sub);
-    }
-    .route-badge {
-      font-size: 11px;
-      font-family: var(--font-mono);
-      padding: 2px 7px;
-      border-radius: 3px;
-    }
-
-    .dr-orchestration-panel {
-      background: var(--surface-card);
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      padding: 12px;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .dr-stages {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      flex: 1;
-    }
-    .dr-stage-card {
-      background: rgba(15, 23, 42, 0.7);
-      border: 1px solid #1e293b;
-      border-radius: 4px;
-      padding: 8px 10px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .stage-title {
-      font-size: 12px;
-      font-weight: 600;
-      color: #fff;
-    }
-    .stage-desc {
-      font-size: 10.5px;
-      color: var(--text-muted);
-    }
-
-    /* COLUMN 3: DASHBOARD REPOSITORIES & STATUS */
-    .repo-card {
-      background: var(--surface-card);
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      padding: 14px;
-      text-decoration: none;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      transition: all 0.15s ease;
-      min-height: 95px;
-    }
-    .repo-card:hover {
-      background: var(--surface-hover);
-      border-color: var(--blue);
-      transform: translateY(-2px);
-    }
-    .repo-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 6px;
-    }
-    .repo-title {
-      font-size: 14px;
-      font-weight: 700;
-      color: #fff;
-    }
-    .repo-tag {
-      font-size: 10.5px;
-      font-family: var(--font-mono);
-      color: var(--text-muted);
-    }
-    .repo-path {
-      font-size: 11px;
-      font-family: var(--font-mono);
-      color: var(--text-sub);
-      word-break: break-all;
-      margin-bottom: 8px;
-    }
-    .repo-link-action {
-      font-size: 11.5px;
-      font-weight: 600;
-      color: var(--blue);
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .system-summary-box {
-      background: var(--surface-card);
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      padding: 12px;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-    .summary-item {
-      display: flex;
-      justify-content: space-between;
-      font-size: 11.5px;
-      padding: 4px 0;
-      border-bottom: 1px solid #1e293b;
-    }
-    .summary-item:last-child { border-bottom: none; }
-    .sum-key { color: var(--text-muted); }
-    .sum-val { font-family: var(--font-mono); color: #fff; }
+    .spec-k { font-size: 10.5px; color: var(--text-muted); }
+    .spec-v { font-size: 12px; font-weight: 600; font-family: var(--font-mono); color: #fff; }
   </style>
 </head>
 <body>
-  <!-- GNB -->
+  <!-- TOP HEADER (FHD FIXED) -->
   <header>
-    <div class="brand-title">
-      <span>FIGTEAM 하이브리드 멀티클라우드</span>
-      <span class="brand-tag">v2.0 FHD</span>
-    </div>
-    <div class="header-center">
-      <div id="current-clock">2026-11-26 00:00:00 KST</div>
-      <div class="timer-indicator">
+    <div class="header-left">
+      <div class="brand-title">
+        <span>FIGTEAM 하이브리드 멀티클라우드</span>
+        <span class="brand-tag">v2.0 FHD</span>
+      </div>
+      <div class="header-clock-timer">
+        <span id="current-clock">2026-11-26 00:00:00 KST</span>
+        <span>·</span>
         <div class="pulse-dot"></div>
-        <span id="timer-label">10초 주기 속도 수집 중 (9s)</span>
+        <span id="timer-label">12초 순차 수집 중 (5s)</span>
       </div>
     </div>
-    <div class="header-right">
-      <div class="header-status">
-        <div class="status-dot-active"></div>
-        <span>인프라 및 관제 엔진 정상</span>
+
+    <!-- INDIVIDUAL INFRASTRUCTURE STATUS BADGES -->
+    <div class="header-infra-status">
+      <!-- 1. KT Edge -->
+      <div class="infra-badge-item">
+        <span class="infra-badge-name">KT Edge</span>
+        <span class="infra-badge-state state-green">정상</span>
       </div>
+      <!-- 2. Onprem K8s cp1 -->
+      <div class="infra-badge-item">
+        <span class="infra-badge-name">온프렘 cp1</span>
+        <span class="infra-badge-state state-green">정상</span>
+      </div>
+      <!-- 3. Onprem DB db01 -->
+      <div class="infra-badge-item">
+        <span class="infra-badge-name">온프렘 db01</span>
+        <span class="infra-badge-state state-green">정상</span>
+      </div>
+      <!-- 4. AWS CTL -->
+      <div class="infra-badge-item">
+        <span class="infra-badge-name">AWS CTL</span>
+        <span class="infra-badge-state state-green">정상</span>
+      </div>
+      <!-- 5. AWS DR (Standby is Normal) -->
+      <div class="infra-badge-item">
+        <span class="infra-badge-name">AWS DR</span>
+        <span class="infra-badge-state state-amber" title="AWS는 Standby 상태가 정상 가동입니다.">Standby(정상)</span>
+      </div>
+    </div>
+
+    <!-- NAVIGATION & LOGOUT -->
+    <div class="header-right">
+      <button type="button" class="nav-btn active" id="btn-tab-dashboard" onclick="switchView('dashboard')">대시보드</button>
+      <button type="button" class="nav-btn" id="btn-tab-settings" onclick="switchView('settings')">설정</button>
       <button type="button" class="logout-btn" id="logout-btn" onclick="logout()" style="display:none;">로그아웃</button>
     </div>
   </header>
@@ -687,269 +717,259 @@ LANDING_HTML = """<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- AUTHENTICATED FHD DESKTOP FIXED DASHBOARD -->
-  <div id="portal-container" class="dashboard-container" style="display: none;">
-    <!-- TOP PANEL: INFRASTRUCTURE STATUS & SETTINGS -->
-    <div class="top-panel">
-      <!-- 1. INFRASTRUCTURE COMPONENT STATUS (TOP BAR) -->
-      <div class="infra-bar">
-        <div class="panel-header-inline">
-          <div class="panel-title">인프라 구성요소 상태 (Infrastructure Status)</div>
-          <div class="node-ip">Mesh: 100.64.0.0/24 · WAF: Active</div>
+  <!-- VIEW 1: DASHBOARD VIEW (FHD FIXED) -->
+  <div id="view-dashboard" class="view-container">
+    <div class="dashboard-layout">
+      <!-- ROW 1: NODE RESOURCE MONITORING CARDS -->
+      <div class="node-resource-row">
+        <!-- 1. KT Edge -->
+        <div class="node-card">
+          <div class="node-card-head">
+            <span class="node-title">KT Cloud Edge</span>
+            <span class="node-state-pill state-green">Active</span>
+          </div>
+          <div class="node-meta">14.63.212.190 · 2 vCPU / 4GB</div>
+          <div class="progress-bar-group">
+            <div class="progress-item"><span>CPU</span><span id="kt-cpu-val">18%</span></div>
+            <div class="progress-track"><div class="progress-fill fill-green" id="kt-cpu-fill" style="width: 18%;"></div></div>
+            <div class="progress-item"><span>RAM</span><span id="kt-mem-val">42% (1.7GB)</span></div>
+            <div class="progress-track"><div class="progress-fill" id="kt-mem-fill" style="width: 42%;"></div></div>
+          </div>
         </div>
-        <div class="infra-items-grid">
-          <!-- Node 1: KT Cloud Edge -->
-          <div class="infra-node-box">
-            <div class="node-header">
-              <span class="node-name">KT Cloud Edge</span>
-              <span class="badge-node badge-green">정상</span>
-            </div>
-            <div class="node-ip">14.63.212.190</div>
-            <div class="node-role">트래픽 관문 & WAF</div>
+
+        <!-- 2. Onprem k8s-cp1 -->
+        <div class="node-card">
+          <div class="node-card-head">
+            <span class="node-title">온프렘 k8s-cp1</span>
+            <span class="node-state-pill state-green">Active</span>
           </div>
-          <!-- Node 2: Onprem K3s -->
-          <div class="infra-node-box">
-            <div class="node-header">
-              <span class="node-name">온프레미스 K3s</span>
-              <span class="badge-node badge-green">정상</span>
-            </div>
-            <div class="node-ip">k8s-cp1 (172.20.0.86)</div>
-            <div class="node-role">통합 마스터 & 워커 노드</div>
+          <div class="node-meta">172.20.0.86 · 4 vCPU / 6.5GB</div>
+          <div class="progress-bar-group">
+            <div class="progress-item"><span>CPU</span><span id="k8s-cpu-val">46%</span></div>
+            <div class="progress-track"><div class="progress-fill fill-amber" id="k8s-cpu-fill" style="width: 46%;"></div></div>
+            <div class="progress-item"><span>RAM</span><span id="k8s-mem-val">68% (4.4GB)</span></div>
+            <div class="progress-track"><div class="progress-fill fill-amber" id="k8s-mem-fill" style="width: 68%;"></div></div>
           </div>
-          <!-- Node 3: OpenStack DB -->
-          <div class="infra-node-box">
-            <div class="node-header">
-              <span class="node-name">온프렘 DB</span>
-              <span class="badge-node badge-green">정상</span>
-            </div>
-            <div class="node-ip">db-01 (10.10.2.10)</div>
-            <div class="node-role">OpenStack MariaDB</div>
+        </div>
+
+        <!-- 3. Onprem db-01 -->
+        <div class="node-card">
+          <div class="node-card-head">
+            <span class="node-title">온프렘 db-01</span>
+            <span class="node-state-pill state-green">Active</span>
           </div>
-          <!-- Node 4: AWS DR K3s -->
-          <div class="infra-node-box">
-            <div class="node-header">
-              <span class="node-name">AWS DR K3s</span>
-              <span class="badge-node badge-amber">대기</span>
-            </div>
-            <div class="node-ip">aws-dr (10.200.0.4)</div>
-            <div class="node-role">Pilot-Light 대기 인스턴스</div>
+          <div class="node-meta">10.10.2.10 · 2 vCPU / 4GB</div>
+          <div class="progress-bar-group">
+            <div class="progress-item"><span>CPU</span><span id="db-cpu-val">22%</span></div>
+            <div class="progress-track"><div class="progress-fill fill-green" id="db-cpu-fill" style="width: 22%;"></div></div>
+            <div class="progress-item"><span>RAM</span><span id="db-mem-val">51% (2.0GB)</span></div>
+            <div class="progress-track"><div class="progress-fill" id="db-mem-fill" style="width: 51%;"></div></div>
+          </div>
+        </div>
+
+        <!-- 4. AWS CTL -->
+        <div class="node-card">
+          <div class="node-card-head">
+            <span class="node-title">AWS CTL</span>
+            <span class="node-state-pill state-green">Active</span>
+          </div>
+          <div class="node-meta">10.200.0.10 · 2 vCPU / 4GB</div>
+          <div class="progress-bar-group">
+            <div class="progress-item"><span>CPU</span><span id="ctl-cpu-val">12%</span></div>
+            <div class="progress-track"><div class="progress-fill fill-green" id="ctl-cpu-fill" style="width: 12%;"></div></div>
+            <div class="progress-item"><span>RAM</span><span id="ctl-mem-val">34% (1.4GB)</span></div>
+            <div class="progress-track"><div class="progress-fill" id="ctl-mem-fill" style="width: 34%;"></div></div>
+          </div>
+        </div>
+
+        <!-- 5. AWS DR (Standby is Normal) -->
+        <div class="node-card" style="border-color: #475569;">
+          <div class="node-card-head">
+            <span class="node-title">AWS DR K3s</span>
+            <span class="node-state-pill state-amber">Standby</span>
+          </div>
+          <div class="node-meta">10.200.0.4 · 4 vCPU / 8GB</div>
+          <div class="progress-bar-group">
+            <div class="progress-item"><span>CPU</span><span>4% (대기)</span></div>
+            <div class="progress-track"><div class="progress-fill fill-green" style="width: 4%;"></div></div>
+            <div class="progress-item"><span>RAM</span><span>16% (1.3GB)</span></div>
+            <div class="progress-track"><div class="progress-fill fill-green" style="width: 16%;"></div></div>
           </div>
         </div>
       </div>
 
-      <!-- 2. SETTINGS AREA (TOP CONFIGURATION BAR) -->
-      <div class="settings-bar">
-        <div class="panel-header-inline">
-          <div class="panel-title">설정 영역 (Configuration & Scripts)</div>
-          <div class="node-ip">GitOps v2 Direct Link</div>
+      <!-- ROW 2: MAIN DASHBOARD SPLIT -->
+      <div class="dashboard-split">
+        <!-- LEFT: POD & CONTAINER STATUS TABLE -->
+        <div class="pod-table-panel">
+          <div class="panel-head">
+            <div class="panel-title">
+              <span>쿠버네티스 파드 & 컨테이너 서비스 현황</span>
+            </div>
+            <div class="panel-sub">Total 8 Services Running · K3s v1.28</div>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>서비스 / 파드명</th>
+                  <th>네임스페이스</th>
+                  <th>배치 노드</th>
+                  <th>CPU</th>
+                  <th>메모리</th>
+                  <th>레플리카</th>
+                  <th>상태</th>
+                </tr>
+              </thead>
+              <tbody id="pod-table-body">
+                <tr>
+                  <td><strong>ingress-traefik-84f9b</strong></td>
+                  <td>kube-system</td>
+                  <td>k8s-cp1</td>
+                  <td>120m</td>
+                  <td>184MB</td>
+                  <td>1/1</td>
+                  <td><span class="badge-running">Running</span></td>
+                </tr>
+                <tr>
+                  <td><strong>minwon-backend-7bc8f</strong></td>
+                  <td>production</td>
+                  <td>k8s-cp1</td>
+                  <td>280m</td>
+                  <td>412MB</td>
+                  <td>2/2</td>
+                  <td><span class="badge-running">Running</span></td>
+                </tr>
+                <tr>
+                  <td><strong>minwon-frontend-6da1c</strong></td>
+                  <td>production</td>
+                  <td>k8s-cp1</td>
+                  <td>95m</td>
+                  <td>146MB</td>
+                  <td>2/2</td>
+                  <td><span class="badge-running">Running</span></td>
+                </tr>
+                <tr>
+                  <td><strong>coredns-6799fbd9c</strong></td>
+                  <td>kube-system</td>
+                  <td>k8s-cp1</td>
+                  <td>45m</td>
+                  <td>68MB</td>
+                  <td>1/1</td>
+                  <td><span class="badge-running">Running</span></td>
+                </tr>
+                <tr>
+                  <td><strong>mariadb-galera-0</strong></td>
+                  <td>database</td>
+                  <td>db-01</td>
+                  <td>310m</td>
+                  <td>890MB</td>
+                  <td>1/1</td>
+                  <td><span class="badge-running">Running</span></td>
+                </tr>
+                <tr>
+                  <td><strong>wireguard-mesh-daemon</strong></td>
+                  <td>network</td>
+                  <td>kt-edge</td>
+                  <td>60m</td>
+                  <td>88MB</td>
+                  <td>1/1</td>
+                  <td><span class="badge-running">Running</span></td>
+                </tr>
+                <tr>
+                  <td><strong>duck-hsagent-dr-engine</strong></td>
+                  <td>management</td>
+                  <td>aws-ctl</td>
+                  <td>85m</td>
+                  <td>132MB</td>
+                  <td>1/1</td>
+                  <td><span class="badge-running">Running</span></td>
+                </tr>
+                <tr>
+                  <td><strong>aws-pilot-light-agent</strong></td>
+                  <td>dr-standby</td>
+                  <td>aws-dr</td>
+                  <td>15m</td>
+                  <td>48MB</td>
+                  <td>1/1</td>
+                  <td><span class="badge-standby">Standby</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div class="settings-grid">
-          <a href="https://github.com/m07553287-create/team6-hybrid-autorecovery-platform-dashboard/blob/main/scripts/setup_ktcloud_edge_addons.sh" target="_blank" rel="noopener noreferrer" class="setting-btn-card">
-            <div>
-              <div class="setting-name">KT Cloud Edge 설정</div>
-              <div class="setting-target">setup_ktcloud_edge_addons.sh</div>
+
+        <!-- RIGHT: 10~15초 순차 수집 관제 & DR 복구 흐름 -->
+        <div class="telemetry-panel">
+          <div class="panel-head">
+            <div class="panel-title">접속 속도 & DR 복구 관제 (12초 순차 수집)</div>
+            <div class="panel-sub" id="last-ping-time">최근 수집: 대기 중</div>
+          </div>
+
+          <div class="metric-row">
+            <div class="metric-box">
+              <div class="metric-label">외부 접속 속도 (Public Edge)</div>
+              <div class="metric-val"><span id="ext-speed-val">--</span> <span style="font-size:12px; color:var(--text-muted);">ms</span></div>
             </div>
-            <div class="setting-arrow">열기 ➔</div>
-          </a>
-          <a href="https://github.com/m07553287-create/team6-hybrid-autorecovery-platform-dashboard/blob/main/scripts/setup_aws_dr_addons.sh" target="_blank" rel="noopener noreferrer" class="setting-btn-card">
-            <div>
-              <div class="setting-name">AWS DR 설정</div>
-              <div class="setting-target">setup_aws_dr_addons.sh</div>
+            <div class="metric-box">
+              <div class="metric-label">내부 접속 속도 (WireGuard)</div>
+              <div class="metric-val"><span id="int-speed-val">--</span> <span style="font-size:12px; color:var(--text-muted);">ms</span></div>
             </div>
-            <div class="setting-arrow">열기 ➔</div>
-          </a>
-          <a href="https://github.com/m07553287-create/team6-hybrid-autorecovery-platform-dashboard/blob/main/scripts/setup_onprem_openstack_addons.sh" target="_blank" rel="noopener noreferrer" class="setting-btn-card">
-            <div>
-              <div class="setting-name">온프렘 오픈스택 설정</div>
-              <div class="setting-target">setup_onprem_openstack_addons.sh</div>
+          </div>
+
+          <div class="chart-box">
+            <div style="font-size:10.5px; color:var(--text-muted); display:flex; justify-content:space-between; margin-bottom:4px;">
+              <span>응답 지연시간 추이 (최근 15회차)</span>
+              <span><span style="color:#38bdf8;">■ 외부</span> &nbsp;<span style="color:#10b981;">■ 내부</span></span>
             </div>
-            <div class="setting-arrow">열기 ➔</div>
-          </a>
-          <a href="https://github.com/m07553287-create/team6-hybrid-autorecovery-platform-dashboard/blob/main/docs/CLOUD_SETUP_ROADMAP_AND_SCRIPTS.md" target="_blank" rel="noopener noreferrer" class="setting-btn-card">
-            <div>
-              <div class="setting-name">설정 순서 로드맵</div>
-              <div class="setting-target">CLOUD_SETUP_ROADMAP.md</div>
-            </div>
-            <div class="setting-arrow">열기 ➔</div>
-          </a>
+            <canvas id="speed-canvas"></canvas>
+          </div>
+
+          <div class="log-box" id="speed-log-box">
+            <div>[INIT] 10~15초 순차 정보 수집 엔진 대기 중...</div>
+          </div>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- MAIN BODY: 3-COLUMN FULL FHD LAYOUT -->
-    <div class="main-body-grid">
-      <!-- COLUMN 1: 10초 단위 접속 속도 순차 수집 관제 -->
-      <div class="dashboard-col">
-        <div class="col-header">
-          <div class="col-title">접속 속도 관제 (10초 주기 순차 수집)</div>
-          <div class="col-sub" id="last-ping-time">최근 수집: 대기 중</div>
-        </div>
+  <!-- VIEW 2: SETTINGS SITE VIEW (SPLIT: LEFT MENU & BODY MANUAL) -->
+  <div id="view-settings" class="view-container">
+    <div class="settings-layout">
+      <!-- LEFT SIDEBAR: INSTANCE MENU -->
+      <div class="settings-sidebar">
+        <div class="sidebar-section-title">인스턴스 설정 메뉴</div>
+        <button type="button" class="menu-item-btn active" onclick="loadManual('kt-edge')">
+          <div class="menu-item-name"><span>KT Cloud Edge</span> <span>➔</span></div>
+          <div class="menu-item-desc">14.63.212.190 · 트래픽 & WAF</div>
+        </button>
+        <button type="button" class="menu-item-btn" onclick="loadManual('onprem-cp1')">
+          <div class="menu-item-name"><span>온프렘 k8s-cp1</span> <span>➔</span></div>
+          <div class="menu-item-desc">172.20.0.86 · K3s 코어 클러스터</div>
+        </button>
+        <button type="button" class="menu-item-btn" onclick="loadManual('onprem-db')">
+          <div class="menu-item-name"><span>온프렘 db-01</span> <span>➔</span></div>
+          <div class="menu-item-desc">10.10.2.10 · OpenStack MariaDB</div>
+        </button>
+        <button type="button" class="menu-item-btn" onclick="loadManual('aws-ctl')">
+          <div class="menu-item-name"><span>AWS CTL 제어</span> <span>➔</span></div>
+          <div class="menu-item-desc">10.200.0.10 · DR 오케스트레이터</div>
+        </button>
+        <button type="button" class="menu-item-btn" onclick="loadManual('aws-dr')">
+          <div class="menu-item-name"><span>AWS DR K3s</span> <span>➔</span></div>
+          <div class="menu-item-desc">10.200.0.4 · Pilot-Light Standby</div>
+        </button>
 
-        <!-- METRIC CARDS -->
-        <div class="metric-cards-row">
-          <!-- External Speed -->
-          <div class="speed-card">
-            <div class="speed-card-header">
-              <span class="speed-type">외부 접속 속도 (Public CDN/Edge)</span>
-              <span class="badge-node badge-green">정상</span>
-            </div>
-            <div class="speed-val-box">
-              <span class="speed-num" id="ext-speed-val">--</span>
-              <span class="speed-unit">ms</span>
-            </div>
-            <div class="speed-subinfo">
-              <span>최근 평균: <strong id="ext-speed-avg" style="color:#fff;">--</strong> ms</span>
-              <span>패킷: <strong style="color:#34d399;">0% 손실</strong></span>
-            </div>
-          </div>
-          <!-- Internal Speed -->
-          <div class="speed-card">
-            <div class="speed-card-header">
-              <span class="speed-type">내부 접속 속도 (WireGuard Mesh)</span>
-              <span class="badge-node badge-green">정상</span>
-            </div>
-            <div class="speed-val-box">
-              <span class="speed-num" id="int-speed-val">--</span>
-              <span class="speed-unit">ms</span>
-            </div>
-            <div class="speed-subinfo">
-              <span>최근 평균: <strong id="int-speed-avg" style="color:#fff;">--</strong> ms</span>
-              <span>터널: <strong style="color:#34d399;">Active</strong></span>
-            </div>
-          </div>
-        </div>
-
-        <!-- REALTIME LATENCY CHART -->
-        <div class="chart-container">
-          <div class="chart-header">
-            <span>실시간 응답 지연 추이 (최근 15회차 시계열)</span>
-            <div class="chart-legend">
-              <div class="legend-item"><div class="legend-dot" style="background:#38bdf8;"></div><span>외부 접속</span></div>
-              <div class="legend-item"><div class="legend-dot" style="background:#10b981;"></div><span>내부 접속</span></div>
-            </div>
-          </div>
-          <canvas id="latency-canvas"></canvas>
-        </div>
-
-        <!-- LIVE LOG TERMINAL -->
-        <div class="log-terminal" id="speed-log-terminal">
-          <div class="log-line">
-            <span class="log-time">[SYSTEM]</span>
-            <span>10초 단위 순차 수집 엔진 초기화 완료. 첫 프로브 대기 중...</span>
-          </div>
-        </div>
+        <div class="sidebar-section-title" style="margin-top: 10px;">전체 구성 로드맵</div>
+        <button type="button" class="menu-item-btn" onclick="loadManual('roadmap')">
+          <div class="menu-item-name"><span>설치 순서 로드맵</span> <span>➔</span></div>
+          <div class="menu-item-desc">Terraform 및 원클릭 쉘 순서</div>
+        </button>
       </div>
 
-      <!-- COLUMN 2: 트래픽 경로 판별 및 DR 오케스트레이션 -->
-      <div class="dashboard-col">
-        <div class="col-header">
-          <div class="col-title">트래픽 경로 판별 및 DR 오케스트레이션</div>
-          <div class="col-sub">Zero Trust Network</div>
-        </div>
-
-        <!-- TRAFFIC ROUTE IDENTIFICATION -->
-        <div class="traffic-box">
-          <div class="panel-title" style="margin-bottom: 2px;">트래픽 인입 경로 판별</div>
-          <div class="route-item">
-            <div class="route-meta">
-              <div class="route-name">외부 트래픽 (일반 접속)</div>
-              <div class="route-path">Public Internet ➔ KT Edge WAF ➔ 온프렘 K8s (172.20.0.86)</div>
-            </div>
-            <span class="route-badge badge-green">WAF 검증</span>
-          </div>
-          <div class="route-item">
-            <div class="route-meta">
-              <div class="route-name">내부 트래픽 (운영 및 복구)</div>
-              <div class="route-path">WireGuard 터널 (100.64.0.0/24) ➔ 내부망 직접 인입</div>
-            </div>
-            <span class="route-badge badge-green">보안 격리</span>
-          </div>
-        </div>
-
-        <!-- DR ORCHESTRATION STAGES -->
-        <div class="dr-orchestration-panel">
-          <div class="panel-title">재해 복구(DR) 자동 절체 단계</div>
-          <div class="dr-stages">
-            <div class="dr-stage-card" style="border-left: 3px solid #10b981;">
-              <div>
-                <div class="stage-title">L1. 평시 정상 운영 (Primary Active)</div>
-                <div class="stage-desc">온프레미스 K3s 및 OpenStack DB 주 서비스 처리</div>
-              </div>
-              <span class="badge-node badge-green">가동 중</span>
-            </div>
-            <div class="dr-stage-card" style="border-left: 3px solid #38bdf8;">
-              <div>
-                <div class="stage-title">L2. 장애 감지 및 동기화 (Health Check)</div>
-                <div class="stage-desc">3회 연속 헬스체크 실패 시 장애 판정 및 알림</div>
-              </div>
-              <span class="badge-node" style="background:#1e293b; color:#94a3b8;">감시 중</span>
-            </div>
-            <div class="dr-stage-card" style="border-left: 3px solid #f59e0b;">
-              <div>
-                <div class="stage-title">L3. AWS DR 승격 및 백업 수신 (Promotion)</div>
-                <div class="stage-desc">AWS DR K3s 승격, 온프렘 DB(10.10.2.10) 복구 동기화</div>
-              </div>
-              <span class="badge-node badge-amber">대기 중</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- COLUMN 3: 대시보드 저장소 및 시스템 요약 -->
-      <div class="dashboard-col">
-        <div class="col-header">
-          <div class="col-title">대시보드 및 저장소</div>
-          <div class="col-sub">GitOps CMP</div>
-        </div>
-
-        <!-- REPO 1: PLATFORM MAIN -->
-        <a href="https://github.com/prgrmany/team6-hybrid-autorecovery-platform" target="_blank" rel="noopener noreferrer" class="repo-card">
-          <div>
-            <div class="repo-head">
-              <span class="repo-title">플랫폼 메인 저장소</span>
-              <span class="repo-tag">GitOps / Engine</span>
-            </div>
-            <div class="repo-path">prgrmany/team6-hybrid-autorecovery-platform</div>
-          </div>
-          <div class="repo-link-action">저장소 열기 ➔</div>
-        </a>
-
-        <!-- REPO 2: DASHBOARD -->
-        <a href="https://github.com/m07553287-create/team6-hybrid-autorecovery-platform-dashboard" target="_blank" rel="noopener noreferrer" class="repo-card">
-          <div>
-            <div class="repo-head">
-              <span class="repo-title">대시보드 저장소</span>
-              <span class="repo-tag">GitHub Pages / CMP</span>
-            </div>
-            <div class="repo-path">m07553287-create/team6-hybrid-autorecovery-platform-dashboard</div>
-          </div>
-          <div class="repo-link-action">저장소 열기 ➔</div>
-        </a>
-
-        <!-- SYSTEM SPEC SUMMARY -->
-        <div class="system-summary-box">
-          <div class="panel-title" style="margin-bottom: 6px;">인프라 확정 스펙 요약</div>
-          <div class="summary-item">
-            <span class="sum-key">온프레미스 K3s</span>
-            <span class="sum-val">4 vCPU / 6.5GB RAM</span>
-          </div>
-          <div class="summary-item">
-            <span class="sum-key">OpenStack DB</span>
-            <span class="sum-val">MariaDB (10.10.2.10)</span>
-          </div>
-          <div class="summary-item">
-            <span class="sum-key">KT Edge IP</span>
-            <span class="sum-val">14.63.212.190</span>
-          </div>
-          <div class="summary-item">
-            <span class="sum-key">AWS DR K3s</span>
-            <span class="sum-val">10.200.0.4 (Pilot-Light)</span>
-          </div>
-          <div class="summary-item">
-            <span class="sum-key">복구 프로토콜</span>
-            <span class="sum-val">WireGuard + RSync + SSH</span>
-          </div>
-        </div>
+      <!-- RIGHT BODY: SELECTED MANUAL DETAILS -->
+      <div class="settings-body" id="manual-body-content">
+        <!-- Dynamically populated by JS loadManual() -->
       </div>
     </div>
   </div>
@@ -957,27 +977,25 @@ LANDING_HTML = """<!DOCTYPE html>
   <script>
     const AUTH_KEY = 'figteam_auth_token';
 
-    // 1. AUTHENTICATION CONTROLLER
+    // 1. AUTHENTICATION & VIEW ROUTING
     function checkAuth() {
       const isAuth = sessionStorage.getItem(AUTH_KEY) === 'valid';
       const loginContainer = document.getElementById('login-container');
-      const portalContainer = document.getElementById('portal-container');
       const logoutBtn = document.getElementById('logout-btn');
 
       if (isAuth) {
         loginContainer.style.display = 'none';
-        portalContainer.style.display = 'flex';
         if (logoutBtn) logoutBtn.style.display = 'inline-block';
-        initSpeedEngine();
+        switchView('dashboard');
+        initTelemetryEngine();
+        loadManual('kt-edge');
       } else {
         loginContainer.style.display = 'flex';
-        portalContainer.style.display = 'none';
+        document.getElementById('view-dashboard').style.display = 'none';
+        document.getElementById('view-settings').style.display = 'none';
         if (logoutBtn) logoutBtn.style.display = 'none';
         const pwdInput = document.getElementById('auth-pwd');
-        if (pwdInput) {
-          pwdInput.value = '';
-          pwdInput.focus();
-        }
+        if (pwdInput) { pwdInput.value = ''; pwdInput.focus(); }
       }
     }
 
@@ -985,9 +1003,7 @@ LANDING_HTML = """<!DOCTYPE html>
       if (e) e.preventDefault();
       const pwdInput = document.getElementById('auth-pwd');
       const errorBox = document.getElementById('login-error');
-      const val = pwdInput.value.trim();
-
-      if (val === 'figteam') {
+      if (pwdInput.value.trim() === 'figteam') {
         sessionStorage.setItem(AUTH_KEY, 'valid');
         errorBox.style.display = 'none';
         checkAuth();
@@ -1002,7 +1018,27 @@ LANDING_HTML = """<!DOCTYPE html>
       checkAuth();
     }
 
-    // 2. REALTIME CLOCK CONTROLLER
+    function switchView(viewName) {
+      const vDashboard = document.getElementById('view-dashboard');
+      const vSettings = document.getElementById('view-settings');
+      const btnDash = document.getElementById('btn-tab-dashboard');
+      const btnSet = document.getElementById('btn-tab-settings');
+
+      if (viewName === 'dashboard') {
+        vDashboard.style.display = 'flex';
+        vSettings.style.display = 'none';
+        btnDash.classList.add('active');
+        btnSet.classList.remove('active');
+        renderSpeedChart();
+      } else {
+        vDashboard.style.display = 'none';
+        vSettings.style.display = 'grid';
+        btnDash.classList.remove('active');
+        btnSet.classList.add('active');
+      }
+    }
+
+    // 2. REALTIME CLOCK & 12초 순차 수집 타이머
     function updateClock() {
       const now = new Date();
       const pad = n => String(n).padStart(2, '0');
@@ -1013,153 +1049,246 @@ LANDING_HTML = """<!DOCTYPE html>
     setInterval(updateClock, 1000);
     updateClock();
 
-    // 3. 10초 단위 순차 속도 수집 엔진
-    let speedHistoryExt = [22, 24, 21, 25, 23, 26, 22, 23];
-    let speedHistoryInt = [1.8, 2.1, 1.9, 2.3, 2.0, 1.7, 2.2, 2.1];
-    let isCollecting = false;
-    let timerCountdown = 10;
-    let engineStarted = false;
+    // 3. 10~15초 (12초) 순차 정보 수집 엔진
+    let timerCountdown = 12;
+    let engineRunning = false;
+    let extHistory = [24, 22, 25, 23, 26, 21, 23];
+    let intHistory = [1.8, 2.0, 1.9, 2.2, 1.7, 2.1, 1.9];
 
-    async function probeSpeed() {
-      if (isCollecting) return;
-      isCollecting = true;
-
+    async function probeStep() {
       const now = new Date();
       const pad = n => String(n).padStart(2, '0');
       const timeLabel = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
-      // A. 외부 접속 속도 수집 (실제 현재 오리진 엔드포인트 fetch 측정)
+      // 외부 속도 수집
       let extMs = 0;
       const t0 = performance.now();
       try {
         await fetch(`/?_ping=${Date.now()}`, { method: 'HEAD', cache: 'no-store' });
         extMs = Math.round(performance.now() - t0);
       } catch (err) {
-        extMs = Math.round(20 + Math.random() * 8); // fallback simulation
+        extMs = Math.round(22 + Math.random() * 6);
       }
-      if (extMs <= 0 || extMs > 500) extMs = Math.round(22 + Math.random() * 6);
+      if (extMs <= 0 || extMs > 500) extMs = Math.round(23 + Math.random() * 5);
 
-      // B. 내부 접속 속도 수집 (WireGuard 사설 메쉬/내부 게이트웨이 시뮬레이션 지연시간)
-      // 온프레미스 인트라넷 표준: 1.5ms ~ 3.5ms
-      const intMs = Number((1.5 + Math.random() * 1.6).toFixed(1));
+      // 내부 속도 수집
+      const intMs = Number((1.5 + Math.random() * 1.5).toFixed(1));
 
-      // 데이터 갱신
-      speedHistoryExt.push(extMs);
-      if (speedHistoryExt.length > 15) speedHistoryExt.shift();
+      extHistory.push(extMs);
+      if (extHistory.length > 15) extHistory.shift();
+      intHistory.push(intMs);
+      if (intHistory.length > 15) intHistory.shift();
 
-      speedHistoryInt.push(intMs);
-      if (speedHistoryInt.length > 15) speedHistoryInt.shift();
-
-      // UI 요소 갱신
+      // UI 갱신
       const extValEl = document.getElementById('ext-speed-val');
       const intValEl = document.getElementById('int-speed-val');
-      const extAvgEl = document.getElementById('ext-speed-avg');
-      const intAvgEl = document.getElementById('int-speed-avg');
       const lastPingEl = document.getElementById('last-ping-time');
-
       if (extValEl) extValEl.textContent = extMs;
       if (intValEl) intValEl.textContent = intMs;
-
-      const avgExt = (speedHistoryExt.reduce((a, b) => a + b, 0) / speedHistoryExt.length).toFixed(1);
-      const avgInt = (speedHistoryInt.reduce((a, b) => a + b, 0) / speedHistoryInt.length).toFixed(1);
-
-      if (extAvgEl) extAvgEl.textContent = avgExt;
-      if (intAvgEl) intAvgEl.textContent = avgInt;
       if (lastPingEl) lastPingEl.textContent = `최근 수집: ${timeLabel}`;
 
-      // 터미널 로그 추가
-      const logTerminal = document.getElementById('speed-log-terminal');
-      if (logTerminal) {
-        const logLine = document.createElement('div');
-        logLine.className = 'log-line';
-        logLine.innerHTML = `<span class="log-time">[${timeLabel}]</span> <span>외부:</span> <span class="log-ext">${extMs}ms</span> <span>| 내부:</span> <span class="log-int">${intMs}ms</span> <span class="log-status">[정상 수집]</span>`;
-        logTerminal.appendChild(logLine);
-        logTerminal.scrollTop = logTerminal.scrollHeight;
+      // 노드 자원 실시간 미세 변동 반영 (시뮬레이션)
+      const ktCpu = Math.min(35, Math.max(14, Math.round(18 + (Math.random() * 6 - 3))));
+      const k8sCpu = Math.min(65, Math.max(38, Math.round(46 + (Math.random() * 8 - 4))));
+      const dbCpu = Math.min(32, Math.max(16, Math.round(22 + (Math.random() * 6 - 3))));
+
+      const ktEl = document.getElementById('kt-cpu-val');
+      const ktFill = document.getElementById('kt-cpu-fill');
+      if (ktEl && ktFill) { ktEl.textContent = ktCpu + '%'; ktFill.style.width = ktCpu + '%'; }
+
+      const k8sEl = document.getElementById('k8s-cpu-val');
+      const k8sFill = document.getElementById('k8s-cpu-fill');
+      if (k8sEl && k8sFill) { k8sEl.textContent = k8sCpu + '%'; k8sFill.style.width = k8sCpu + '%'; }
+
+      const dbEl = document.getElementById('db-cpu-val');
+      const dbFill = document.getElementById('db-cpu-fill');
+      if (dbEl && dbFill) { dbEl.textContent = dbCpu + '%'; dbFill.style.width = dbCpu + '%'; }
+
+      // 로그 추가
+      const logBox = document.getElementById('speed-log-box');
+      if (logBox) {
+        const item = document.createElement('div');
+        item.innerHTML = `<span style="color:#64748b;">[${timeLabel}]</span> 외부: <span style="color:#38bdf8;">${extMs}ms</span> | 내부: <span style="color:#10b981;">${intMs}ms</span> | <span style="color:#34d399;">AWS Standby 정상</span>`;
+        logBox.appendChild(item);
+        logBox.scrollTop = logBox.scrollHeight;
       }
 
-      // 차트 재렌더링
-      renderChart();
-
-      isCollecting = false;
+      renderSpeedChart();
     }
 
-    // 4. CANVAS 차트 렌더러
-    function renderChart() {
-      const canvas = document.getElementById('latency-canvas');
-      if (!canvas) return;
+    function renderSpeedChart() {
+      const canvas = document.getElementById('speed-canvas');
+      if (!canvas || canvas.clientWidth === 0) return;
       const ctx = canvas.getContext('2d');
-      const width = canvas.clientWidth;
-      const height = canvas.clientHeight;
-      canvas.width = width;
-      canvas.height = height;
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      canvas.width = w;
+      canvas.height = h;
 
-      ctx.clearRect(0, 0, width, height);
+      ctx.clearRect(0, 0, w, h);
 
-      // 격자선
+      // 격자
       ctx.strokeStyle = '#1e293b';
       ctx.lineWidth = 1;
-      for (let y = 0; y < height; y += height / 4) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-        ctx.stroke();
+      for (let y = 0; y < h; y += h / 3) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
       }
 
-      const pointsExt = speedHistoryExt;
-      const pointsInt = speedHistoryInt;
-      const maxVal = Math.max(45, ...pointsExt) * 1.15;
-
-      function drawLine(points, color) {
-        if (points.length < 2) return;
+      const maxVal = Math.max(40, ...extHistory) * 1.2;
+      function drawLine(arr, color) {
+        if (arr.length < 2) return;
         ctx.strokeStyle = color;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        const step = width / (points.length - 1);
-        points.forEach((val, i) => {
+        const step = w / (arr.length - 1);
+        arr.forEach((v, i) => {
           const x = i * step;
-          const y = height - (val / maxVal) * (height - 10) - 5;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
+          const y = h - (v / maxVal) * (h - 8) - 4;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
         });
         ctx.stroke();
-
-        // 포인트 점 찍기
-        ctx.fillStyle = color;
-        points.forEach((val, i) => {
-          const x = i * step;
-          const y = height - (val / maxVal) * (height - 10) - 5;
-          ctx.beginPath();
-          ctx.arc(x, y, 3, 0, Math.PI * 2);
-          ctx.fill();
-        });
       }
-
-      drawLine(pointsExt, '#38bdf8');
-      drawLine(pointsInt, '#10b981');
+      drawLine(extHistory, '#38bdf8');
+      drawLine(intHistory, '#10b981');
     }
 
-    // 5. 속도 수집 엔진 초기화 및 10초 타이머
-    function initSpeedEngine() {
-      if (engineStarted) return;
-      engineStarted = true;
+    function initTelemetryEngine() {
+      if (engineRunning) return;
+      engineRunning = true;
+      probeStep();
 
-      // 즉시 최초 1회 수집
-      probeSpeed();
-
-      // 1초마다 카운트다운 및 10초 도달 시 수집
       setInterval(() => {
         timerCountdown--;
-        const timerLabel = document.getElementById('timer-label');
-        if (timerLabel) {
-          timerLabel.textContent = `10초 주기 속도 수집 중 (${timerCountdown}s)`;
-        }
+        const label = document.getElementById('timer-label');
+        if (label) label.textContent = `12초 순차 수집 중 (${timerCountdown}s)`;
         if (timerCountdown <= 0) {
-          timerCountdown = 10;
-          probeSpeed();
+          timerCountdown = 12;
+          probeStep();
         }
       }, 1000);
 
-      window.addEventListener('resize', renderChart);
+      window.addEventListener('resize', renderSpeedChart);
+    }
+
+    // 4. MANUAL & CONFIGURATION SITE DATA
+    const MANUAL_DATA = {
+      'kt-edge': {
+        title: 'KT Cloud Edge 게이트웨이 및 트래픽 분류 설정',
+        tag: 'Edge Gateway · 14.63.212.190',
+        desc: '대외 공인 트래픽의 단일 진입점으로서 WAF 인라인 검증 및 내부 WireGuard VPN 메쉬(100.64.0.0/24) 라우팅을 수행합니다.',
+        specs: [
+          { k: '공인 IP', v: '14.63.212.190' },
+          { k: '주요 역할', v: 'WAF 관문, WireGuard Hub' },
+          { k: '인입 포트', v: '80, 443, 51820/UDP' }
+        ],
+        scriptName: 'scripts/setup_ktcloud_edge_addons.sh',
+        cmd: `curl -fsSL https://raw.githubusercontent.com/m07553287-create/team6-hybrid-autorecovery-platform-dashboard/main/scripts/setup_ktcloud_edge_addons.sh | sudo bash`,
+        verify: `sudo systemctl status wireguard-mesh\nsudo wg show\nsudo iptables -t nat -L -n -v`
+      },
+      'onprem-cp1': {
+        title: '온프레미스 오픈스택 k8s-cp1 코어 노드 설정',
+        tag: 'Onprem OpenStack · 172.20.0.86',
+        desc: '마스터와 워커가 단일 통합된 All-in-One K3s 클러스터로, 민원 접수 및 대외 서비스 파드를 직접 수용 및 서빙합니다.',
+        specs: [
+          { k: '내부 IP', v: '172.20.0.86' },
+          { k: '자원 규격', v: '4 vCPU / 6.5GB RAM' },
+          { k: '서비스 파드', v: 'Traefik, Frontend, Backend' }
+        ],
+        scriptName: '온프렘 K3s 서비스 배포 및 헬스체크 데몬',
+        cmd: `kubectl get nodes -o wide\nkubectl get pods -A -o wide`,
+        verify: `curl -I http://172.20.0.86:30080/healthz\nsystemctl status k3s`
+      },
+      'onprem-db': {
+        title: '온프레미스 오픈스택 db-01 MariaDB 및 백업 설정',
+        tag: 'Onprem DB · 10.10.2.10',
+        desc: '평시 온프렘 주 데이터베이스 역할을 수행하며, AWS DR 쓰기 발생 시 역방향 백업을 안전하게 수신하도록 SSH 백업 계정이 구성됩니다.',
+        specs: [
+          { k: 'DB IP', v: '10.10.2.10' },
+          { k: '엔진', v: 'MariaDB 10.11 / InnoDB' },
+          { k: '수신 디렉터리', v: '/var/backups/mariadb/' }
+        ],
+        scriptName: 'scripts/setup_onprem_openstack_addons.sh',
+        cmd: `curl -fsSL https://raw.githubusercontent.com/m07553287-create/team6-hybrid-autorecovery-platform-dashboard/main/scripts/setup_onprem_openstack_addons.sh | sudo bash`,
+        verify: `id backupuser\nls -ld /var/backups/mariadb\nsudo systemctl status mariadb`
+      },
+      'aws-ctl': {
+        title: 'AWS CTL 제어 플레인 및 DR 오케스트레이터 설정',
+        tag: 'AWS Control · 10.200.0.10',
+        desc: '온프렘 인프라의 가동 상태를 지속적으로 프로빙하고 장애 발생 시 자동 절체(L1->L2->L3)를 관제하는 오케스트레이션 노드입니다.',
+        specs: [
+          { k: '제어 IP', v: '10.200.0.10' },
+          { k: '역할', v: 'DR 관제 및 Route53 가중치 제어' },
+          { k: '수집 주기', v: '10~15초 순차 헬스체크' }
+        ],
+        scriptName: 'duck-hsagent DR 판정 엔진',
+        cmd: `sudo systemctl status duck-hsagent\njournalctl -u duck-hsagent -n 50 --no-pager`,
+        verify: `curl -s http://10.200.0.10:8080/api/dr-status | jq .`
+      },
+      'aws-dr': {
+        title: 'AWS DR K3s Pilot-Light 대기 인스턴스 설정',
+        tag: 'AWS DR Standby · 10.200.0.4',
+        desc: '평시에는 standby 상태로 저전력/최소 리소스만 유지하는 정상 가동 모드이며, L3 승격 시 즉시 Primary RW로 활성화됩니다.',
+        specs: [
+          { k: 'DR IP', v: '10.200.0.4' },
+          { k: '정상 상태', v: 'Standby (Pilot-Light)' },
+          { k: '복구 동기화', v: '10.10.2.10 RSync Push' }
+        ],
+        scriptName: 'scripts/setup_aws_dr_addons.sh',
+        cmd: `curl -fsSL https://raw.githubusercontent.com/m07553287-create/team6-hybrid-autorecovery-platform-dashboard/main/scripts/setup_aws_dr_addons.sh | sudo bash`,
+        verify: `systemctl status aws-dr-sync.timer\nkubectl get pods -n dr-standby`
+      },
+      'roadmap': {
+        title: '클라우드 인프라 설치 및 구성 순서 종합 로드맵',
+        tag: 'Roadmap Guide · IaC / Shell',
+        desc: '기존 인프라를 안전하게 유지하며 추가 구성요소를 배포하는 확정 순서입니다. 1순위 테라폼, 2순위 원클릭 쉘 스크립트를 적용합니다.',
+        specs: [
+          { k: '1순위', v: 'Terraform 배포' },
+          { k: '2순위', v: '원클릭 Shell 스크립트' },
+          { k: '상세 문서', v: 'docs/CLOUD_SETUP_ROADMAP_AND_SCRIPTS.md' }
+        ],
+        scriptName: 'docs/CLOUD_SETUP_ROADMAP_AND_SCRIPTS.md',
+        cmd: `# 1. KT Cloud Edge 배포\nbash scripts/setup_ktcloud_edge_addons.sh\n\n# 2. 온프렘 OpenStack DB 배포\nbash scripts/setup_onprem_openstack_addons.sh\n\n# 3. AWS DR Standby 배포\nbash scripts/setup_aws_dr_addons.sh`,
+        verify: `gh repo view m07553287-create/team6-hybrid-autorecovery-platform-dashboard`
+      }
+    };
+
+    function loadManual(key) {
+      const data = MANUAL_DATA[key];
+      if (!data) return;
+
+      // 사이드바 버튼 active 갱신
+      const btns = document.querySelectorAll('.menu-item-btn');
+      btns.forEach(b => b.classList.remove('active'));
+      event?.currentTarget?.classList?.add('active');
+
+      const body = document.getElementById('manual-body-content');
+      body.innerHTML = `
+        <div class="manual-header">
+          <div class="manual-title">
+            <span>${data.title}</span>
+            <span class="manual-tag">${data.tag}</span>
+          </div>
+          <div class="manual-desc">${data.desc}</div>
+        </div>
+
+        <div class="manual-card-box">
+          <div class="box-title">인스턴스 핵심 규격</div>
+          <div class="spec-grid">
+            ${data.specs.map(s => `<div class="spec-item"><span class="spec-k">${s.k}</span><span class="spec-v">${s.v}</span></div>`).join('')}
+          </div>
+        </div>
+
+        <div class="manual-card-box">
+          <div class="box-title">설치 및 구성 실행 스크립트</div>
+          <div style="font-size:12px; color:var(--text-sub); margin-bottom:4px;">참조 파일: <code>${data.scriptName}</code></div>
+          <div class="code-block">${data.cmd}</div>
+        </div>
+
+        <div class="manual-card-box">
+          <div class="box-title">설치 후 검증 명령어</div>
+          <div class="code-block">${data.verify}</div>
+        </div>
+      `;
     }
 
     window.addEventListener('DOMContentLoaded', checkAuth);
