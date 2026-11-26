@@ -656,53 +656,53 @@ def get_services_and_pods_detail():
         },
         {
             "id": "k8s-cp1",
-            "name": "온프레미스 k8s-cp1",
+            "name": "온프레미스 k8s-cp1 (마스터 & 워커 통합)",
             "group": "onprem",
-            "role": "K3s 마스터 제어 노드 (Control Plane)",
+            "role": "K3s 마스터 & 단일 통합 워커 (All-in-One 체제)",
             "ip": "172.20.0.86 (VIP 10.200.0.2 / FIP 192.168.120.226)",
-            "tier": "Tier 2: K8s Control Plane",
-            "hostMapping": "compute3 (m1.medium)",
-            "vcpu": 2,
-            "vcpuLoad": "0.08",
-            "ramTotal": 4096,
-            "ramUsed": 310,
+            "tier": "Tier 2: K8s All-in-One (마스터+워커 통합)",
+            "hostMapping": "compute3 + compute1 자원 합산 (4 vCPU · 6.5GB RAM)",
+            "vcpu": 4,
+            "vcpuLoad": "0.15",
+            "ramTotal": 6656,
+            "ramUsed": 611,
             "swapUsed": 0,
             "swapTotal": 0,
-            "diskUsed": "6.5G",
-            "diskTotal": "20G",
-            "diskPct": 32,
+            "diskUsed": "12.3G",
+            "diskTotal": "40G",
+            "diskPct": 31,
             "status": "ACTIVE 🟢",
             "services": [
-                {"name": "K3s Server", "port": ":6443", "status": "ACTIVE 🟢", "desc": "API Server, etcd, Scheduler"},
+                {"name": "K3s Server & Agent", "port": ":6443 / NodePort :30080", "status": "ACTIVE 🟢", "desc": "API Server, etcd, kubelet 일체형 가동"},
+                {"name": "Minwon Service Host", "port": ":30080 NodePort", "status": "ACTIVE 🟢", "desc": "민원 앱 파드 전담 안정 서빙 (통합 체제)"},
                 {"name": "Traefik Ingress", "port": ":80, :443", "status": "ACTIVE 🟢", "desc": "L7 인그레스 컨트롤러"},
-                {"name": "WireGuard Client", "port": "wg0 (10.200.0.2)", "status": "ACTIVE 🟢", "desc": "터널 A/B 종단 클라이언트"}
+                {"name": "WireGuard Client", "port": "wg0 (10.200.0.2)", "status": "ACTIVE 🟢", "desc": "터널 A/B 종단 클라이언트"},
+                {"name": "ArgoCD 배포 엔진", "port": "Pod", "status": "ACTIVE 🟢", "desc": "GitOps 지속 배포 파드"}
             ],
-            "pods": [p for p in onprem_pods if p.get('node') == 'k8s-cp1']
+            "pods": onprem_pods
         },
         {
             "id": "k8s-w1",
-            "name": "온프레미스 k8s-w1",
+            "name": "온프레미스 k8s-w1 (k8s-cp1으로 자원 통합)",
             "group": "onprem",
-            "role": "K3s 워커 노드 1 (민원 서비스 파드 주 실행)",
+            "role": "k8s-cp1으로 2 vCPU / 2.5GB RAM 합산 통합 완료",
             "ip": "172.20.0.180 (figteam-net)",
-            "tier": "Tier 2: K8s Worker 1",
-            "hostMapping": "compute1 (k8s.worker)",
-            "vcpu": 2,
-            "vcpuLoad": "0.15",
-            "ramTotal": 2560,
-            "ramUsed": 301,
+            "tier": "Tier 2: k8s-cp1 자원 흡수",
+            "hostMapping": "compute1 (k8s-cp1으로 단일 노드 통합)",
+            "vcpu": 0,
+            "vcpuLoad": "0.00",
+            "ramTotal": 0,
+            "ramUsed": 0,
             "swapUsed": 0,
             "swapTotal": 0,
-            "diskUsed": "5.8G",
-            "diskTotal": "20G",
-            "diskPct": 29,
-            "status": "ACTIVE 🟢",
+            "diskUsed": "0G",
+            "diskTotal": "0G",
+            "diskPct": 0,
+            "status": "INTEGRATED 🟢",
             "services": [
-                {"name": "K3s Agent", "port": "k3s-agent.service", "status": "ACTIVE 🟢", "desc": "kubelet & containerd (Worker 1)"},
-                {"name": "Minwon Service Host", "port": ":30080 NodePort", "status": "ACTIVE 🟢", "desc": "민원 앱 파드 2대 안정 서빙 (안전·성능 우선)"},
-                {"name": "ArgoCD 배포 엔진", "port": "Pod", "status": "ACTIVE 🟢", "desc": "GitOps 지속 배포 파드"}
+                {"name": "자원 합산 통합", "port": "All-in-One", "status": "ACTIVE 🟢", "desc": "k8s-cp1에 2 vCPU / 2.5GB RAM 완전 통합"}
             ],
-            "pods": [p for p in onprem_pods if p.get('node') == 'k8s-w1']
+            "pods": []
         },
         {
             "id": "kt-edge",
@@ -2331,10 +2331,10 @@ PORTAL_HTML = """<!DOCTYPE html>
             <div style="font-size:13.5px; font-weight:800; color:#5FD39A; display:flex; align-items:center; gap:8px;">
               <span>📊 온프레미스 OpenStack 자원 배치 최적화 현황</span>
             </div>
-            <span style="font-size:11px; padding:2px 8px; background:rgba(95,211,154,0.15); color:#8FE0B4; border:1px solid #5FD39A; font-weight:700;">k8s-w1 단독 워커 체제</span>
+            <span style="font-size:11px; padding:2px 8px; background:rgba(95,211,154,0.15); color:#8FE0B4; border:1px solid #5FD39A; font-weight:700;">k8s-cp1 마스터·워커 통합 체제 (4 vCPU / 6.5GB RAM)</span>
           </div>
           <div style="font-size:12px; color:#D3E0EC; line-height:1.6;">
-            • <b>온프렘 K8s 구성</b>: <code>k8s-cp1</code> (Control Plane & 민원앱) + <code>k8s-w1</code> (단일 워커) + <code>db-01</code> (MySQL 8.4 LTS DB)<br>
+            • <b>온프렘 K8s 구성</b>: <code>k8s-cp1</code> (마스터·워커 자원 통합 All-in-One · 4vCPU/6.5GB) + <code>db-01</code> (MySQL 8.4 LTS DB)<br>
             • <b>인프라 최적화</b>: 안전·성능 우선 3대 ACTIVE 인스턴스 체계로 호스트 물리 메모리를 27GB 여유 확보하여 무중단 운영 중입니다.
           </div>
         </div>
@@ -2347,8 +2347,8 @@ PORTAL_HTML = """<!DOCTYPE html>
           </div>
           <div class="stat-card">
             <div class="label">온프렘 K8s 구성</div>
-            <div class="value" style="color:#8FE0B4;">k8s-w1 단독 워커</div>
-            <div class="subtext">3대 ACTIVE 건전 운영</div>
+            <div class="value" style="color:#8FE0B4;">k8s-cp1 통합 노드</div>
+            <div class="subtext">4 vCPU / 6.5GB All-in-One</div>
           </div>
           <div class="stat-card">
             <div class="label">SSO 통합 인증</div>
@@ -2598,7 +2598,7 @@ PORTAL_HTML = """<!DOCTYPE html>
             <span style="font-size:11px; padding:2px 8px; background:rgba(95,211,154,0.15); color:#8FE0B4; border:1px solid #5FD39A; font-weight:700;">3대 ACTIVE 안정 운영</span>
           </div>
           <div style="font-size:12px; color:#D3E0EC; line-height:1.6;">
-            • <b>온프렘 인프라 최적화</b>: <code>k8s-cp1</code>, <code>k8s-w1</code>, <code>db-01</code> 총 3대 인스턴스로 안전성과 고성능을 최우선으로 안정 운영 중입니다.<br>
+            • <b>온프렘 인프라 최적화</b>: <code>k8s-cp1</code>(마스터·워커 통합 4c/6.5GB), <code>db-01</code>(DB 4GB) 통합 체제로 안전성과 고성능을 최우선 운영 중입니다.<br>
             • <b>안정성 확보</b>: 각 하이퍼바이저 노드의 메모리 여유를 확보하고 스왑 0B를 유지하여 안정적인 서비스 환경을 제공합니다.
           </div>
         </div>
@@ -2631,8 +2631,8 @@ PORTAL_HTML = """<!DOCTYPE html>
         <div style="display:flex; align-items:center; gap:10px; margin-top:4px;">
           <span style="font-size:13px; font-weight:700; color:#D3E0EC;">🎯 제어 대상 가상머신 선택:</span>
           <div style="display:flex; gap:8px;" id="os-vm-tab-buttons">
-            <button class="btn-top" id="btn-tab-cp1" style="background:#B08CFF; color:#fff; font-weight:700;" onclick="selectOsVm('k8s-cp1')">k8s-cp1 (Control Plane · 2vCPU/4GB)</button>
-            <button class="btn-top" id="btn-tab-w1" onclick="selectOsVm('k8s-w1')">k8s-w1 (Worker 1 · 2vCPU/2.5GB)</button>
+            <button class="btn-top" id="btn-tab-cp1" style="background:#B08CFF; color:#fff; font-weight:700;" onclick="selectOsVm('k8s-cp1')">k8s-cp1 (마스터·워커 통합 · 4vCPU/6.5GB)</button>
+            <button class="btn-top" id="btn-tab-w1" onclick="selectOsVm('k8s-w1')">k8s-w1 (cp1으로 통합 완료)</button>
             <button class="btn-top" id="btn-tab-db01" onclick="selectOsVm('db-01')">db-01 (MySQL 8.4 DB · 2vCPU/4GB)</button>
           </div>
           <button class="btn-action btn-refresh" style="margin-left:auto; font-size:11px; padding:6px 12px;" onclick="fetchOsVmStatus(true)">
@@ -5589,10 +5589,10 @@ PORTAL_HTML = """<!DOCTYPE html>
   node('gpu', 565, 212, 180, 48, 'cloudflared · 포털', '', { zone: '온프레미스 · GPU 서버 ktci5 (10.10.10.8)', lines: ['minwon-tunnel 커넥터 (아웃바운드만 · 인바운드 0)', 'figteam 통합 포털 :18088', '호스트명 라우팅: figteam · app · argocd · grafana · horizon · openstack', 'aws-ctl → WG 터널 B · kt-edge → WG 터널 A'] });
   node('onwg', 800, 212, 170, 48, 'WireGuard GW', '', { zone: '온프레미스', subnet: 'subnet-onprem-wg', lines: ['공인 IP 없음 · Outbound만', '터널 A · B 종단', '자가 펜싱 Watchdog'] });
   node('ingress', 560, 350, 130, 52, 'Traefik Ingress', 'k8s-cp1', { zone: '온프레미스', subnet: 'subnet-onprem-k8s', lines: ['NodePort 30080 · L7 인그레스'] });
-  node('web1', 720, 372, 115, 46, 'k8s-w1', '단독 워커 노드', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['compute1 물리 전담 · 2.5GB RAM', '안전·성능 우선 단일 워커 체제'] });
+  node('web1', 720, 372, 115, 46, 'k8s-cp1 (통합)', '마스터 & 워커 통합', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['compute3+1 자원 통합 (4 vCPU · 6.5GB RAM)', 'K3s All-in-One 단일 노드 운영'] });
   node('web2', 720, 432, 115, 46, 'k8s-w2 (회수)', '대기·회수 완료', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['compute2 정지 (호스트 메모리 보호)', '안전·성능 우선 정책으로 완전 회수'] });
-  node('api1', 845, 372, 115, 46, 'minwon-app-1', 'k8s-w1', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['Worker 1 (k8s-w1) 파드 #1 🟢', 'livenessProbe /healthz 200 OK'] });
-  node('api2', 845, 432, 115, 46, 'minwon-app-2', 'k8s-w1', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['Worker 1 (k8s-w1) 파드 #2 🟢', '단일 워커 내 2파드 안정 분산'] });
+  node('api1', 845, 372, 115, 46, 'minwon-app-1', 'k8s-cp1', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['통합 노드 (k8s-cp1) 파드 #1 🟢', 'livenessProbe /healthz 200 OK'] });
+  node('api2', 845, 432, 115, 46, 'minwon-app-2', 'k8s-cp1', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['통합 노드 (k8s-cp1) 파드 #2 🟢', '단일 노드 내 2파드 안정 분산'] });
   node('worker', 720, 492, 115, 46, 'intake-worker', '', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['접수 테이블 미처리 건을 순차 처리 (Outbox)', '큐 길이 기반 확장'] });
   node('na', 845, 492, 115, 46, 'notify·audit', '', { zone: '온프레미스 · app', subnet: 'subnet-onprem-k8s', lines: ['알림 · 감사 로그 워커'] });
   node('redis', 720, 624, 115, 46, 'Redis', '', { zone: '온프레미스 · data', subnet: 'subnet-onprem-k8s', lines: ['로컬 캐시 (DR 복제 안 함)'] });
@@ -7471,14 +7471,14 @@ PORTAL_HTML = """<!DOCTYPE html>
         diskUsed: '12.5G',
         diskTotal: '20G',
         diskPct: 63,
-        services: 'K3s Master (:6443), etcd 제어 플레인 전담, CoreDNS (민원 파드는 k8s-w1 워커 전담)',
-        badge: 'K8s Control Plane',
+        services: 'K3s Server & Agent (통합 🟢), CoreDNS, Traefik Ingress (:30080), minwon-app 파드 전담 서빙',
+        badge: 'K8s All-in-One (통합)',
         badgeColor: '#8FE0B4',
         status: 'ACTIVE 🟢',
         commands: [
-          { cmd: 'kubectl get nodes', out: 'k8s-cp1 Ready control-plane v1.37.2+k3s1\\nk8s-w1 Ready worker v1.37.2+k3s1 (단독 워커 체제 확정 🟢)' },
+          { cmd: 'kubectl get nodes', out: 'k8s-cp1 Ready control-plane,worker v1.37.2+k3s1 (마스터·워커 통합 단일 노드 확정 🟢)' },
           { cmd: 'curl http://192.168.120.226:30080/healthz', out: 'HTTP 200 OK\\n{"status":"ready","db":"ok"} (정상 🟢)' },
-          { cmd: 'free -m', out: 'Mem: 3911 total, 310 used, 3200 free, 3370 available\\nSwap: 0B (스왑 0B 미사용 건전 🟢 · 2 vCPU / 4GB RAM)' }
+          { cmd: 'free -m', out: 'Mem: 6375 total, 611 used, 4928 free, 5373 available\\nSwap: 0B (스왑 0B 미사용 건전 🟢 · 4 vCPU / 6.5GB RAM 통합)' }
         ]
       },
       {
@@ -7756,7 +7756,7 @@ PORTAL_HTML = """<!DOCTYPE html>
       { name: '온프렘 controller (오픈스택 마스터)', swap: '0B Used', state: '영구 Swap Off 비활성화 완료 (4GB RAM 여유) 🟢', color: '#5FD39A' },
       { name: '온프렘 db-01 (compute4)', swap: '0B Used', state: 'm1.medium 4GB 증설로 완전 해소 🟢', color: '#5FD39A' },
       { name: '온프렘 k8s-cp1 (compute3)', swap: '0B Used', state: '파드 다이어트 후 0B 안정화 🟢', color: '#5FD39A' },
-      { name: '온프렘 k8s-w1 (compute1)', swap: '0B Used', state: '단독 Worker 2.5GB 자원 건전 (민원 파드 2대 서빙) 🟢', color: '#5FD39A' },
+      { name: '온프렘 k8s-cp1 (마스터·워커 통합)', swap: '0B Used', state: 'k8s-cp1에 w1 자원 합산 완료 (4 vCPU / 6.5GB RAM) 🟢', color: '#5FD39A' },
       { name: '온프렘 compute2 (회수)', swap: '0B (OFF)', state: '안전·성능 우선 정책으로 정지 및 메모리 회수 완료 ⚪', color: '#8AA5C2' },
       { name: 'KT Cloud Edge (kt-edge)', swap: '0B Used', state: '2GB 스왑 풀 0B 미사용 건전 🟢', color: '#5FD39A' },
       { name: 'AWS 관제 (aws-ctl)', swap: '1MB Used', state: '99.9% 여유 (Orchestrator 완충) 🟢', color: '#9FD3F5' },
@@ -7888,7 +7888,7 @@ PORTAL_HTML = """<!DOCTYPE html>
     // 1. k8s-cp1
     var cpCard = h('div', 'osx-card', null, grid);
     cpCard.style.cssText = 'background: rgba(29, 74, 122, 0.4); border: 1px solid rgba(167, 139, 250, 0.4); padding: 12px; border-radius: 4px;';
-    h('h4', null, '🖥️ k8s-cp1 (172.20.0.86 · FIP 192.168.120.226 · 2 vCPU / 4GB)', cpCard);
+    h('h4', null, '🖥️ k8s-cp1 (172.20.0.86 · FIP 192.168.120.226 · 마스터·워커 통합 4 vCPU / 6.5GB)', cpCard);
     var cpUl = h('ul', 'osx-list', null, cpCard);
     [
       ['minwon-app (K8s 파드 3대)', 'NodePort :30080 · active 🟢', 'Namespace: minwon-sample (Replica 3대 정상)'],
@@ -7931,7 +7931,7 @@ PORTAL_HTML = """<!DOCTYPE html>
     // 3. k8s-w1 (단일 워커 노드)
     var wCard = h('div', 'osx-card', null, grid);
     wCard.style.cssText = 'background: rgba(29, 74, 122, 0.4); border: 1px solid rgba(58, 120, 181, 0.4); padding: 12px; border-radius: 4px;';
-    h('h4', null, '⚡ k8s-w1 (워커 노드 · 2 vCPU / 2.5GB)', wCard);
+    h('h4', null, '⚡ k8s-w1 (k8s-cp1으로 자원 통합 완료)', wCard);
     var wUl = h('ul', 'osx-list', null, wCard);
     [
       ['k8s-w1 (172.20.0.180)', 'k3s-agent · active', '/etc/rancher/k3s/k3s-agent.service (호스트: compute1)'],
