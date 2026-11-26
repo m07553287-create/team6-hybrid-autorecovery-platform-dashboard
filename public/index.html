@@ -328,69 +328,297 @@
     .fill-green { background: var(--green); }
     .fill-amber { background: var(--yellow); }
 
-    /* DASHBOARD FULL STREAM LAYOUT (클릭 없이 한번에 하나의 페이지에서 바로 보여지는 뷰) */
-    .dashboard-full-stream {
+    /* DESKTOP ZERO-SCROLL MATRIX GRID */
+    .desktop-dashboard-container {
       width: 100%;
       height: 100%;
-      overflow-y: auto;
-      padding: 12px 16px 24px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
-    }
-    .instance-card-block {
-      background: var(--surface);
-      border: 1px solid var(--surface-border);
-      border-radius: 6px;
+      padding: 8px 12px 10px;
+      gap: 8px;
       overflow: hidden;
-      display: flex;
-      flex-direction: column;
     }
-    .instance-block-header {
-      background: #141e33;
-      border-bottom: 1px solid var(--border-color);
-      padding: 10px 14px;
+    .dashboard-toolbar-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      flex-shrink: 0;
     }
-    .inst-head-left {
+    .toolbar-left {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
-    .inst-title-lg {
-      font-size: 13.5px;
+    .toolbar-title {
+      font-size: 13px;
       font-weight: 700;
       color: #fff;
-    }
-    .inst-ip-lg {
-      font-size: 11px;
-      color: var(--text-sub);
-      font-family: var(--font-mono);
-    }
-    .inst-metrics-inline {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      font-size: 11.5px;
-      font-family: var(--font-mono);
-    }
-    .inst-metric-pill {
       display: flex;
       align-items: center;
       gap: 6px;
+    }
+    .toolbar-sub {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+    .toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .sort-box {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
       color: var(--text-sub);
     }
-    .inst-metric-pill strong {
+    .sort-select {
+      background: #090d16;
+      border: 1px solid var(--surface-border);
+      color: #fff;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .sort-select:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .matrix-5col-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .inst-grid-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+      transition: border-color 0.15s ease;
+    }
+    .inst-grid-card:hover {
+      border-color: #3b82f6;
+    }
+    .inst-grid-card-head {
+      background: #141e33;
+      border-bottom: 1px solid var(--border-color);
+      padding: 8px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .inst-head-title-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .inst-card-title {
+      font-size: 12.5px;
+      font-weight: 700;
       color: #fff;
     }
-    .table-container-embedded {
-      width: 100%;
-      overflow-x: auto;
+    .inst-card-ip {
+      font-size: 10px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
     }
+    .inst-card-stats-bar {
+      background: #090d16;
+      border-bottom: 1px solid var(--surface-border);
+      padding: 6px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--text-sub);
+      flex-shrink: 0;
+    }
+    .compact-service-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-height: 0;
+    }
+    .compact-service-row {
+      background: var(--surface-card);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 5px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      cursor: pointer;
+      transition: all 0.12s ease;
+      text-decoration: none;
+    }
+    .compact-service-row:hover {
+      background: var(--surface-hover);
+      border-color: var(--blue);
+      transform: translateY(-1px);
+    }
+    .svc-row-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .svc-row-left {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+    }
+    .svc-row-name {
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .svc-row-bot {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 9.5px;
+      font-family: var(--font-mono);
+      color: var(--text-sub);
+    }
+    .inst-card-footer {
+      border-top: 1px solid var(--surface-border);
+      padding: 6px 10px;
+      background: #0d1424;
+      flex-shrink: 0;
+    }
+    .open-modal-btn {
+      width: 100%;
+      background: transparent;
+      border: 1px solid #1e293b;
+      color: var(--blue);
+      padding: 4px 0;
+      border-radius: 3px;
+      font-size: 10.5px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.12s ease;
+    }
+    .open-modal-btn:hover {
+      background: #1e293b;
+      color: #fff;
+      border-color: #3b82f6;
+    }
+
+    /* MODAL POPUP (BACKDROP & DIALOG) */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(4, 7, 13, 0.85);
+      backdrop-filter: blur(5px);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .modal-dialog {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      width: 100%;
+      max-width: 1100px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.7);
+      overflow: hidden;
+      animation: modalFadeIn 0.15s ease-out;
+    }
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: scale(0.98); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .modal-header {
+      background: #141e33;
+      border-bottom: 1px solid #1e293b;
+      padding: 12px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .modal-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .modal-title-text {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .modal-close-btn {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.12s ease;
+    }
+    .modal-close-btn:hover {
+      background: #ef4444;
+      color: #fff;
+      border-color: #dc2626;
+    }
+    .modal-body {
+      padding: 16px 18px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .modal-summary-box {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      padding: 10px 14px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+    .summary-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .summary-k { font-size: 10px; color: var(--text-muted); }
+    .summary-v { font-size: 12px; font-weight: 700; color: #fff; }
     .panel-head {
       display: flex;
       justify-content: space-between;
@@ -942,8 +1170,44 @@
 
   <!-- VIEW 1: DASHBOARD VIEW (FHD FIXED / CLICK-FREE ONE-PAGE CONSOLE) -->
   <div id="view-dashboard" class="view-container">
-    <div class="dashboard-full-stream" id="dashboard-full-stream">
-      <!-- 5대 인스턴스별 요약정보와 Top 10 리소스/속도 테이블이 클릭 없이 한번에 펼쳐짐 -->
+    <div class="desktop-dashboard-container">
+      <!-- DASHBOARD TOOLBAR: SORT & SERVICE-TYPE FILTER -->
+      <div class="dashboard-toolbar-row">
+        <div class="toolbar-left">
+          <div class="toolbar-title">
+            <span>5대 클라우드 인스턴스 서비스 매트릭스</span>
+            <span class="badge-running" style="font-size: 10px; padding: 1px 6px;">실시간 연동</span>
+          </div>
+          <div class="toolbar-sub">데스크탑 전용 FHD 뷰 · 인스턴스별 Top 10 서비스 고밀도 배치 · 클릭 시 상세 모달</div>
+        </div>
+        <div class="toolbar-right">
+          <!-- 서비스 형태별 필터 -->
+          <div class="filter-chips-row" id="type-filter-group">
+            <span style="font-size: 11px; color: var(--text-muted); margin-right: 2px;">유형 필터:</span>
+            <button type="button" class="chip-btn active" data-type="all" onclick="setServiceFilter('all')">전체</button>
+            <button type="button" class="chip-btn" data-type="web" onclick="setServiceFilter('web')">웹/API</button>
+            <button type="button" class="chip-btn" data-type="gw" onclick="setServiceFilter('gw')">보안/관문</button>
+            <button type="button" class="chip-btn" data-type="daemon" onclick="setServiceFilter('daemon')">상시데몬</button>
+            <button type="button" class="chip-btn" data-type="data" onclick="setServiceFilter('data')">데이터/DR</button>
+          </div>
+          <!-- 리소스 & 형태 정렬 셀렉터 -->
+          <div class="sort-box">
+            <label for="sort-select" style="font-size: 11px; color: var(--text-muted);">정렬 기준:</label>
+            <select id="sort-select" class="sort-select" onchange="applySortAndFilter()">
+              <option value="rank">기본 중요도 순위 (#1~#10)</option>
+              <option value="cpu">CPU 점유율 높은순 (CPU %)</option>
+              <option value="mem">메모리 점유율 높은순 (RAM %)</option>
+              <option value="lat">응답속도 빠른순 (Latency ms)</option>
+              <option value="type">서비스 형태별 묶음 (Type)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5-COL MATRIX GRID (DESKTOP ZERO-SCROLL) -->
+      <div class="matrix-5col-grid" id="matrix-5col-grid">
+        <!-- 5대 인스턴스 카드가 자바스크립트로 동적 렌더링됨 -->
+      </div>
     </div>
   </div>
 
@@ -984,6 +1248,23 @@
       <!-- RIGHT BODY: SELECTED MANUAL DETAILS -->
       <div class="settings-body" id="manual-body-content">
         <!-- Dynamically populated by JS loadManual() -->
+      </div>
+    </div>
+  </div>
+
+  <!-- DETAIL MODAL POPUP (CLICK OUTSIDE OR ESC TO CLOSE) -->
+  <div id="modal-backdrop" class="modal-backdrop" style="display: none;" onclick="handleBackdropClick(event)">
+    <div class="modal-dialog" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span id="modal-cloud-tag" class="cloud-tag"></span>
+          <span class="modal-title-text" id="modal-title">인스턴스 상세 정보</span>
+          <span id="modal-ip-text" style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);"></span>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="closeModal()">닫기 (Esc)</button>
+      </div>
+      <div class="modal-body" id="modal-body">
+        <!-- Dynamically populated by JS openDetailModal() -->
       </div>
     </div>
   </div>
@@ -1043,7 +1324,7 @@
         vSettings.style.display = 'none';
         btnDash.classList.add('active');
         btnSet.classList.remove('active');
-        renderAllInstancesTop10();
+        applySortAndFilter();
       } else {
         vDashboard.style.display = 'none';
         vSettings.style.display = 'grid';
@@ -1355,84 +1636,330 @@ bash scripts/setup_aws_dr_addons.sh`,
       }
     };
 
-    // 5. RENDER ALL INSTANCES TOP 10 IN ONE SINGLE PAGE (CLICK-FREE)
-    function renderAllInstancesTop10() {
-      const container = document.getElementById('dashboard-full-stream');
-      if (!container) return;
+    // 5. DIAGNOSTIC CLI COMMANDS MAP FOR MODAL
+    const SERVICE_DIAG_COMMANDS = {
+      // KT Cloud Edge
+      'modsecurity-waf-proxy': 'sudo nginx -t && sudo tail -n 20 /var/log/nginx/modsec_audit.log',
+      'wireguard-mesh-daemon': 'sudo wg show && sudo systemctl status wireguard-mesh',
+      'haproxy-edge-router': 'sudo haproxy -c -f /etc/haproxy/haproxy.cfg && sudo systemctl status haproxy',
+      'fail2ban-intrusion-guard': 'sudo fail2ban-client status && sudo fail2ban-client status sshd',
+      'telegraf-edge-agent': 'sudo systemctl status telegraf && telegraf --test',
+      'certbot-ssl-renewer': 'sudo certbot certificates && sudo certbot renew --dry-run',
+      'iptables-nat-sync': 'sudo iptables -t nat -L -n -v',
+      'cloud-init-agent': 'cloud-init status --long',
+      'rsyslog-audit-forwarder': 'sudo systemctl status rsyslog',
+      'edge-health-checker': 'curl -I http://127.0.0.1:8088/healthz',
+      // 온프렘 k8s-cp1
+      'minwon-backend': 'kubectl -n default describe pod -l app=minwon-backend && kubectl logs -n default -l app=minwon-backend --tail=20',
+      'traefik-ingress-controller': 'kubectl -n kube-system describe pod -l app.kubernetes.io/name=traefik',
+      'minwon-frontend': 'kubectl -n default describe pod -l app=minwon-frontend',
+      'coredns-resolver': 'kubectl -n kube-system logs -l k8s-app=kube-dns --tail=20',
+      'kube-flannel-cni': 'kubectl -n kube-system get daemonset kube-flannel-ds',
+      'k3s-server-core': 'sudo systemctl status k3s && kubectl get nodes -o wide',
+      'metrics-server': 'kubectl top nodes && kubectl top pods -A',
+      'local-path-provisioner': 'kubectl -n kube-system get pod -l app=local-path-provisioner',
+      'minwon-worker-queue': 'kubectl -n default get pods -l app=minwon-worker',
+      'node-problem-detector': 'kubectl -n kube-system get ds node-problem-detector',
+      // 온프렘 db-01
+      'mariadb-galera-cluster': "mysqladmin -u root -p status && mysql -e \"SHOW STATUS LIKE 'wsrep%';\"",
+      'ssh-backup-receiver': 'sudo tail -n 25 /var/log/auth.log | grep backupuser',
+      'mysqld-exporter': 'curl -s http://localhost:9104/metrics | head -n 25',
+      'xtrabackup-cron-scheduler': 'sudo ls -lh /var/backups/mariadb/ && cat /etc/cron.d/mariadb-backup',
+      'innodb-buffer-monitor': 'mysql -e \"SHOW ENGINE INNODB STATUS\\G\" | grep -A 10 \"BUFFER POOL\"',
+      'systemd-journald': 'journalctl -u mariadb -n 30 --no-pager',
+      'wireguard-db-endpoint': 'sudo wg show',
+      'cron-logrotate': 'sudo logrotate -d /etc/logrotate.d/mysql-server',
+      'auditd-security-daemon': 'sudo ausearch -m USER_AUTH -ts today',
+      'node-exporter': 'curl -s http://localhost:9100/metrics | grep node_cpu',
+      // AWS CTL
+      'duck-hsagent-dr-engine': 'sudo systemctl status duck-hsagent && curl -s http://localhost:8080/api/dr-status | jq .',
+      'route53-failover-syncer': "aws route53 list-resource-record-sets --hosted-zone-id Z1000 --query \"ResourceRecordSets[?Name == 'minwon.ktci5.kr.']\"",
+      'cloudwatch-metric-collector': 'sudo systemctl status amazon-cloudwatch-agent',
+      'aws-ssm-agent': 'sudo systemctl status snap.amazon-ssm-agent.amazon-ssm-agent',
+      'wireguard-aws-connector': 'sudo wg show',
+      'dr-alert-webhook-dispatcher': 'journalctl -u dr-alert-webhook -n 20 --no-pager',
+      'state-database-sqlite': 'sqlite3 /var/lib/duck-hsagent/state.db \"SELECT * FROM dr_events ORDER BY id DESC LIMIT 5;\"',
+      'health-probe-worker': 'journalctl -u duck-hsagent | grep PROBE',
+      'systemd-resolved': 'resolvectl status',
+      'amazon-ebs-autoscale': 'df -h /var/log /var/lib',
+      // AWS DR K3s
+      'dr-pilot-light-agent': 'kubectl -n dr-standby get pods -o wide && kubectl -n dr-standby describe pod -l app=pilot-light',
+      'dr-rsync-backup-syncer': 'systemctl status aws-dr-sync.timer && ls -lh /data/dr-backup/',
+      'k3s-standby-core': 'sudo systemctl status k3s && kubectl get nodes',
+      'minwon-backend-standby': 'kubectl -n dr-standby get deployment minwon-backend-standby',
+      'traefik-standby-router': 'kubectl -n kube-system get pod -l app.kubernetes.io/name=traefik',
+      'coredns-standby': 'kubectl -n kube-system get pod -l k8s-app=kube-dns',
+      'mariadb-standby-replica': 'mysql -e \"SHOW REPLICA STATUS\\G\"',
+      'aws-ssm-dr-agent': 'sudo systemctl status snap.amazon-ssm-agent.amazon-ssm-agent',
+      'flannel-dr-cni': 'kubectl -n kube-system get ds kube-flannel-ds',
+      'failover-trigger-listener': 'curl -s http://localhost:9000/dr/health'
+    };
 
+    // 6. SORT & FILTER CONTROLLER
+    let currentServiceFilter = 'all';
+
+    function setServiceFilter(type) {
+      currentServiceFilter = type;
+      const chips = document.querySelectorAll('#type-filter-group .chip-btn');
+      chips.forEach(c => {
+        if (c.getAttribute('data-type') === type) {
+          c.classList.add('active');
+        } else {
+          c.classList.remove('active');
+        }
+      });
+      applySortAndFilter();
+    }
+
+    function applySortAndFilter() {
+      const grid = document.getElementById('matrix-5col-grid');
+      if (!grid) return;
+
+      const sortMode = document.getElementById('sort-select')?.value || 'rank';
       const instanceKeys = ['kt-edge', 'onprem-cp1', 'onprem-db', 'aws-ctl', 'aws-dr'];
 
-      container.innerHTML = instanceKeys.map(key => {
+      grid.innerHTML = instanceKeys.map(key => {
         const data = INSTANCE_TOP10_DATA[key];
         if (!data) return '';
 
-        const rowsHtml = data.services.map(s => {
-          const rankClass = s.rank <= 3 ? 'rank-top3' : '';
-          const stateClass = s.state === 'Running' ? 'badge-running' : 'badge-standby';
-          const typeClass = `type-${s.type}`;
+        // 1. Filter
+        let list = data.services.slice();
+        if (currentServiceFilter !== 'all') {
+          list = list.filter(s => s.type === currentServiceFilter);
+        }
 
-          return `
-            <tr data-type="${s.type}">
-              <td style="text-align: center;"><span class="rank-badge ${rankClass}">#${s.rank}</span></td>
-              <td><span class="type-badge ${typeClass}">${s.typeName}</span></td>
-              <td>
-                <div class="svc-box">
-                  <span class="svc-name">${s.name}</span>
-                  <span class="svc-desc">${s.desc}</span>
+        // 2. Sort
+        list.sort((a, b) => {
+          if (sortMode === 'cpu') return b.cpuP - a.cpuP;
+          if (sortMode === 'mem') return b.memP - a.memP;
+          if (sortMode === 'lat') {
+            const latA = a.lat.includes('ms') ? parseFloat(a.lat) : 9999;
+            const latB = b.lat.includes('ms') ? parseFloat(b.lat) : 9999;
+            return latA - latB;
+          }
+          if (sortMode === 'type') {
+            return a.typeName.localeCompare(b.typeName);
+          }
+          return a.rank - b.rank; // default rank
+        });
+
+        // 3. Compact Rows
+        const rowsHtml = list.length === 0 
+          ? `<div style="padding: 24px 10px; text-align: center; color: var(--text-muted); font-size: 11px;">해당 유형의 서비스가 없습니다.</div>`
+          : list.map(s => {
+              const stateClass = s.state === 'Running' ? 'badge-running' : 'badge-standby';
+              const rankClass = s.rank <= 3 ? 'rank-top3' : '';
+              const typeClass = `type-${s.type}`;
+
+              return `
+                <div class="compact-service-row" onclick="openDetailModal('${key}', '${s.name}')" title="클릭 시 상세 모달 열기">
+                  <div class="svc-row-top">
+                    <div class="svc-row-left">
+                      <span class="rank-badge ${rankClass}">#${s.rank}</span>
+                      <span class="type-badge ${typeClass}">${s.typeName}</span>
+                      <span class="svc-row-name" title="${s.name}">${s.name}</span>
+                    </div>
+                    <span class="${stateClass}" style="font-size: 9px; padding: 1px 5px;">${s.state}</span>
+                  </div>
+                  <div class="svc-row-bot">
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                      <span>CPU ${s.cpuP}%</span>
+                      <div class="mini-meter-track" style="width: 28px;"><div class="mini-meter-fill fill-blue" style="width: ${s.cpuP}%;"></div></div>
+                      <span>RAM ${s.memP}%</span>
+                    </div>
+                    <span style="color: #38bdf8; font-weight: 600;">${s.lat}</span>
+                  </div>
                 </div>
-              </td>
-              <td><span style="color:#cbd5e1; font-weight:600;">${s.alloc}</span></td>
-              <td>
-                <div class="res-metric-cell">
-                  <div class="res-metric-val"><span>${s.cpuU}</span><span>${s.memU}</span></div>
-                  <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: ${s.cpuP}%;"></div></div>
-                </div>
-              </td>
-              <td><span style="color:#38bdf8; font-weight:700;">${s.lat}</span></td>
-              <td><span style="color:var(--text-muted);">${s.port}</span></td>
-              <td style="text-align: center;"><span class="${stateClass}">${s.state}</span></td>
-            </tr>
-          `;
-        }).join('');
+              `;
+            }).join('');
 
         return `
-          <div class="instance-card-block" id="block-${key}">
-            <div class="instance-block-header">
-              <div class="inst-head-left">
-                <span class="cloud-tag ${data.cloudClass}">${data.cloud}</span>
-                <span class="inst-title-lg">${data.name}</span>
-                <span class="inst-ip-lg">(${data.ip})</span>
+          <div class="inst-grid-card" id="card-${key}">
+            <div class="inst-grid-card-head">
+              <div class="inst-head-title-wrap">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span class="cloud-tag ${data.cloudClass}">${data.cloud}</span>
+                  <span class="inst-card-title">${data.name}</span>
+                </div>
+                <div class="inst-card-ip">${data.ip}</div>
               </div>
-              <div class="inst-metrics-inline">
-                <div class="inst-metric-pill">할당: <strong>${data.totalAlloc}</strong></div>
-                <div class="inst-metric-pill">사용: <strong style="color:#34d399;">${data.currentUsage}</strong></div>
-                <div class="inst-metric-pill">속도: <strong style="color:#fbbf24;">${data.netSpeed}</strong></div>
-                <div class="inst-metric-pill">상태: <strong style="color:#38bdf8;">${data.status}</strong></div>
+              <span class="badge-running" style="font-size: 10px; padding: 2px 6px;">${data.status.includes('Active') ? 'Active' : 'Standby'}</span>
+            </div>
+
+            <div class="inst-card-stats-bar">
+              <div style="display: flex; flex-direction: column; gap: 1px;">
+                <span>자원: <strong style="color: #cbd5e1;">${data.totalAlloc.split('/')[0].trim()} / ${data.totalAlloc.split('/')[1]?.trim() || ''}</strong></span>
+                <span>사용: <strong style="color: #34d399;">${data.currentUsage.split('/')[0].trim()}</strong></span>
+              </div>
+              <div style="text-align: right; display: flex; flex-direction: column; gap: 1px;">
+                <span>지연: <strong style="color: #fbbf24;">${data.netSpeed.split(' ')[0]}</strong></span>
+                <span style="color: #94a3b8;">${list.length}개 서비스</span>
               </div>
             </div>
-            <div class="table-container-embedded">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th style="width: 5%; text-align: center;">순위</th>
-                    <th style="width: 12%;">서비스유형</th>
-                    <th style="width: 27%;">서비스명 & 역할</th>
-                    <th style="width: 14%;">할당 리소스</th>
-                    <th style="width: 18%;">실제 사용량 (점유율)</th>
-                    <th style="width: 10%;">응답속도</th>
-                    <th style="width: 8%;">포트</th>
-                    <th style="width: 6%; text-align: center;">상태</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${rowsHtml}
-                </tbody>
-              </table>
+
+            <div class="compact-service-list">
+              ${rowsHtml}
+            </div>
+
+            <div class="inst-card-footer">
+              <button type="button" class="open-modal-btn" onclick="openDetailModal('${key}', null)">
+                인스턴스 전체 상세 모달 열기 ➔
+              </button>
             </div>
           </div>
         `;
       }).join('');
     }
+
+    // 7. DETAIL MODAL POPUP LOGIC
+    function openDetailModal(instKey, targetSvcName) {
+      const data = INSTANCE_TOP10_DATA[instKey];
+      if (!data) return;
+
+      const modalBackdrop = document.getElementById('modal-backdrop');
+      const modalCloudTag = document.getElementById('modal-cloud-tag');
+      const modalTitle = document.getElementById('modal-title');
+      const modalIp = document.getElementById('modal-ip-text');
+      const modalBody = document.getElementById('modal-body');
+
+      modalCloudTag.className = `cloud-tag ${data.cloudClass}`;
+      modalCloudTag.textContent = data.cloud;
+      modalTitle.textContent = `${data.name} 세부 관제 & 리소스 분석`;
+      modalIp.textContent = `IP: ${data.ip} · ${data.status}`;
+
+      // Focused service finding
+      const targetSvc = targetSvcName ? data.services.find(s => s.name === targetSvcName) : null;
+      const diagCmd = targetSvc ? (SERVICE_DIAG_COMMANDS[targetSvc.name] || 'kubectl top pods || systemctl status') : '';
+
+      let focusedHtml = '';
+      if (targetSvc) {
+        const stateClass = targetSvc.state === 'Running' ? 'badge-running' : 'badge-standby';
+        const typeClass = `type-${targetSvc.type}`;
+        focusedHtml = `
+          <div style="background: #141f36; border: 1px solid #38bdf8; border-radius: 6px; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="type-badge ${typeClass}">${targetSvc.typeName}</span>
+                <span style="font-size: 15px; font-weight: 700; color: #fff;">${targetSvc.name}</span>
+                <span style="font-size: 11.5px; color: #94a3b8; font-family: var(--font-mono);">${targetSvc.desc}</span>
+              </div>
+              <span class="${stateClass}">${targetSvc.state}</span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; font-family: var(--font-mono); font-size: 11px;">
+              <div class="spec-item"><span class="spec-k">할당 리소스</span><span class="spec-v">${targetSvc.alloc}</span></div>
+              <div class="spec-item"><span class="spec-k">CPU 실제 사용량</span><span class="spec-v" style="color: #38bdf8;">${targetSvc.cpuU}</span></div>
+              <div class="spec-item"><span class="spec-k">메모리 실제 사용량</span><span class="spec-v" style="color: #34d399;">${targetSvc.memU}</span></div>
+              <div class="spec-item"><span class="spec-k">지연율 & 포트</span><span class="spec-v" style="color: #fbbf24;">${targetSvc.lat} · ${targetSvc.port}</span></div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 2px;">
+              <div style="font-size: 10.5px; color: #94a3b8; font-weight: 600;">실시간 진단 / 파드 검증 CLI 명령어</div>
+              <div class="code-block" style="padding: 8px 10px; font-size: 11px;">${diagCmd}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Summary 4-cell
+      const summaryBoxHtml = `
+        <div class="modal-summary-box">
+          <div class="summary-cell">
+            <span class="summary-k">총 할당 규격</span>
+            <span class="summary-v">${data.totalAlloc}</span>
+          </div>
+          <div class="summary-cell">
+            <span class="summary-k">현재 사용량 (점유율)</span>
+            <span class="summary-v" style="color: #34d399;">${data.currentUsage}</span>
+          </div>
+          <div class="summary-cell">
+            <span class="summary-k">네트워크 지연율</span>
+            <span class="summary-v" style="color: #fbbf24;">${data.netSpeed}</span>
+          </div>
+          <div class="summary-cell">
+            <span class="summary-k">인프라 운영 모드</span>
+            <span class="summary-v" style="color: #38bdf8;">${data.status}</span>
+          </div>
+        </div>
+      `;
+
+      // Full table of services
+      const tableRowsHtml = data.services.map(s => {
+        const isSelected = targetSvcName === s.name ? 'style="background: rgba(56, 189, 248, 0.12); border-left: 3px solid #38bdf8;"' : '';
+        const rankClass = s.rank <= 3 ? 'rank-top3' : '';
+        const stateClass = s.state === 'Running' ? 'badge-running' : 'badge-standby';
+        const typeClass = `type-${s.type}`;
+
+        return `
+          <tr ${isSelected} onclick="openDetailModal('${instKey}', '${s.name}')" style="cursor: pointer;" title="클릭하여 이 서비스 집중 분석">
+            <td style="text-align: center;"><span class="rank-badge ${rankClass}">#${s.rank}</span></td>
+            <td><span class="type-badge ${typeClass}">${s.typeName}</span></td>
+            <td>
+              <div class="svc-box">
+                <span class="svc-name">${s.name}</span>
+                <span class="svc-desc">${s.desc}</span>
+              </div>
+            </td>
+            <td><span style="color:#cbd5e1; font-weight:600;">${s.alloc}</span></td>
+            <td>
+              <div class="res-metric-cell">
+                <div class="res-metric-val"><span>${s.cpuU}</span><span>${s.memU}</span></div>
+                <div class="mini-meter-track"><div class="mini-meter-fill fill-blue" style="width: ${s.cpuP}%;"></div></div>
+              </div>
+            </td>
+            <td><span style="color:#38bdf8; font-weight:700;">${s.lat}</span></td>
+            <td><span style="color:var(--text-muted);">${s.port}</span></td>
+            <td style="text-align: center;"><span class="${stateClass}">${s.state}</span></td>
+          </tr>
+        `;
+      }).join('');
+
+      const tableHtml = `
+        <div class="table-container-embedded" style="border: 1px solid #1e293b; border-radius: 6px; overflow: hidden;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 5%; text-align: center;">순위</th>
+                <th style="width: 12%;">서비스유형</th>
+                <th style="width: 27%;">서비스명 & 역할 (클릭 시 상단 분석)</th>
+                <th style="width: 14%;">할당 리소스</th>
+                <th style="width: 18%;">실제 사용량 (점유율)</th>
+                <th style="width: 10%;">응답속도</th>
+                <th style="width: 8%;">포트</th>
+                <th style="width: 6%; text-align: center;">상태</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRowsHtml}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      modalBody.innerHTML = `
+        ${summaryBoxHtml}
+        ${focusedHtml}
+        <div style="font-size: 12px; font-weight: 700; color: #cbd5e1; margin-top: 4px;">전체 Top 10 서비스 목록 (행을 클릭하면 상단에서 상세 분석됩니다)</div>
+        ${tableHtml}
+      `;
+
+      modalBackdrop.style.display = 'flex';
+    }
+
+    function closeModal() {
+      const modalBackdrop = document.getElementById('modal-backdrop');
+      if (modalBackdrop) modalBackdrop.style.display = 'none';
+    }
+
+    function handleBackdropClick(event) {
+      if (event.target.id === 'modal-backdrop') {
+        closeModal();
+      }
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+    });
 
     window.addEventListener('DOMContentLoaded', checkAuth);
   </script>
