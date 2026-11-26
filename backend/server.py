@@ -22,32 +22,9 @@ import email
 from datetime import datetime
 
 # ==============================================================================
-# 재해복구 통합 시연 콘솔 v0.3 엔진 (L1 · L2 · L3 실시간 라이브 터미널 연계)
+# 팀6 하이브리드 멀티클라우드 운영 포털 (v2 롤백 베이스 · 시연 엔진 삭제 완료)
 # ==============================================================================
-TARGET_URL = "https://minwon.ktci5.kr"
-CHAOS_TOKEN = os.getenv("CHAOS_TOKEN", "supersecret-chaos-token")
-
-EDGE_HOST = "root@10.200.0.1"
-KEY_PATH = os.path.expanduser("~/.ssh/id_ed25519")
-
-ONPREM_HOST = "ubuntu@192.168.120.226"
-ONPREM_KEY = os.path.expanduser("~/.ssh/id_ed25519")
-ONPREM_JUMP = ""
-K8S_NS = "minwon-sample"
-K8S_DEPLOY = "minwon-app"
-KUBECONFIG_REMOTE = "/etc/rancher/k3s/k3s.yaml"
-
-TERM3_TITLE = "터미널 3 · KT Edge Nginx 실시간 로그 (tail -F /var/log/nginx/*.log)"
-TERM3_HOST = EDGE_HOST
-TERM3_KEY = KEY_PATH
-TERM3_CMD = "tail -n 12 -F /var/log/nginx/*.log 2>/dev/null"
-
-NO_WIN = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-
-demo_lock = threading.Lock()
 ppt_lock = threading.Lock()
-term3_proc = None
-demo_reset_requested = False
 
 UPLOAD_DIR = "/opt/figteam-portal/uploads"
 if not os.path.exists(UPLOAD_DIR):
@@ -1652,6 +1629,135 @@ PORTAL_HTML = """<!DOCTYPE html>
     body { background: var(--bp-ground); color: var(--bp-ink); height: 100vh; overflow: hidden; display: flex; flex-direction: column; -webkit-font-smoothing: antialiased; }
     :focus-visible { outline: 2px solid var(--bp-pencil); outline-offset: 2px; }
 
+    
+    /* TOP NAVIGATION MENU (사이드바 대체) */
+    .top-nav {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 14px;
+      flex-shrink: 0;
+    }
+    .top-nav-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      color: var(--bp-ink-2);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+      background: transparent;
+    }
+    .top-nav-item:hover {
+      color: var(--bp-ink);
+      background: rgba(230,238,245,0.08);
+      border-color: rgba(230,238,245,0.2);
+    }
+    .top-nav-item.active {
+      color: #0b1120 !important;
+      background: var(--bp-pencil) !important;
+      border-color: var(--bp-pencil) !important;
+      font-weight: 700 !important;
+    }
+
+    /* DROPDOWN MENU */
+    .top-dropdown {
+      position: relative;
+      display: inline-block;
+    }
+    .top-dropdown-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border: 1px solid rgba(230,238,245,0.22);
+      border-radius: 6px;
+      color: var(--bp-ink-2);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+      background: rgba(15,45,79,0.5);
+      transition: all 0.15s ease;
+    }
+    .top-dropdown:hover .top-dropdown-btn, .top-dropdown-btn.active {
+      color: #F7D684;
+      background: rgba(15,45,79,0.95);
+      border-color: #F7D684;
+    }
+    .top-dropdown-btn .arrow {
+      font-size: 10px;
+      transition: transform 0.2s ease;
+    }
+    .top-dropdown:hover .top-dropdown-btn .arrow {
+      transform: rotate(180deg);
+    }
+    .top-dropdown-menu {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      min-width: 200px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      box-shadow: 0 12px 28px rgba(0,0,0,0.65);
+      padding: 6px 0;
+      z-index: 1000;
+      margin-top: 4px;
+      backdrop-filter: blur(8px);
+    }
+    .top-dropdown:hover .top-dropdown-menu {
+      display: block;
+      animation: fadeIn 0.15s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 15px;
+      color: #cbd5e1;
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    .dropdown-item:hover {
+      background: #1e293b;
+      color: #f8fafc;
+    }
+    .dropdown-item.active {
+      background: rgba(244,201,93,0.18);
+      color: #F4C95D;
+      font-weight: 700;
+    }
+    .dropdown-item .ext-tag {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+    .dropdown-divider {
+      height: 1px;
+      background: #334155;
+      margin: 4px 0;
+    }
+
+    /* SIDEBAR 완전 제거 및 화면 100% Full Width 확장 */
+    aside { display: none !important; width: 0 !important; }
+    .app-container { display: flex; width: 100% !important; height: calc(100vh - 56px); overflow: hidden; }
+    main { width: 100% !important; max-width: 100% !important; flex: 1 !important; }
+
     /* TOP NAVIGATION BAR — 도면 상단 테두리 */
     header { height: 56px; background: var(--bp-deep); border-bottom: 2px solid var(--bp-ink); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; z-index: 100; }
     .brand { display: flex; align-items: center; gap: 12px; font-size: 16px; font-weight: 600; color: var(--bp-ink); letter-spacing: -.01em; }
@@ -2493,10 +2599,48 @@ PORTAL_HTML = """<!DOCTYPE html>
 
   <!-- HEADER -->
   <header>
-    <div class="brand">
-      <span>⚡ FIGTEAM</span>
+        <div class="brand">
+      <span>FIGTEAM</span>
       <span class="brand-tag">HYBRID CMP</span>
     </div>
+
+    <!-- TOP NAVIGATION MENU BAR (드롭다운 & 사이드바 대체 · 시연 삭제 완료) -->
+    <nav class="top-nav" id="top-main-nav">
+      <div class="top-nav-item active" data-key="overview" onclick="switchTab('overview')">
+        <span>대시보드</span>
+      </div>
+      <div class="top-nav-item" data-key="operation" onclick="switchTab('operation')">
+        <span>구성도</span>
+      </div>
+      <div class="top-nav-item" data-key="infra" onclick="switchTab('infra')">
+        <span>OpenStack 구조</span>
+      </div>
+      <div class="top-nav-item" data-key="term" onclick="switchTab('term')">
+        <span>통합 웹 터미널</span>
+      </div>
+
+      <!-- 서비스 드롭다운 (시연 콘솔 제외) -->
+      <div class="top-dropdown" id="top-dropdown-services">
+        <div class="top-dropdown-btn" id="top-dropdown-trigger">
+          <span>외부 서비스</span>
+          <span class="arrow">▾</span>
+        </div>
+        <div class="top-dropdown-menu">
+          <div class="dropdown-item" data-key="ppt" onclick="switchTab('ppt')">
+            <span>📊 라이브 PPT 회의실</span>
+          </div>
+          <div class="dropdown-divider"></div>
+          <a class="dropdown-item" href="https://minwon.ktci5.kr" target="_blank" rel="noopener">
+            <span>🏛️ 민원청구 24시 센터</span>
+            <span class="ext-tag">↗</span>
+          </a>
+          <a class="dropdown-item" href="https://kt-edge.ktci5.kr" target="_blank" rel="noopener">
+            <span>🌐 KT Cloud Edge 웹</span>
+            <span class="ext-tag">↗</span>
+          </a>
+        </div>
+      </div>
+    </nav>
     
     <div class="status-group">
       <div class="chip">
@@ -2523,79 +2667,7 @@ PORTAL_HTML = """<!DOCTYPE html>
   </header>
 
   <div class="app-container">
-    <!-- SIDEBAR -->
-    <aside>
-      <ul class="menu-list">
-        <div class="menu-header">통합 콘솔 메뉴</div>
-        
-        <li class="menu-item active" data-key="overview" onclick="switchTab('overview')">
-          <span>통합 인프라 개요</span>
-        </li>
-        
-        <div class="menu-header">운영 & 고가용성 (HA)</div>
-        <li class="menu-item" data-key="dr" onclick="switchTab('dr')">
-          <span>운영 대시보드</span>
-        </li>
-
-        <div class="menu-header">인프라 & 가상화</div>
-        <li class="menu-item" data-key="ktvm" onclick="switchTab('ktvm')">
-          <span>KT Cloud VM 관리</span>
-        </li>
-        <li class="menu-item" data-key="awsvm" onclick="switchTab('awsvm')">
-          <span>AWS EC2 관리</span>
-        </li>
-        <li class="menu-item" data-key="osvm" onclick="switchTab('osvm')">
-          <span>OpenStack VM 관리</span>
-        </li>
-        <li class="menu-item" data-key="osnet" onclick="switchTab('osnet')">
-          <span>OpenStack 구조</span>
-        </li>
-        <li class="menu-item" data-key="term" onclick="switchTab('term')">
-          <span>통합 터미널</span>
-        </li>
-        <li class="menu-item" data-key="osops" onclick="switchTab('osops')">
-          <span>자원 상태확인</span>
-        </li>
-        <li class="menu-item" data-key="realtime" onclick="switchTab('realtime')">
-          <span>실시간 상태확인</span>
-        </li>
-        <li class="menu-item" data-key="horizon" onclick="switchTab('horizon')">
-          <span>OpenStack Horizon</span>
-        </li>
-        
-        <div class="menu-header">복구 자동화 & 옵저버빌리티</div>
-        <li class="menu-item" data-key="orchestrator" onclick="switchTab('orchestrator')">
-          <span>복구 오케스트레이터</span>
-        </li>
-        <li class="menu-item" data-key="chaos" onclick="switchTab('chaos')">
-          <span>RTO 실측 & 카오스 도구</span>
-        </li>
-        <li class="menu-item" data-key="grafana" onclick="switchTab('grafana')">
-          <span>AWS 통합 관제 메트릭</span>
-        </li>
-        
-        <div class="menu-header">서비스 엔드포인트</div>
-        <li class="menu-item" data-key="minwon" onclick="switchTab('minwon')">
-          <span>민원청구 24시 센터</span>
-        </li>
-        <li class="menu-item" data-key="ktedge" onclick="switchTab('ktedge')">
-          <span>KT Cloud Edge 웹</span>
-        </li>
-
-        <div class="menu-header">시연 메뉴</div>
-        <li class="menu-item" data-key="democonsole" onclick="switchTab('democonsole')">
-          <span>시연 콘솔</span>
-        </li>
-        <li class="menu-item" data-key="ppt" onclick="switchTab('ppt')">
-          <span>시연 PPT 회의실</span>
-        </li>
-      </ul>
-      
-      <div class="sidebar-footer">
-        FIGTEAM Multi-Cloud Console v3.3<br>
-        Inbound Port 0 (Zero Trust)
-      </div>
-    </aside>
+    <!-- SIDEBAR REMOVED -->
 
     <!-- MAIN WORKSPACE -->
     <main id="main-workspace">
@@ -3908,10 +3980,7 @@ PORTAL_HTML = """<!DOCTYPE html>
         </div>
       </section>
 
-      <!-- 2.10 DEMO CONSOLE PANEL (CHAOS & RECOVERY LIVE DEMO v0.3) -->
-      <section id="democonsole-panel" style="display: none; flex: 1; flex-direction: column; height: 100%; min-height: 0; padding: 0;">
-        <iframe id="democonsole-frame" src="/democonsole" title="재해복구 통합 시연 콘솔 v0.3" style="flex: 1; width: 100%; height: 100%; border: 0; background: #0b1120;"></iframe>
-      </section>
+      
 
       <!-- 2.11 PPT PRESENTATION PANEL (LIVE TEAM PRESENTATION) -->
       <section id="ppt-panel" style="display: none; flex: 1; flex-direction: column; height: 100%; min-height: 0; padding: 0;">
@@ -4160,8 +4229,7 @@ PORTAL_HTML = """<!DOCTYPE html>
       argocd: { title: "🚀 Argo CD (온프렘 삭제 완료 · 오케스트레이터로 이관)", url: "https://argocd.ktci5.kr" },
       minwon: { title: "🏛️ 민원청구 24시 센터 (민원접수 서비스)", url: "https://minwon.ktci5.kr" },
       ktedge: { title: "🌐 KT Cloud Edge 관리 콘솔", url: "https://kt-edge.ktci5.kr" },
-      democonsole: { title: "🎮 재해복구 원클릭 시연 콘솔 (Chaos & DR Live Demo)", url: "" },
-      ppt: { title: "📊 팀6 하이브리드 멀티클라우드 DR 시연 라이브 PPT 회의실", url: "" }
+            ppt: { title: "📊 팀6 하이브리드 멀티클라우드 DR 시연 라이브 PPT 회의실", url: "" }
     };
 
     let currentTab = 'overview';
@@ -4275,95 +4343,8 @@ PORTAL_HTML = """<!DOCTYPE html>
 
     const CUSTOM_PANEL_KEYS = [
       'overview', 'dr', 'ktvm', 'awsvm', 'osvm', 'osnet', 'term', 'osops', 'realtime',
-      'orchestrator', 'chaos', 'grafana', 'democonsole', 'ppt'
+      'orchestrator', 'chaos', 'grafana', 'ppt'
     ];
-
-    let demoPollTimer = null;
-    async function fetchDemoStatus() {
-      try {
-        const res = await fetch('/api/democonsole/status');
-        if (!res.ok) return;
-        const d = await res.json();
-
-        // 1. HTTP 응답 상태
-        const codeEl = document.getElementById('demo-stat-code');
-        if (codeEl) {
-          codeEl.innerText = d.status_code === 200 ? '200 OK' : (d.status_code === 0 ? '0 (응답 없음)' : d.status_code);
-          codeEl.style.color = d.status_code === 200 ? '#5FD39A' : '#FF6B81';
-        }
-        const latEl = document.getElementById('demo-stat-latency');
-        if (latEl) latEl.innerText = '지연시간: ' + d.latency_ms + ' ms';
-
-        // 2. 활성 파드 및 거점
-        const podEl = document.getElementById('demo-stat-pod');
-        if (podEl) podEl.innerText = d.pod;
-        const siteEl = document.getElementById('demo-stat-site');
-        if (siteEl) siteEl.innerText = '서빙 거점: ' + (d.site === 'aws' ? 'AWS DR (Pilot-Light)' : (d.site === 'onprem' ? '온프레미스 (OpenStack)' : '확인 중'));
-
-        // 3. 실측 RTO
-        const rtoEl = document.getElementById('demo-stat-rto');
-        if (rtoEl) {
-          if (d.rto_seconds !== null && d.rto_seconds !== undefined) {
-            rtoEl.innerText = d.rto_seconds + ' 초';
-            rtoEl.style.color = '#5FD39A';
-          } else if (d.is_outage) {
-            rtoEl.innerText = '측정 중 (' + d.elapsed_outage + 's)';
-            rtoEl.style.color = '#FF6B81';
-          } else {
-            rtoEl.innerText = '-';
-            rtoEl.style.color = '#F4C95D';
-          }
-        }
-
-        // 4. 상단 배지
-        const badge = document.getElementById('demo-site-badge');
-        if (badge) {
-          if (d.phase === 'NORMAL_ONPREM') {
-            badge.style.background = '#059669';
-            badge.style.color = '#fff';
-            badge.innerText = '🟢 정상 서비스 (온프렘 k8s-cp1)';
-            badge.style.boxShadow = '0 0 12px rgba(5, 150, 105, 0.4)';
-          } else if (d.phase === 'OUTAGE_DOWN') {
-            badge.style.background = '#dc2626';
-            badge.style.color = '#fff';
-            badge.innerText = '🚨 장애 발생! 서비스 다운 중';
-            badge.style.boxShadow = '0 0 12px rgba(220, 38, 38, 0.6)';
-          } else if (d.phase === 'RECOVERED_AWS') {
-            badge.style.background = '#2563eb';
-            badge.style.color = '#fff';
-            badge.innerText = '🛡️ 복구 완료! AWS DR 서비스 중';
-            badge.style.boxShadow = '0 0 12px rgba(37, 99, 235, 0.6)';
-          }
-        }
-
-        // 5. 로그 피드
-        const logBox = document.getElementById('demo-logs-box');
-        if (logBox && d.logs && d.logs.length > 0) {
-          logBox.innerHTML = d.logs
-            .slice()
-            .reverse()
-            .map(function(l) {
-              let color = '#C5D1DE';
-              if (l.indexOf('장애 발생') !== -1 || l.indexOf('실패') !== -1) color = '#FF6B81';
-              else if (l.indexOf('복구 완료') !== -1 || l.indexOf('원복 완료') !== -1) color = '#5FD39A';
-              else if (l.indexOf('명령 전송') !== -1) color = '#F4C95D';
-              return '<div style="color:' + color + ';">' + l + '</div>';
-            })
-            .join('');
-        }
-      } catch (e) {
-        console.error("Demo status error:", e);
-      }
-    }
-
-    async function runDemoAction(act) {
-      try {
-        await fetch('/api/democonsole/action/' + act, { method: 'POST' });
-        setTimeout(fetchDemoStatus, 300);
-      } catch (e) {
-        alert('시연 명령 실행 실패: ' + e);
-      }
-    }
 
     function clearDemoLogs() {
       const logBox = document.getElementById('demo-logs-box');
@@ -4374,10 +4355,22 @@ PORTAL_HTML = """<!DOCTYPE html>
       if (!SERVICES[key]) return;
       currentTab = key;
 
-      // 1. 사이드바 active 메뉴 갱신
-      document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
-      const activeItem = document.querySelector('.menu-item[data-key="' + key + '"]');
-      if (activeItem) activeItem.classList.add('active');
+            // 1. 탑 네비게이션 & 드롭다운 active 메뉴 갱신
+      document.querySelectorAll('.top-nav-item, .dropdown-item').forEach(el => el.classList.remove('active'));
+      const activeNav = document.querySelector('.top-nav-item[data-key="' + key + '"]');
+      if (activeNav) activeNav.classList.add('active');
+
+      const activeDrop = document.querySelector('.dropdown-item[data-key="' + key + '"]');
+      if (activeDrop) activeDrop.classList.add('active');
+
+      const dropTrigger = document.getElementById('top-dropdown-trigger');
+      if (dropTrigger) {
+        if (['ppt', 'minwon', 'ktedge'].indexOf(key) !== -1) {
+          dropTrigger.classList.add('active');
+        } else {
+          dropTrigger.classList.remove('active');
+        }
+      }
 
       // 2. 패널 DOM 요소 획득
       const iframePanel = document.getElementById('iframe-panel');
@@ -4404,12 +4397,6 @@ PORTAL_HTML = """<!DOCTYPE html>
         });
 
         // 패널별 데이터 갱신 트리거
-        if (key === 'democonsole') {
-          fetchDemoStatus();
-          if (!demoPollTimer) demoPollTimer = setInterval(fetchDemoStatus, 800);
-        } else {
-          if (demoPollTimer) { clearInterval(demoPollTimer); demoPollTimer = null; }
-        }
 
         if (key === 'realtime') {
           if (typeof startRealtimePanelPolling === 'function') startRealtimePanelPolling();
@@ -8757,34 +8744,8 @@ class PortalHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(b'{"status":"fallback"}')
             return
 
-        # 재해복구 시연 콘솔 독립 페이지 (v0.3 형태 및 디자인 100% 유지)
-        if path == '/democonsole':
-            try:
-                html_path = '/opt/figteam-portal/democonsole.html'
-                if not os.path.exists(html_path):
-                    html_path = os.path.join(os.path.dirname(__file__), 'democonsole.html')
-                page = open(html_path, encoding='utf-8').read()
-                page = page.replace('__TERM3_TITLE__', '터미널 3 · KT Edge Nginx 실시간 로그 (tail -F /var/log/nginx/*.log)')
-                self.send_response(200)
-                self.send_header('Content-Type', 'text/html; charset=utf-8')
-                self.send_header('Cache-Control', 'no-store')
-                self.end_headers()
-                self.wfile.write(page.encode('utf-8'))
-            except Exception as e:
-                self.send_json({"status": "error", "message": str(e)}, status=500)
-            return
-
-        # 재해복구 시연 콘솔 실시간 상태 API
-        if path in ('/api/democonsole/status', '/api/status'):
-            with demo_lock:
-                payload = json.dumps(demo_state, ensure_ascii=False).encode('utf-8')
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json; charset=utf-8')
-            self.send_header('Cache-Control', 'no-store')
-            self.end_headers()
-            self.wfile.write(payload)
-            return
-
+        
+        
         # 실시간 라이브 PPT 회의실 독립 페이지
         if path == '/ppt':
             try:
@@ -9082,122 +9043,7 @@ class PortalHandler(http.server.BaseHTTPRequestHandler):
                 self.send_json({"status": "error", "message": f"업로드 처리 실패: {str(e)}"}, status=500)
             return
 
-        # ---------------- 재해복구 통합 시연 콘솔 v0.3 액션 처리 ----------------
-        if path.startswith('/api/action/') or path.startswith('/api/democonsole/action/'):
-            global demo_reset_requested
-            act = path.split('/')[-1]
-            kc = f"KUBECONFIG={KUBECONFIG_REMOTE} " if KUBECONFIG_REMOTE else ""
-
-            # L1 액션
-            if act == "l1_crash":
-                run_demo_l1_http_crash()
-                self.send_json({"status": "ok", "action": "l1_crash"})
-                return
-            elif act == "l1_delete_pod":
-                display_cmd = f"kubectl delete pod <1st-pod> -n {K8S_NS} && kubectl get pods -n {K8S_NS} -o wide"
-                remote_cmd = (
-                    f"POD=$({kc}kubectl get pods -n {K8S_NS} -l app={K8S_DEPLOY} "
-                    f"--field-selector=status.phase=Running -o jsonpath='{{.items[0].metadata.name}}'); "
-                    f"if [ -z \"$POD\" ]; then echo 'No running pod found'; exit 1; fi; "
-                    f"echo \"Deleting Pod: $POD\"; "
-                    f"{kc}kubectl delete pod \"$POD\" -n {K8S_NS} --grace-period=0 --force; "
-                    f"sleep 1; echo '--- [Pods after delete] ---'; "
-                    f"{kc}kubectl get pods -n {K8S_NS} -o wide"
-                )
-                run_demo_ssh_command(ONPREM_HOST, ONPREM_KEY, "onprem@k8s-cp1", "L1 파드 강제 삭제", display_cmd, remote_cmd, ONPREM_JUMP)
-                self.send_json({"status": "ok", "action": "l1_delete_pod"})
-                return
-            elif act == "l1_status":
-                display_cmd = f"kubectl get deploy,pods -n {K8S_NS} -o wide"
-                remote_cmd = f"{kc}kubectl get deploy,pods -n {K8S_NS} -o wide"
-                run_demo_ssh_command(ONPREM_HOST, ONPREM_KEY, "onprem@k8s-cp1", "L1 파드 현황 조회", display_cmd, remote_cmd, ONPREM_JUMP)
-                self.send_json({"status": "ok", "action": "l1_status"})
-                return
-
-            # L2 액션
-            elif act == "l2_fault":
-                display_cmd = f"kubectl scale deployment/{K8S_DEPLOY} -n {K8S_NS} --replicas=0"
-                remote_cmd = (
-                    f"{kc}kubectl scale deployment/{K8S_DEPLOY} -n {K8S_NS} --replicas=0 && "
-                    f"echo '--- [Deployment after L2 fault] ---' && "
-                    f"{kc}kubectl get deploy,pods -n {K8S_NS} -o wide"
-                )
-                run_demo_ssh_command(ONPREM_HOST, ONPREM_KEY, "onprem@k8s-cp1", "L2 서비스 중단 주입", display_cmd, remote_cmd, ONPREM_JUMP)
-                self.send_json({"status": "ok", "action": "l2_fault"})
-                return
-            elif act == "l2_recover":
-                display_cmd = f"kubectl scale deployment/{K8S_DEPLOY} -n {K8S_NS} --replicas=4 && kubectl rollout restart && status"
-                remote_cmd = (
-                    f"{kc}kubectl scale deployment/{K8S_DEPLOY} -n {K8S_NS} --replicas=4 && "
-                    f"{kc}kubectl rollout restart deployment/{K8S_DEPLOY} -n {K8S_NS} && "
-                    f"{kc}kubectl rollout status deployment/{K8S_DEPLOY} -n {K8S_NS} --timeout=60s && "
-                    f"echo '--- [Pods after L2 recover] ---' && "
-                    f"{kc}kubectl get pods -n {K8S_NS} -o wide"
-                )
-                run_demo_ssh_command(ONPREM_HOST, ONPREM_KEY, "onprem@k8s-cp1", "L2 복구 실행", display_cmd, remote_cmd, ONPREM_JUMP)
-                self.send_json({"status": "ok", "action": "l2_recover"})
-                return
-            elif act == "l2_status":
-                display_cmd = f"kubectl get deploy,pods -n {K8S_NS} -o wide"
-                remote_cmd = f"{kc}kubectl get deploy,pods -n {K8S_NS} -o wide"
-                run_demo_ssh_command(ONPREM_HOST, ONPREM_KEY, "onprem@k8s-cp1", "L2 Deployment 조회", display_cmd, remote_cmd, ONPREM_JUMP)
-                self.send_json({"status": "ok", "action": "l2_status"})
-                return
-
-            # L3 액션
-            elif act == "fault":
-                display_cmd = (
-                    "iptables -I OUTPUT 1 -d 10.10.1.100 -p tcp --dport 80 "
-                    "-m comment --comment CHAOS_L3_FAULT -j DROP"
-                )
-                remote_cmd = (
-                    "iptables -C OUTPUT -d 10.10.1.100 -p tcp --dport 80 "
-                    "-m comment --comment CHAOS_L3_FAULT -j DROP 2>/dev/null || "
-                    "iptables -I OUTPUT 1 -d 10.10.1.100 -p tcp --dport 80 "
-                    "-m comment --comment CHAOS_L3_FAULT -j DROP; "
-                    "echo '--- [iptables OUTPUT] ---'; "
-                    "iptables -L OUTPUT -n --line-numbers | head -n 6"
-                )
-                run_demo_ssh_command(EDGE_HOST, KEY_PATH, "root@kt-edge:~", "L3 온프렘 단절 장애 주입", display_cmd, remote_cmd)
-                self.send_json({"status": "ok", "action": "fault"})
-                return
-            elif act == "dr":
-                display_cmd = (
-                    "sed -i 's/10.10.1.100:80/10.200.0.4:30080/g' "
-                    "/etc/nginx/conf.d/upstream.conf && nginx -t && nginx -s reload"
-                )
-                remote_cmd = (
-                    "sed -i 's/10.10.1.100:80/10.200.0.4:30080/g' "
-                    "/etc/nginx/conf.d/upstream.conf && nginx -t && nginx -s reload && "
-                    "echo '--- [/etc/nginx/conf.d/upstream.conf] ---' && "
-                    "grep -E 'server ' /etc/nginx/conf.d/upstream.conf"
-                )
-                run_demo_ssh_command(EDGE_HOST, KEY_PATH, "root@kt-edge:~", "L3 AWS DR 즉시 복구", display_cmd, remote_cmd)
-                self.send_json({"status": "ok", "action": "dr"})
-                return
-            elif act == "restore":
-                display_cmd = (
-                    "iptables -D OUTPUT ... CHAOS_L3_FAULT -j DROP && "
-                    "sed -i 's/10.200.0.4:30080/10.10.1.100:80/g' upstream.conf && nginx -s reload"
-                )
-                remote_cmd = (
-                    "while iptables -D OUTPUT -d 10.10.1.100 -p tcp --dport 80 "
-                    "-m comment --comment CHAOS_L3_FAULT -j DROP 2>/dev/null; do :; done; "
-                    "sed -i 's/10.200.0.4:30080/10.10.1.100:80/g' "
-                    "/etc/nginx/conf.d/upstream.conf && nginx -t && nginx -s reload && "
-                    "echo '--- [/etc/nginx/conf.d/upstream.conf] ---' && "
-                    "grep -E 'server ' /etc/nginx/conf.d/upstream.conf && "
-                    "echo '--- [iptables CHAOS rules] ---' && "
-                    "(iptables -L OUTPUT -n --line-numbers | grep CHAOS_L3_FAULT || echo '(none - clean)')"
-                )
-                run_demo_ssh_command(EDGE_HOST, KEY_PATH, "root@kt-edge:~", "L3 평시 원복", display_cmd, remote_cmd)
-                self.send_json({"status": "ok", "action": "restore"})
-                return
-            elif act == "reset":
-                with demo_lock:
-                    demo_reset_requested = True
-                self.send_json({"status": "ok", "action": "reset"})
-                return
+        
 
         if path == '/api/openstack/vm/snapshot':
             length = int(self.headers.get('Content-Length', 0))
@@ -9392,24 +9238,6 @@ class PortalHandler(http.server.BaseHTTPRequestHandler):
         self.send_error(404, "Not Found")
 
 def run():
-    # 재해복구 시연 콘솔 백그라운드 프로빙 스레드 기동 (0.5s 주기 실측)
-    threading.Thread(target=demo_probe_loop, daemon=True).start()
-    threading.Thread(target=demo_term3_stream_loop, daemon=True).start()
-    threading.Thread(
-        target=run_demo_ssh_command,
-        args=(
-            EDGE_HOST, KEY_PATH, "root@kt-edge:~",
-            "초기 상태 확인",
-            "hostname && grep -E 'server ' /etc/nginx/conf.d/upstream.conf && iptables -L OUTPUT -n",
-            "echo \"Host: $(hostname)\"; echo '--- [upstream.conf] ---'; "
-            "grep -E 'server ' /etc/nginx/conf.d/upstream.conf; "
-            "echo '--- [iptables CHAOS rules] ---'; "
-            "(iptables -L OUTPUT -n --line-numbers | grep CHAOS_L3_FAULT || echo '(none - clean)')",
-            "", False
-        ),
-        daemon=True
-    ).start()
-
     with ReusableTCPServer(("0.0.0.0", PORT), PortalHandler) as httpd:
         print(f"[FIGTEAM PORTAL] Unified CMP Portal running on port {PORT}")
         try:
