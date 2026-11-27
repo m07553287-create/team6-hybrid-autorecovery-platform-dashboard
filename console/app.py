@@ -32,7 +32,8 @@ def create_app():
     app = FastAPI(title="figteam-console", docs_url=None, redoc_url=None, openapi_url=None)
     targets, order = _load_targets(os.environ.get("CONSOLE_TARGETS",
                                                   str(pathlib.Path(__file__).with_name("targets.json"))))
-    lock = Lock(os.environ.get("CONSOLE_PASS_HASH"), os.environ.get("CONSOLE_PASS_SALT"))
+    lock = Lock(os.environ.get("CONSOLE_PASS_HASH"), os.environ.get("CONSOLE_PASS_SALT"),
+                os.environ.get("CONSOLE_SESSIONS", "/var/lib/figteam-console/sessions.json"))
     origin = os.environ.get("ALLOWED_ORIGIN", "https://figteam.ktci5.kr")
     log_dir = pathlib.Path(os.environ.get("CONSOLE_LOG_DIR", "/var/log/figteam-console"))
     live = set()
