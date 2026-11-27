@@ -279,6 +279,151 @@
     .cfg-forest-inst:hover { border-color: #3b82f6; }
     .cfg-forest-name:focus-visible, .cfg-forest-inst:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
     .cfg-term-btn { margin-top: 10px; }
+
+    /* ===== [설정] 코드 블록 실행 버튼 & 푸터 닥 & 플로팅 윈도우 ===== */
+    .cfg-code-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+    .cfg-run-btn {
+      display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; font-size: 11.5px; font-weight: 600;
+      border-radius: 5px; cursor: pointer; border: 1px solid transparent; font-family: inherit; transition: all .15s ease;
+    }
+    .cfg-run-btn:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; }
+    /* 안전 조회/검증 실행 버튼 */
+    .cfg-run-safe {
+      background: #0284c7; color: #ffffff; border-color: #38bdf8;
+    }
+    .cfg-run-safe:hover { background: #0369a1; border-color: #7dd3fc; box-shadow: 0 0 8px rgba(56, 189, 248, .35); }
+    /* 위험 변경/재시작/중지/생성 실행 버튼 */
+    .cfg-run-warn {
+      background: #b45309; color: #fef3c7; border-color: #f59e0b;
+    }
+    .cfg-run-warn:hover { background: #d97706; border-color: #fbbf24; box-shadow: 0 0 10px rgba(245, 158, 11, .45); }
+    .cfg-run-warn b { font-weight: 800; color: #fff; }
+
+    /* 위험 명령어 사전 확인 모달 */
+    .cfg-modal-overlay {
+      position: fixed; inset: 0; background: rgba(2, 6, 23, .75); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center; z-index: 1200; padding: 16px;
+    }
+    .cfg-modal-card {
+      background: #0f172a; border: 1px solid #f59e0b; border-radius: 12px; width: 100%; max-width: 560px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, .7); overflow: hidden; display: flex; flex-direction: column;
+      animation: cfgModalPop .18s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes cfgModalPop { from { opacity: 0; transform: scale(.95) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    .cfg-modal-head {
+      display: flex; align-items: center; justify-content: space-between; padding: 12px 16px;
+      background: #1e1b18; border-bottom: 1px solid #3d2c17; color: #fbbf24; font-size: 14px; font-weight: 700;
+    }
+    .cfg-modal-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; color: #e2e8f0; font-size: 13px; line-height: 1.5; }
+    .cfg-modal-alert {
+      background: rgba(245, 158, 11, .12); border: 1px solid rgba(245, 158, 11, .3); border-radius: 8px;
+      padding: 10px 12px; color: #fde68a; font-size: 12.5px;
+    }
+    .cfg-modal-code {
+      background: #06090e; border: 1px solid #334155; border-radius: 6px; padding: 10px 12px;
+      font-family: var(--font-mono); font-size: 12px; color: #93c5fd; overflow-x: auto; max-height: 160px; white-space: pre-wrap; word-break: break-all;
+    }
+    .cfg-modal-meta { display: flex; align-items: center; gap: 12px; font-size: 12px; color: #94a3b8; }
+    .cfg-modal-meta strong { color: #38bdf8; }
+    .cfg-modal-foot {
+      display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px 16px;
+      background: #0b1120; border-top: 1px solid #1e293b;
+    }
+    .cfg-btn-cancel {
+      padding: 6px 14px; font-size: 12.5px; font-weight: 600; color: #cbd5e1; background: #1e293b;
+      border: 1px solid #475569; border-radius: 6px; cursor: pointer;
+    }
+    .cfg-btn-cancel:hover { background: #334155; color: #fff; }
+    .cfg-btn-confirm {
+      padding: 6px 16px; font-size: 12.5px; font-weight: 700; color: #fff; background: #d97706;
+      border: 1px solid #f59e0b; border-radius: 6px; cursor: pointer; box-shadow: 0 0 10px rgba(245, 158, 11, .3);
+    }
+    .cfg-btn-confirm:hover { background: #b45309; }
+
+    /* 화면 하단 푸터 닥 (Footer Dock) */
+    #cfg-footer-dock {
+      position: fixed; bottom: 0; left: 0; right: 0; height: 42px; background: rgba(15, 23, 42, .96);
+      backdrop-filter: blur(10px); border-top: 1px solid #334155; display: flex; align-items: center;
+      padding: 0 14px; gap: 10px; z-index: 1050; box-shadow: 0 -4px 20px rgba(0, 0, 0, .45);
+      transition: transform .2s ease;
+    }
+    #cfg-footer-dock.cfg-dock-hidden { transform: translateY(100%); pointer-events: none; }
+    .cfg-dock-title {
+      display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #38bdf8;
+      white-space: nowrap; padding-right: 8px; border-right: 1px solid #334155;
+    }
+    .cfg-dock-list {
+      display: flex; align-items: center; gap: 6px; overflow-x: auto; flex: 1; min-width: 0; padding: 2px 0;
+    }
+    .cfg-dock-chip {
+      display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #1e293b;
+      border: 1px solid #475569; border-radius: 6px; color: #e2e8f0; font-size: 11.5px; cursor: pointer;
+      white-space: nowrap; transition: all .15s ease; user-select: none; max-width: 240px;
+    }
+    .cfg-dock-chip:hover { background: #334155; border-color: #60a5fa; color: #fff; }
+    .cfg-dock-chip.active { background: #1e3a8a; border-color: #3b82f6; color: #93c5fd; box-shadow: 0 0 6px rgba(59, 130, 246, .4); }
+    .cfg-dock-chip-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; flex-shrink: 0; }
+    .cfg-dock-chip-dot.off { background: #94a3b8; }
+    .cfg-dock-chip-name { overflow: hidden; text-overflow: ellipsis; }
+    .cfg-dock-chip-close {
+      margin-left: 2px; padding: 1px 4px; font-size: 11px; color: #94a3b8; border-radius: 3px; cursor: pointer;
+    }
+    .cfg-dock-chip-close:hover { color: #f87171; background: rgba(239, 68, 68, .15); }
+    .cfg-dock-acts { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .cfg-dock-btn {
+      background: transparent; border: 1px solid #334155; color: #94a3b8; border-radius: 5px;
+      padding: 3px 8px; font-size: 11px; cursor: pointer;
+    }
+    .cfg-dock-btn:hover { background: #1e293b; color: #e2e8f0; }
+
+    /* 플로팅 윈도우 레이어 & 윈도우 창 */
+    #cfg-float-layer {
+      position: fixed; inset: 0; pointer-events: none; z-index: 1100;
+    }
+    .cfg-win {
+      position: absolute; width: 680px; height: 420px; min-width: 380px; min-height: 240px;
+      background: #06090e; border: 1px solid #334155; border-radius: 8px; box-shadow: 0 18px 45px rgba(0, 0, 0, .65);
+      display: flex; flex-direction: column; overflow: hidden; pointer-events: auto; resize: both;
+      transition: box-shadow .2s ease;
+    }
+    .cfg-win.cfg-focus { border-color: #3b82f6; box-shadow: 0 20px 50px rgba(2, 6, 23, .8), 0 0 12px rgba(59, 130, 246, .25); z-index: 1110; }
+    .cfg-win.minimized { display: none !important; }
+    .cfg-win.maximized {
+      top: 10px !important; left: 10px !important; width: calc(100vw - 20px) !important; height: calc(100vh - 62px) !important;
+      resize: none !important; border-radius: 4px;
+    }
+    .cfg-win-head {
+      display: flex; align-items: center; justify-content: space-between; padding: 6px 12px;
+      background: #0f172a; border-bottom: 1px solid #1e293b; cursor: grab; user-select: none;
+    }
+    .cfg-win-head:active { cursor: grabbing; }
+    .cfg-win-title {
+      display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #f1f5f9;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+    }
+    .cfg-win-badge {
+      padding: 1px 6px; font-size: 10.5px; border-radius: 4px; background: #1e293b; color: #38bdf8; border: 1px solid #334155; font-family: var(--font-mono);
+    }
+    .cfg-win-ctrls { display: flex; align-items: center; gap: 4px; margin-left: 8px; }
+    .cfg-win-btn {
+      width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center;
+      background: transparent; border: 0; color: #94a3b8; border-radius: 4px; cursor: pointer; font-size: 11px;
+    }
+    .cfg-win-btn:hover { background: #1e293b; color: #fff; }
+    .cfg-win-btn.btn-close:hover { background: #ef4444; color: #fff; }
+    .cfg-win-body {
+      flex: 1; position: relative; background: #06090e; overflow: hidden; padding: 4px;
+    }
+    .cfg-win-body .xterm { height: 100%; }
+    .cfg-win-body .xterm-viewport { overflow-y: auto; }
+    .cfg-win-foot {
+      display: flex; align-items: center; justify-content: space-between; padding: 4px 10px;
+      background: #090e17; border-top: 1px solid #1e293b; font-size: 11px; color: #64748b;
+    }
+    .cfg-win-status { display: flex; align-items: center; gap: 6px; }
+    .cfg-win-status-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; }
+    .cfg-win-status-dot.off { background: #94a3b8; }
+    .cfg-win-status-dot.wait { background: #f59e0b; }
     /* ===== 통합 콘솔 (content/console.css) ===== */
     .cs-rail { position: fixed; left: 0; top: 50%; transform: translateY(-50%); z-index: 700; writing-mode: vertical-rl; letter-spacing: .12em;
       background: var(--primary); color: #fff; border: 0; border-radius: 0 8px 8px 0; padding: 16px 7px; font-size: 13px; font-weight: 700;
