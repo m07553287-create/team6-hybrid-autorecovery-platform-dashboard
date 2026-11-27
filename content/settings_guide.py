@@ -1528,5 +1528,5 @@ def data():
         assert any(a["id"] == aid for a in PAGES[pid]["areas"]), "없는 영역: " + key
     return {"measured": MEASURED, "vars": VARIABLES, "steps": STEPS, "pages": PAGES, "nav": NAV,
             "domains": DOMAINS, "instances": INSTANCE_ORDER, "reference": REFERENCE,
-            "default": {"lens": "inst", "major": "inst-s1", "minor": "access"},
+            "default": {"lens": "inst", "major": "inst-awsdr", "minor": "wg"},
             "scripts": [{k: v for k, v in x.items() if k != "generate"} for x in SCRIPTS]}

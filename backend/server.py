@@ -204,6 +204,10 @@ LANDING_HTML = """<!DOCTYPE html>
       color: #fff;
       border-color: #4b5563;
     }
+    .fs-ctl { display: inline-flex; gap: 2px; margin-right: 6px; border: 1px solid var(--surface-border); border-radius: 5px; overflow: hidden; }
+    .fs-btn { background: transparent; border: 0; color: var(--text-sub); padding: 4px 8px; font-size: 12px; cursor: pointer; font-family: inherit; }
+    .fs-btn:hover { background: #1f2937; color: #fff; }
+    .fs-btn + .fs-btn { border-left: 1px solid var(--surface-border); }
 
     /* LOGIN VIEW */
     .login-wrapper {
@@ -1662,8 +1666,13 @@ LANDING_HTML = """<!DOCTYPE html>
 
     <!-- NAVIGATION & LOGOUT -->
     <div class="header-right">
+      <div class="fs-ctl" role="group" aria-label="글자 크기" title="글자 크기 조절">
+        <button type="button" class="fs-btn" onclick="figFont(-1)" aria-label="글자 작게">가−</button>
+        <button type="button" class="fs-btn" onclick="figFont(0)" aria-label="글자 기본" title="기본으로">가</button>
+        <button type="button" class="fs-btn" onclick="figFont(1)" aria-label="글자 크게">가+</button>
+      </div>
       <button type="button" class="nav-btn active" id="btn-tab-dashboard" onclick="switchView('dashboard')">대시보드</button>
-      <button type="button" class="nav-btn" id="btn-tab-settings" onclick="switchView('settings')">설정</button>
+      <button type="button" class="nav-btn" id="btn-tab-settings" onclick="switchView('settings')">설계/설정</button>
       <!--CONSOLES:BEGIN--><button type="button" class="nav-btn" id="btn-tab-console" onclick="switchView('console')">콘솔</button><!--CONSOLES:END-->
       <button type="button" class="logout-btn" id="logout-btn" onclick="logout()" style="display:none;">로그아웃</button>
     </div>
@@ -1823,6 +1832,23 @@ LANDING_HTML = """<!DOCTYPE html>
         cfgInit(); // settings-tab
       }
     }
+
+    // ===== 글자 크기 조절 (대시보드·설계/설정·콘솔 본문에 적용, 저장) =====
+    var FIG_FS = [0.85, 0.925, 1, 1.1, 1.25, 1.4], FIG_FS_BASE = 2;
+    function figFont(dir) {
+      var i;
+      try { i = parseInt(localStorage.getItem('fig.fs'), 10); } catch (e) {}
+      if (isNaN(i)) i = FIG_FS_BASE;
+      if (dir === 1) i = Math.min(FIG_FS.length - 1, i + 1);
+      else if (dir === -1) i = Math.max(0, i - 1);
+      else if (dir === 0) i = FIG_FS_BASE;            // 기본으로
+      try { localStorage.setItem('fig.fs', i); } catch (e) {}
+      var z = FIG_FS[i];
+      ['view-dashboard', 'view-settings', 'cs-root'].forEach(function (id) {
+        var el = document.getElementById(id); if (el) el.style.zoom = z;
+      });
+    }
+    window.addEventListener('load', function () { setTimeout(function () { figFont(); }, 100); });
 
     // 2. REALTIME CLOCK & 12초 순차 수집 타이머
     function updateClock() {
@@ -2683,11 +2709,17 @@ LANDING_HTML = """<!DOCTYPE html>
     const STATUS_NAME = { live: '실측', design: '설계 · 미적용', nolook: '미실측' };
     const CAT_ORDER = ['설치', '적용', '조회', '검증'];
     const LENSES = [
-      { id: 'inst', name: '인스턴스 기준', hint: '서버 하나를 골라 그 안의 서비스 영역을 봅니다' },
+      { id: 'inst', name: '클라우드 기준', hint: '클라우드(AWS·KT·OpenStack)를 펼쳐 그 안 인스턴스의 영역을 봅니다' },
       { id: 'svc', name: '서비스 기준', hint: '보안·웹 같은 영역을 골라 맡은 인스턴스를 봅니다' },
       { id: 'step', name: '진행 순서', hint: '처음 구성할 때 지켜야 하는 순서와 통과 조건' },
       { id: 'ref', name: '참고', hint: '변수표·설계·오류 색인 같은 팀 참고 문서' }
     ];
+    // 클라우드 대분류 순서: AWS → KT Cloud → OpenStack → 온프렘
+    const CLOUD_ORDER = { aws: 0, kt: 1, openstack: 2, onprem: 3 };
+    function cfgInstOrder() {
+      return (CFG.data.instances || []).slice().sort((a, b) =>
+        ((CLOUD_ORDER[cfgPage(a).cloud] ?? 9) - (CLOUD_ORDER[cfgPage(b).cloud] ?? 9)));
+    }
 
     // ---------- 공통 조각 ----------
     function cfgEsc(t) {
@@ -2819,7 +2851,7 @@ LANDING_HTML = """<!DOCTYPE html>
     // ---------- 목록 만들기 ----------
     function cfgMajors(lens) {
       const d = CFG.data;
-      if (lens === 'inst') return d.instances.map(pid => {
+      if (lens === 'inst') return cfgInstOrder().map(pid => {
         const p = cfgPage(pid);
         return { id: pid, name: p.title.split(' (')[0], sub: p.tag, cloud: p.cloud, status: p.status, group: p.cloudName, groupId: p.cloudId };
       });
@@ -2834,9 +2866,9 @@ LANDING_HTML = """<!DOCTYPE html>
         const p = cfgPage(major);
         return p ? p.areas.map(a => ({ id: a.id, name: a.name, sub: a.domains.map(x => cfgDomain(x).name).join(', '), status: a.status !== p.status ? a.status : '' })) : [];
       }
-      if (lens === 'svc') {
+      if (lens === "svc") {
         const out = [];
-        d.instances.forEach(pid => {
+        cfgInstOrder().forEach(pid => {
           const p = cfgPage(pid);
           p.areas.forEach(a => {
             if (a.domains.indexOf(major) >= 0) out.push({ id: pid + '.' + a.id, name: p.short, sub: a.name, cloud: p.cloud, status: a.status === 'live' ? '' : a.status });
@@ -2953,7 +2985,7 @@ LANDING_HTML = """<!DOCTYPE html>
       const cur = cfgCurrentArea();
       let html = '<div class="cfg-matrix" aria-label="인스턴스와 서비스 영역 지도"><div class="cfg-mx-row cfg-mx-headrow"><span class="cfg-mx-label"></span>' +
         d.domains.map(dm => '<span class="cfg-mx-col' + (CFG.lens === 'svc' && CFG.major === dm.id ? ' on' : '') + '" title="' + cfgEsc(dm.name) + '">' + cfgEsc(dm.short) + '</span>').join('') + '</div>';
-      d.instances.forEach(pid => {
+      cfgInstOrder().forEach(pid => {
         const p = cfgPage(pid);
         const rowOn = CFG.lens === 'inst' && CFG.major === pid;
         html += '<div class="cfg-mx-row' + (rowOn ? ' on' : '') + '"><span class="cfg-mx-label">' + cfgEsc(p.short) + '</span>';
