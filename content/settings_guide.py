@@ -1397,9 +1397,6 @@ NAV = [
         ["overview", "전체 구성·변수표", "경로도 · 변수 19개"],
         ["steps", "선행 항목과 순서", "S0 → S12 통과 조건"],
     ]},
-    {"title": "온프렘 호스트", "cloud": "onprem", "items": [
-        ["inst-s1", "s1 (t1-vm2)", "10.10.10.8 · VMware·NAT·WG"],
-    ]},
     {"title": "OpenStack", "cloud": "openstack", "items": [
         ["inst-controller", "controller (+compute)", "192.168.120.160"],
         ["inst-cp1", "k8s-cp1", "172.20.0.86 · k3s 서버"],
@@ -1454,7 +1451,7 @@ AREA_DOMAINS = {
 }
 
 INSTANCE_SHORT = {
-    "inst-s1": "s1", "inst-controller": "controller", "inst-cp1": "cp1", "inst-w1": "w1",
+    "inst-controller": "controller", "inst-cp1": "cp1", "inst-w1": "w1",
     "inst-db01": "db-01", "inst-ktedge": "kt-edge", "inst-ktw1": "kt-w1",
     "inst-awsdr": "aws-dr", "inst-awsctl": "aws-ctl",
 }
