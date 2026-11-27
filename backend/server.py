@@ -2353,11 +2353,17 @@ LANDING_HTML = """<!DOCTYPE html>
     }
 
     function wikiTeamBar() {
-      if (!WIKI.me) return '';
-      return '<div class="wk-teambar" id="wk-teambar"><div><b>' + cfgEsc(WIKI.me.team_name || 'figteam') + ' (기본 팀)</b><span>' + cfgEsc(WIKI.me.member) + ' 님' +
-        (WIKI.me.auto ? ' · 자동 입장' : '') + '</span></div>' +
-        '<div class="wk-teambar-acts"><button type="button" class="cfg-copy" onclick="wikiRenameStart()">이름 바꾸기</button>' +
-        '<button type="button" class="cfg-copy" onclick="wikiLogout()">로그아웃</button></div></div>';
+      let userName = '';
+      try {
+        userName = (typeof csOwnerName === 'function' ? csOwnerName() : '') || localStorage.getItem('fig.term.user') || (WIKI.me && WIKI.me.member !== '게스트' ? WIKI.me.member : '') || '';
+      } catch (e) {}
+      if (userName === 'guest' || userName === '게스트') userName = '';
+
+      return '<div class="wk-teambar" id="wk-teambar">' +
+        '<div><b>figteam (team6)</b>' +
+        (userName ? '<span style="color:#38bdf8; font-weight:600; margin-left:6px;">' + cfgEsc(userName) + '</span>' : '') +
+        '</div>' +
+        '</div>';
     }
     function wikiRenameStart() {
       const bar = document.getElementById('wk-teambar');
