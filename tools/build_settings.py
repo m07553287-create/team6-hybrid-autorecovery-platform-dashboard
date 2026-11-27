@@ -57,10 +57,10 @@ blocks = {
         '<script type="application/json" id="cfg-data">' + data + '</script>',
     ('// CFGJS:BEGIN', '// CFGJS:END'):
         '\n' + ''.join((root / 'content' / f).read_text(encoding='utf-8')
-                       for f in ('diff.js', 'wiki.js', 'settings.js', 'console.js')) + '    ',
+                       for f in ('diff.js', 'wiki.js', 'settings.js', 'console.js', 'dashboard.js')) + '    ',
     ('/* CFGCSS:BEGIN */', '/* CFGCSS:END */'):
         '\n' + ''.join((root / 'content' / f).read_text(encoding='utf-8')
-                       for f in ('settings.css', 'console.css')) + '    ',
+                       for f in ('settings.css', 'console.css', 'dashboard.css')) + '    ',
 }
 for (beg, end), body in blocks.items():
     pat = re.compile(re.escape(beg) + '.*?' + re.escape(end), re.S)
@@ -84,6 +84,17 @@ for grp in settings_guide.CONSOLES:
 menu.append('</div></div>')
 src = re.sub(r'<!--CONSOLES:BEGIN-->.*?<!--CONSOLES:END-->',
              lambda m: '<!--CONSOLES:BEGIN-->' + py_safe(''.join(menu)) + '<!--CONSOLES:END-->', src, count=1, flags=re.S)
+
+# 메인 대시보드를 실측(dashboard.js)으로 — 예시 데이터 렌더러 앞에 위임 (1회)
+for old, new in [
+    ('    function applySortAndFilter() {\n', '    function applySortAndFilter() {\n      if (typeof dashRender === \'function\') return dashRender();\n'),
+    ('    function openDetailModal(instKey, targetSvcName) {\n', '    function openDetailModal(instKey, targetSvcName) {\n      if (typeof dashModal === \'function\') return dashModal(instKey, targetSvcName);\n'),
+    ('<span>5대 클라우드 인스턴스 서비스 매트릭스</span>', '<span>살아 있는 인스턴스 실측 현황</span>'),
+    ('데스크탑 FHD 고정 뷰 · 순위 구분 없는 5대 기준 정렬 (종류별·서비스별·리소스크기별·이름별·실행시간별)', 's1 상태 수집기(20초) 기준 · 정렬: 종류·서비스·이상 우선·이름·실행 시간'),
+]:
+    if new not in src:
+        assert old in src, old[:40]
+        src = src.replace(old, new, 1)
 
 # 대시보드 왼쪽 [통합콘솔] 레일 버튼 (1회 삽입)
 if '<!--CSRAIL-->' not in src:

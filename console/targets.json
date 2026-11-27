@@ -3,17 +3,59 @@
   "id": "s1",
   "area": "onprem",
   "name": "s1 (t1-vm2)",
-  "desc": "10.10.10.8 · VMware·NAT·WG·cloudflared",
+  "desc": "10.10.10.8 · 온프렘 호스트(VMware·NAT·WG·터널)",
+  "host": "10.10.10.8",
   "argv": [
    "bash",
    "-l"
-  ]
+  ],
+  "units": [
+   [
+    "cloudflared",
+    "gw",
+    "Cloudflare 터널(공개 진입)"
+   ],
+   [
+    "wg-quick@wg-kt",
+    "gw",
+    "WireGuard → KT 허브"
+   ],
+   [
+    "wg-quick@wg0",
+    "gw",
+    "WireGuard 관리망(맥)"
+   ],
+   [
+    "openstack-vmnet",
+    "daemon",
+    "vmnet8 게이트웨이·NAT·라우트"
+   ],
+   [
+    "figteam-console",
+    "daemon",
+    "통합 콘솔·상태 수집"
+   ]
+  ],
+  "check": {
+   "⏱ 상태": "hostname; uptime; free -h | sed -n 1,2p; df -h / | tail -1",
+   "🚫 실패 서비스": "systemctl --failed --no-legend || true",
+   "🔐 WG": "sudo wg show | grep -E 'interface|peer|endpoint|handshake|transfer'",
+   "🧭 라우트·NAT": "ip r | grep -E 'vmnet8|wg'; sudo iptables -t nat -S | grep -E 'DNAT|MASQ' | sort -u",
+   "🖥 VMware VM": "vmrun list",
+   "🌐 VIP 앱": "curl -s -m4 -o /dev/null -w '10.10.1.100 → %{http_code}\\n' http://10.10.1.100/healthz",
+   "☁ 터널 라우트": "sudo grep -E 'hostname|path|service' /etc/cloudflared/config.yml | grep -v '#'"
+  },
+  "fix": {
+   "♻ 네트워크 재적용(openstack-vmnet)": "sudo systemctl restart openstack-vmnet && ip r | grep -E '172.20|10.10.2'",
+   "♻ cloudflared 재시작": "sudo systemctl restart cloudflared && sleep 4 && systemctl is-active cloudflared"
+  }
  },
  {
   "id": "controller",
   "area": "openstack",
   "name": "controller",
-  "desc": "192.168.120.160 · root",
+  "desc": "192.168.120.160 · root · Keystone·Nova·Neutron(OVN)",
+  "host": "192.168.120.160",
   "argv": [
    "ssh",
    "-tt",
@@ -26,13 +68,89 @@
    "-o",
    "LogLevel=ERROR",
    "root@192.168.120.160"
-  ]
+  ],
+  "units": [
+   [
+    "httpd",
+    "web",
+    "Keystone API·Horizon"
+   ],
+   [
+    "mariadb",
+    "data",
+    "OpenStack DB"
+   ],
+   [
+    "rabbitmq-server",
+    "daemon",
+    "메시지 큐"
+   ],
+   [
+    "openstack-nova-conductor",
+    "daemon",
+    "Nova conductor"
+   ],
+   [
+    "openstack-nova-scheduler",
+    "daemon",
+    "Nova scheduler"
+   ],
+   [
+    "openstack-nova-novncproxy",
+    "web",
+    "VM 콘솔(noVNC)"
+   ],
+   [
+    "neutron-server",
+    "gw",
+    "Neutron API"
+   ],
+   [
+    "openstack-glance-api",
+    "web",
+    "이미지 API"
+   ],
+   [
+    "openstack-cinder-api",
+    "web",
+    "볼륨 API"
+   ],
+   [
+    "openstack-cinder-volume",
+    "data",
+    "볼륨 서비스"
+   ],
+   [
+    "ovn-controller",
+    "gw",
+    "OVN 게이트웨이(br-ex)"
+   ],
+   [
+    "ovsdb-server",
+    "gw",
+    "OVS DB"
+   ]
+  ],
+  "check": {
+   "⏱ 상태": "hostname; uptime; free -h | sed -n 1,2p; df -h / | tail -1",
+   "🚫 실패 서비스": "systemctl --failed --no-legend || true",
+   "🧮 compute 서비스": "source /root/keystonerc_admin; openstack compute service list -c Binary -c Host -c Status -c State",
+   "📦 인스턴스 배치": "source /root/keystonerc_admin; openstack server list --all-projects --long -c Name -c Status -c Host -c Networks",
+   "🌐 네트워크 에이전트": "source /root/keystonerc_admin; openstack network agent list -c Host -c 'Agent Type' -c Alive",
+   "🧭 라우터": "source /root/keystonerc_admin; for r in rt-edge rt-data rt-wiki; do echo \"== $r\"; openstack router show $r -f value -c external_gateway_info; done",
+   "🧠 메모리 상위": "free -m | sed -n 1,3p; ps -eo rss,comm --sort=-rss | head -8"
+  },
+  "fix": {
+   "♻ neutron-server 재시작": "systemctl restart neutron-server && sleep 5 && systemctl is-active neutron-server",
+   "♻ httpd(API) 재시작": "systemctl restart httpd && sleep 3 && systemctl is-active httpd"
+  }
  },
  {
   "id": "compute1",
   "area": "openstack",
   "name": "compute1",
   "desc": "192.168.120.161 · root · k8s-w1 호스트",
+  "host": "192.168.120.161",
   "argv": [
    "ssh",
    "-tt",
@@ -45,13 +163,51 @@
    "-o",
    "LogLevel=ERROR",
    "root@192.168.120.161"
-  ]
+  ],
+  "units": [
+   [
+    "openstack-nova-compute",
+    "daemon",
+    "Nova 하이퍼바이저 에이전트"
+   ],
+   [
+    "ovn-controller",
+    "gw",
+    "OVN 오버레이(Geneve)"
+   ],
+   [
+    "ovs-vswitchd",
+    "gw",
+    "Open vSwitch"
+   ],
+   [
+    "neutron-ovn-metadata-agent",
+    "daemon",
+    "메타데이터 에이전트"
+   ],
+   [
+    "virtqemud",
+    "daemon",
+    "libvirt QEMU"
+   ]
+  ],
+  "check": {
+   "⏱ 상태": "hostname; uptime; free -h | sed -n 1,2p; df -h / | tail -1",
+   "🚫 실패 서비스": "systemctl --failed --no-legend || true",
+   "🖥 VM": "sudo virsh list --all",
+   "⚙ 서비스": "systemctl is-active openstack-nova-compute ovn-controller neutron-ovn-metadata-agent virtqemud",
+   "🧠 메모리": "free -m | sed -n 1,2p"
+  },
+  "fix": {
+   "♻ nova-compute 재시작": "systemctl restart openstack-nova-compute && sleep 3 && systemctl is-active openstack-nova-compute ovn-controller neutron-ovn-metadata-agent virtqemud"
+  }
  },
  {
   "id": "compute3",
   "area": "openstack",
   "name": "compute3",
   "desc": "192.168.120.163 · root · k8s-cp1 호스트",
+  "host": "192.168.120.163",
   "argv": [
    "ssh",
    "-tt",
@@ -64,13 +220,51 @@
    "-o",
    "LogLevel=ERROR",
    "root@192.168.120.163"
-  ]
+  ],
+  "units": [
+   [
+    "openstack-nova-compute",
+    "daemon",
+    "Nova 하이퍼바이저 에이전트"
+   ],
+   [
+    "ovn-controller",
+    "gw",
+    "OVN 오버레이(Geneve)"
+   ],
+   [
+    "ovs-vswitchd",
+    "gw",
+    "Open vSwitch"
+   ],
+   [
+    "neutron-ovn-metadata-agent",
+    "daemon",
+    "메타데이터 에이전트"
+   ],
+   [
+    "virtqemud",
+    "daemon",
+    "libvirt QEMU"
+   ]
+  ],
+  "check": {
+   "⏱ 상태": "hostname; uptime; free -h | sed -n 1,2p; df -h / | tail -1",
+   "🚫 실패 서비스": "systemctl --failed --no-legend || true",
+   "🖥 VM": "sudo virsh list --all",
+   "⚙ 서비스": "systemctl is-active openstack-nova-compute ovn-controller neutron-ovn-metadata-agent virtqemud",
+   "🧠 메모리": "free -m | sed -n 1,2p"
+  },
+  "fix": {
+   "♻ nova-compute 재시작": "systemctl restart openstack-nova-compute && sleep 3 && systemctl is-active openstack-nova-compute ovn-controller neutron-ovn-metadata-agent virtqemud"
+  }
  },
  {
   "id": "compute4",
   "area": "openstack",
   "name": "compute4",
-  "desc": "192.168.120.164 · root · db-01·wiki-01 호스트",
+  "desc": "192.168.120.164 · root · db-01 호스트",
+  "host": "192.168.120.164",
   "argv": [
    "ssh",
    "-tt",
@@ -83,13 +277,51 @@
    "-o",
    "LogLevel=ERROR",
    "root@192.168.120.164"
-  ]
+  ],
+  "units": [
+   [
+    "openstack-nova-compute",
+    "daemon",
+    "Nova 하이퍼바이저 에이전트"
+   ],
+   [
+    "ovn-controller",
+    "gw",
+    "OVN 오버레이(Geneve)"
+   ],
+   [
+    "ovs-vswitchd",
+    "gw",
+    "Open vSwitch"
+   ],
+   [
+    "neutron-ovn-metadata-agent",
+    "daemon",
+    "메타데이터 에이전트"
+   ],
+   [
+    "virtqemud",
+    "daemon",
+    "libvirt QEMU"
+   ]
+  ],
+  "check": {
+   "⏱ 상태": "hostname; uptime; free -h | sed -n 1,2p; df -h / | tail -1",
+   "🚫 실패 서비스": "systemctl --failed --no-legend || true",
+   "🖥 VM": "sudo virsh list --all",
+   "⚙ 서비스": "systemctl is-active openstack-nova-compute ovn-controller neutron-ovn-metadata-agent virtqemud",
+   "🧠 메모리": "free -m | sed -n 1,2p"
+  },
+  "fix": {
+   "♻ nova-compute 재시작": "systemctl restart openstack-nova-compute && sleep 3 && systemctl is-active openstack-nova-compute ovn-controller neutron-ovn-metadata-agent virtqemud"
+  }
  },
  {
   "id": "k8s-cp1",
   "area": "openstack",
   "name": "k8s-cp1",
-  "desc": "172.20.0.86 · ubuntu · k3s 서버",
+  "desc": "172.20.0.86 · FIP 192.168.120.226 · k3s 서버",
+  "host": "172.20.0.86",
   "argv": [
    "ssh",
    "-tt",
@@ -102,13 +334,34 @@
    "-o",
    "LogLevel=ERROR",
    "ubuntu@172.20.0.86"
-  ]
+  ],
+  "units": [
+   [
+    "k3s",
+    "daemon",
+    "k3s 서버(컨트롤 플레인)"
+   ]
+  ],
+  "pods": "sudo k3s kubectl get pods -A --no-headers -o custom-columns=NS:.metadata.namespace,N:.metadata.name,P:.status.phase,S:.status.startTime",
+  "check": {
+   "⏱ 상태": "hostname; uptime; free -h | sed -n 1,2p; df -h / | tail -1",
+   "🚫 실패 서비스": "systemctl --failed --no-legend || true",
+   "🩺 앱 healthz (:30080)": "curl -s -m5 http://127.0.0.1:30080/healthz; echo",
+   "☸ 노드·파드": "sudo k3s kubectl get nodes; sudo k3s kubectl get pods -A -o wide",
+   "📈 HPA·PDB": "sudo k3s kubectl -n minwon-sample get hpa,pdb",
+   "📜 앱 로그": "sudo k3s kubectl -n minwon-sample logs -l app=minwon-app --tail=20",
+   "🛣 DB 경로": "ip route get 10.10.2.10 | head -1; timeout 3 bash -c '</dev/tcp/10.10.2.10/3306' && echo 'db-01:3306 열림' || echo 'db-01:3306 닫힘'"
+  },
+  "fix": {
+   "♻ 앱 롤아웃 재시작": "sudo k3s kubectl -n minwon-sample rollout restart deploy/minwon-app && sudo k3s kubectl -n minwon-sample rollout status deploy/minwon-app --timeout=90s"
+  }
  },
  {
   "id": "k8s-w1",
   "area": "openstack",
   "name": "k8s-w1",
-  "desc": "172.20.0.180 · ubuntu · k3s 워커",
+  "desc": "172.20.0.180 · k3s 워커",
+  "host": "172.20.0.180",
   "argv": [
    "ssh",
    "-tt",
@@ -121,13 +374,29 @@
    "-o",
    "LogLevel=ERROR",
    "ubuntu@172.20.0.180"
-  ]
+  ],
+  "units": [
+   [
+    "k3s-agent",
+    "daemon",
+    "k3s 에이전트(워커)"
+   ]
+  ],
+  "check": {
+   "⏱ 상태": "hostname; uptime; free -h | sed -n 1,2p; df -h / | tail -1",
+   "🚫 실패 서비스": "systemctl --failed --no-legend || true",
+   "☸ k3s-agent": "systemctl is-active k3s-agent; sudo journalctl -u k3s-agent -n 10 --no-pager | cut -c1-200"
+  },
+  "fix": {
+   "♻ k3s-agent 재시작": "sudo systemctl restart k3s-agent && sleep 3 && systemctl is-active k3s-agent"
+  }
  },
  {
   "id": "db-01",
   "area": "openstack",
   "name": "db-01",
-  "desc": "10.10.2.10 · ubuntu · MySQL Primary",
+  "desc": "10.10.2.10 · MySQL 8.4 Primary",
+  "host": "10.10.2.10",
   "argv": [
    "ssh",
    "-tt",
@@ -140,32 +409,37 @@
    "-o",
    "LogLevel=ERROR",
    "ubuntu@10.10.2.10"
-  ]
- },
- {
-  "id": "wiki-01",
-  "area": "openstack",
-  "name": "wiki-01",
-  "desc": "192.168.120.230 · ubuntu · 구성 위키",
-  "argv": [
-   "ssh",
-   "-tt",
-   "-o",
-   "BatchMode=yes",
-   "-o",
-   "ConnectTimeout=8",
-   "-o",
-   "ServerAliveInterval=30",
-   "-o",
-   "LogLevel=ERROR",
-   "ubuntu@192.168.120.230"
-  ]
+  ],
+  "units": [
+   [
+    "mysql",
+    "data",
+    "MySQL Primary (GTID)"
+   ],
+   [
+    "cron",
+    "daemon",
+    "백업 스케줄(15분 binlog·일 1회 전체)"
+   ]
+  ],
+  "check": {
+   "⏱ 상태": "hostname; uptime; free -h | sed -n 1,2p; df -h / | tail -1",
+   "🚫 실패 서비스": "systemctl --failed --no-legend || true",
+   "🗄 MySQL": "systemctl is-active mysql; sudo mysql -E -e 'SELECT @@version, @@server_id, @@gtid_mode, @@read_only'",
+   "🔁 복제 연결": "sudo mysql -e 'SHOW REPLICAS'",
+   "💾 백업 로그": "sudo tail -4 /var/log/minwon-backup.log; sudo ls -lh /var/backups/mysql | tail -3"
+  },
+  "fix": {
+   "💾 지금 백업": "sudo /usr/local/sbin/mysql-backup.sh && sudo ls -lh /var/backups/mysql | tail -2",
+   "♻ MySQL 재시작": "sudo systemctl restart mysql && systemctl is-active mysql"
+  }
  },
  {
   "id": "kt-edge",
   "area": "kt",
   "name": "kt-edge-dr-01",
-  "desc": "WG 10.200.0.1 · root · 인입·WAF·허브",
+  "desc": "14.63.212.190 · WG 10.200.0.1 · 인입·WAF·허브",
+  "host": "10.200.0.1",
   "argv": [
    "ssh",
    "-tt",
@@ -182,13 +456,49 @@
    "-o",
    "IdentitiesOnly=yes",
    "root@10.200.0.1"
-  ]
+  ],
+  "units": [
+   [
+    "nginx",
+    "gw",
+    "인입·WAF(ModSecurity)"
+   ],
+   [
+    "wg-quick@wg0",
+    "gw",
+    "WireGuard 허브"
+   ],
+   [
+    "node_exporter",
+    "daemon",
+    "노드 지표"
+   ],
+   [
+    "wireguard_exporter",
+    "daemon",
+    "WG 지표"
+   ]
+  ],
+  "check": {
+   "⏱ 상태": "hostname; uptime; free -h | sed -n 1,2p; df -h / | tail -1",
+   "🚫 실패 서비스": "systemctl --failed --no-legend || true",
+   "🔐 WG 핸드셰이크": "wg show wg0 | grep -E 'peer|endpoint|allowed|handshake'",
+   "🛡 nginx 설정 검사": "nginx -t",
+   "🚦 upstream": "cat /etc/nginx/conf.d/upstream.conf; curl -s -m4 -o /dev/null -w 'VIP 10.10.1.100 → %{http_code}\\n' http://10.10.1.100/healthz",
+   "👤 최근 접속": "tail -10 /var/log/nginx/access.log | cut -c1-200",
+   "🔏 인증서 만료": "openssl x509 -in /etc/nginx/ssl/edge.crt -noout -enddate",
+   "🚨 AWS 도달": "ping -c2 -W2 10.200.0.4 | tail -1"
+  },
+  "fix": {
+   "🔁 nginx 검사 후 reload": "nginx -t && nginx -s reload && echo reloaded"
+  }
  },
  {
   "id": "aws-dr",
   "area": "aws",
   "name": "aws-dr",
-  "desc": "WG 10.200.0.4 · rocky · Pilot-Light",
+  "desc": "10.200.0.4 · t3.small · Pilot-Light",
+  "host": "10.200.0.4",
   "argv": [
    "ssh",
    "-tt",
@@ -205,16 +515,49 @@
    "-o",
    "IdentitiesOnly=yes",
    "rocky@10.200.0.4"
-  ]
+  ],
+  "units": [
+   [
+    "k3s",
+    "daemon",
+    "k3s 단일 노드"
+   ],
+   [
+    "minwon-mysql-tunnel",
+    "data",
+    "MySQL 역터널(failback)"
+   ],
+   [
+    "wg-quick@wg0",
+    "gw",
+    "WireGuard → KT 허브"
+   ]
+  ],
+  "pods": "sudo /usr/local/bin/k3s kubectl get pods -A --no-headers -o custom-columns=NS:.metadata.namespace,N:.metadata.name,P:.status.phase,S:.status.startTime",
+  "check": {
+   "⏱ 상태": "hostname; uptime; free -h | sed -n 1,2p; df -h / | tail -1",
+   "🚫 실패 서비스": "systemctl --failed --no-legend || true",
+   "🔁 복제 상태": "echo 'SHOW REPLICA STATUS' | sudo /usr/local/bin/k3s kubectl -n minwon-dr exec -i minwon-mysql-0 -- sh -c 'mysql -E -uroot -p\"$MYSQL_ROOT_PASSWORD\" 2>/dev/null' | grep -E 'Running:|Seconds_Behind|Last_(IO|SQL)_Error:|Source_Host'",
+   "🧩 파드": "sudo /usr/local/bin/k3s kubectl -n minwon-dr get pods -o wide",
+   "🩺 앱 healthz": "curl -s -m5 http://127.0.0.1:30080/healthz; echo",
+   "✅ 복제 검증": "sudo bash /opt/minwon-dr/validate-replica.sh",
+   "🔐 WG": "sudo wg show | grep -E 'interface|peer|endpoint|handshake|transfer'"
+  },
+  "fix": {
+   "⏯ 복제 재시작": "echo 'STOP REPLICA; START REPLICA;' | sudo /usr/local/bin/k3s kubectl -n minwon-dr exec -i minwon-mysql-0 -- sh -c 'mysql -E -uroot -p\"$MYSQL_ROOT_PASSWORD\" 2>/dev/null'; sleep 3; echo 'SHOW REPLICA STATUS' | sudo /usr/local/bin/k3s kubectl -n minwon-dr exec -i minwon-mysql-0 -- sh -c 'mysql -E -uroot -p\"$MYSQL_ROOT_PASSWORD\" 2>/dev/null' | grep -E 'Running:|Seconds_Behind'",
+   "♻ dr 앱 재시작": "sudo /usr/local/bin/k3s kubectl -n minwon-dr rollout restart deploy/minwon-app && sudo /usr/local/bin/k3s kubectl -n minwon-dr rollout status deploy/minwon-app --timeout=90s"
+  }
  },
  {
   "id": "aws-ctl",
   "area": "aws",
   "name": "aws-ctl",
-  "desc": "WG 10.200.0.3 · Recovery Orchestrator",
+  "desc": "10.200.0.3 · Recovery Orchestrator",
+  "host": "10.200.0.3",
   "argv": [
    "true"
   ],
-  "disabled": "s1 의 키가 맞지 않아 연결할 수 없습니다 (키페어·EIP 확인 필요)"
+  "http": "http://10.200.0.3:8080/healthz",
+  "disabled": "연결 예정 — 키 재설정 후 추가합니다 (지금은 API 응답만 감시)"
  }
 ]

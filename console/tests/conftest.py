@@ -15,7 +15,7 @@ PW = "console-pass-1"
 def targets(tmp_path):
     p = tmp_path / "targets.json"
     p.write_text(json.dumps([
-        {"id": "echo", "area": "onprem", "name": "echo", "desc": "시험용 cat", "argv": ["cat"]},
+        {"id": "echo", "area": "onprem", "name": "echo", "desc": "시험용 cat", "argv": ["cat"], "check": {"상태": "echo ok"}, "fix": {"재시작": "echo restart"}},
         {"id": "dead", "area": "aws", "name": "aws-ctl", "desc": "키 불일치", "argv": ["true"], "disabled": "키가 맞지 않아 연결 불가"},
     ]), encoding="utf-8")
     return p
@@ -30,6 +30,7 @@ def app(targets, tmp_path, monkeypatch):
     monkeypatch.setenv("ALLOWED_ORIGIN", ORIGIN)
     monkeypatch.setenv("CONSOLE_LOG_DIR", str(tmp_path / "logs"))
     monkeypatch.setenv("CONSOLE_TARGETS", str(targets))
+    monkeypatch.setenv("CONSOLE_STATUS_INTERVAL", "0")
     from console.app import create_app
     return create_app()
 

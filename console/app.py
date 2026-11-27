@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 
 from console.auth import Lock, TTL
 from console.pty_session import PtySession
+from console.status import Collector
 
 COOKIE = "fc_s"
 MAX_SESSIONS = 6
@@ -34,6 +35,18 @@ def create_app():
     origin = os.environ.get("ALLOWED_ORIGIN", "https://figteam.ktci5.kr")
     log_dir = pathlib.Path(os.environ.get("CONSOLE_LOG_DIR", "/var/log/figteam-console"))
     live = set()
+    collector = Collector(targets, order, int(os.environ.get("CONSOLE_STATUS_INTERVAL", "20")))
+    app.state.collector = collector
+
+    @app.on_event("startup")
+    async def _start_collector():
+        if collector.interval > 0:
+            asyncio.get_running_loop().create_task(collector.loop())
+
+    @app.get("/console/api/status")
+    def status():
+        """읽기 전용 실측 상태(잠금 불필요). 명령·argv 는 내보내지 않는다."""
+        return collector.snapshot
 
     def ip_of(conn):
         return conn.headers.get("cf-connecting-ip") or (conn.client.host if conn.client else "-")
@@ -71,7 +84,8 @@ def create_app():
     def list_targets(request: Request):
         if not lock.check(request.cookies.get(COOKIE), ip_of(request)):
             return JSONResponse({"error": "콘솔 잠금을 먼저 푸세요"}, status_code=401)
-        return [{k: targets[i].get(k) for k in ("id", "area", "name", "desc", "disabled") if k in targets[i]} for i in order]
+        keys = ("id", "area", "name", "desc", "host", "disabled", "check", "fix")
+        return [{k: targets[i].get(k) for k in keys if k in targets[i]} for i in order]
 
     @app.websocket("/console/ws/{target_id}")
     async def ws_term(ws: WebSocket, target_id: str):
