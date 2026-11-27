@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from console.auth import Lock, TTL
 from console.pty_session import PtySession
 from console.status import Collector
+from console.presets import PresetError, PresetStore
 
 COOKIE = "fc_s"
 MAX_SESSIONS = 6
@@ -53,7 +54,7 @@ def create_app():
 
     @app.middleware("http")
     async def _origin(request: Request, call_next):
-        if request.method == "POST" and request.headers.get("origin") != origin:
+        if request.method in ("POST", "PUT", "DELETE") and request.headers.get("origin") != origin:
             return JSONResponse({"error": "허용되지 않은 출처입니다"}, status_code=403)
         return await call_next(request)
 
@@ -73,6 +74,41 @@ def create_app():
         log.info("unlock ok ip=%s", ip)
         response.set_cookie(COOKIE, token, max_age=TTL, httponly=True, secure=True, samesite="strict", path="/console")
         return {"ok": True, "ttl": TTL}
+
+    presets = PresetStore(os.environ.get("CONSOLE_PRESETS", "/var/lib/figteam-console/presets.json"), targets)
+
+    def unlocked(request):
+        return lock.check(request.cookies.get(COOKIE), ip_of(request))
+
+    @app.get("/console/api/presets")
+    def get_presets(request: Request):
+        if not unlocked(request):
+            return JSONResponse({"error": "로그인이 필요합니다"}, status_code=401)
+        return presets.all()
+
+    @app.put("/console/api/presets/{target_id}")
+    async def put_presets(target_id: str, request: Request):
+        if not unlocked(request):
+            return JSONResponse({"error": "로그인이 필요합니다"}, status_code=401)
+        if target_id not in targets or targets[target_id].get("disabled"):
+            return JSONResponse({"error": "없는 대상입니다"}, status_code=404)
+        try:
+            data = await request.json()
+            items = presets.put(target_id, data.get("items"))
+        except (ValueError, AttributeError) as e:
+            return JSONResponse({"error": str(e) if isinstance(e, PresetError) else "형식이 올바르지 않습니다"}, status_code=422)
+        log.info("presets saved target=%s ip=%s count=%d", target_id, ip_of(request), len(items))
+        return {"ok": True, "items": items}
+
+    @app.delete("/console/api/presets/{target_id}")
+    def reset_presets(target_id: str, request: Request):
+        if not unlocked(request):
+            return JSONResponse({"error": "로그인이 필요합니다"}, status_code=401)
+        if target_id not in targets:
+            return JSONResponse({"error": "없는 대상입니다"}, status_code=404)
+        presets.reset(target_id)
+        log.info("presets reset target=%s ip=%s", target_id, ip_of(request))
+        return {"ok": True}
 
     @app.get("/console/api/me")
     def me(request: Request):
