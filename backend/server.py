@@ -2275,31 +2275,22 @@ LANDING_HTML = """<!DOCTYPE html>
       const body = document.getElementById('manual-body-content');
       body.innerHTML =
         '<div class="wk-login">' +
-          '<div class="wk-login-intro"><h2>팀 구성 위키</h2>' +
-          '<p>팀 비밀번호로 들어가면 같은 팀의 클라우드·인스턴스·서비스 구성 문서를 함께 보고 고칠 수 있습니다. 고친 내용은 판으로 남아 언제든 비교하고 되돌릴 수 있습니다.</p>' +
+          '<div class="wk-login-intro"><h2>기본 팀 (figteam) 구성 위키</h2>' +
+          '<p>본 시스템은 기본 팀(figteam) 전용 구성 포털입니다. 팀 비밀번호로 들어가면 인프라의 클라우드·인스턴스·서비스 구성 문서를 함께 보고 고칠 수 있습니다.</p>' +
           (msg ? '<p class="wk-error" role="alert">' + cfgEsc(msg) + '</p>' : '') + '</div>' +
           '<form class="wk-card" id="wk-login-form" onsubmit="wikiLogin(event)">' +
-            '<h3>팀 들어가기</h3>' +
-            '<label>팀 주소<input name="slug" required autocomplete="username" placeholder="예: figteam" pattern="[a-z0-9-]{3,32}"></label>' +
+            '<h3>팀 들어가기 (기본 팀: figteam)</h3>' +
+            '<label>팀 주소<input name="slug" required autocomplete="username" value="figteam" readonly style="background:rgba(255,255,255,0.06);color:#94a3b8;cursor:not-allowed;"></label>' +
+            '<div style="font-size:12px;color:#64748b;margin-top:-6px;margin-bottom:12px;">* 기본 팀(figteam)으로 설정된 팀만 해당됩니다.</div>' +
             '<label>팀 비밀번호<input name="password" type="password" required autocomplete="current-password"></label>' +
             '<label>내 이름 <span>(고친 기록에 남습니다)</span><input name="member" required maxlength="20" autocomplete="nickname"></label>' +
             '<p class="wk-error" id="wk-login-err" role="alert" hidden></p>' +
             '<button type="submit" class="wk-btn wk-primary">들어가기</button>' +
           '</form>' +
-          '<form class="wk-card" id="wk-create-form" onsubmit="wikiCreateTeam(event)">' +
-            '<h3>팀 만들기</h3>' +
-            '<label>팀 이름<input name="name" required maxlength="40" placeholder="예: 3팀 하이브리드 DR"></label>' +
-            '<label>팀 주소 <span>(영문 소문자·숫자·- 3~32자)</span><input name="slug" required pattern="[a-z0-9-]{3,32}"></label>' +
-            '<label>팀 비밀번호 <span>(6자 이상)</span><input name="password" type="password" required minlength="6" autocomplete="new-password"></label>' +
-            '<label>내 이름<input name="member" required maxlength="20"></label>' +
-            '<label>팀 생성 암호 <span>(관리자에게 받은 암호)</span><input name="create_code" type="password" required></label>' +
-            '<p class="wk-error" id="wk-create-err" role="alert" hidden></p>' +
-            '<button type="submit" class="wk-btn">팀 만들기</button>' +
-          '</form>' +
         '</div>';
       const last = localStorage.getItem('fw_last');
       if (last) {
-        try { const v = JSON.parse(last); const f = document.getElementById('wk-login-form'); f.slug.value = v.slug || ''; f.member.value = v.member || ''; } catch (e) {}
+        try { const v = JSON.parse(last); const f = document.getElementById('wk-login-form'); f.slug.value = 'figteam'; f.member.value = v.member || ''; } catch (e) {}
       }
     }
 
@@ -2339,10 +2330,10 @@ LANDING_HTML = """<!DOCTYPE html>
 
     function wikiTeamBar() {
       if (!WIKI.me) return '';
-      return '<div class="wk-teambar" id="wk-teambar"><div><b>' + cfgEsc(WIKI.me.team_name) + '</b><span>' + cfgEsc(WIKI.me.member) + ' 님' +
+      return '<div class="wk-teambar" id="wk-teambar"><div><b>' + cfgEsc(WIKI.me.team_name || 'figteam') + ' (기본 팀)</b><span>' + cfgEsc(WIKI.me.member) + ' 님' +
         (WIKI.me.auto ? ' · 자동 입장' : '') + '</span></div>' +
         '<div class="wk-teambar-acts"><button type="button" class="cfg-copy" onclick="wikiRenameStart()">이름 바꾸기</button>' +
-        '<button type="button" class="cfg-copy" onclick="wikiLogout()">' + (WIKI.me.auto ? '다른 팀' : '로그아웃') + '</button></div></div>';
+        '<button type="button" class="cfg-copy" onclick="wikiLogout()">로그아웃</button></div></div>';
     }
     function wikiRenameStart() {
       const bar = document.getElementById('wk-teambar');
@@ -3261,12 +3252,13 @@ LANDING_HTML = """<!DOCTYPE html>
       const p = cfgPage(pid);
       const a = cfgAreaOf(pid, aid);
       const st = a.status || p.status;
+      const isS1 = (pid === 'inst-s1' || (p && p.short === 's1') || (p && p.cloud === 'onprem'));
       let html = '';
-      if (p.status === 'protected' || pid === 'inst-s1') {
+      if (isS1 || p.status === 'protected') {
         html += '<div style="background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); border-radius:8px; padding:14px 18px; margin-bottom:18px; color:#fca5a5; font-size:13px; line-height:1.6;">' +
-          '<div style="font-weight:700; font-size:14px; margin-bottom:4px; color:#ef4444;">🛡️ 물리 게이트웨이 보호 영역 안내 (웹 직접 조작 제외)</div>' +
-          's1 호스트는 내부 백엔드 라우팅 및 물리 베이스 전용 머신입니다. 인프라 안정성과 보안을 위해 웹 콘솔을 통한 직접 설정 및 원격 명령어 실행이 엄격히 제외된 보호 구역입니다.<br>' +
-          '모든 인프라 제어 및 설정 변경은 <b>OpenStack Controller / Compute, K8s cp1, DB db-01</b> 및 <b>KT Cloud, AWS</b> 설정 화면에서 진행하십시오.' +
+          '<div style="font-weight:700; font-size:14px; margin-bottom:4px; color:#ef4444;">🔒 s1 온프렘 호스트 (명령 제외 · 연결 제외 · 설정 제외)</div>' +
+          '기본 팀(figteam) 환경에서 <b>s1 영역은 명령 제외 · 연결 제외 · 설정 제외</b> 대상이며, <b>웹에서 콘솔 터미널 접근이 불가</b>합니다.<br>' +
+          '온프렘 물리 베이스에 대한 간략한 설명만 제공되며, 모든 인프라 명령 실행 및 설정 조작은 <b>OpenStack Controller / Compute, K8s cp1, DB db-01</b> 및 <b>KT Cloud, AWS</b> 설정 화면에서 진행하십시오.' +
           '</div>';
       }
       html += '<div class="cfg-head">' + (typeof wikiActions === 'function' ? wikiActions('area', a.docId) : '') +
@@ -3275,11 +3267,17 @@ LANDING_HTML = """<!DOCTYPE html>
         '<h2 class="cfg-head-title">' + cfgEsc(a.name) + ' ' + cfgBadge(st) + '</h2>' +
         '<div class="cfg-head-domains">이 영역은 ' + a.domains.map(x =>
           '<a href="javascript:void(0)" class="cfg-dom-link" onclick="' + cfgGo('svc', x, pid + '.' + aid) + '">' + cfgEsc(cfgDomain(x).name) + '</a>').join(', ') +
-          ' 서비스에 속합니다' + (p.steps ? '. 진행 순서 ' + cfgEsc(p.steps) : '') + '.</div>' + cfgConsoleBtn(p) + '</div>';
-      html += '<details class="cfg-inst"' + (specsOpen ? ' open' : '') + '><summary>인스턴스 개요와 사양</summary>' + (typeof wikiActions === 'function' ? wikiActions('instance', p.docId) : '') +
+          ' 서비스에 속합니다' + (p.steps ? '. 진행 순서 ' + cfgEsc(p.steps) : '') + '.</div>' + (isS1 ? '' : cfgConsoleBtn(p)) + '</div>';
+      html += '<details class="cfg-inst"' + (specsOpen ? ' open' : '') + '><summary>인스턴스 개요와 사양 (간략 설명)</summary>' + (typeof wikiActions === 'function' ? wikiActions('instance', p.docId) : '') +
         '<p class="manual-desc">' + cfgFmt(p.desc) + '</p><div class="spec-grid">' + p.specs.map(s =>
           '<div class="spec-item"><span class="spec-k">' + cfgEsc(s[0]) + '</span><span class="spec-v">' + cfgEsc(s[1]) + '</span></div>').join('') + '</div></details>';
-      return html + cfgArea(a);
+      return html + (isS1 ? cfgAreaShort(a) : cfgArea(a));
+    }
+
+    function cfgAreaShort(a) {
+      if (!a.design || !a.design.length) return '';
+      return '<section class="manual-card-box" id="cfg-sec-0"><h3 class="box-title">간략 설명</h3><ul class="cfg-list">' +
+        a.design.map(d => '<li>' + cfgFmt(d) + '</li>').join('') + '</ul></section>';
     }
 
     function cfgStepHead(s) {
@@ -3958,7 +3956,14 @@ LANDING_HTML = """<!DOCTYPE html>
       sizes: { col: 50, row: 50 }, seq: 0, z: 900, pending: null, page: false, status: null, owner: "", expanded: {}, openNow: {}, stTimer: null, presets: {} };
     const CS_TERM_URL = '/term/';
     // 대시보드에서: 통합 터미널 페이지로 이동 (원클릭 — 대상이 있으면 바로 접속)
-    function csGo(id) { location.href = CS_TERM_URL + (id ? '?t=' + encodeURIComponent(id) : ''); }
+    function csGo(id) {
+      if (id === 's1' || id === 't1-vm2') {
+        if (typeof wikiToast === 'function') wikiToast('s1 호스트는 웹에서 콘솔 터미널 접근이 불가합니다.');
+        else alert('s1 호스트는 웹에서 콘솔 터미널 접근이 불가합니다.');
+        return;
+      }
+      location.href = CS_TERM_URL + (id ? '?t=' + encodeURIComponent(id) : '');
+    }
     // 왼쪽 트리: 클라우드 → 인스턴스 → (그 위의 VM) → 서비스. 클라우드마다 웹 콘솔 링크.
     const CS_GROUPS = [
       ['openstack', '온프렘 · OpenStack', ['onprem', 'openstack'], [['Horizon 웹 콘솔', 'https://horizon.ktci5.kr/dashboard/']]],
@@ -4010,7 +4015,7 @@ LANDING_HTML = """<!DOCTYPE html>
     function csTreeHtml() {
       if (!CS.targets) return '';
       return CS_GROUPS.map(g => {
-        const mine = CS.targets.filter(t => g[2].indexOf(t.area) >= 0);
+        const mine = CS.targets.filter(t => g[2].indexOf(t.area) >= 0 && t.id !== 's1' && t.target !== 's1');
         const ids = mine.map(t => t.id);
         // 진입점(컨트롤러·컴퓨트) 먼저, 이름만 있는 기반 호스트(s1)는 맨 아래
         const roots = mine.filter(t => ids.indexOf(csParent(t)) < 0).sort((a, b) => (a.area === 'onprem') - (b.area === 'onprem'));
@@ -4109,6 +4114,15 @@ LANDING_HTML = """<!DOCTYPE html>
 
     // ---------- 열기 · 닫기 · 잠금 ----------
     async function csOpen(soloId) {
+      if (soloId === 's1' || soloId === 't1-vm2') {
+        const root = csRoot(); root.hidden = false; document.body.classList.add('cs-on');
+        root.innerHTML = '<div style="padding:60px 20px; text-align:center; color:#f87171; background:#0f172a; min-height:100vh;">' +
+          '<h2 style="font-size:22px; margin-bottom:12px;">🚫 웹 콘솔 터미널 접근 불가</h2>' +
+          '<p style="color:#94a3b8; font-size:14px; margin-bottom:24px;">s1 호스트는 기본 팀(figteam) 보안 정책상 웹에서 콘솔 터미널 접근이 제외된 물리 베이스 구역입니다.</p>' +
+          '<button type="button" class="wk-btn wk-primary" onclick="location.href=\\'/\\'" style="padding:8px 16px; background:#0284c7; color:#fff; border:none; border-radius:6px; cursor:pointer;">대시보드로 돌아가기</button>' +
+          '</div>';
+        return;
+      }
       const root = csRoot();
       if (CS.targets && root.querySelector('.cs-wrap') && !soloId) {   // 다른 화면에 갔다 와도 열린 터미널은 그대로
         root.hidden = false; document.body.classList.add('cs-on'); CS.open = true;
@@ -4346,11 +4360,20 @@ LANDING_HTML = """<!DOCTYPE html>
 
     // ---------- 고르기 · 다시 연결 · 닫기 · 새 창 ----------
     function csPick(id) {
+      if (id === 's1' || id === 't1-vm2') {
+        if (typeof wikiToast === 'function') wikiToast('s1 호스트는 웹에서 콘솔 터미널 접근이 불가합니다.');
+        else alert('s1 호스트는 웹에서 콘솔 터미널 접근이 불가합니다.');
+        return;
+      }
       let i = CS.active;
       if (CS.slots[i].t) { const empty = CS.slots.findIndex(s => !s.t); if (empty >= 0) i = empty; }
       csConnectSlot(i, id);
     }
     function csConnectSlot(i, id) {
+      if (id === 's1' || id === 't1-vm2') {
+        if (typeof wikiToast === 'function') wikiToast('s1 호스트는 웹에서 콘솔 터미널 접근이 불가합니다.');
+        return;
+      }
       csDispose(CS.slots[i].t);
       const t = csNewTerm(id);
       CS.slots[i].t = t;

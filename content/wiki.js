@@ -124,31 +124,22 @@
       const body = document.getElementById('manual-body-content');
       body.innerHTML =
         '<div class="wk-login">' +
-          '<div class="wk-login-intro"><h2>팀 구성 위키</h2>' +
-          '<p>팀 비밀번호로 들어가면 같은 팀의 클라우드·인스턴스·서비스 구성 문서를 함께 보고 고칠 수 있습니다. 고친 내용은 판으로 남아 언제든 비교하고 되돌릴 수 있습니다.</p>' +
+          '<div class="wk-login-intro"><h2>기본 팀 (figteam) 구성 위키</h2>' +
+          '<p>본 시스템은 기본 팀(figteam) 전용 구성 포털입니다. 팀 비밀번호로 들어가면 인프라의 클라우드·인스턴스·서비스 구성 문서를 함께 보고 고칠 수 있습니다.</p>' +
           (msg ? '<p class="wk-error" role="alert">' + cfgEsc(msg) + '</p>' : '') + '</div>' +
           '<form class="wk-card" id="wk-login-form" onsubmit="wikiLogin(event)">' +
-            '<h3>팀 들어가기</h3>' +
-            '<label>팀 주소<input name="slug" required autocomplete="username" placeholder="예: figteam" pattern="[a-z0-9-]{3,32}"></label>' +
+            '<h3>팀 들어가기 (기본 팀: figteam)</h3>' +
+            '<label>팀 주소<input name="slug" required autocomplete="username" value="figteam" readonly style="background:rgba(255,255,255,0.06);color:#94a3b8;cursor:not-allowed;"></label>' +
+            '<div style="font-size:12px;color:#64748b;margin-top:-6px;margin-bottom:12px;">* 기본 팀(figteam)으로 설정된 팀만 해당됩니다.</div>' +
             '<label>팀 비밀번호<input name="password" type="password" required autocomplete="current-password"></label>' +
             '<label>내 이름 <span>(고친 기록에 남습니다)</span><input name="member" required maxlength="20" autocomplete="nickname"></label>' +
             '<p class="wk-error" id="wk-login-err" role="alert" hidden></p>' +
             '<button type="submit" class="wk-btn wk-primary">들어가기</button>' +
           '</form>' +
-          '<form class="wk-card" id="wk-create-form" onsubmit="wikiCreateTeam(event)">' +
-            '<h3>팀 만들기</h3>' +
-            '<label>팀 이름<input name="name" required maxlength="40" placeholder="예: 3팀 하이브리드 DR"></label>' +
-            '<label>팀 주소 <span>(영문 소문자·숫자·- 3~32자)</span><input name="slug" required pattern="[a-z0-9-]{3,32}"></label>' +
-            '<label>팀 비밀번호 <span>(6자 이상)</span><input name="password" type="password" required minlength="6" autocomplete="new-password"></label>' +
-            '<label>내 이름<input name="member" required maxlength="20"></label>' +
-            '<label>팀 생성 암호 <span>(관리자에게 받은 암호)</span><input name="create_code" type="password" required></label>' +
-            '<p class="wk-error" id="wk-create-err" role="alert" hidden></p>' +
-            '<button type="submit" class="wk-btn">팀 만들기</button>' +
-          '</form>' +
         '</div>';
       const last = localStorage.getItem('fw_last');
       if (last) {
-        try { const v = JSON.parse(last); const f = document.getElementById('wk-login-form'); f.slug.value = v.slug || ''; f.member.value = v.member || ''; } catch (e) {}
+        try { const v = JSON.parse(last); const f = document.getElementById('wk-login-form'); f.slug.value = 'figteam'; f.member.value = v.member || ''; } catch (e) {}
       }
     }
 
@@ -188,10 +179,10 @@
 
     function wikiTeamBar() {
       if (!WIKI.me) return '';
-      return '<div class="wk-teambar" id="wk-teambar"><div><b>' + cfgEsc(WIKI.me.team_name) + '</b><span>' + cfgEsc(WIKI.me.member) + ' 님' +
+      return '<div class="wk-teambar" id="wk-teambar"><div><b>' + cfgEsc(WIKI.me.team_name || 'figteam') + ' (기본 팀)</b><span>' + cfgEsc(WIKI.me.member) + ' 님' +
         (WIKI.me.auto ? ' · 자동 입장' : '') + '</span></div>' +
         '<div class="wk-teambar-acts"><button type="button" class="cfg-copy" onclick="wikiRenameStart()">이름 바꾸기</button>' +
-        '<button type="button" class="cfg-copy" onclick="wikiLogout()">' + (WIKI.me.auto ? '다른 팀' : '로그아웃') + '</button></div></div>';
+        '<button type="button" class="cfg-copy" onclick="wikiLogout()">로그아웃</button></div></div>';
     }
     function wikiRenameStart() {
       const bar = document.getElementById('wk-teambar');

@@ -568,7 +568,14 @@
       sizes: { col: 50, row: 50 }, seq: 0, z: 900, pending: null, page: false, status: null, owner: "", expanded: {}, openNow: {}, stTimer: null, presets: {} };
     const CS_TERM_URL = '/term/';
     // 대시보드에서: 통합 터미널 페이지로 이동 (원클릭 — 대상이 있으면 바로 접속)
-    function csGo(id) { location.href = CS_TERM_URL + (id ? '?t=' + encodeURIComponent(id) : ''); }
+    function csGo(id) {
+      if (id === 's1' || id === 't1-vm2') {
+        if (typeof wikiToast === 'function') wikiToast('s1 호스트는 웹에서 콘솔 터미널 접근이 불가합니다.');
+        else alert('s1 호스트는 웹에서 콘솔 터미널 접근이 불가합니다.');
+        return;
+      }
+      location.href = CS_TERM_URL + (id ? '?t=' + encodeURIComponent(id) : '');
+    }
     // 왼쪽 트리: 클라우드 → 인스턴스 → (그 위의 VM) → 서비스. 클라우드마다 웹 콘솔 링크.
     const CS_GROUPS = [
       ['openstack', '온프렘 · OpenStack', ['onprem', 'openstack'], [['Horizon 웹 콘솔', 'https://horizon.ktci5.kr/dashboard/']]],
@@ -620,7 +627,7 @@
     function csTreeHtml() {
       if (!CS.targets) return '';
       return CS_GROUPS.map(g => {
-        const mine = CS.targets.filter(t => g[2].indexOf(t.area) >= 0);
+        const mine = CS.targets.filter(t => g[2].indexOf(t.area) >= 0 && t.id !== 's1' && t.target !== 's1');
         const ids = mine.map(t => t.id);
         // 진입점(컨트롤러·컴퓨트) 먼저, 이름만 있는 기반 호스트(s1)는 맨 아래
         const roots = mine.filter(t => ids.indexOf(csParent(t)) < 0).sort((a, b) => (a.area === 'onprem') - (b.area === 'onprem'));
@@ -719,6 +726,15 @@
 
     // ---------- 열기 · 닫기 · 잠금 ----------
     async function csOpen(soloId) {
+      if (soloId === 's1' || soloId === 't1-vm2') {
+        const root = csRoot(); root.hidden = false; document.body.classList.add('cs-on');
+        root.innerHTML = '<div style="padding:60px 20px; text-align:center; color:#f87171; background:#0f172a; min-height:100vh;">' +
+          '<h2 style="font-size:22px; margin-bottom:12px;">🚫 웹 콘솔 터미널 접근 불가</h2>' +
+          '<p style="color:#94a3b8; font-size:14px; margin-bottom:24px;">s1 호스트는 기본 팀(figteam) 보안 정책상 웹에서 콘솔 터미널 접근이 제외된 물리 베이스 구역입니다.</p>' +
+          '<button type="button" class="wk-btn wk-primary" onclick="location.href=\'/\'" style="padding:8px 16px; background:#0284c7; color:#fff; border:none; border-radius:6px; cursor:pointer;">대시보드로 돌아가기</button>' +
+          '</div>';
+        return;
+      }
       const root = csRoot();
       if (CS.targets && root.querySelector('.cs-wrap') && !soloId) {   // 다른 화면에 갔다 와도 열린 터미널은 그대로
         root.hidden = false; document.body.classList.add('cs-on'); CS.open = true;
@@ -956,11 +972,20 @@
 
     // ---------- 고르기 · 다시 연결 · 닫기 · 새 창 ----------
     function csPick(id) {
+      if (id === 's1' || id === 't1-vm2') {
+        if (typeof wikiToast === 'function') wikiToast('s1 호스트는 웹에서 콘솔 터미널 접근이 불가합니다.');
+        else alert('s1 호스트는 웹에서 콘솔 터미널 접근이 불가합니다.');
+        return;
+      }
       let i = CS.active;
       if (CS.slots[i].t) { const empty = CS.slots.findIndex(s => !s.t); if (empty >= 0) i = empty; }
       csConnectSlot(i, id);
     }
     function csConnectSlot(i, id) {
+      if (id === 's1' || id === 't1-vm2') {
+        if (typeof wikiToast === 'function') wikiToast('s1 호스트는 웹에서 콘솔 터미널 접근이 불가합니다.');
+        return;
+      }
       csDispose(CS.slots[i].t);
       const t = csNewTerm(id);
       CS.slots[i].t = t;

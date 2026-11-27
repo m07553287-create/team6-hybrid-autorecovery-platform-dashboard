@@ -385,12 +385,13 @@
       const p = cfgPage(pid);
       const a = cfgAreaOf(pid, aid);
       const st = a.status || p.status;
+      const isS1 = (pid === 'inst-s1' || (p && p.short === 's1') || (p && p.cloud === 'onprem'));
       let html = '';
-      if (p.status === 'protected' || pid === 'inst-s1') {
+      if (isS1 || p.status === 'protected') {
         html += '<div style="background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); border-radius:8px; padding:14px 18px; margin-bottom:18px; color:#fca5a5; font-size:13px; line-height:1.6;">' +
-          '<div style="font-weight:700; font-size:14px; margin-bottom:4px; color:#ef4444;">🛡️ 물리 게이트웨이 보호 영역 안내 (웹 직접 조작 제외)</div>' +
-          's1 호스트는 내부 백엔드 라우팅 및 물리 베이스 전용 머신입니다. 인프라 안정성과 보안을 위해 웹 콘솔을 통한 직접 설정 및 원격 명령어 실행이 엄격히 제외된 보호 구역입니다.<br>' +
-          '모든 인프라 제어 및 설정 변경은 <b>OpenStack Controller / Compute, K8s cp1, DB db-01</b> 및 <b>KT Cloud, AWS</b> 설정 화면에서 진행하십시오.' +
+          '<div style="font-weight:700; font-size:14px; margin-bottom:4px; color:#ef4444;">🔒 s1 온프렘 호스트 (명령 제외 · 연결 제외 · 설정 제외)</div>' +
+          '기본 팀(figteam) 환경에서 <b>s1 영역은 명령 제외 · 연결 제외 · 설정 제외</b> 대상이며, <b>웹에서 콘솔 터미널 접근이 불가</b>합니다.<br>' +
+          '온프렘 물리 베이스에 대한 간략한 설명만 제공되며, 모든 인프라 명령 실행 및 설정 조작은 <b>OpenStack Controller / Compute, K8s cp1, DB db-01</b> 및 <b>KT Cloud, AWS</b> 설정 화면에서 진행하십시오.' +
           '</div>';
       }
       html += '<div class="cfg-head">' + (typeof wikiActions === 'function' ? wikiActions('area', a.docId) : '') +
@@ -399,11 +400,17 @@
         '<h2 class="cfg-head-title">' + cfgEsc(a.name) + ' ' + cfgBadge(st) + '</h2>' +
         '<div class="cfg-head-domains">이 영역은 ' + a.domains.map(x =>
           '<a href="javascript:void(0)" class="cfg-dom-link" onclick="' + cfgGo('svc', x, pid + '.' + aid) + '">' + cfgEsc(cfgDomain(x).name) + '</a>').join(', ') +
-          ' 서비스에 속합니다' + (p.steps ? '. 진행 순서 ' + cfgEsc(p.steps) : '') + '.</div>' + cfgConsoleBtn(p) + '</div>';
-      html += '<details class="cfg-inst"' + (specsOpen ? ' open' : '') + '><summary>인스턴스 개요와 사양</summary>' + (typeof wikiActions === 'function' ? wikiActions('instance', p.docId) : '') +
+          ' 서비스에 속합니다' + (p.steps ? '. 진행 순서 ' + cfgEsc(p.steps) : '') + '.</div>' + (isS1 ? '' : cfgConsoleBtn(p)) + '</div>';
+      html += '<details class="cfg-inst"' + (specsOpen ? ' open' : '') + '><summary>인스턴스 개요와 사양 (간략 설명)</summary>' + (typeof wikiActions === 'function' ? wikiActions('instance', p.docId) : '') +
         '<p class="manual-desc">' + cfgFmt(p.desc) + '</p><div class="spec-grid">' + p.specs.map(s =>
           '<div class="spec-item"><span class="spec-k">' + cfgEsc(s[0]) + '</span><span class="spec-v">' + cfgEsc(s[1]) + '</span></div>').join('') + '</div></details>';
-      return html + cfgArea(a);
+      return html + (isS1 ? cfgAreaShort(a) : cfgArea(a));
+    }
+
+    function cfgAreaShort(a) {
+      if (!a.design || !a.design.length) return '';
+      return '<section class="manual-card-box" id="cfg-sec-0"><h3 class="box-title">간략 설명</h3><ul class="cfg-list">' +
+        a.design.map(d => '<li>' + cfgFmt(d) + '</li>').join('') + '</ul></section>';
     }
 
     function cfgStepHead(s) {
