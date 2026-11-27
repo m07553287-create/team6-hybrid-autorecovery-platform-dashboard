@@ -1,0 +1,220 @@
+[
+ {
+  "id": "s1",
+  "area": "onprem",
+  "name": "s1 (t1-vm2)",
+  "desc": "10.10.10.8 · VMware·NAT·WG·cloudflared",
+  "argv": [
+   "bash",
+   "-l"
+  ]
+ },
+ {
+  "id": "controller",
+  "area": "openstack",
+  "name": "controller",
+  "desc": "192.168.120.160 · root",
+  "argv": [
+   "ssh",
+   "-tt",
+   "-o",
+   "BatchMode=yes",
+   "-o",
+   "ConnectTimeout=8",
+   "-o",
+   "ServerAliveInterval=30",
+   "-o",
+   "LogLevel=ERROR",
+   "root@192.168.120.160"
+  ]
+ },
+ {
+  "id": "compute1",
+  "area": "openstack",
+  "name": "compute1",
+  "desc": "192.168.120.161 · root · k8s-w1 호스트",
+  "argv": [
+   "ssh",
+   "-tt",
+   "-o",
+   "BatchMode=yes",
+   "-o",
+   "ConnectTimeout=8",
+   "-o",
+   "ServerAliveInterval=30",
+   "-o",
+   "LogLevel=ERROR",
+   "root@192.168.120.161"
+  ]
+ },
+ {
+  "id": "compute3",
+  "area": "openstack",
+  "name": "compute3",
+  "desc": "192.168.120.163 · root · k8s-cp1 호스트",
+  "argv": [
+   "ssh",
+   "-tt",
+   "-o",
+   "BatchMode=yes",
+   "-o",
+   "ConnectTimeout=8",
+   "-o",
+   "ServerAliveInterval=30",
+   "-o",
+   "LogLevel=ERROR",
+   "root@192.168.120.163"
+  ]
+ },
+ {
+  "id": "compute4",
+  "area": "openstack",
+  "name": "compute4",
+  "desc": "192.168.120.164 · root · db-01·wiki-01 호스트",
+  "argv": [
+   "ssh",
+   "-tt",
+   "-o",
+   "BatchMode=yes",
+   "-o",
+   "ConnectTimeout=8",
+   "-o",
+   "ServerAliveInterval=30",
+   "-o",
+   "LogLevel=ERROR",
+   "root@192.168.120.164"
+  ]
+ },
+ {
+  "id": "k8s-cp1",
+  "area": "openstack",
+  "name": "k8s-cp1",
+  "desc": "172.20.0.86 · ubuntu · k3s 서버",
+  "argv": [
+   "ssh",
+   "-tt",
+   "-o",
+   "BatchMode=yes",
+   "-o",
+   "ConnectTimeout=8",
+   "-o",
+   "ServerAliveInterval=30",
+   "-o",
+   "LogLevel=ERROR",
+   "ubuntu@172.20.0.86"
+  ]
+ },
+ {
+  "id": "k8s-w1",
+  "area": "openstack",
+  "name": "k8s-w1",
+  "desc": "172.20.0.180 · ubuntu · k3s 워커",
+  "argv": [
+   "ssh",
+   "-tt",
+   "-o",
+   "BatchMode=yes",
+   "-o",
+   "ConnectTimeout=8",
+   "-o",
+   "ServerAliveInterval=30",
+   "-o",
+   "LogLevel=ERROR",
+   "ubuntu@172.20.0.180"
+  ]
+ },
+ {
+  "id": "db-01",
+  "area": "openstack",
+  "name": "db-01",
+  "desc": "10.10.2.10 · ubuntu · MySQL Primary",
+  "argv": [
+   "ssh",
+   "-tt",
+   "-o",
+   "BatchMode=yes",
+   "-o",
+   "ConnectTimeout=8",
+   "-o",
+   "ServerAliveInterval=30",
+   "-o",
+   "LogLevel=ERROR",
+   "ubuntu@10.10.2.10"
+  ]
+ },
+ {
+  "id": "wiki-01",
+  "area": "openstack",
+  "name": "wiki-01",
+  "desc": "192.168.120.230 · ubuntu · 구성 위키",
+  "argv": [
+   "ssh",
+   "-tt",
+   "-o",
+   "BatchMode=yes",
+   "-o",
+   "ConnectTimeout=8",
+   "-o",
+   "ServerAliveInterval=30",
+   "-o",
+   "LogLevel=ERROR",
+   "ubuntu@192.168.120.230"
+  ]
+ },
+ {
+  "id": "kt-edge",
+  "area": "kt",
+  "name": "kt-edge-dr-01",
+  "desc": "WG 10.200.0.1 · root · 인입·WAF·허브",
+  "argv": [
+   "ssh",
+   "-tt",
+   "-o",
+   "BatchMode=yes",
+   "-o",
+   "ConnectTimeout=8",
+   "-o",
+   "ServerAliveInterval=30",
+   "-o",
+   "LogLevel=ERROR",
+   "-i",
+   "/home/user/.ssh/edgekey.pem",
+   "-o",
+   "IdentitiesOnly=yes",
+   "root@10.200.0.1"
+  ]
+ },
+ {
+  "id": "aws-dr",
+  "area": "aws",
+  "name": "aws-dr",
+  "desc": "WG 10.200.0.4 · rocky · Pilot-Light",
+  "argv": [
+   "ssh",
+   "-tt",
+   "-o",
+   "BatchMode=yes",
+   "-o",
+   "ConnectTimeout=8",
+   "-o",
+   "ServerAliveInterval=30",
+   "-o",
+   "LogLevel=ERROR",
+   "-i",
+   "/home/user/.ssh/minwon-key.pem",
+   "-o",
+   "IdentitiesOnly=yes",
+   "rocky@10.200.0.4"
+  ]
+ },
+ {
+  "id": "aws-ctl",
+  "area": "aws",
+  "name": "aws-ctl",
+  "desc": "WG 10.200.0.3 · Recovery Orchestrator",
+  "argv": [
+   "true"
+  ],
+  "disabled": "s1 의 키가 맞지 않아 연결할 수 없습니다 (키페어·EIP 확인 필요)"
+ }
+]

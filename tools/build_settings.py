@@ -57,9 +57,10 @@ blocks = {
         '<script type="application/json" id="cfg-data">' + data + '</script>',
     ('// CFGJS:BEGIN', '// CFGJS:END'):
         '\n' + ''.join((root / 'content' / f).read_text(encoding='utf-8')
-                       for f in ('diff.js', 'wiki.js', 'settings.js')) + '    ',
+                       for f in ('diff.js', 'wiki.js', 'settings.js', 'console.js')) + '    ',
     ('/* CFGCSS:BEGIN */', '/* CFGCSS:END */'):
-        '\n' + (root / 'content' / 'settings.css').read_text(encoding='utf-8') + '    ',
+        '\n' + ''.join((root / 'content' / f).read_text(encoding='utf-8')
+                       for f in ('settings.css', 'console.css')) + '    ',
 }
 for (beg, end), body in blocks.items():
     pat = re.compile(re.escape(beg) + '.*?' + re.escape(end), re.S)
@@ -83,6 +84,12 @@ for grp in settings_guide.CONSOLES:
 menu.append('</div></div>')
 src = re.sub(r'<!--CONSOLES:BEGIN-->.*?<!--CONSOLES:END-->',
              lambda m: '<!--CONSOLES:BEGIN-->' + py_safe(''.join(menu)) + '<!--CONSOLES:END-->', src, count=1, flags=re.S)
+
+# 대시보드 왼쪽 [통합콘솔] 레일 버튼 (1회 삽입)
+if '<!--CSRAIL-->' not in src:
+    anchor = '<div id="view-dashboard" class="view-container">'
+    assert anchor in src, '대시보드 뷰를 찾지 못했습니다'
+    src = src.replace(anchor, anchor + '\n    <!--CSRAIL--><button type="button" class="cs-rail" onclick="csOpen()" title="3대 영역 인스턴스에 실제 터미널로 접속">통합콘솔</button>', 1)
 
 # 설정 탭으로 전환할 때 첫 화면 보장
 if 'cfgInit(); // settings-tab' not in src:

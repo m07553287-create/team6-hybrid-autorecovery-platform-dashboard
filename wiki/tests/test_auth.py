@@ -74,3 +74,26 @@ def test_cookie_flags(client):
 
 def test_member_length_422(client):
     assert client.post("/api/teams", json={**T, "member": "가" * 21}).status_code == 422
+
+
+def test_auto_login_me(r, monkeypatch):
+    from wiki.auth import add_team
+    from wiki.tests.conftest import make_client
+    add_team(r, "t01", "1팀", "pw-123456")
+    monkeypatch.setenv("AUTO_LOGIN_TEAM", "t01")
+    with make_client(r) as c:
+        resp = c.get("/api/me")
+        assert resp.status_code == 200 and resp.json() == {"slug": "t01", "team_name": "1팀", "member": "게스트", "auto": True}
+        assert "fw_s=" in resp.headers["set-cookie"]
+        assert c.get("/api/tree").status_code == 200
+
+
+def test_auto_login_off(client):
+    assert client.get("/api/me").status_code == 401
+
+
+def test_rename_member(client):
+    client.post("/api/teams", json=T)
+    assert client.post("/api/me/name", json={"member": "혜빈"}).status_code == 200
+    assert client.get("/api/me").json()["member"] == "혜빈"
+    assert client.post("/api/me/name", json={"member": "가" * 21}).status_code == 422
