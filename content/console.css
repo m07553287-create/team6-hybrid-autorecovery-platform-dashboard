@@ -118,3 +118,7 @@
     .cs-ed-tools { display: flex; gap: 4px; }
     .cs-ed-bar { display: flex; gap: 8px; margin-top: 4px; }
     @media (max-width: 760px) { .cs-ed-row { grid-template-columns: 1fr 76px; } .cs-ed-row .cs-ed-cmd { grid-column: 1 / -1; } }
+
+    .cs-owner { margin-top: 8px; background: #0b1220; border: 1px solid #334155; border-radius: 7px; color: var(--text-sub); font-size: 11px; padding: 4px 9px; cursor: pointer; font-family: inherit; }
+    .cs-owner:hover { border-color: #93c5fd; color: #fff; }
+    .cs-owner b { color: #bfdbfe; font-weight: 600; }

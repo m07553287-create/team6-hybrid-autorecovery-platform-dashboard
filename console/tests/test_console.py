@@ -90,13 +90,35 @@ def test_ws_roundtrip_and_audit(unlocked, tmp_path):
 def test_ws_max_sessions(unlocked, monkeypatch):
     import console.app as ca
     monkeypatch.setattr(ca, "MAX_SESSIONS", 1)
-    with unlocked.websocket_connect("/console/ws/echo", headers=H(unlocked)) as ws1:
+    with unlocked.websocket_connect("/console/ws/echo?u=alice", headers=H(unlocked)) as ws1:
         ws1.send_text(json.dumps({"t": "i", "d": "x\n"}))
         read_until(ws1, "x")
-        with unlocked.websocket_connect("/console/ws/echo", headers=H(unlocked)) as ws2:
+        # 다른 이름 = 다른 세션이라 한도(1)를 넘는다
+        with unlocked.websocket_connect("/console/ws/echo?u=bob", headers=H(unlocked)) as ws2:
             with pytest.raises(WebSocketDisconnect) as e:
                 ws2.receive_text()
         assert e.value.code == 4429
+
+
+def test_ws_reattach_replays_scrollback(unlocked):
+    """같은 이름+대상으로 다시 붙으면 이전 출력(스크롤백)을 재생해 이어간다."""
+    with unlocked.websocket_connect("/console/ws/echo?u=dawn", headers=H(unlocked)) as ws1:
+        ws1.send_text(json.dumps({"t": "i", "d": "keep-this-line\n"}))
+        read_until(ws1, "keep-this-line")
+    # ws1 닫힘(새로고침). 셸은 유지돼야 한다.
+    time.sleep(0.2)
+    with unlocked.websocket_connect("/console/ws/echo?u=dawn", headers=H(unlocked)) as ws2:
+        assert "keep-this-line" in read_until(ws2, "keep-this-line")   # 스크롤백 재생
+        assert "다시 연결" in read_until(ws2, "다시 연결")
+
+
+def test_ws_sessions_api_lists_live(unlocked):
+    assert unlocked.get("/console/api/sessions?u=zed").json() == []
+    with unlocked.websocket_connect("/console/ws/echo?u=zed", headers=H(unlocked)) as ws:
+        ws.send_text(json.dumps({"t": "i", "d": "whoami\n"}))
+        read_until(ws, "whoami")
+        rows = unlocked.get("/console/api/sessions?u=zed").json()
+        assert len(rows) == 1 and rows[0]["target"] == "echo" and rows[0]["last_cmd"] == "whoami"
 
 
 def test_lock(unlocked):
