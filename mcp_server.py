@@ -53,6 +53,15 @@ PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "figteam-cfg-mcp"
 SERVER_VERSION = "1.0.0"
 
+# 팀 전용 보안 암호키 설정 (환경변수 또는 기본키)
+DEFAULT_TEAM_KEY = os.environ.get("FIGTEAM_AUTH_KEY", "figteam-sec-2026-dr")
+VALID_AUTH_KEYS = {
+    DEFAULT_TEAM_KEY,
+    "figteam-sec-2026-dr",
+    "figteam-2026",
+    "figteam-mcp-key-2026"
+}
+
 
 # ---------------------------------------------------------------------------
 # Core Logic & MCP Handlers
@@ -604,6 +613,109 @@ class McpHttpHandler(BaseHTTPRequestHandler):
     sessions: dict[str, queue.Queue] = {}
     sessions_lock = threading.Lock()
 
+    def get_auth_token(self, parsed: urllib.parse.ParseResult) -> str:
+        """요청 헤더 또는 쿼리스트링에서 암호키 추출"""
+        # 1. Authorization: Bearer <key>
+        auth = self.headers.get("Authorization", "").strip()
+        if auth.startswith("Bearer "):
+            return auth[7:].strip()
+        if auth.startswith("Token "):
+            return auth[6:].strip()
+        if auth and not auth.startswith("Basic "):
+            return auth
+
+        # 2. X-API-Key 또는 Api-Key 헤더
+        x_key = self.headers.get("X-API-Key") or self.headers.get("Api-Key")
+        if x_key:
+            return x_key.strip()
+
+        # 3. 쿼리 파라미터 (?key=... 또는 ?token=...)
+        q = urllib.parse.parse_qs(parsed.query)
+        for k in ("key", "token", "auth", "api_key", "password"):
+            if k in q and q[k] and q[k][0]:
+                return q[k][0].strip()
+
+        return ""
+
+    def is_authorized(self, parsed: urllib.parse.ParseResult) -> bool:
+        """암호키 검증 (팀 암호키 일치 여부)"""
+        token = self.get_auth_token(parsed)
+        if not token:
+            return False
+        if token in VALID_AUTH_KEYS:
+            return True
+        # 기본 팀 접두사 키 허용
+        if token.startswith("figteam-") and len(token) >= 10:
+            return True
+        return False
+
+    def send_auth_required(self):
+        """인증 실패(401 Unauthorized) 응답 처리"""
+        accept = self.headers.get("Accept", "").lower()
+        if "text/html" in accept and "curl" not in self.headers.get("User-Agent", "").lower():
+            self.send_response(401)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            html = f"""<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔒 401 Unauthorized - FIGTEAM #cfg AI Gateway</title>
+  <style>
+    body {{ background: #0b0f19; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 16px; box-sizing: border-box; }}
+    .card {{ background: #161e2e; border: 1px solid #2d3748; border-radius: 12px; padding: 32px; max-width: 520px; width: 100%; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }}
+    h1 {{ font-size: 20px; margin: 0 0 12px; color: #f87171; display: flex; align-items: center; gap: 8px; }}
+    p {{ font-size: 14px; color: #94a3b8; line-height: 1.6; margin: 0 0 16px; }}
+    .box {{ background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 12px; font-family: ui-monospace, monospace; font-size: 12.5px; color: #38bdf8; word-break: break-all; margin-bottom: 20px; line-height: 1.6; }}
+    form {{ display: flex; gap: 8px; margin-top: 16px; }}
+    input {{ flex: 1; background: #0f172a; border: 1px solid #475569; border-radius: 6px; padding: 10px 14px; color: #fff; font-size: 14px; }}
+    button {{ background: #2563eb; color: #fff; border: none; border-radius: 6px; padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer; }}
+    button:hover {{ background: #1d4ed8; }}
+    .badge {{ display: inline-block; background: #374151; color: #e5e7eb; font-size: 11px; padding: 2px 8px; border-radius: 4px; margin-bottom: 12px; }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <span class="badge">FIGTEAM 보안 게이트웨이</span>
+    <h1>🔒 팀 전용 암호키가 필요합니다</h1>
+    <p>본 엔드포인트는 팀원 및 공인된 AI 툴 전용 지식 게이트웨이입니다. 팀원에게 별도 발급된 암호키를 입력하거나 <code>?key=...</code> 파라미터로 접속하십시오.</p>
+    <div class="box">
+      <strong>AI 툴(ChatGPT, Claude, Cursor 등) 연결 형식:</strong><br>
+      • Base URL: <code>https://figteam.ktci5.kr/md/v1</code><br>
+      • API Key: <code>(팀원 별도 발급 암호키)</code><br>
+      • Direct URL: <code>https://figteam.ktci5.kr/md/v1?key=&lt;암호키&gt;</code>
+    </div>
+    <form method="GET" action="/md/v1">
+      <input type="password" name="key" placeholder="팀 암호키 입력" required autofocus>
+      <button type="submit">인증 및 접속</button>
+    </form>
+  </div>
+</body>
+</html>"""
+            self.wfile.write(html.encode("utf-8"))
+            return
+
+        self.send_response(401)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        err_body = {
+            "error": {
+                "message": "인증 실패: 유효한 팀 암호키가 필요합니다. ?key=<암호키> 파라미터 또는 Authorization: Bearer <암호키> 헤더를 전달하세요.",
+                "type": "authentication_error",
+                "param": None,
+                "code": "invalid_api_key",
+                "hint": {
+                    "base_url": "https://figteam.ktci5.kr/md/v1",
+                    "url_format": "https://figteam.ktci5.kr/md/v1?key=<팀_암호키>",
+                    "header_format": "Authorization: Bearer <팀_암호키>"
+                }
+            }
+        }
+        self.wfile.write(json.dumps(err_body, ensure_ascii=False, indent=2).encode("utf-8"))
+
     def do_OPTIONS(self):
         """CORS 프리플라이트 처리"""
         self.send_response(200)
@@ -621,7 +733,12 @@ class McpHttpHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
-        elif p in ("/md/v1", "/md/v1/models", "/md/context.md"):
+        elif p.startswith("/md/"):
+            if not self.is_authorized(urllib.parse.urlparse(self.path)):
+                self.send_response(401)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                return
             self.send_response(200)
             self.send_header("Content-Type", "text/markdown; charset=utf-8")
             self.send_header("Access-Control-Allow-Origin", "*")
@@ -695,13 +812,24 @@ class McpHttpHandler(BaseHTTPRequestHandler):
             return
 
         # 1-1. 웹 현황 구조 및 설계 총람 마크다운 서빙 (/md, /md/v1, /md/download, /md/v1.md 등)
-        is_download = (
-            path in ("/md/download", "/md/v1.md", "/md/v1.txt", "/download.md", "/v1.md")
-            or "download=true" in parsed.query
-            or "download=1" in parsed.query
+        is_md_path = (
+            path in ("/md", "/md/", "/md/v1", "/md/v1/", "/md/download", "/md/v1.md", "/md/v1.txt")
+            or path.startswith("/md/")
         )
 
-        if is_download or path in ("/md", "/md/", "/md/v1", "/md/v1/") or path.startswith("/md/v1/inst/") or path.startswith("/md/inst/") or (path.startswith("/md/") and not path.startswith("/md/v1/chat") and not path.startswith("/md/v1/models")):
+        if is_md_path and not path.startswith("/md/v1/chat"):
+            # 🔒 팀 암호키 인증 검증 (모든 AI 툴 및 사용자 공통)
+            if not self.is_authorized(parsed):
+                self.send_auth_required()
+                return
+
+            auth_token = self.get_auth_token(parsed)
+            is_download = (
+                path in ("/md/download", "/md/v1.md", "/md/v1.txt", "/download.md", "/v1.md")
+                or "download=true" in parsed.query
+                or "download=1" in parsed.query
+            )
+
             # 특정 인스턴스 지정 여부 파악
             target_inst = ""
             for prefix in ("/md/v1/inst/", "/md/inst/", "/md/v1/", "/md/"):
@@ -731,18 +859,19 @@ class McpHttpHandler(BaseHTTPRequestHandler):
                 return
 
             accept_header = self.headers.get("Accept", "")
-            # 브라우저 직접 방문 시 깔끔한 다크모드 HTML 뷰어로 서빙 (원클릭 다운로드 및 복사 버튼 탑재)
+            # 브라우저 직접 방문 시 깔끔한 다크모드 HTML 뷰어로 서빙 (인증키 보존 다운로드 및 복사 버튼 탑재)
             if "text/html" in accept_header and "curl" not in self.headers.get("User-Agent", "").lower():
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
+                dl_link = f"/md/v1?key={urllib.parse.quote(auth_token)}&download=1" if auth_token else "#"
                 html_resp = f"""<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FIGTEAM #cfg 인프라 현황 구조 및 웹 설정 직결 명세</title>
+  <title>FIGTEAM #cfg 인프라 실측 현황 (팀 공인 뷰어)</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.0/github-markdown-dark.min.css">
   <style>
     body {{
@@ -771,7 +900,7 @@ class McpHttpHandler(BaseHTTPRequestHandler):
       margin-bottom: 20px;
       padding: 14px 16px;
       background: #1f2937;
-      border-left: 4px solid #38bdf8;
+      border-left: 4px solid #10b981;
       border-radius: 6px;
       align-items: center;
     }}
@@ -812,13 +941,13 @@ class McpHttpHandler(BaseHTTPRequestHandler):
   <div class="container">
     <div class="action-bar">
       <div style="flex: 1 1 100%; margin-bottom: 6px;">
-        <strong style="color: #58a6ff; font-size: 15px;">🤖 모바일 AI(Gemini·ChatGPT) 연동 가이드</strong>
+        <strong style="color: #4ade80; font-size: 14px;">🔒 FIGTEAM 암호키 인증 완료 (AI 에이전트 연동 가이드)</strong>
         <p style="margin: 4px 0 0; font-size: 13px; color: #8b949e; line-height: 1.5;">
-          외부 AI 봇의 사설 도메인 크롤링 제한이 있을 경우, 아래 <strong>[파일 다운로드]</strong> 후 Gemini 앱의 <code>+</code> 버튼으로 첨부하거나 <strong>[전체 복사]</strong>하여 대화창에 직접 붙여넣으십시오.
+          외부 AI(ChatGPT, Claude, Cursor 등) 연동 시 <strong>Base URL: <code>https://figteam.ktci5.kr/md/v1</code></strong> 및 발급된 <strong>팀 암호키</strong>를 지정하십시오. 모바일에서는 아래 [전체 복사] 또는 [파일 저장]을 이용할 수 있습니다.
         </p>
       </div>
-      <a href="/md/download" class="btn btn-download">📥 Gemini 첨부용 파일 다운로드 (.md)</a>
       <button onclick="copyAllMarkdown()" class="btn btn-copy">📋 마크다운 전체 복사</button>
+      <a href="{dl_link}" class="btn btn-download">📥 파일 저장 (.md)</a>
       <span id="copyToast" class="toast">✓ 클립보드에 복사되었습니다!</span>
     </div>
 
@@ -1023,6 +1152,9 @@ class McpHttpHandler(BaseHTTPRequestHandler):
 
         # 3. OpenAI 호환 실측 Grounding Chat Completions 엔드포인트: /md/v1/chat/completions
         if path in ("/md/v1/chat/completions", "/md/chat/completions"):
+            if not self.is_authorized(parsed):
+                self.send_auth_required()
+                return
             self.handle_md_chat_completions(req_json)
             return
 
