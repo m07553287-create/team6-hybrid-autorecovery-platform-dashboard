@@ -31,6 +31,7 @@ def app(targets, tmp_path, monkeypatch):
     monkeypatch.setenv("CONSOLE_LOG_DIR", str(tmp_path / "logs"))
     monkeypatch.setenv("CONSOLE_TARGETS", str(targets))
     monkeypatch.setenv("CONSOLE_STATUS_INTERVAL", "0")
+    monkeypatch.setenv("CONSOLE_PRESETS", str(tmp_path / "presets.json"))
     from console.app import create_app
     return create_app()
 

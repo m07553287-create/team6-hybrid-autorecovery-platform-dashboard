@@ -1544,6 +1544,23 @@
     .cs-weblinks a { font-size: 11px; color: var(--blue); text-decoration: none; }
     .cs-weblinks a:hover { text-decoration: underline; }
     .cs-dot-:not(.cs-dot-ok) { background: #475569; }
+
+    /* 명령 버튼 편집 */
+    .cs-pre-edit { margin-left: auto; border-style: dashed; color: #93c5fd; }
+    #cs-editor { position: fixed; inset: 0; z-index: 950; background: rgba(2, 6, 15, .72); display: flex; align-items: flex-start; justify-content: center; padding-top: 6vh; }
+    #cs-editor[hidden] { display: none; }
+    .cs-ed-box { width: min(1080px, 94vw); max-height: 86vh; overflow-y: auto; background: #0b1220; border: 1px solid #334155; border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; }
+    .cs-ed-head h3 { font-size: 17px; color: #fff; }
+    .cs-ed-note { font-size: 12px; color: var(--text-muted); }
+    .cs-ed-rows { display: flex; flex-direction: column; gap: 6px; }
+    .cs-ed-row { display: grid; grid-template-columns: 200px 76px minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+    .cs-ed-row input, .cs-ed-row select { background: #06090e; border: 1px solid #334155; border-radius: 5px; color: #fff; padding: 7px 9px; font-size: 13px; font-family: inherit; min-width: 0; }
+    .cs-ed-row .cs-ed-cmd { font-family: var(--font-mono); font-size: 12px; color: #bae6fd; }
+    .cs-ed-row input:focus, .cs-ed-row select:focus { outline: 2px solid #3b82f6; border-color: transparent; }
+    .cs-ed-row.cs-bad { outline: 2px solid #ef4444; outline-offset: 2px; border-radius: 6px; }
+    .cs-ed-tools { display: flex; gap: 4px; }
+    .cs-ed-bar { display: flex; gap: 8px; margin-top: 4px; }
+    @media (max-width: 760px) { .cs-ed-row { grid-template-columns: 1fr 76px; } .cs-ed-row .cs-ed-cmd { grid-column: 1 / -1; } }
     /* ===== 메인 대시보드 실측 (content/dashboard.css) ===== */
     #matrix-5col-grid.dash-live { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); overflow-y: auto; align-content: start; padding-right: 4px; }
     #matrix-5col-grid.dash-live .inst-grid-card { height: 470px; }
@@ -3060,7 +3077,7 @@
     // 서버: s1 figteam-console (/console/api/*, /console/ws/<대상>) · 콘솔 비밀번호로 잠금
     // 예전 통합 터미널 기능: 대상별 「확인」·「⚠ 복구」 버튼, 탭, ⧉ 화면 위 창(끌기·크기·최소화·최대화·되돌리기), ↗ 새 창
     const CS = { open: false, solo: null, targets: null, layout: '1', slots: [], floats: [], active: 0, loaded: false,
-      sizes: { col: 50, row: 50 }, seq: 0, z: 900, pending: null, page: false, status: null, expanded: {}, stTimer: null };
+      sizes: { col: 50, row: 50 }, seq: 0, z: 900, pending: null, page: false, status: null, expanded: {}, stTimer: null, presets: {} };
     const CS_TERM_URL = '/term/';
     // 대시보드에서: 통합 터미널 페이지로 이동 (원클릭 — 대상이 있으면 바로 접속)
     function csGo(id) { location.href = CS_TERM_URL + (id ? '?t=' + encodeURIComponent(id) : ''); }
@@ -3176,7 +3193,7 @@
       if (!root.querySelector('.cs-wrap')) root.innerHTML = '<p class="cs-wait">통합 콘솔을 불러오는 중…</p>';
       try { await csLoadXterm(); }
       catch (e) { root.innerHTML = '<p class="cs-wait wk-error">터미널 화면 구성요소(xterm.js)를 불러오지 못했습니다. 인터넷 연결을 확인하세요.</p>'; return; }
-      try { CS.targets = await csApi('GET', '/console/api/targets'); }
+      try { CS.targets = await csApi('GET', '/console/api/targets'); await csLoadPresets(); }
       catch (e) { return csShowUnlock(e.status === 401 ? '' : (e.error || '콘솔 서버에 연결하지 못했습니다 (' + e.status + ')')); }
       csRender();
       csLoadStatus();
@@ -3293,10 +3310,13 @@
     function csAllTerms() { return CS.slots.map(s => s.t).filter(Boolean).concat(CS.floats); }
 
     // ---------- 터미널 한 개 (칸·띄운 창이 함께 쓰는 단위) ----------
+    async function csLoadPresets() { try { CS.presets = await csApi('GET', '/console/api/presets'); } catch (e) { CS.presets = CS.presets || {}; } }
+    function csPresetItems(id) { return ((CS.presets || {})[id] || {}).items || []; }
     function csHeadHtml(t, inFloat) {
-      const tg = csT(t.target);
-      const pre = (label, kind) => Object.keys(tg[kind] || {}).map(k =>
-        '<button type="button" class="cs-pre' + (kind === 'fix' ? ' cs-pre-fix' : '') + '" onclick="csPreset(' + t.uid + ',\'' + kind + '\',this)" data-k="' + cfgEsc(k) + '">' + cfgEsc(k) + '</button>').join('');
+      const tg = csT(t.target), items = csPresetItems(t.target);
+      const btns = kind => items.map((x, n) => x.kind !== kind ? '' :
+        '<button type="button" class="cs-pre' + (kind === 'fix' ? ' cs-pre-fix' : '') + '" title="' + cfgEsc(x.cmd) + '" onclick="csPreset(' + t.uid + ',' + n + ',this)">' + cfgEsc(x.label) + '</button>').join('');
+      const hasFix = items.some(x => x.kind === 'fix');
       return '<header class="cs-pane-head"><span class="cs-dot cs-dot-' + (t.stKind || 'wait') + '" id="cs-dot-' + t.uid + '"></span><b>' + cfgEsc(tg.name) + '</b>' +
         '<span class="cs-status" id="cs-st-' + t.uid + '">' + cfgEsc(t.stText || '') + '</span>' +
         '<span class="cs-pane-acts">' +
@@ -3306,9 +3326,22 @@
           '<button type="button" class="wk-mini" title="다시 연결" onclick="csReconnect(' + t.uid + ')">⟳</button>' +
           (CS.solo ? '' : '<button type="button" class="wk-mini" title="새 창으로" onclick="csPopout(' + t.uid + ')">↗</button>') +
           '<button type="button" class="wk-mini" title="닫기" onclick="csCloseTerm(' + t.uid + ')">✕</button></span></header>' +
-        (tg.check || tg.fix ? '<div class="cs-presets"><span class="cs-pre-lbl">확인</span>' + pre('확인', 'check') +
-          (tg.fix ? '<span class="cs-pre-lbl cs-pre-warn">⚠ 복구</span>' + pre('복구', 'fix') : '') + '</div>' : '');
+        '<div class="cs-presets"><span class="cs-pre-lbl">확인</span>' + btns('check') +
+          (hasFix ? '<span class="cs-pre-lbl cs-pre-warn">복구</span>' + btns('fix') : '') +
+          '<button type="button" class="cs-pre cs-pre-edit" onclick="csEditPresets(\'' + cfgEsc(t.target) + '\')">버튼 편집</button></div>';
     }
+    // 버튼 목록이 바뀌면 열린 터미널의 머리줄만 다시 그린다 (연결 유지)
+    function csRefreshHeads() {
+      CS.slots.forEach((sl, i) => { if (sl.t) csFillSlot(i); });
+      CS.floats.forEach(t => {
+        if (!t.el) return;
+        t.el.querySelectorAll('.cs-pane-head, .cs-presets').forEach(e => e.remove());
+        t.el.insertAdjacentHTML('afterbegin', csHeadHtml(t, true));
+        const head = t.el.querySelector('.cs-pane-head');
+        head.addEventListener('mousedown', e => csFloatDragStart(e, t.el));
+      });
+    }
+
     function csFillSlot(i) {
       const el = document.getElementById('cs-slot-' + i), t = CS.slots[i].t;
       if (!el) return;
@@ -3410,18 +3443,77 @@
     }
 
     // ---------- 확인 · ⚠ 복구 버튼 (예전 통합 터미널) ----------
-    function csPreset(uid, kind, btn) {
+    function csPreset(uid, n, btn) {
       const f = csFind(uid); if (!f || !f.t.ws || f.t.ws.readyState !== 1) return;
-      const tg = csT(f.t.target), label = btn.dataset.k, cmd = (tg[kind] || {})[label];
-      if (!cmd) return;
-      if (kind === 'fix' && !btn.dataset.armed) {   // 복구는 한 번 더 눌러야 실행
-        btn.dataset.armed = '1'; btn.textContent = '한 번 더 누르면 실행: ' + label;
-        setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.textContent = label; } }, 4000);
+      const x = csPresetItems(f.t.target)[n];
+      if (!x) return;
+      if (x.kind === 'fix' && !btn.dataset.armed) {   // 복구는 한 번 더 눌러야 실행
+        btn.dataset.armed = '1'; btn.textContent = '한 번 더 누르면 실행: ' + x.label;
+        setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.textContent = x.label; } }, 4000);
         return;
       }
-      if (kind === 'fix') { delete btn.dataset.armed; btn.textContent = label; }
-      f.t.ws.send(JSON.stringify({ t: 'i', d: cmd + '\r' }));
+      if (x.kind === 'fix') { delete btn.dataset.armed; btn.textContent = x.label; }
+      f.t.ws.send(JSON.stringify({ t: 'i', d: x.cmd + '\r' }));   // 긴 명령도 한 번에 입력·실행
       f.t.term.focus();
+    }
+
+    // ---------- 버튼 편집 (팀 공용 저장, 초안으로 되돌리기 가능) ----------
+    const CS_EMOJI = /[\u{1F000}-\u{1FFFF}\u2190-\u21FF\u2300-\u23FF\u2460-\u24FF\u2500-\u27BF\u2900-\u297F\u2B00-\u2BFF\uFE0F\u200D]/u;
+    function csEditPresets(id) {
+      const tg = csT(id), p = (CS.presets || {})[id] || { items: [] };
+      let el = document.getElementById('cs-editor');
+      if (!el) { el = document.createElement('div'); el.id = 'cs-editor'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); csRoot().appendChild(el); }
+      el.dataset.id = id;
+      el.innerHTML = '<div class="cs-ed-box"><div class="cs-ed-head"><h3>' + cfgEsc(tg.name) + ' 명령 버튼</h3>' +
+        '<span class="cs-ed-note">' + (p.custom ? '팀에서 고친 목록' : '초안 (예전 통합 터미널 명령)') + ' · 이름은 한글·영문, 명령은 한 줄(여러 명령은 ; 또는 &&)</span></div>' +
+        '<div class="cs-ed-rows" id="cs-ed-rows">' + p.items.map(csEdRow).join('') + '</div>' +
+        '<button type="button" class="wk-add" onclick="csEdAdd()">+ 버튼 추가</button>' +
+        '<p class="wk-error" id="cs-ed-err" role="alert" hidden></p>' +
+        '<div class="cs-ed-bar"><button type="button" class="wk-btn wk-primary" onclick="csEdSave()">저장</button>' +
+        (p.custom ? '<button type="button" class="wk-btn" onclick="csEdReset(this)">초안으로 되돌리기</button>' : '') +
+        '<button type="button" class="wk-btn" onclick="csEdClose()">취소</button></div></div>';
+      el.hidden = false;
+      const first = el.querySelector('input'); if (first) first.focus();
+    }
+    function csEdRow(x) {
+      x = x || { label: '', cmd: '', kind: 'check' };
+      return '<div class="cs-ed-row"><input class="cs-ed-label" maxlength="30" placeholder="버튼 이름 (예: 디스크 사용량)" value="' + cfgEsc(x.label) + '">' +
+        '<select class="cs-ed-kind"><option value="check"' + (x.kind === 'check' ? ' selected' : '') + '>확인</option><option value="fix"' + (x.kind === 'fix' ? ' selected' : '') + '>복구</option></select>' +
+        '<input class="cs-ed-cmd" maxlength="2000" spellcheck="false" placeholder="명령 (예: df -h / && free -m)" value="' + cfgEsc(x.cmd) + '">' +
+        '<span class="cs-ed-tools"><button type="button" class="wk-mini" title="위로" onclick="csEdMove(this,-1)">↑</button><button type="button" class="wk-mini" title="아래로" onclick="csEdMove(this,1)">↓</button>' +
+        '<button type="button" class="wk-mini wk-danger" title="삭제" onclick="this.closest(\'.cs-ed-row\').remove()">삭제</button></span></div>';
+    }
+    function csEdAdd() { const box = document.getElementById('cs-ed-rows'); box.insertAdjacentHTML('beforeend', csEdRow()); box.lastElementChild.querySelector('input').focus(); }
+    function csEdMove(btn, d) { const r = btn.closest('.cs-ed-row'), s2 = d < 0 ? r.previousElementSibling : r.nextElementSibling; if (s2) { if (d < 0) s2.before(r); else s2.after(r); } }
+    function csEdClose() { const el = document.getElementById('cs-editor'); if (el) el.hidden = true; }
+    function csEdErr(msg, row) {
+      const e = document.getElementById('cs-ed-err'); e.textContent = msg; e.hidden = false;
+      document.querySelectorAll('.cs-ed-row.cs-bad').forEach(r => r.classList.remove('cs-bad'));
+      if (row) { row.classList.add('cs-bad'); row.scrollIntoView({ block: 'nearest' }); }
+    }
+    async function csEdSave() {
+      const el = document.getElementById('cs-editor'), id = el.dataset.id;
+      const rows = Array.from(el.querySelectorAll('.cs-ed-row'));
+      const items = [];
+      for (const r of rows) {
+        const label = r.querySelector('.cs-ed-label').value.trim(), cmd = r.querySelector('.cs-ed-cmd').value.trim();
+        if (!label && !cmd) continue;
+        if (!label || !cmd) return csEdErr('버튼 이름과 명령을 모두 입력하세요.', r);
+        if (CS_EMOJI.test(label)) return csEdErr('버튼 이름에는 이모티콘·기호를 쓸 수 없습니다. 한글이나 영문으로 적어 주세요.', r);
+        items.push({ label: label, cmd: cmd, kind: r.querySelector('.cs-ed-kind').value });
+      }
+      try {
+        await csApi('PUT', '/console/api/presets/' + encodeURIComponent(id), { items: items });
+        await csLoadPresets(); csRefreshHeads(); csEdClose();
+        if (typeof wikiToast === 'function') wikiToast('버튼을 저장했습니다 (' + items.length + '개)');
+      } catch (e) { csEdErr(e.status === 401 ? '로그인이 만료되었습니다. 다시 로그인하세요.' : (e.error || '저장하지 못했습니다')); }
+    }
+    async function csEdReset(btn) {
+      if (!btn.dataset.armed) { btn.dataset.armed = '1'; btn.textContent = '한 번 더 누르면 초안으로'; return; }
+      const id = document.getElementById('cs-editor').dataset.id;
+      try { await csApi('DELETE', '/console/api/presets/' + encodeURIComponent(id)); await csLoadPresets(); csRefreshHeads(); csEditPresets(id);
+        if (typeof wikiToast === 'function') wikiToast('초안 목록으로 되돌렸습니다'); }
+      catch (e) { csEdErr(e.error || '되돌리지 못했습니다'); }
     }
 
     // ---------- ⧉ 화면 위 창 ----------
@@ -3443,16 +3535,16 @@
       document.getElementById('cs-host-' + t.uid).appendChild(t.box);
       t.el = el;
       el.addEventListener('mousedown', () => { el.style.zIndex = ++CS.z; });
-      const head = el.querySelector('.cs-pane-head');
-      head.addEventListener('mousedown', e => {
-        if (e.target.closest('button') || el.classList.contains('cs-max')) return;
-        const sx = e.clientX - el.offsetLeft, sy = e.clientY - el.offsetTop;
-        const mv = ev => { el.style.left = Math.max(0, ev.clientX - sx) + 'px'; el.style.top = Math.max(0, ev.clientY - sy) + 'px'; };
-        const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); document.body.classList.remove('cs-dragging'); };
-        document.body.classList.add('cs-dragging');
-        document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
-      });
+      el.querySelector('.cs-pane-head').addEventListener('mousedown', e => csFloatDragStart(e, el));
       setTimeout(() => { try { t.fit.fit(); } catch (e) {} }, 0);
+    }
+    function csFloatDragStart(e, el) {
+      if (e.target.closest('button') || el.classList.contains('cs-max')) return;
+      const sx = e.clientX - el.offsetLeft, sy = e.clientY - el.offsetTop;
+      const mv = ev => { el.style.left = Math.max(0, ev.clientX - sx) + 'px'; el.style.top = Math.max(0, ev.clientY - sy) + 'px'; };
+      const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); document.body.classList.remove('cs-dragging'); };
+      document.body.classList.add('cs-dragging');
+      document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
     }
     function csFloatMin(uid) { const f = csFind(uid); if (f && f.t.el) { f.t.el.classList.toggle('cs-min'); f.t.el.classList.remove('cs-max'); csStackMin(); } }
     function csFloatMax(uid) { const f = csFind(uid); if (f && f.t.el) { f.t.el.classList.toggle('cs-max'); f.t.el.classList.remove('cs-min'); setTimeout(() => { try { f.t.fit.fit(); } catch (e) {} }, 50); csStackMin(); } }
@@ -3505,6 +3597,8 @@
       } catch (e) { sessionStorage.removeItem(AUTH_KEY); }
       checkAuth();
     }
+
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') { const el = document.getElementById('cs-editor'); if (el && !el.hidden) csEdClose(); } });
     // ===== 메인 대시보드: 살아 있는 인스턴스 실측 (content/dashboard.js) =====
     // 데이터: s1 figteam-console 의 읽기 전용 /console/api/status (20초마다 수집)
     const DASH = { snap: null, err: null, timer: null };
