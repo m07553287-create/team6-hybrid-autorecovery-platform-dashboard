@@ -147,7 +147,8 @@
       });
       if (lens === 'svc') return d.domains.map(dm => ({ id: dm.id, name: dm.name, sub: dm.desc, count: cfgMinors('svc', dm.id).length }));
       if (lens === 'step') return [{ id: 'all', name: '처음부터 끝까지', sub: d.steps.length ? d.steps.length + '단계' : '아직 단계가 없습니다' }];
-      return d.reference.map(r => ({ id: r[0], name: r[1], sub: cfgPage(r[0]).tag }));
+      return d.reference.map(r => ({ id: r[0], name: r[1], sub: cfgPage(r[0]).tag }))
+        .concat(typeof wikiChangesView === 'function' ? [{ id: '__changes', name: '최근 변경', sub: '팀 전체 변경 기록' }] : []);
     }
     function cfgMinors(lens, major) {
       const d = CFG.data;
@@ -309,7 +310,9 @@
       let html = cfgCrumb();
       const empty = msg => '<div class="cfg-empty-panel"><p>' + msg + '</p>' +
         (typeof wikiEmptyActions === 'function' ? wikiEmptyActions(CFG.lens) : '') + '</div>';
-      if (CFG.lens === 'ref') {
+      if (CFG.lens === 'ref' && CFG.major === '__changes') {
+        body.innerHTML = ''; wikiChangesView(); return;
+      } else if (CFG.lens === 'ref') {
         const p = cfgPage(CFG.major);
         html += p ? cfgDoc(p) : empty('아직 참고 문서가 없습니다.');
       } else if (CFG.lens === 'step') {

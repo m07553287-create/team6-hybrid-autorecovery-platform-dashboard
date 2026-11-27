@@ -213,3 +213,11 @@
     #wk-toast { position: fixed; bottom: 24px; left: 50%; transform: translate(-50%, 20px); opacity: 0; background: #0f172a; border: 1px solid #3b82f6; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 13px; z-index: 1000; transition: opacity .2s, transform .2s; pointer-events: none; }
     #wk-toast.show { opacity: 1; transform: translate(-50%, 0); }
     @media (prefers-reduced-motion: reduce) { #wk-toast { transition: none; } }
+
+    /* ===== 위키: 기록 · 최근 변경 ===== */
+    .wk-revs td, .wk-changes td { vertical-align: middle; }
+    .wk-rev-del td { color: var(--text-muted); }
+    .wk-bar-inline { position: static; border-top: 0; padding: 0; }
+    .wk-ch-row { cursor: pointer; }
+    .wk-ch-row:hover td, .wk-ch-row:focus td { background: var(--surface-hover); }
+    .cfg-crumb a { color: var(--blue); text-decoration: none; }

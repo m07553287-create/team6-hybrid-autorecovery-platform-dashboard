@@ -1424,6 +1424,14 @@
     #wk-toast { position: fixed; bottom: 24px; left: 50%; transform: translate(-50%, 20px); opacity: 0; background: #0f172a; border: 1px solid #3b82f6; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 13px; z-index: 1000; transition: opacity .2s, transform .2s; pointer-events: none; }
     #wk-toast.show { opacity: 1; transform: translate(-50%, 0); }
     @media (prefers-reduced-motion: reduce) { #wk-toast { transition: none; } }
+
+    /* ===== 위키: 기록 · 최근 변경 ===== */
+    .wk-revs td, .wk-changes td { vertical-align: middle; }
+    .wk-rev-del td { color: var(--text-muted); }
+    .wk-bar-inline { position: static; border-top: 0; padding: 0; }
+    .wk-ch-row { cursor: pointer; }
+    .wk-ch-row:hover td, .wk-ch-row:focus td { background: var(--surface-hover); }
+    .cfg-crumb a { color: var(--blue); text-decoration: none; }
     /* CFGCSS:END */
   </style>
 </head>
@@ -2333,6 +2341,125 @@
         WIKI.editing.orig = v.orig;
       } catch (e) { sessionStorage.removeItem('fw_editing'); }
     }
+
+    // ===== 기록 · 비교 · 되돌리기 · 최근 변경 =====
+    function wkTime(sec) { return new Date(sec * 1000).toLocaleString('ko-KR', { hour12: false }); }
+    function wkKindOf(docId, fallback) { const d = CFG.data.byId[docId]; return d ? d.kind : (fallback || 'page'); }
+    function wkTitleOf(docId, fallback) { const d = CFG.data.byId[docId]; return d ? (d.body.name || d.body.title || '진행 순서') : (fallback || '삭제된 문서'); }
+    const WK_REV_CACHE = {};
+    async function wkRev(docId, rev) {
+      const k = docId + ':' + rev;
+      if (!WK_REV_CACHE[k]) WK_REV_CACHE[k] = await api('GET', '/api/docs/' + docId + '/revisions/' + rev);
+      return WK_REV_CACHE[k];
+    }
+
+    // 기록 화면: 판 목록 + 두 판 비교 (기본: 바로 앞 판 ↔ 최신 판)
+    async function wikiHistory(docId, revA, revB, kindHint, titleHint) {
+      const bodyEl = document.getElementById('manual-body-content');
+      bodyEl.innerHTML = '<p class="cfg-empty">기록을 불러오는 중…</p>';
+      let revs;
+      try { revs = await api('GET', '/api/docs/' + docId + '/revisions'); }
+      catch (e) { if (e.status !== 401) bodyEl.innerHTML = '<p class="wk-error">' + cfgEsc(e.error || '기록을 불러오지 못했습니다') + '</p>'; return; }
+      const latest = revs[0].rev;
+      const b = revB || latest, a = revA || (b > 1 ? b - 1 : b);
+      const kind = wkKindOf(docId, kindHint), title = wkTitleOf(docId, titleHint);
+      WIKI.hist = { docId: docId, kind: kind, title: title, latest: latest };
+      history.replaceState(null, '', '#cfg/hist/' + docId + '/' + a + '/' + b);
+      const alive = !!CFG.data.byId[docId];
+      bodyEl.innerHTML =
+        '<nav class="cfg-crumb"><a href="javascript:void(0)" onclick="wkBackFromHistory()">← ' + (alive ? '문서로 돌아가기' : '목록으로') + '</a></nav>' +
+        '<div class="cfg-head"><h2 class="cfg-head-title">' + cfgEsc(title) + ' — 기록 <span class="manual-tag">' + WK_KIND_NAME[kind] + '</span></h2>' +
+        '<p class="manual-desc">판 ' + revs.length + '개. 비교할 두 판을 왼쪽(옛 판)·오른쪽(새 판)에서 고르세요.' + (alive ? '' : ' 이 문서는 삭제된 상태입니다. 판을 골라 되돌리면 다시 나타납니다.') + '</p></div>' +
+        '<div class="cfg-table-wrap"><table class="cfg-table wk-revs"><thead><tr><th>왼쪽</th><th>오른쪽</th><th>판</th><th>작성자</th><th>시각</th><th>메모</th><th></th></tr></thead><tbody>' +
+        revs.map(r => '<tr' + (r.deleted ? ' class="wk-rev-del"' : '') + '>' +
+          '<td><input type="radio" name="wk-a" value="' + r.rev + '"' + (r.rev === a ? ' checked' : '') + ' aria-label="' + r.rev + '판을 왼쪽에"></td>' +
+          '<td><input type="radio" name="wk-b" value="' + r.rev + '"' + (r.rev === b ? ' checked' : '') + ' aria-label="' + r.rev + '판을 오른쪽에"></td>' +
+          '<td><b>' + r.rev + '판</b>' + (r.rev === latest ? ' <span class="cfg-badge cfg-st-live">현재</span>' : '') + (r.deleted ? ' <span class="cfg-badge cfg-st-nolook">삭제</span>' : '') + '</td>' +
+          '<td>' + cfgEsc(r.author) + '</td><td>' + wkTime(r.created_at) + '</td><td>' + cfgEsc(r.message || '') + '</td>' +
+          '<td>' + (r.rev !== latest || r.deleted ? '<button type="button" class="wk-mini" onclick="wikiRestore(' + docId + ',' + r.rev + ',this)">' + (r.deleted ? '' : '이 판으로 되돌리기') + '</button>' : '') + '</td></tr>').join('') +
+        '</tbody></table></div>' +
+        '<div class="wk-bar wk-bar-inline"><button type="button" class="wk-btn wk-primary" onclick="wkCompareSelected()">선택한 두 판 비교</button></div>' +
+        '<div id="wk-compare"></div>';
+      // 삭제 판 행의 버튼 문구는 바로 앞 살아 있던 판으로 되돌리기
+      bodyEl.querySelectorAll('.wk-rev-del .wk-mini').forEach(btn => { btn.textContent = '되돌리기 (삭제 취소)'; });
+      await wikiCompare(docId, a, b);
+    }
+    function wkCompareSelected() {
+      const a = Number((document.querySelector('input[name="wk-a"]:checked') || {}).value);
+      const b = Number((document.querySelector('input[name="wk-b"]:checked') || {}).value);
+      if (a && b) wikiCompare(WIKI.hist.docId, Math.min(a, b), Math.max(a, b));
+    }
+    async function wikiCompare(docId, a, b) {
+      const box = document.getElementById('wk-compare');
+      if (!box) return wikiHistory(docId, a, b);
+      box.innerHTML = '<p class="cfg-empty">비교하는 중…</p>';
+      try {
+        const A = await wkRev(docId, a), B = await wkRev(docId, b);
+        const kind = WIKI.hist.kind;
+        box.innerHTML = '<h3 class="cfg-h">' + a + '판 ↔ ' + b + '판</h3>' +
+          wikiDiffView(bodyToText(kind, A.body), bodyToText(kind, B.body),
+            a + '판 · ' + A.author + ' · ' + wkTime(A.created_at), b + '판 · ' + B.author + ' · ' + wkTime(B.created_at));
+        history.replaceState(null, '', '#cfg/hist/' + docId + '/' + a + '/' + b);
+      } catch (e) { if (e.status !== 401) box.innerHTML = '<p class="wk-error">' + cfgEsc(e.error || '비교하지 못했습니다') + '</p>'; }
+    }
+    async function wikiRestore(docId, rev, btn) {
+      if (btn && !btn.dataset.armed) {
+        btn.dataset.armed = '1'; const t = btn.textContent; btn.textContent = '한 번 더 누르면 되돌림';
+        setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.textContent = t; } }, 4000);
+        return;
+      }
+      try {
+        let target = rev;
+        const one = await wkRev(docId, rev);
+        if (one.deleted) {  // 삭제 판을 누르면 그 직전(살아 있던) 판 내용으로
+          const revs = await api('GET', '/api/docs/' + docId + '/revisions');
+          const live = revs.find(r => r.rev < rev && !r.deleted);
+          target = live ? live.rev : rev;
+        }
+        const r = await api('POST', '/api/docs/' + docId + '/restore', { rev: target, base_rev: WIKI.hist.latest, message: target + '판 내용으로 되돌림' });
+        wikiToast(target + '판 내용으로 되돌렸습니다 (' + r.rev + '판)');
+        await wikiReload(true);
+        wikiHistory(docId, target, r.rev);
+      } catch (e) {
+        if (e.status === 401) return;
+        if (e.status === 409) { wikiToast('그 사이 다른 팀원이 저장했습니다. 기록을 새로 불러옵니다.'); return wikiHistory(docId); }
+        wikiToast(e.error || '되돌리지 못했습니다');
+      }
+    }
+    function wkBackFromHistory() {
+      const h = WIKI.hist;
+      if (h && CFG.data.byId[h.docId]) return wkGoTo(h.kind, h.docId);
+      cfgSelect('ref', '__changes', '');
+    }
+
+    // 해시 #cfg/hist/<id>/<a>/<b>
+    function wikiRoute(h) {
+      if (h[1] === 'hist' && h[2]) { wikiHistory(Number(h[2]), Number(h[3]) || 0, Number(h[4]) || 0); cfgRenderNav(); return true; }
+      return false;
+    }
+
+    // ---------- 최근 변경 (참고 > 최근 변경) ----------
+    async function wikiChangesView(before) {
+      const bodyEl = document.getElementById('manual-body-content');
+      if (!before) bodyEl.innerHTML = cfgCrumb() + '<div class="cfg-head"><h2 class="cfg-head-title">최근 변경</h2>' +
+        '<p class="manual-desc">팀 전체에서 저장·삭제·되돌린 기록입니다. 줄을 누르면 그 판과 바로 앞 판을 비교합니다.</p></div>' +
+        '<div class="cfg-table-wrap"><table class="cfg-table wk-changes"><thead><tr><th>시각</th><th>작성자</th><th>문서</th><th>판</th><th>메모</th></tr></thead><tbody id="wk-ch-body"></tbody></table></div>' +
+        '<div class="wk-bar wk-bar-inline"><button type="button" class="wk-btn" id="wk-ch-more" hidden>더 보기</button></div>';
+      let list;
+      try { list = await api('GET', '/api/changes?limit=50' + (before ? '&before=' + before : '')); }
+      catch (e) { return; }
+      const tb = document.getElementById('wk-ch-body');
+      if (!tb) return;
+      if (!list.length && !before) tb.innerHTML = '<tr><td colspan="5">아직 변경 기록이 없습니다.</td></tr>';
+      tb.insertAdjacentHTML('beforeend', list.map(c =>
+        '<tr class="wk-ch-row" tabindex="0" onclick="wikiHistory(' + c.doc_id + ',' + Math.max(1, c.rev - 1) + ',' + c.rev + ',\'' + c.kind + '\',' + cfgEsc(JSON.stringify(c.title)) + ')">' +
+        '<td>' + wkTime(c.created_at) + '</td><td>' + cfgEsc(c.author) + '</td>' +
+        '<td>' + WK_KIND_NAME[c.kind] + ' / <b>' + cfgEsc(c.title || '(제목 없음)') + '</b>' + (c.deleted ? ' <span class="cfg-badge cfg-st-nolook">삭제</span>' : '') + '</td>' +
+        '<td>' + c.rev + '판</td><td>' + cfgEsc(c.message || '') + '</td></tr>').join(''));
+      const more = document.getElementById('wk-ch-more');
+      if (list.length === 50) { more.hidden = false; more.onclick = () => wikiChangesView(list[list.length - 1].created_at); }
+      else more.hidden = true;
+    }
     // ===== [설정] 화면: 보는 기준(렌즈) > 대분류 > 중분류 > 설명 =====
     // 원본: content/settings_guide.py (데이터) · content/settings.js (이 파일) — tools/build_settings.py 가 주입
     const CFG = { data: null, lens: null, major: null, minor: null, codes: [] };
@@ -2482,7 +2609,8 @@
       });
       if (lens === 'svc') return d.domains.map(dm => ({ id: dm.id, name: dm.name, sub: dm.desc, count: cfgMinors('svc', dm.id).length }));
       if (lens === 'step') return [{ id: 'all', name: '처음부터 끝까지', sub: d.steps.length ? d.steps.length + '단계' : '아직 단계가 없습니다' }];
-      return d.reference.map(r => ({ id: r[0], name: r[1], sub: cfgPage(r[0]).tag }));
+      return d.reference.map(r => ({ id: r[0], name: r[1], sub: cfgPage(r[0]).tag }))
+        .concat(typeof wikiChangesView === 'function' ? [{ id: '__changes', name: '최근 변경', sub: '팀 전체 변경 기록' }] : []);
     }
     function cfgMinors(lens, major) {
       const d = CFG.data;
@@ -2644,7 +2772,9 @@
       let html = cfgCrumb();
       const empty = msg => '<div class="cfg-empty-panel"><p>' + msg + '</p>' +
         (typeof wikiEmptyActions === 'function' ? wikiEmptyActions(CFG.lens) : '') + '</div>';
-      if (CFG.lens === 'ref') {
+      if (CFG.lens === 'ref' && CFG.major === '__changes') {
+        body.innerHTML = ''; wikiChangesView(); return;
+      } else if (CFG.lens === 'ref') {
         const p = cfgPage(CFG.major);
         html += p ? cfgDoc(p) : empty('아직 참고 문서가 없습니다.');
       } else if (CFG.lens === 'step') {
