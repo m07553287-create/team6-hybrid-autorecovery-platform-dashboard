@@ -95,7 +95,7 @@ PAGES["overview"] = {
     "kind": "doc",
     "title": "전체 구성과 변수표",
     "tag": "실측 " + MEASURED,
-    "desc": "온프렘(s1 노트북 위 VMware → OpenStack) · KT Cloud · AWS 를 WireGuard 허브(KT)로 묶은 구성이다. 2026-11-27 기준 Controller RAM 14GB 증설 및 Compute1·3·4 전 노드 8GB 균등 증설, s1 NVMe Swap 8GB 활성화 등 최신 인프라 실측 사양이 전면 반영되었습니다. 아래 경로도와 변수표가 모든 페이지 명령어의 기준값이다.",
+    "desc": "온프렘(OpenStack VM 클러스터) · KT Cloud · AWS를 WireGuard 허브(KT)로 묶은 하이브리드 멀티클라우드 구성이다. 2026-11-27 기준 Controller RAM 14GB 증설 및 Compute 1·3·4 전 노드 8GB 균등 증설 등 OpenStack 최신 인프라 실측 사양이 전면 반영되었습니다. 본 프로젝트의 모든 설명과 엔지니어링 설계는 VM 위의 OpenStack부터 시작되며, 아래 경로도와 변수표가 모든 페이지 명령어의 기준값이다.",
     "blocks": [
         {"type": "h", "text": "트래픽 경로 (실측)"},
         {"type": "code", "label": "외부 요청 → 앱 → DB", "code": r"""사용자
@@ -144,29 +144,28 @@ PAGES["steps"] = {
 PAGES["inst-s1"] = {
     "kind": "instance",
     "cloud": "onprem",
-    "title": "s1 온프렘 호스트 (명령 제외 · 연결 제외 · 설정 제외)",
-    "tag": "t1-vm2 · 10.10.10.8",
+    "title": "s1 가상화 기반 (OpenStack 구동 호스트)",
+    "tag": "vmnet8 · 192.168.120.0/24",
     "status": "protected",
-    "steps": "S0 (물리 베이스)",
-    "desc": "온프렘 GPU 노트북 물리 머신(Ubuntu 26.04)이자 내부 백엔드 라우팅 게이트웨이입니다. 본 영역은 명령 제외 · 연결 제외 · 설정 제외 대상이며, 웹에서 콘솔 터미널 접근이 불가합니다. 인프라 조작 및 설정은 OpenStack Controller, Compute, K8s, DB 화면을 이용하십시오.",
+    "steps": "",
+    "desc": "OpenStack VM 노드들이 프로비저닝되어 구동되는 가상화 기반 호스트 환경입니다. 프로젝트와 무관한 물리 세부정보는 제외하고 상위 구성 관계만 표시합니다. 본 프로젝트의 모든 실질적인 설명과 엔지니어링 설정은 **VM 위의 OpenStack부터 시작**됩니다. (s1 호스트는 웹 콘솔 조작·명령·설정 제외)",
     "specs": [
-        ["OS / 커널", "Ubuntu 26.04.1 LTS / 7.0.0-44"],
-        ["CPU / RAM", "20 vCPU / 30 GiB (스왑 8GB NVMe 활성화)"],
-        ["역할", "내부 백엔드 라우팅 게이트웨이"],
-        ["접근 정책", "명령 제외 · 연결 제외 · 설정 제외 (콘솔 터미널 접근 불가)"],
-        ["대상 팀", "기본 팀 (figteam)"],
-        ["내부 IP", "10.10.10.8 (점프 전용 · 외부 포트 없음) · 192.168.120.2 (NAT GW)"]
+        ["기반 환경", "가상화 하이퍼바이저 (VMware)"],
+        ["호스팅 대상", "OpenStack VM 노드 4대 (Controller 14G, Compute1 8G, Compute3 8G, Compute4 8G)"],
+        ["가상 네트워크", "vmnet8 NAT 가상 브리지 (192.168.120.0/24)"],
+        ["설명 출발점", "VM 위의 OpenStack 계층부터 아키텍처 및 설정 시작"],
+        ["운영 기준", "기본 팀 (figteam) · 웹 조작 및 콘솔 터미널 제외"]
     ],
     "areas": [
         {
             "id": "info",
-            "name": "간략 설명 (접근 불가)",
+            "name": "기반 구성 개요",
             "status": "protected",
             "domains": ["ops", "security"],
             "design": [
-                "s1 호스트는 기본 팀(figteam) 인프라의 물리 베이스 머신으로, 웹 콘솔 상에서 **명령 제외 · 연결 제외 · 설정 제외**됩니다.",
-                "웹 브라우저를 통한 콘솔 터미널 직접 접근이 불가합니다.",
-                "IaaS/PaaS 가상 인프라 및 컨테이너, 데이터베이스의 모든 조작은 OpenStack Controller, Compute, K8s cp1, DB db-01 화면에서 수행합니다."
+                "s1은 OpenStack VM 4대가 프로비저닝되어 동작하는 기반 호스트 구성입니다.",
+                "물리 머신 세부정보는 프로젝트의 클라우드 아키텍처와 사실관계가 멀어 제외하며, **모든 인프라 설명과 엔지니어링은 VM 위의 OpenStack부터 시작**합니다.",
+                "IaaS/PaaS, Kubernetes, MySQL 데이터베이스의 모든 실측 설정과 명령 실행은 **OpenStack Controller, Compute, K8s cp1, DB db-01** 화면을 이용하십시오."
             ],
             "config": [],
             "commands": [],
