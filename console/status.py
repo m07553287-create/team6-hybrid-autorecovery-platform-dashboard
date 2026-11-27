@@ -129,7 +129,7 @@ class Collector:
         self.snapshot = {"collected_at": None, "instances": []}
 
     def _meta(self, t):
-        return {k: t[k] for k in ("id", "area", "name", "desc", "host", "disabled") if k in t} | {
+        return {k: t[k] for k in ("id", "area", "name", "desc", "host", "disabled", "parent") if k in t} | {
             "unit_meta": {u[0]: {"type": u[1], "desc": u[2]} for u in t.get("units", [])}}
 
     async def run_once(self):

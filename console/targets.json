@@ -143,7 +143,8 @@
   "fix": {
    "♻ neutron-server 재시작": "systemctl restart neutron-server && sleep 5 && systemctl is-active neutron-server",
    "♻ httpd(API) 재시작": "systemctl restart httpd && sleep 3 && systemctl is-active httpd"
-  }
+  },
+  "parent": "s1"
  },
  {
   "id": "compute1",
@@ -200,7 +201,8 @@
   },
   "fix": {
    "♻ nova-compute 재시작": "systemctl restart openstack-nova-compute && sleep 3 && systemctl is-active openstack-nova-compute ovn-controller neutron-ovn-metadata-agent virtqemud"
-  }
+  },
+  "parent": "s1"
  },
  {
   "id": "compute3",
@@ -257,7 +259,8 @@
   },
   "fix": {
    "♻ nova-compute 재시작": "systemctl restart openstack-nova-compute && sleep 3 && systemctl is-active openstack-nova-compute ovn-controller neutron-ovn-metadata-agent virtqemud"
-  }
+  },
+  "parent": "s1"
  },
  {
   "id": "compute4",
@@ -314,7 +317,8 @@
   },
   "fix": {
    "♻ nova-compute 재시작": "systemctl restart openstack-nova-compute && sleep 3 && systemctl is-active openstack-nova-compute ovn-controller neutron-ovn-metadata-agent virtqemud"
-  }
+  },
+  "parent": "s1"
  },
  {
   "id": "k8s-cp1",
@@ -354,7 +358,9 @@
   },
   "fix": {
    "♻ 앱 롤아웃 재시작": "sudo k3s kubectl -n minwon-sample rollout restart deploy/minwon-app && sudo k3s kubectl -n minwon-sample rollout status deploy/minwon-app --timeout=90s"
-  }
+  },
+  "parent": "compute3",
+  "kubectl": "sudo k3s kubectl"
  },
  {
   "id": "k8s-w1",
@@ -389,7 +395,8 @@
   },
   "fix": {
    "♻ k3s-agent 재시작": "sudo systemctl restart k3s-agent && sleep 3 && systemctl is-active k3s-agent"
-  }
+  },
+  "parent": "compute1"
  },
  {
   "id": "db-01",
@@ -432,7 +439,8 @@
   "fix": {
    "💾 지금 백업": "sudo /usr/local/sbin/mysql-backup.sh && sudo ls -lh /var/backups/mysql | tail -2",
    "♻ MySQL 재시작": "sudo systemctl restart mysql && systemctl is-active mysql"
-  }
+  },
+  "parent": "compute4"
  },
  {
   "id": "kt-edge",
@@ -546,7 +554,8 @@
   "fix": {
    "⏯ 복제 재시작": "echo 'STOP REPLICA; START REPLICA;' | sudo /usr/local/bin/k3s kubectl -n minwon-dr exec -i minwon-mysql-0 -- sh -c 'mysql -E -uroot -p\"$MYSQL_ROOT_PASSWORD\" 2>/dev/null'; sleep 3; echo 'SHOW REPLICA STATUS' | sudo /usr/local/bin/k3s kubectl -n minwon-dr exec -i minwon-mysql-0 -- sh -c 'mysql -E -uroot -p\"$MYSQL_ROOT_PASSWORD\" 2>/dev/null' | grep -E 'Running:|Seconds_Behind'",
    "♻ dr 앱 재시작": "sudo /usr/local/bin/k3s kubectl -n minwon-dr rollout restart deploy/minwon-app && sudo /usr/local/bin/k3s kubectl -n minwon-dr rollout status deploy/minwon-app --timeout=90s"
-  }
+  },
+  "kubectl": "sudo /usr/local/bin/k3s kubectl"
  },
  {
   "id": "aws-ctl",

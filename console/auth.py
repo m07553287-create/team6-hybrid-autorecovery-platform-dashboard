@@ -5,7 +5,7 @@ import secrets
 import time
 
 ITERATIONS = 600_000
-TTL = 3600
+TTL = 12 * 3600   # 사이트 첫 로그인 한 번으로 12시간 (대시보드·설정·콘솔 공통)
 WINDOW, MAX_FAILS = 600, 5
 
 

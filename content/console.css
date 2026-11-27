@@ -76,3 +76,21 @@
     .cs-float.cs-min { height: 34px !important; width: 260px !important; resize: none; }
     .cs-float.cs-min > :not(.cs-pane-head) { display: none; }
     #cs-root.cs-solo .cs-float { top: 8px; }
+
+    /* 왼쪽 트리: 클라우드 → 인스턴스 → VM → 서비스 */
+    .cs-node { padding-left: calc(var(--d, 0) * 14px); }
+    .cs-node-row { display: flex; align-items: center; gap: 4px; }
+    .cs-node-row .cs-target { flex: 1; min-width: 0; padding: 5px 8px; }
+    .cs-node-row .cs-target span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cs-tog { width: 18px; height: 18px; background: transparent; border: 0; color: var(--text-sub); cursor: pointer; font-size: 11px; flex-shrink: 0; }
+    .cs-tog:hover { color: #fff; }
+    .cs-tog-sp { width: 18px; flex-shrink: 0; }
+    .cs-svcs { display: flex; flex-direction: column; gap: 1px; padding: 2px 0 6px calc(var(--d, 1) * 14px + 22px); }
+    .cs-svc { display: flex; align-items: center; gap: 6px; background: transparent; border: 0; border-radius: 4px; padding: 3px 6px; color: #cbd5e1; cursor: pointer; text-align: left; font-family: inherit; }
+    .cs-svc:hover { background: var(--surface-card); color: #fff; }
+    .cs-svc-n { font-family: var(--font-mono); font-size: 11.5px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cs-svc small { font-size: 10px; color: var(--text-muted); }
+    .cs-weblinks { display: flex; flex-wrap: wrap; gap: 4px 10px; padding: 4px 8px 10px 26px; }
+    .cs-weblinks a { font-size: 11px; color: var(--blue); text-decoration: none; }
+    .cs-weblinks a:hover { text-decoration: underline; }
+    .cs-dot-:not(.cs-dot-ok) { background: #475569; }

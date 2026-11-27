@@ -143,7 +143,10 @@
         (i.disabled || i.alive !== true ? '' : '<div class="wk-bar wk-bar-inline" style="margin-top:12px"><button type="button" class="wk-btn wk-primary" onclick="dashOpenConsole(\'' + cfgEsc(i.id) + '\')">통합 터미널로 접속</button></div>');
       document.getElementById('modal-backdrop').style.display = 'flex';
     }
-    function dashOpenConsole(id) { csGo(id); }   // 통합 터미널 페이지로 이동해 바로 접속
+    function dashOpenConsole(id) {   // 본문을 콘솔로 바꾸고 그 인스턴스에 바로 접속
+      const mb = document.getElementById('modal-backdrop'); if (mb) mb.style.display = 'none';
+      CS.pending = id; switchView('console');
+    }
 
     // 상단 배지: 영역별 살아 있는 인스턴스 수
     function dashHeader() {
