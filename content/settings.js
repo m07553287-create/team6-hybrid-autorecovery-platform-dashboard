@@ -422,3 +422,20 @@
         tr.style.display = !q || tr.textContent.toLowerCase().indexOf(q) >= 0 ? '' : 'none';
       });
     }
+
+    // ===== 상단 [콘솔] 메뉴 =====
+    function cnToggle(ev) {
+      ev.stopPropagation();
+      const m = document.getElementById('cn-menu'), b = document.getElementById('cn-btn');
+      const open = m.hidden;
+      m.hidden = !open; b.setAttribute('aria-expanded', String(open));
+      if (open) { const f = m.querySelector('a'); if (f) f.focus(); }
+    }
+    document.addEventListener('click', e => {
+      const m = document.getElementById('cn-menu');
+      if (m && !m.hidden && !e.target.closest('.cn-wrap')) { m.hidden = true; document.getElementById('cn-btn').setAttribute('aria-expanded', 'false'); }
+    });
+    document.addEventListener('keydown', e => {
+      const m = document.getElementById('cn-menu');
+      if (e.key === 'Escape' && m && !m.hidden) { m.hidden = true; const b = document.getElementById('cn-btn'); b.setAttribute('aria-expanded', 'false'); b.focus(); }
+    });

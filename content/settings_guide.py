@@ -1425,6 +1425,24 @@ SCRIPTS = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# 상단 [콘솔] 메뉴 — 3대 영역 접속 콘솔 (공개 페이지에 들어가므로 계정 별칭·비밀값 금지)
+# ---------------------------------------------------------------------------
+CONSOLES = [
+    {"cloud": "openstack", "name": "OpenStack", "links": [
+        ["Horizon 웹 콘솔", "https://horizon.ktci5.kr/dashboard/", "controller 192.168.120.160 · figteam 프로젝트"],
+    ]},
+    {"cloud": "kt", "name": "KT Cloud", "links": [
+        ["KT Edge 상태 화면", "https://kt-edge.ktci5.kr/", "kt-edge-dr-01 nginx 상태 (WG 10.200.0.1:8088)"],
+        ["KT Cloud 콘솔", "https://cloud.kt.com/", "IAM 사용자 로그인 (서비스 번호 필요)"],
+    ]},
+    {"cloud": "aws", "name": "AWS", "links": [
+        ["Recovery Orchestrator", "https://aws-ctl.ktci5.kr/healthz", "aws-ctl 10.200.0.3:8080 · /serving /report/summary"],
+        ["AWS 콘솔", "https://console.aws.amazon.com/", "IAM 사용자 로그인 (서울 리전)"],
+    ]},
+]
+
+
 def static_config():
     """공개 페이지(#cfg-data)에 넣는 정적 설정 — 가이드 내용은 넣지 않는다."""
     return {"domains": DOMAINS, "measured": MEASURED,
