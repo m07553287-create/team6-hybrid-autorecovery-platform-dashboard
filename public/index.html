@@ -3722,7 +3722,7 @@
     document.addEventListener('keydown', e => { if (e.key === 'Escape') { const el = document.getElementById('cs-editor'); if (el && !el.hidden) csEdClose(); } });
     // ===== 메인 대시보드: 살아 있는 인스턴스 실측 (content/dashboard.js) =====
     // 데이터: s1 figteam-console 의 읽기 전용 /console/api/status (20초마다 수집)
-    const DASH = { snap: null, err: null, timer: null };
+    const DASH = { snap: null, err: null, timer: null, rtt: null, rot: 0, rotTimer: null };
     const DASH_CLOUD = { onprem: ['온프렘', 'cloud-onprem'], openstack: ['OpenStack', 'cloud-onprem'], kt: ['KT Cloud', 'cloud-kt'], aws: ['AWS', 'cloud-aws'] };
     const DASH_TYPE = { web: '웹/API', gw: '보안/관문', daemon: '상시데몬', data: '데이터/DR' };
     const DASH_ORDER = ['kt', 'onprem', 'openstack', 'aws'];
@@ -3736,10 +3736,12 @@
     function dashPct(a, b) { return a != null && b ? Math.round(100 * a / b) : null; }
 
     async function dashLoad() {
+      const t0 = performance.now();
       try {
         const r = await fetch('/console/api/status', { cache: 'no-store' });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         DASH.snap = await r.json(); DASH.err = null;
+        DASH.rtt = Math.round(performance.now() - t0);   // 외부 왕복(브라우저→Cloudflare→s1) 실측
       } catch (e) { DASH.err = e.message; }
       dashHeader();
       if (document.getElementById('view-dashboard').style.display !== 'none') dashRender();
@@ -3747,7 +3749,31 @@
     function dashStart() {
       if (DASH.timer) return;
       dashLoad();
-      DASH.timer = setInterval(dashLoad, 20000);
+      DASH.timer = setInterval(dashLoad, 20000);   // 수집은 20초(서버 부하 방지)
+      // 표시는 10초마다 순환(내부/외부 속도·점검 항목을 번갈아 보여줌 — 추가 수집 없음)
+      if (!DASH.rotTimer) DASH.rotTimer = setInterval(function () { DASH.rot++; dashHeader(); }, 10000);
+    }
+    // 내부 속도: s1→인스턴스 조사 왕복(latency_ms) 평균·최대
+    function dashInternalSpeed() {
+      const xs = (DASH.snap && DASH.snap.instances || []).filter(i => i.alive === true && typeof i.latency_ms === 'number');
+      if (!xs.length) return null;
+      const avg = Math.round(xs.reduce((s, i) => s + i.latency_ms, 0) / xs.length);
+      const slow = xs.reduce((m, i) => i.latency_ms > m.latency_ms ? i : m, xs[0]);
+      return { avg: avg, slowName: slow.name, slowMs: slow.latency_ms };
+    }
+    // 10초 순환으로 보여줄 항목들
+    function dashRotItems() {
+      const out = [];
+      const sp = dashInternalSpeed();
+      if (sp) out.push(['내부 속도', sp.avg + 'ms', sp.avg < 800 ? 'state-green' : sp.avg < 2000 ? 'state-yellow' : 'state-red']);
+      if (DASH.rtt != null) out.push(['외부 속도', DASH.rtt + 'ms', DASH.rtt < 400 ? 'state-green' : DASH.rtt < 1200 ? 'state-yellow' : 'state-red']);
+      if (sp) out.push(['최저속', (sp.slowName || '-') + ' ' + sp.slowMs + 'ms', sp.slowMs < 2000 ? 'state-green' : 'state-yellow']);
+      const inst = (DASH.snap && DASH.snap.instances || []).filter(i => !dashNameOnly(i));
+      const down = inst.filter(i => i.alive !== true);
+      const warn = inst.filter(i => i.alive === true && (i.units || []).some(u => u.state !== 'active'));
+      out.push(['점검 필요', down.length || warn.length ? ((down.length ? down.length + ' 끊김 ' : '') + (warn.length ? warn.length + ' 점검' : '')).trim() : '없음',
+        down.length ? 'state-red' : warn.length ? 'state-yellow' : 'state-green']);
+      return out;
     }
 
     // 인스턴스 → 화면용 서비스 목록 (systemd 유닛 + k8s 파드)
@@ -3877,15 +3903,25 @@
       const box = document.querySelector('.header-infra-status');
       if (!box) return;
       if (!DASH.snap) { box.innerHTML = '<div class="infra-badge-item"><span class="infra-badge-name">실측</span><span class="infra-badge-state ' + (DASH.err ? 'state-red' : '') + '">' + (DASH.err ? '연결 실패' : '수집 중') + '</span></div>'; return; }
-      const groups = [['kt', 'KT Cloud', ['kt']], ['os', '온프렘·OpenStack', ['onprem', 'openstack']], ['aws', 'AWS', ['aws']]];
-      box.innerHTML = groups.map(g => {
+      const groups = [['aws', 'AWS', ['aws']], ['kt', 'KT Cloud', ['kt']], ['os', '온프렘·OpenStack', ['onprem', 'openstack']]];
+      let html = groups.map(g => {
         const xs = DASH.snap.instances.filter(i => g[2].indexOf(i.area) >= 0 && !dashNameOnly(i));
         const up = xs.filter(i => i.alive === true).length;
         const bad = xs.some(i => i.alive === true && (i.units || []).some(u => u.state !== 'active'));
         return '<div class="infra-badge-item"><span class="infra-badge-name">' + g[1] + '</span><span class="infra-badge-state ' +
           (up < xs.length ? 'state-red' : bad ? 'state-yellow' : 'state-green') + '">' + up + '/' + xs.length + '</span></div>';
-      }).join('') + '<div class="infra-badge-item"><span class="infra-badge-name">수집</span><span class="infra-badge-state">' +
+      }).join('');
+      // 10초 순환 항목(내부/외부 속도·최저속·점검)
+      const rot = dashRotItems();
+      if (rot.length) {
+        const it = rot[DASH.rot % rot.length];
+        html += '<div class="infra-badge-item infra-badge-rot" title="10초마다 순환">' +
+          '<span class="infra-badge-name">' + cfgEsc(it[0]) + '</span>' +
+          '<span class="infra-badge-state ' + it[2] + '">' + cfgEsc(it[1]) + '</span></div>';
+      }
+      html += '<div class="infra-badge-item"><span class="infra-badge-name">수집</span><span class="infra-badge-state">' +
         new Date(DASH.snap.collected_at * 1000).toLocaleTimeString('ko-KR', { hour12: false }) + '</span></div>';
+      box.innerHTML = html;
     }
 
     window.addEventListener('load', () => setTimeout(dashStart, 200));
