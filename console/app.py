@@ -74,6 +74,13 @@ def create_app():
         response.set_cookie(COOKIE, token, max_age=TTL, httponly=True, secure=True, samesite="strict", path="/console")
         return {"ok": True, "ttl": TTL}
 
+    @app.get("/console/api/me")
+    def me(request: Request):
+        """사이트 입장 로그인 상태 (서버 확인). 대시보드 첫 화면이 이걸로 로그인 여부를 판단한다."""
+        if lock.check(request.cookies.get(COOKIE), ip_of(request)):
+            return {"unlocked": True, "ttl": TTL}
+        return {"unlocked": False}
+
     @app.post("/console/api/lock")
     def lock_(request: Request, response: Response):
         lock.lock(request.cookies.get(COOKIE))
@@ -84,7 +91,7 @@ def create_app():
     def list_targets(request: Request):
         if not lock.check(request.cookies.get(COOKIE), ip_of(request)):
             return JSONResponse({"error": "콘솔 잠금을 먼저 푸세요"}, status_code=401)
-        keys = ("id", "area", "name", "desc", "host", "disabled", "check", "fix")
+        keys = ("id", "area", "name", "desc", "host", "disabled", "check", "fix", "parent", "kubectl")
         return [{k: targets[i].get(k) for k in keys if k in targets[i]} for i in order]
 
     @app.websocket("/console/ws/{target_id}")

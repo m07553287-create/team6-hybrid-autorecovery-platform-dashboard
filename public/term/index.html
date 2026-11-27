@@ -332,6 +332,24 @@
     .cs-float.cs-min > :not(.cs-pane-head) { display: none; }
     #cs-root.cs-solo .cs-float { top: 8px; }
 
+    /* 왼쪽 트리: 클라우드 → 인스턴스 → VM → 서비스 */
+    .cs-node { padding-left: calc(var(--d, 0) * 14px); }
+    .cs-node-row { display: flex; align-items: center; gap: 4px; }
+    .cs-node-row .cs-target { flex: 1; min-width: 0; padding: 5px 8px; }
+    .cs-node-row .cs-target span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cs-tog { width: 18px; height: 18px; background: transparent; border: 0; color: var(--text-sub); cursor: pointer; font-size: 11px; flex-shrink: 0; }
+    .cs-tog:hover { color: #fff; }
+    .cs-tog-sp { width: 18px; flex-shrink: 0; }
+    .cs-svcs { display: flex; flex-direction: column; gap: 1px; padding: 2px 0 6px calc(var(--d, 1) * 14px + 22px); }
+    .cs-svc { display: flex; align-items: center; gap: 6px; background: transparent; border: 0; border-radius: 4px; padding: 3px 6px; color: #cbd5e1; cursor: pointer; text-align: left; font-family: inherit; }
+    .cs-svc:hover { background: var(--surface-card); color: #fff; }
+    .cs-svc-n { font-family: var(--font-mono); font-size: 11.5px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cs-svc small { font-size: 10px; color: var(--text-muted); }
+    .cs-weblinks { display: flex; flex-wrap: wrap; gap: 4px 10px; padding: 4px 8px 10px 26px; }
+    .cs-weblinks a { font-size: 11px; color: var(--blue); text-decoration: none; }
+    .cs-weblinks a:hover { text-decoration: underline; }
+    .cs-dot-:not(.cs-dot-ok) { background: #475569; }
+
   </style>
 </head>
 <body data-page="term">
@@ -347,11 +365,15 @@
     // 서버: s1 figteam-console (/console/api/*, /console/ws/<대상>) · 콘솔 비밀번호로 잠금
     // 예전 통합 터미널 기능: 대상별 「확인」·「⚠ 복구」 버튼, 탭, ⧉ 화면 위 창(끌기·크기·최소화·최대화·되돌리기), ↗ 새 창
     const CS = { open: false, solo: null, targets: null, layout: '1', slots: [], floats: [], active: 0, loaded: false,
-      sizes: { col: 50, row: 50 }, seq: 0, z: 900, pending: null, page: false };
+      sizes: { col: 50, row: 50 }, seq: 0, z: 900, pending: null, page: false, status: null, expanded: {}, stTimer: null };
     const CS_TERM_URL = '/term/';
     // 대시보드에서: 통합 터미널 페이지로 이동 (원클릭 — 대상이 있으면 바로 접속)
     function csGo(id) { location.href = CS_TERM_URL + (id ? '?t=' + encodeURIComponent(id) : ''); }
-    const CS_AREAS = [['openstack', '온프렘 · OpenStack', ['onprem', 'openstack']], ['kt', 'KT Cloud', ['kt']], ['aws', 'AWS', ['aws']]];
+    // 왼쪽 트리: 클라우드 → 인스턴스 → (그 위의 VM) → 서비스. 클라우드마다 웹 콘솔 링크.
+    const CS_GROUPS = [
+      ['openstack', '온프렘 · OpenStack', ['onprem', 'openstack'], [['Horizon 웹 콘솔', 'https://horizon.ktci5.kr/dashboard/']]],
+      ['kt', 'KT Cloud', ['kt'], [['KT Edge 상태', 'https://kt-edge.ktci5.kr/'], ['KT Cloud 콘솔', 'https://cloud.kt.com/']]],
+      ['aws', 'AWS', ['aws'], [['Orchestrator', 'https://aws-ctl.ktci5.kr/healthz'], ['AWS 콘솔', 'https://console.aws.amazon.com/']]]];
     const CS_LAYOUTS = [['1', '하나'], ['h', '좌우'], ['v', '상하'], ['4', '4분할']];
     const CS_XTERM = 'https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0';
     const CS_FIT = 'https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0';
@@ -383,10 +405,75 @@
     }
     function csT(id) { return (CS.targets || []).find(t => t.id === id) || { name: id }; }
 
+    // ---------- 왼쪽 트리 (상태는 /console/api/status, 대시보드가 받은 값이 있으면 재사용) ----------
+    async function csLoadStatus() {
+      try {
+        if (typeof DASH !== 'undefined' && DASH.snap) CS.status = DASH.snap;
+        else { const r = await fetch('/console/api/status', { cache: 'no-store' }); if (r.ok) CS.status = await r.json(); }
+      } catch (e) {}
+      const tree = document.getElementById('cs-tree');
+      if (tree) tree.innerHTML = csTreeHtml();
+    }
+    function csStat(id) { return ((CS.status && CS.status.instances) || []).find(i => i.id === id); }
+    function csTreeHtml() {
+      if (!CS.targets) return '';
+      return CS_GROUPS.map(g => {
+        const mine = CS.targets.filter(t => g[2].indexOf(t.area) >= 0);
+        const ids = mine.map(t => t.id);
+        const roots = mine.filter(t => !t.parent || ids.indexOf(t.parent) < 0);
+        return '<div class="cs-area"><div class="cfg-group-head"><span class="cfg-dot cfg-c-' + g[0] + '"></span>' + g[1] + '</div>' +
+          roots.map(t => csNodeHtml(t, mine, 0)).join('') +
+          '<div class="cs-weblinks">' + g[3].map(l => '<a href="' + l[1] + '" target="_blank" rel="noopener">' + cfgEsc(l[0]) + ' ↗</a>').join('') + '</div></div>';
+      }).join('');
+    }
+    function csNodeHtml(t, mine, depth) {
+      const st = csStat(t.id) || {};
+      const kids = mine.filter(x => x.parent === t.id);
+      const svcs = (st.units || []).map(u => ({ kind: 'unit', name: u.unit, ok: u.state === 'active', state: u.state, desc: ((st.unit_meta || {})[u.unit] || {}).desc || '' }))
+        .concat((st.pods || []).filter(p => p.phase !== 'Succeeded').map(p => ({ kind: 'pod', name: p.name, ns: p.ns, ok: p.phase === 'Running', state: p.phase, desc: p.ns })));
+      const open = !!CS.expanded[t.id], has = kids.length || svcs.length;
+      const bad = svcs.filter(x => !x.ok).length;
+      const dot = st.alive === true ? (bad ? 'wait' : 'ok') : st.alive === false ? 'off' : '';
+      let h = '<div class="cs-node" style="--d:' + depth + '"><div class="cs-node-row">' +
+        (has ? '<button type="button" class="cs-tog" aria-expanded="' + open + '" title="펼치기" onclick="csToggle(\'' + cfgEsc(t.id) + '\')">' + (open ? '▾' : '▸') + '</button>' : '<span class="cs-tog-sp"></span>') +
+        '<span class="cs-dot cs-dot-' + dot + '"></span>' +
+        '<button type="button" class="cs-target"' + (t.disabled ? ' disabled title="' + cfgEsc(t.disabled) + '"' : ' title="누르면 바로 접속"') +
+        ' onclick="csPick(\'' + cfgEsc(t.id) + '\')"><b>' + cfgEsc(t.name) + '</b><span>' + cfgEsc(t.disabled || t.desc || '') + '</span></button></div>';
+      if (open) {
+        if (svcs.length) h += '<div class="cs-svcs" style="--d:' + (depth + 1) + '">' + svcs.map(x =>
+          '<button type="button" class="cs-svc" data-id="' + cfgEsc(t.id) + '" data-kind="' + x.kind + '" data-name="' + cfgEsc(x.name) + '" data-ns="' + cfgEsc(x.ns || '') + '" onclick="csSvcBtn(this)" title="' + cfgEsc(x.desc) + ' — 누르면 상태 확인">' +
+          '<span class="cs-dot cs-dot-' + (x.ok ? 'ok' : 'off') + '"></span><span class="cs-svc-n">' + cfgEsc(x.name) + '</span><small>' + (x.kind === 'pod' ? '파드' : '서비스') + '</small></button>').join('') + '</div>';
+        h += kids.map(k => csNodeHtml(k, mine, depth + 1)).join('');   // 호스트 자신의 서비스 다음에 그 위의 VM
+      }
+      return h + '</div>';
+    }
+    function csToggle(id) { CS.expanded[id] = !CS.expanded[id]; const tree = document.getElementById('cs-tree'); if (tree) tree.innerHTML = csTreeHtml(); }
+    // 서비스 클릭: 그 인스턴스 터미널에서 상태(또는 파드 로그) 명령을 바로 실행
+    function csSvcBtn(btn) {
+      const d = btn.dataset, tg = csT(d.id);
+      const cmd = d.kind === 'pod' ? (tg.kubectl || 'kubectl') + ' -n ' + d.ns + ' logs ' + d.name + ' --tail=40'
+        : 'systemctl status ' + d.name + ' --no-pager -n 15';
+      csRunOn(d.id, cmd);
+    }
+    function csRunOn(id, cmd) {
+      let t = csAllTerms().find(x => x.target === id && x.ws);
+      if (!t) { csPick(id); t = csAllTerms().find(x => x.target === id); }
+      else { const f = csFind(t.uid); if (f.where === 'slot') csFocus(f.i); else csTabGo(t.uid); }
+      if (!t) return;
+      if (t.ws && t.ws.readyState === 1) { t.ws.send(JSON.stringify({ t: 'i', d: cmd + '\r' })); t.term.focus(); }
+      else t.queue = cmd;   // 연결되면 실행
+    }
+
     // ---------- 열기 · 닫기 · 잠금 ----------
     async function csOpen(soloId) {
-      CS.open = true; CS.solo = soloId || null;
       const root = csRoot();
+      if (CS.targets && root.querySelector('.cs-wrap') && !soloId) {   // 다른 화면에 갔다 와도 열린 터미널은 그대로
+        root.hidden = false; document.body.classList.add('cs-on'); CS.open = true;
+        csApplySizes(); csLoadStatus();
+        if (CS.pending) { const id = CS.pending; CS.pending = null; csPick(id); }
+        return;
+      }
+      CS.open = true; CS.solo = soloId || null;
       root.hidden = false;
       root.classList.toggle('cs-solo', !!CS.solo);
       root.classList.toggle('cs-page', CS.page);
@@ -397,9 +484,28 @@
       try { CS.targets = await csApi('GET', '/console/api/targets'); }
       catch (e) { return csShowUnlock(e.status === 401 ? '' : (e.error || '콘솔 서버에 연결하지 못했습니다 (' + e.status + ')')); }
       csRender();
+      csLoadStatus();
+      if (!CS.stTimer) CS.stTimer = setInterval(() => { if (CS.open && !csRoot().hidden) csLoadStatus(); }, 20000);
       if (CS.solo && !CS.slots[0].t) csConnectSlot(0, CS.solo);
       else if (CS.pending) { const id = CS.pending; CS.pending = null; if (CS.targets.some(t => t.id === id && !t.disabled)) csPick(id); }
     }
+    // 머리글 [대시보드]·[설정]·[콘솔] 전환 (본문만 바뀜)
+    function csView(v) {
+      const on = v === 'console', bc = document.getElementById('btn-tab-console');
+      if (bc) bc.classList.toggle('active', on);
+      if (!on) { csHide(); return false; }
+      ['view-dashboard', 'view-settings'].forEach(id => { const e = document.getElementById(id); if (e) e.style.display = 'none'; });
+      ['btn-tab-dashboard', 'btn-tab-settings'].forEach(id => { const e = document.getElementById(id); if (e) e.classList.remove('active'); });
+      csOpen();
+      return true;
+    }
+    function csHide() {
+      const r = document.getElementById('cs-root');
+      if (r) r.hidden = true;
+      CS.open = false;
+      document.body.classList.remove('cs-on');
+    }
+    function csBack() { if (CS.page) location.href = '/'; else if (typeof switchView === 'function') switchView('dashboard'); }
     function csClose() {
       if (CS.page) { location.href = '/'; return; }
       CS.slots.forEach(s => csDispose(s.t)); CS.floats.forEach(csDispose);
@@ -412,11 +518,11 @@
       CS.slots.forEach(s => csDispose(s.t)); CS.floats.forEach(csDispose); CS.slots = []; CS.floats = [];
       csRoot().innerHTML =
         '<div class="cs-unlock"><form class="wk-card" onsubmit="csUnlock(event)"><h3>통합 콘솔 잠금 해제</h3>' +
-        '<p class="manual-desc">실제 서버에 접속하는 터미널입니다. 콘솔 비밀번호를 넣으면 60분 동안 열립니다. 모든 입력과 출력은 기록됩니다.</p>' +
-        '<label>콘솔 비밀번호<input name="password" type="password" required autocomplete="current-password"></label>' +
+        '<p class="manual-desc">로그인이 만료되었습니다(12시간). 사이트 비밀번호를 다시 넣으면 이어서 접속합니다. 모든 입력과 출력은 기록됩니다.</p>' +
+        '<label>사이트 비밀번호<input name="password" type="password" required autocomplete="current-password"></label>' +
         '<p class="wk-error" id="cs-unlock-err" role="alert"' + (msg ? '' : ' hidden') + '>' + cfgEsc(msg || '') + '</p>' +
         '<div class="wk-bar wk-bar-inline"><button type="submit" class="wk-btn wk-primary">잠금 해제</button>' +
-        (CS.solo ? '' : '<button type="button" class="wk-btn" onclick="csClose()">대시보드로</button>') + '</div></form></div>';
+        (CS.solo ? '' : '<button type="button" class="wk-btn" onclick="csBack()">대시보드로</button>') + '</div></form></div>';
       const f = csRoot().querySelector('input'); if (f) f.focus();
     }
     async function csUnlock(ev) {
@@ -424,7 +530,7 @@
       const err = document.getElementById('cs-unlock-err');
       try { await csApi('POST', '/console/api/unlock', { password: ev.target.password.value }); csRoot().innerHTML = ''; csOpen(CS.solo); }
       catch (e) {
-        err.textContent = e.status === 401 ? '콘솔 비밀번호가 맞지 않습니다' : e.status === 429 ? '시도가 많습니다. 10분 뒤 다시 시도하세요' : (e.error || '잠금을 풀지 못했습니다');
+        err.textContent = e.status === 401 ? '비밀번호가 맞지 않습니다' : e.status === 429 ? '시도가 많습니다. 10분 뒤 다시 시도하세요' : (e.error || '잠금을 풀지 못했습니다');
         err.hidden = false;
       }
     }
@@ -444,13 +550,10 @@
       }
       if (CS.active >= n) CS.active = 0;
       const drawer = CS.solo ? '' :
-        '<aside class="cs-drawer"><div class="cs-drawer-head"><b>통합 터미널</b><span>누르면 바로 접속 · 입력이 기록됩니다</span></div>' +
-        CS_AREAS.map(a => '<div class="cs-area"><div class="cfg-group-head"><span class="cfg-dot cfg-c-' + a[0] + '"></span>' + a[1] + '</div>' +
-          CS.targets.filter(t => a[2].indexOf(t.area) >= 0).map(t =>
-            '<button type="button" class="cs-target"' + (t.disabled ? ' disabled title="' + cfgEsc(t.disabled) + '"' : '') +
-            ' onclick="csPick(\'' + cfgEsc(t.id) + '\')"><b>' + cfgEsc(t.name) + '</b><span>' + cfgEsc(t.disabled || t.desc || '') + '</span></button>').join('') + '</div>').join('') +
-        '<div class="cs-drawer-foot"><button type="button" class="wk-mini" onclick="csLock()">콘솔 잠그기</button>' +
-        '<button type="button" class="wk-mini" onclick="csClose()">← 대시보드</button></div></aside>';
+        '<aside class="cs-drawer"><div class="cs-drawer-head"><b>콘솔</b><span>인스턴스를 누르면 바로 접속 · 서비스를 누르면 상태 확인</span></div>' +
+        '<div id="cs-tree">' + csTreeHtml() + '</div>' +
+        '<div class="cs-drawer-foot"><button type="button" class="wk-mini" onclick="csBack()">← 대시보드</button>' +
+        (CS.page ? '' : '<button type="button" class="wk-mini" onclick="window.open(\'/term/\', \'_blank\')">새 창으로</button>') + '</div></aside>';
       const bar = CS.solo ? '' :
         '<div class="cs-bar"><div class="cs-layouts" role="group" aria-label="창 배치">' + CS_LAYOUTS.map(l =>
           '<button type="button" class="wk-mini' + (CS.layout === l[0] ? ' cs-on-btn' : '') + '" aria-pressed="' + (CS.layout === l[0]) + '" onclick="csLayout(\'' + l[0] + '\')">' + l[1] + '</button>').join('') +
@@ -540,7 +643,10 @@
         '?cols=' + term.cols + '&rows=' + term.rows;
       const ws = new WebSocket(url);
       t.ws = ws;
-      ws.onopen = () => { csStatus(t, 'ok', '연결됨'); term.focus(); };
+      ws.onopen = () => {
+        csStatus(t, 'ok', '연결됨'); term.focus();
+        if (t.queue) { const q = t.queue; t.queue = null; setTimeout(() => { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'i', d: q + '\r' })); }, 700); }
+      };
       ws.onmessage = e => term.write(e.data);
       ws.onclose = e => {
         if (t.ws !== ws) return;
@@ -694,6 +800,16 @@
         location.replace(CS_TERM_URL + '?solo=' + encodeURIComponent(decodeURIComponent(h.slice('#console/'.length))));
       }
     });
+
+    // ===== 사이트 입장 로그인: s1 서버가 확인 (12시간). 로그인하면 콘솔은 비밀번호를 다시 묻지 않는다 =====
+    async function siteAuthBoot() {
+      try {
+        const r = await fetch('/console/api/me', { credentials: 'same-origin', cache: 'no-store' });
+        const d = await r.json();
+        if (d.unlocked) sessionStorage.setItem(AUTH_KEY, 'valid'); else sessionStorage.removeItem(AUTH_KEY);
+      } catch (e) { sessionStorage.removeItem(AUTH_KEY); }
+      checkAuth();
+    }
 
   </script>
 </body>

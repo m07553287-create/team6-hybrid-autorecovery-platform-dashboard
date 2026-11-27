@@ -73,16 +73,7 @@ if '<!--CONSOLES:BEGIN-->' not in src:
     btn = '<button type="button" class="nav-btn" id="btn-tab-settings" onclick="switchView(\'settings\')">설정</button>'
     assert btn in src, '설정 버튼을 찾지 못했습니다'
     src = src.replace(btn, btn + '\n      <!--CONSOLES:BEGIN--><!--CONSOLES:END-->', 1)
-menu = ['<div class="cn-wrap"><button type="button" class="nav-btn cn-btn" id="cn-btn" aria-haspopup="true" aria-expanded="false" '
-        'onclick="cnToggle(event)">콘솔</button><div class="cn-menu" id="cn-menu" role="menu" hidden>']
-for grp in settings_guide.CONSOLES:
-    menu.append('<div class="cn-group"><div class="cn-head"><span class="cfg-dot cfg-c-%s"></span>%s</div>' % (grp['cloud'], _html.escape(grp['name'])))
-    for name, url, sub in grp['links']:
-        ext = '' if url.startswith('/') else ' target="_blank" rel="noopener"'   # 내부 페이지는 같은 탭에서 이동
-        menu.append('<a class="cn-link" role="menuitem" href="%s"%s><b>%s</b><span>%s</span></a>'
-                    % (_html.escape(url), ext, _html.escape(name), _html.escape(sub)))
-    menu.append('</div>')
-menu.append('</div></div>')
+menu = ['<button type="button" class="nav-btn" id="btn-tab-console" onclick="switchView(\'console\')">콘솔</button>']
 src = re.sub(r'<!--CONSOLES:BEGIN-->.*?<!--CONSOLES:END-->',
              lambda m: '<!--CONSOLES:BEGIN-->' + py_safe(''.join(menu)) + '<!--CONSOLES:END-->', src, count=1, flags=re.S)
 
@@ -97,11 +88,45 @@ for old, new in [
         assert old in src, old[:40]
         src = src.replace(old, new, 1)
 
+# 사이트 입장 로그인을 서버 확인으로 · [콘솔] 본문 전환 (1회)
+_login_old = src[src.index('    function handleLogin(e) {'):src.index('    function switchView(viewName) {')] if '    function handleLogin(e) {' in src else ''
+_login_new = '''    async function handleLogin(e) {
+      if (e) e.preventDefault();
+      const pwdInput = document.getElementById('auth-pwd');
+      const errorBox = document.getElementById('login-error');
+      try {
+        const r = await fetch('/console/api/unlock', { method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pwdInput.value }) });
+        if (r.ok) { sessionStorage.setItem(AUTH_KEY, 'valid'); errorBox.style.display = 'none'; checkAuth(); return; }
+        errorBox.textContent = r.status === 429 ? '시도가 많습니다. 10분 뒤 다시 시도하세요.' : '비밀번호가 올바르지 않습니다.';
+      } catch (err) { errorBox.textContent = '서버에 연결하지 못했습니다. 잠시 뒤 다시 시도하세요.'; }
+      errorBox.style.display = 'block';
+      pwdInput.select();
+    }
+
+    function logout() {
+      fetch('/console/api/lock', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+      sessionStorage.removeItem(AUTH_KEY);
+      if (typeof csClose === 'function') csClose();
+      checkAuth();
+    }
+
+'''
+if _login_old and "pwdInput.value.trim() === 'figteam'" in _login_old:
+    src = src.replace(_login_old, _login_new, 1)
+assert "=== 'figteam'" not in src, '소스에 노출된 비밀번호 비교가 남아 있습니다'
+src = src.replace("window.addEventListener('DOMContentLoaded', checkAuth);", "window.addEventListener('DOMContentLoaded', siteAuthBoot);")
+src = src.replace(' onkeydown="if(event.key===\'Enter\') { handleLogin(event); }"', '')   # form submit 와 중복 전송 방지
+if "csView(viewName)) return;" not in src:
+    src = src.replace('    function switchView(viewName) {\n', "    function switchView(viewName) {\n      if (typeof csView === 'function' && csView(viewName)) return;\n", 1)
+src = src.replace('onclick="csGo()" title="3대 영역 인스턴스에 실제 터미널로 접속">통합 터미널</button>',
+                  'onclick="switchView(\'console\')" title="3대 영역 인스턴스에 바로 접속">콘솔</button>')
+
 # 대시보드 왼쪽 [통합콘솔] 레일 버튼 (1회 삽입)
 if '<!--CSRAIL-->' not in src:
     anchor = '<div id="view-dashboard" class="view-container">'
     assert anchor in src, '대시보드 뷰를 찾지 못했습니다'
-    src = src.replace(anchor, anchor + '\n    <!--CSRAIL--><button type="button" class="cs-rail" onclick="csGo()" title="3대 영역 인스턴스에 실제 터미널로 접속">통합 터미널</button>', 1)
+    src = src.replace(anchor, anchor + '\n    <!--CSRAIL--><button type="button" class="cs-rail" onclick="switchView(\'console\')" title="3대 영역 인스턴스에 바로 접속">콘솔</button>', 1)
 src = src.replace('onclick="csOpen()" title="3대 영역 인스턴스에 실제 터미널로 접속">통합콘솔</button>',
                   'onclick="csGo()" title="3대 영역 인스턴스에 실제 터미널로 접속">통합 터미널</button>')
 

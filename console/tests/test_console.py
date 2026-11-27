@@ -102,3 +102,15 @@ def test_ws_max_sessions(unlocked, monkeypatch):
 def test_lock(unlocked):
     assert unlocked.post("/console/api/lock").status_code == 200
     assert unlocked.get("/console/api/targets").status_code == 401
+
+
+def test_me_locked_then_unlocked(client):
+    assert client.get("/console/api/me").json() == {"unlocked": False}
+    client.post("/console/api/unlock", json={"password": PW})
+    d = client.get("/console/api/me").json()
+    assert d["unlocked"] is True and d["ttl"] == 43200
+
+
+def test_unlock_ttl_12h(client):
+    r = client.post("/console/api/unlock", json={"password": PW})
+    assert "Max-Age=43200" in r.headers["set-cookie"]
