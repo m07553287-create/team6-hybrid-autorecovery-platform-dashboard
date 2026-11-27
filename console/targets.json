@@ -473,8 +473,8 @@
  {
   "id": "aws-dr",
   "area": "aws",
-  "name": "aws-dr",
-  "desc": "10.200.0.4 · t3.small · Pilot-Light",
+  "name": "aws-dr (Warm-Standby)",
+  "desc": "10.200.0.4 · t3.small · Warm-Standby",
   "host": "10.200.0.4",
   "argv": [
    "ssh",

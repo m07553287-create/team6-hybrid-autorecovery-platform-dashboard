@@ -975,11 +975,11 @@ curl -sI http://10.200.0.5:30081/healthz | head -1"""},
 PAGES["inst-awsdr"] = {
     "kind": "instance",
     "cloud": "aws",
-    "title": "aws-dr (Pilot-Light)",
+    "title": "aws-dr (Warm-Standby)",
     "tag": "10.200.0.4 · 10.51.1.165",
     "status": "live",
     "steps": "S5 · S10",
-    "desc": "평시 읽기 전용 대기. 단일 노드 k3s 에 앱 1개와 MySQL 복제본(StatefulSet)을 둔다. 승격 스크립트는 펜싱 검증이 붙기 전까지 막혀 있다(fail-closed). db-01 백업을 받아 S3 로 올리는 중계 역할도 한다.",
+    "desc": "평시 읽기 전용 대기(Warm-Standby). 단일 EC2 노드 위에 k3s, 앱(minwon-app 1/1), MySQL 복제본(StatefulSet)이 모두 상시 축소 가동 중이며 트래픽만 인입되지 않는 상태이다. 앱 계층을 꺼두었다가 재해 시 새로 프로비저닝하는 Pilot-Light와 달리 전 계층이 켜져 대기하는 Warm-Standby 구조이며, 승격 스크립트는 펜싱 검증이 붙기 전까지 막혀 있다(fail-closed). db-01 백업을 받아 S3 로 올리는 중계 역할도 한다.",
     "specs": [
         ["EC2", "t3.small · Rocky 8.10 · 30GB"], ["RAM", "1.7 GiB (+swap 2G)"],
         ["VPC", "10.51.0.0/16 · 공인 54.116.129.147"], ["k3s", "v1.37.2+k3s1 (cgroup v1)"],
@@ -1181,7 +1181,7 @@ NAV = [
         ["inst-ktw1", "kt-w1 (설계)", "10.200.0.5 · 조인"],
     ]},
     {"title": "AWS", "cloud": "aws", "items": [
-        ["inst-awsdr", "aws-dr", "10.200.0.4 · Pilot-Light"],
+        ["inst-awsdr", "aws-dr", "10.200.0.4 · Warm-Standby"],
         ["inst-awsctl", "aws-ctl", "10.200.0.3 · Orchestrator"],
     ]},
     {"title": "확장·오류", "items": [
