@@ -1,0 +1,16 @@
+#cloud-config
+# wiki-01 최초 부팅 설정 (openstack server create --user-data)
+package_update: true
+packages: [python3-venv, sqlite3, rsync]
+users:
+  - default
+  - name: wiki
+    system: true
+    shell: /usr/sbin/nologin
+    homedir: /var/lib/figteam-wiki
+runcmd:
+  - install -d -o wiki -g wiki -m 750 /var/lib/figteam-wiki
+  - install -d -o root -g wiki -m 750 /etc/figteam-wiki
+  - install -d -o root -g root -m 755 /opt/figteam-wiki
+  - install -d -o root -g root -m 700 /var/backups/figteam-wiki
+  - timedatectl set-timezone Asia/Seoul

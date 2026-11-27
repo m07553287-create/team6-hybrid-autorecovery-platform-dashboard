@@ -71,3 +71,47 @@
 - [📋 KT Cloud 진입점 2인 분업 가이드 및 통합 검증서](docs/kt-cloud-edge-guide.md)
 - [⚙️ OpenStack & 하이브리드 CI/CD · IaC 자동화 분석 보고서](docs/ci-cd-iac-automation-guide.md)
 - [🔄 나의 오픈스택 ↔ 타 팀 VM/K8s 연결 조성안 (Plan C)](docs/plan-c-cross-team-interconnect.md)
+
+---
+
+## 5. 구성 위키 (`#cfg/`) 운영
+
+설계: `docs/superpowers/specs/2026-11-27-figteam-wiki-design.md` · 계획: `docs/superpowers/plans/2026-11-27-figteam-wiki.md`
+
+```
+브라우저 → Cloudflare(figteam.ktci5.kr) → s1 cloudflared
+            ├─ path ^/api/ → http://172.20.0.50:8080  (OpenStack wiki-01, FastAPI + SQLite)
+            └─ 그 외       → GitHub Pages (public/)
+```
+
+| 항목 | 위치 |
+|---|---|
+| 서버 코드 | `wiki/` (FastAPI). 시험: `wiki/.venv/bin/pytest wiki/tests -q` |
+| 화면 코드 | `content/wiki.js`(로그인·편집·기록), `content/diff.js`(판 비교), `content/settings.js`(보기) → `tools/build.sh` |
+| wiki-01 | figteam-net 172.20.0.50, compute4, `m1.wiki`, sg `sg-wiki`(8080·22 ← 192.168.120.2) |
+| 서비스 | `systemctl status figteam-wiki` · 코드 `/opt/figteam-wiki` · DB `/var/lib/figteam-wiki/wiki.db` |
+| 비밀값 | `/etc/figteam-wiki/env` (`TEAM_CREATE_CODE`, 640 root:wiki) — 저장소에 넣지 않는다 |
+
+### 배포·갱신 (s1 에서)
+```bash
+bash wiki/deploy/install.sh ubuntu@172.20.0.50          # 코드 올리기 + venv + systemd + 백업 cron
+ssh ubuntu@172.20.0.50 'sudoedit /etc/figteam-wiki/env' # TEAM_CREATE_CODE 입력(최초 1회)
+ssh -t ubuntu@172.20.0.50 'cd /opt/figteam-wiki && sudo -u wiki .venv/bin/python tools/seed_wiki.py --db /var/lib/figteam-wiki/wiki.db'  # 최초 1회, figteam 비밀번호 입력
+ssh ubuntu@172.20.0.50 'sudo systemctl restart figteam-wiki'
+```
+
+### 로컬 개발 (맥)
+```bash
+python3 -m venv wiki/.venv && wiki/.venv/bin/pip install -r wiki/requirements.txt
+WIKI_DB=/tmp/w.db TEAM_CREATE_CODE=dev ALLOWED_ORIGIN=http://127.0.0.1:18780 SERVE_STATIC=public \
+  wiki/.venv/bin/uvicorn --factory wiki.app:create_app --port 18780
+```
+
+### 자주 하는 운영
+| 일 | 명령 (wiki-01) |
+|---|---|
+| 팀 비밀번호 재설정 | `cd /opt/figteam-wiki && sudo -u wiki WIKI_DB=/var/lib/figteam-wiki/wiki.db .venv/bin/python -m wiki.admin reset-password <팀주소>` |
+| 팀 생성 암호 바꾸기 | `sudoedit /etc/figteam-wiki/env` → `sudo systemctl restart figteam-wiki` |
+| 백업 확인 | `ls -lt /var/backups/figteam-wiki` (매일 03:30, 14일) |
+| 복원 | `sudo systemctl stop figteam-wiki && sudo -u wiki cp /var/backups/figteam-wiki/wiki-<날짜>.db /var/lib/figteam-wiki/wiki.db && sudo systemctl start figteam-wiki` |
+| 되돌리기(위키 끄기) | s1 `/etc/cloudflared/config.yml` 의 `path: ^/api/` 규칙 삭제 → `sudo systemctl restart cloudflared` |
