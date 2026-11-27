@@ -322,8 +322,11 @@
       const lens = LENSES.find(l => l.id === CFG.lens);
       let lastGroup = null;
 
-      // 1. 상단 렌즈 탭 & 힌트 & 매트릭스
+      // 1. 상단 렌즈 탭 & 지침 스튜디오 버튼 & 힌트 & 매트릭스
       let html = wikiTeamBar() +
+        (typeof cfgGuideOpen === 'function'
+          ? '<button type="button" class="cfg-guide-launch-btn" onclick="cfgGuideOpen()"><span>📋 지침 복사 · 결과 등록/수정</span><small>생성·수정·순서</small></button>'
+          : '') +
         '<div class="cfg-lens" role="tablist" aria-label="보는 기준">' + LENSES.map(l =>
           '<button type="button" role="tab" aria-selected="' + (l.id === CFG.lens) + '" class="cfg-lens-btn' + (l.id === CFG.lens ? ' active' : '') +
           '" onclick="' + cfgGo(l.id, '', '') + '">' + cfgEsc(l.name) + '</button>').join('') + '</div>' +
@@ -341,7 +344,10 @@
           html += cfgGroupHead(m);
         }
         const minors = cfgMinors(CFG.lens, m.id);
-        const hasMinors = minors.length > 0;
+        const instAddAreaBtn = (CFG.lens === 'inst' && typeof WIKI !== 'undefined' && WIKI.ready && cfgPage(m.id) && cfgPage(m.id).docId)
+          ? '<button type="button" class="wk-add cfg-tree-add-minor" onclick="event.stopPropagation();wikiCreate(\'area\', ' + cfgPage(m.id).docId + ')">+ 서비스 영역</button>'
+          : '';
+        const hasMinors = minors.length > 0 || !!instAddAreaBtn;
         const isCurrentMajor = (m.id === CFG.major);
         const isOpen = cfgIsTreeOpen(m.id);
 
@@ -357,11 +363,11 @@
           '</div>' +
           '<div class="cfg-tree-major-meta">' +
           (m.status && m.status !== 'live' ? cfgBadge(m.status) : '') +
-          (hasMinors ? '<span class="cfg-tree-badge-count">' + minors.length + '</span>' : '') +
+          (minors.length ? '<span class="cfg-tree-badge-count">' + minors.length + '</span>' : '') +
           '</div>' +
           '</div>';
 
-        // 하위 중분류 (계단식 인덴트)
+        // 하위 중분류 (계단식 인덴트) + 인스턴스별 서비스 영역 추가 버튼
         if (hasMinors) {
           html += '<div class="cfg-tree-minors">' +
             minors.map(sub => {
@@ -374,11 +380,19 @@
                 (sub.sub ? '<span class="cfg-tree-minor-sub">' + cfgEsc(sub.sub) + '</span>' : '') +
                 '</button>';
             }).join('') +
+            instAddAreaBtn +
             '</div>';
         }
 
         html += '</div>';
       });
+
+      if (CFG.lens === 'step' && typeof WIKI !== 'undefined' && WIKI.ready) {
+        html += '<div class="cfg-tree-step-acts">' +
+          '<button type="button" class="wk-add" onclick="wikiEditSteps(true)">+ 단계 추가</button>' +
+          (typeof cfgGuideOpen === 'function' ? '<button type="button" class="wk-add" onclick="cfgGuideOpen({action:\'reorder\',kind:\'steps\',docId:' + (CFG.data.stepsDocId || 'null') + '})">↕️ 지침으로 순서 편집</button>' : '') +
+          '</div>';
+      }
 
       html += (typeof wikiMajorTail === 'function' ? wikiMajorTail() : '') + '</div>';
       nav.innerHTML = html;
@@ -520,8 +534,9 @@
         cfgCode(s.gate, '통과 조건 (이게 나와야 다음 단계)', '검증');
     }
 
-    // 서비스 영역 커스텀 데이터 영속화 헬퍼 (로컬스토리지 연동)
+    // 서비스 영역 영속화 헬퍼 (로그인 시 Wiki API 서버 저장, 미로그인/정적 환경 시 로컬스토리지 폴백)
     function cfgLoadCustoms(pid, aid, a) {
+      if (typeof WIKI !== 'undefined' && WIKI.ready && a && a.docId) return;
       try {
         const raw = localStorage.getItem('fig.cfg.custom_areas_v1');
         if (!raw) return;
@@ -553,6 +568,51 @@
       } catch (e) {}
     }
 
+    async function cfgPersistArea(pid, aid, a, message) {
+      if (typeof WIKI !== 'undefined' && WIKI.ready && a && a.docId && typeof wkDoc === 'function') {
+        const d = wkDoc(a.docId);
+        if (d) {
+          const nextBody = JSON.parse(JSON.stringify(d.body || {}));
+          nextBody.design = a.design || [];
+          nextBody.config = a.config || [];
+          nextBody.commands = a.commands || [];
+          nextBody.verify = a.verify || [];
+          nextBody.trouble = a.trouble || [];
+          if (typeof wikiFindSecret === 'function') {
+            const sec = wikiFindSecret(nextBody);
+            if (sec) {
+              alert('비밀값처럼 보이는 내용은 저장할 수 없습니다 (' + sec.field + '). <비밀번호>, <개인키> 같은 자리표시로 바꾸세요.');
+              await wikiReload(true);
+              return false;
+            }
+          }
+          try {
+            const r = await api('PUT', '/api/docs/' + a.docId, {
+              base_rev: d.rev,
+              body: nextBody,
+              message: message || '서비스 영역 항목 수정'
+            });
+            if (typeof wikiToast === 'function') wikiToast('서버에 저장했습니다 (' + r.rev + '판)');
+            await wikiReload(true);
+            return true;
+          } catch (e) {
+            if (e.status === 401) return false;
+            if (e.status === 409) {
+              alert('다른 팀원이 먼저 수정해 판 충돌(409)이 발생했습니다. 최신 문서를 다시 불러옵니다.');
+              await wikiReload(true);
+              return false;
+            }
+            alert('저장하지 못했습니다: ' + (e.error || e.status || '오류'));
+            await wikiReload(true);
+            return false;
+          }
+        }
+      }
+      cfgSaveCustoms(pid, aid, a);
+      cfgRenderBody();
+      return true;
+    }
+
     function cfgResetCustoms(pid, aid) {
       if (!confirm('현재 영역을 기본 실측 데이터로 되돌리시겠습니까?')) return;
       try {
@@ -566,10 +626,39 @@
       location.reload();
     }
 
-    // 서비스 영역 직관적 모듈형 렌더러 (설계 · 설정 · 명령어 · 검증 · 오류대응 + 빠른 추가/수정)
+    function cfgSectionKey(type) {
+      return type === 'command' ? 'commands' : type;
+    }
+
+    async function cfgMoveBuilderItem(type, pid, aid, idx, dir) {
+      const a = cfgAreaOf(pid, aid);
+      if (!a) return;
+      cfgLoadCustoms(pid, aid, a);
+      const key = cfgSectionKey(type);
+      const arr = a[key];
+      if (!Array.isArray(arr)) return;
+      const to = idx + dir;
+      if (to < 0 || to >= arr.length) return;
+      const tmp = arr[idx];
+      arr[idx] = arr[to];
+      arr[to] = tmp;
+      await cfgPersistArea(pid, aid, a, '서비스 영역 ' + key + ' 순서 변경');
+    }
+
+    function cfgItemActsHtml(type, pid, aid, idx, len, editLabel) {
+      return '<div class="cfg-item-acts">' +
+        '<button type="button" class="cfg-item-btn" onclick="cfgMoveBuilderItem(\'' + type + '\',\'' + pid + '\',\'' + aid + '\',' + idx + ',-1)" title="위로 이동"' + (idx <= 0 ? ' disabled' : '') + '>↑</button>' +
+        '<button type="button" class="cfg-item-btn" onclick="cfgMoveBuilderItem(\'' + type + '\',\'' + pid + '\',\'' + aid + '\',' + idx + ',1)" title="아래로 이동"' + (idx >= len - 1 ? ' disabled' : '') + '>↓</button>' +
+        '<button type="button" class="cfg-item-btn" onclick="cfgOpenBuilderModal(\'' + type + '\',\'' + pid + '\',\'' + aid + '\',' + idx + ')" title="수정">' + (editLabel || '✏️') + '</button>' +
+        '<button type="button" class="cfg-item-btn btn-del" onclick="cfgDeleteBuilderItem(\'' + type + '\',\'' + pid + '\',\'' + aid + '\',' + idx + ')" title="삭제">✕</button>' +
+        '</div>';
+    }
+
+    // 서비스 영역 직관적 모듈형 렌더러 (설계 · 설정 · 명령어 · 검증 · 오류대응 + 빠른 추가/수정/순서이동)
     function cfgArea(a, pid, aid) {
       if (pid && aid) cfgLoadCustoms(pid, aid, a);
-      const isCustomized = (pid && aid && localStorage.getItem('fig.cfg.custom_areas_v1') &&
+      const useLocalOnly = !(typeof WIKI !== 'undefined' && WIKI.ready && a.docId);
+      const isCustomized = (useLocalOnly && pid && aid && localStorage.getItem('fig.cfg.custom_areas_v1') &&
         JSON.parse(localStorage.getItem('fig.cfg.custom_areas_v1'))[pid + '__' + aid]);
 
       const secs = [];
@@ -578,12 +667,9 @@
       let designHtml = '';
       if (a.design && a.design.length) {
         designHtml += '<ul class="cfg-list">' + a.design.map((d, i) =>
-          '<li style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">' +
+          '<li class="cfg-list-row">' +
           '<div>' + cfgFmt(d) + '</div>' +
-          '<div class="cfg-item-acts">' +
-          '<button type="button" class="cfg-item-btn" onclick="cfgOpenBuilderModal(\'design\',\'' + pid + '\',\'' + aid + '\',' + i + ')" title="원칙 수정">✏️</button>' +
-          '<button type="button" class="cfg-item-btn btn-del" onclick="cfgDeleteBuilderItem(\'design\',\'' + pid + '\',\'' + aid + '\',' + i + ')" title="원칙 삭제">✕</button>' +
-          '</div>' +
+          cfgItemActsHtml('design', pid, aid, i, a.design.length, '✏️') +
           '</li>').join('') + '</ul>';
       } else {
         designHtml = '<p class="cfg-empty">등록된 설계 원칙이 없습니다. [+ 원칙 추가] 버튼으로 등록하세요.</p>';
@@ -600,12 +686,11 @@
       let configHtml = '';
       if (a.config && a.config.length) {
         configHtml += a.config.map((c, i) =>
-          '<div style="margin-bottom:12px;position:relative;">' +
+          '<div class="cfg-card-item">' +
+          '<div class="cfg-card-bar"><span class="cfg-card-idx">설정 #' + (i + 1) + '</span>' +
+          cfgItemActsHtml('config', pid, aid, i, a.config.length, '✏️ 수정') + '</div>' +
           cfgCode(c.code, c.label) +
-          '<div style="position:absolute;top:7px;right:160px;z-index:2;" class="cfg-item-acts">' +
-          '<button type="button" class="cfg-item-btn" onclick="cfgOpenBuilderModal(\'config\',\'' + pid + '\',\'' + aid + '\',' + i + ')" title="설정 수정">✏️ 설정 수정</button>' +
-          '<button type="button" class="cfg-item-btn btn-del" onclick="cfgDeleteBuilderItem(\'config\',\'' + pid + '\',\'' + aid + '\',' + i + ')" title="설정 삭제">✕</button>' +
-          '</div></div>').join('');
+          '</div>').join('');
       } else {
         configHtml = '<p class="cfg-empty">등록된 설정 파일이 없습니다. [+ 설정 추가]로 설정 파일 내용을 등록하세요.</p>';
       }
@@ -621,12 +706,11 @@
       let cmdHtml = '';
       if (a.commands && a.commands.length) {
         cmdHtml += a.commands.map((c, i) =>
-          '<div style="margin-bottom:12px;position:relative;">' +
+          '<div class="cfg-card-item">' +
+          '<div class="cfg-card-bar"><span class="cfg-card-idx">명령 #' + (i + 1) + '</span>' +
+          cfgItemActsHtml('command', pid, aid, i, a.commands.length, '✏️ 수정') + '</div>' +
           cfgCode(c.code, c.label, c.cat) +
-          '<div style="position:absolute;top:7px;right:180px;z-index:2;" class="cfg-item-acts">' +
-          '<button type="button" class="cfg-item-btn" onclick="cfgOpenBuilderModal(\'command\',\'' + pid + '\',\'' + aid + '\',' + i + ')" title="명령어 수정">✏️ 수정</button>' +
-          '<button type="button" class="cfg-item-btn btn-del" onclick="cfgDeleteBuilderItem(\'command\',\'' + pid + '\',\'' + aid + '\',' + i + ')" title="명령어 삭제">✕</button>' +
-          '</div></div>').join('');
+          '</div>').join('');
       } else {
         cmdHtml = '<p class="cfg-empty">등록된 명령어가 없습니다. [+ 명령어 추가]로 터미널 명령어를 등록하세요.</p>';
       }
@@ -642,12 +726,10 @@
       let verifyHtml = '';
       if (a.verify && a.verify.length) {
         verifyHtml += a.verify.map((v, i) =>
-          '<div style="margin-bottom:14px;position:relative;">' +
+          '<div class="cfg-card-item">' +
+          '<div class="cfg-card-bar"><span class="cfg-card-idx">검증 #' + (i + 1) + '</span>' +
+          cfgItemActsHtml('verify', pid, aid, i, a.verify.length, '✏️ 수정') + '</div>' +
           cfgCode(v.code, v.label, '검증') +
-          '<div style="position:absolute;top:7px;right:180px;z-index:2;" class="cfg-item-acts">' +
-          '<button type="button" class="cfg-item-btn" onclick="cfgOpenBuilderModal(\'verify\',\'' + pid + '\',\'' + aid + '\',' + i + ')" title="검증 항목 수정">✏️ 수정</button>' +
-          '<button type="button" class="cfg-item-btn btn-del" onclick="cfgDeleteBuilderItem(\'verify\',\'' + pid + '\',\'' + aid + '\',' + i + ')" title="검증 항목 삭제">✕</button>' +
-          '</div>' +
           '<div class="cfg-expect" style="margin-top:4px;"><b>기대 결과:</b> ' + cfgFmt(v.expect) + '</div></div>').join('');
       } else {
         verifyHtml = '<p class="cfg-empty">등록된 검증 항목이 없습니다. [+ 검증 추가]로 테스트 명령을 등록하세요.</p>';
@@ -665,9 +747,8 @@
       if (a.trouble && a.trouble.length) {
         const rowsWithActs = a.trouble.map((t, i) => [
           t[0], t[1], t[2],
-          t[3] + '<div style="margin-top:4px;" class="cfg-item-acts">' +
-          '<button type="button" class="cfg-item-btn" onclick="cfgOpenBuilderModal(\'trouble\',\'' + pid + '\',\'' + aid + '\',' + i + ')">✏️ 수정</button>' +
-          '<button type="button" class="cfg-item-btn btn-del" onclick="cfgDeleteBuilderItem(\'trouble\',\'' + pid + '\',\'' + aid + '\',' + i + ')">✕ 삭제</button>' +
+          t[3] + '<div style="margin-top:4px;">' +
+          cfgItemActsHtml('trouble', pid, aid, i, a.trouble.length, '✏️ 수정') +
           '</div>'
         ]);
         troubleHtml = cfgTable(['증상', '의심 변수·영역', '확인 명령', '조치 및 편집'], rowsWithActs, 'cfg-trouble');
@@ -686,7 +767,10 @@
       const chips = '<div class="cfg-chips" style="align-items:center;">' +
         secs.map((s, i) =>
           '<button type="button" class="cfg-chip" onclick="cfgScrollToSec(' + i + ')">' + s[0] + '</button>').join('') +
-        (isCustomized ? '<button type="button" class="cfg-item-btn btn-del" style="margin-left:auto;padding:3px 8px;" onclick="cfgResetCustoms(\'' + pid + '\',\'' + aid + '\')">↺ 원본 실측값 복원</button>' : '') +
+        (typeof cfgGuideOpen === 'function' && a.docId
+          ? '<button type="button" class="cfg-btn-add" style="margin-left:auto;" onclick="cfgGuideOpen({action:\'patch\',kind:\'area\',docId:' + a.docId + '})">📋 지침으로 이 영역 수정/순서편집</button>'
+          : '') +
+        (isCustomized ? '<button type="button" class="cfg-item-btn btn-del" style="' + (typeof cfgGuideOpen === 'function' && a.docId ? '' : 'margin-left:auto;') + 'padding:3px 8px;" onclick="cfgResetCustoms(\'' + pid + '\',\'' + aid + '\')">↺ 원본 실측값 복원</button>' : '') +
         '</div>';
 
       return chips + secs.map((s, i) =>
@@ -801,7 +885,7 @@
 
       modal.querySelector('#bld-close').onclick = close;
       modal.querySelector('#bld-cancel').onclick = close;
-      modal.querySelector('#bld-save').onclick = () => {
+      modal.querySelector('#bld-save').onclick = async () => {
         if (type === 'command') {
           const cat = (modal.querySelector('input[name="bld-cat"]:checked') || {}).value || '조회';
           const label = (modal.querySelector('#bld-label').value || '').trim();
@@ -841,14 +925,16 @@
           if (idx >= 0) a.trouble[idx] = [t0, t1, t2, t3];
           else a.trouble.push([t0, t1, t2, t3]);
         }
-        cfgSaveCustoms(pid, aid, a);
-        close();
-        cfgRenderBody();
+        const saveBtn = modal.querySelector('#bld-save');
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '저장 중…'; }
+        const ok = await cfgPersistArea(pid, aid, a, '모듈 빌더 ' + type + (idx >= 0 ? ' 수정' : ' 추가'));
+        if (ok) close();
+        else if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '저장 및 즉시 반영'; }
       };
       modal.onclick = e => { if (e.target === modal) close(); };
     }
 
-    function cfgDeleteBuilderItem(type, pid, aid, idx) {
+    async function cfgDeleteBuilderItem(type, pid, aid, idx) {
       const a = cfgAreaOf(pid, aid);
       if (!a) return;
       cfgLoadCustoms(pid, aid, a);
@@ -858,8 +944,7 @@
       else if (type === 'design' && a.design) a.design.splice(idx, 1);
       else if (type === 'verify' && a.verify) a.verify.splice(idx, 1);
       else if (type === 'trouble' && a.trouble) a.trouble.splice(idx, 1);
-      cfgSaveCustoms(pid, aid, a);
-      cfgRenderBody();
+      await cfgPersistArea(pid, aid, a, '모듈 빌더 ' + type + ' 삭제');
     }
 
     // 같은 중분류 목록 안에서 이전/다음
