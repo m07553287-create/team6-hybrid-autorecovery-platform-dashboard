@@ -1644,7 +1644,7 @@
   </header>
 
   <!-- LOGIN VIEW -->
-  <div id="login-container" class="login-wrapper">
+  <div id="login-container" class="login-wrapper" style="display:none">
     <div class="login-card">
       <div class="login-title">비밀번호 인증</div>
       <form id="login-form" onsubmit="handleLogin(event); return false;">
@@ -3257,6 +3257,7 @@
         return;
       }
       CS.open = true; CS.solo = soloId || null;
+      CS.booting = true;   // 복원 끝나기 전엔 레이아웃 저장 금지(빈 칸으로 스냅샷을 덮어쓰지 않도록)
       root.hidden = false;
       root.classList.toggle('cs-solo', !!CS.solo);
       root.classList.toggle('cs-page', CS.page);
@@ -3272,6 +3273,7 @@
       if (CS.solo && !CS.slots[0].t) csConnectSlot(0, CS.solo);
       else if (CS.pending) { const id = CS.pending; CS.pending = null; if (CS.targets.some(t => t.id === id && !t.disabled)) csPick(id); }
       else await csResume();   // 새로고침·재진입 시 이 이름의 살아 있는 세션을 자동으로 다시 붙인다
+      CS.booting = false; csSaveLayout();   // 복원 끝 — 이제부터 변경은 저장
     }
     // 머리글 [대시보드]·[설정]·[콘솔] 전환 (본문만 바뀜)
     function csView(v) {
@@ -3646,7 +3648,7 @@
     }
     // 현재 배치(분할·각 칸 대상·띄운 창)를 저장해, 새로고침 때 그대로 복원한다
     function csSaveLayout() {
-      if (CS.solo) return;   // 솔로(새 창)는 자체 ?solo= 로 복원
+      if (CS.solo || CS.booting) return;   // 솔로(새 창)는 ?solo= 로 복원 · 부팅 중엔 저장 금지
       try {
         localStorage.setItem('fig.term.layout', JSON.stringify({
           layout: CS.layout, sizes: CS.sizes, active: CS.active,
@@ -3675,6 +3677,8 @@
 
     // ===== 사이트 입장 로그인: s1 서버가 확인 (12시간). 로그인하면 콘솔은 비밀번호를 다시 묻지 않는다 =====
     async function siteAuthBoot() {
+      // 이미 이 세션에서 인증됐으면 서버 확인 전에 먼저 복원 → 로그인 화면 깜빡임 방지
+      if (sessionStorage.getItem(AUTH_KEY) === 'valid') checkAuth();
       try {
         const r = await fetch('/console/api/me', { credentials: 'same-origin', cache: 'no-store' });
         const d = await r.json();
