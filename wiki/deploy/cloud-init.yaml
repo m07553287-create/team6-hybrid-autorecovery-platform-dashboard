@@ -1,7 +1,8 @@
 #cloud-config
-# wiki-01 최초 부팅 설정 (openstack server create --user-data)
+# wiki-01 최초 부팅 (openstack server create --config-drive true --user-data cloud-init.yaml)
+# ext-net 은 DHCP 가 꺼져 있어 고정 IP 는 config drive 의 network_data 로 들어온다.
 package_update: true
-packages: [python3-venv, sqlite3, rsync]
+packages: [python3-venv, redis-server, rsync]
 users:
   - default
   - name: wiki

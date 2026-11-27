@@ -1,6 +1,6 @@
 """figteam 실측 가이드(content/settings_guide.py) → 위키 DB 시드.
 
-사용: python3 tools/seed_wiki.py --db /var/lib/figteam-wiki/wiki.db --slug figteam --name "figteam (team6)"
+사용: REDIS_PASSWORD=… python3 tools/seed_wiki.py --slug figteam --name "figteam (team6)"
 비밀번호는 실행할 때 입력받고, 해시만 DB 에 들어간다.
 """
 import argparse
@@ -15,8 +15,10 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "content"))
 
 import settings_guide as g  # noqa: E402
-from wiki.auth import hash_password  # noqa: E402
-from wiki.db import connect, init_schema  # noqa: E402
+from wiki import store  # noqa: E402
+from wiki.auth import add_team  # noqa: E402
+from wiki.docs import add_script, insert_doc  # noqa: E402
+from wiki.errors import ApiError  # noqa: E402
 
 AUTHOR = "seed"
 MESSAGE = "2026-11-26 실측 가이드에서 가져옴"
@@ -28,13 +30,8 @@ AREA_FIELDS = ["name", "status", "domains", "design", "config", "commands", "ver
 INST_FIELDS = ["title", "short", "tag", "status", "desc", "steps", "specs"]
 
 
-def _ins(conn, team_id, kind, parent, sort, body, now):
-    raw = json.dumps(body, ensure_ascii=False)
-    cur = conn.execute("INSERT INTO docs(team_id, kind, parent_id, sort, current_rev, current_body, created_at, "
-                       "updated_at) VALUES(?,?,?,?,1,?,?,?)", (team_id, kind, parent, sort, raw, now, now))
-    conn.execute("INSERT INTO revisions(doc_id, rev, body, deleted, author, message, created_at) "
-                 "VALUES(?,1,?,0,?,?,?)", (cur.lastrowid, raw, AUTHOR, MESSAGE, now))
-    return cur.lastrowid
+def _ins(r, team_id, kind, parent, sort, body, now):
+    return insert_doc(r, team_id, kind, parent, sort, body, AUTHOR, MESSAGE, now)
 
 
 def _script_text(sc):
@@ -60,65 +57,53 @@ def _page_blocks(page):
     return out
 
 
-def seed(db_path, slug, name, password):
+def seed(r, slug, name, password):
     data = g.data()
-    conn = connect(db_path)
-    init_schema(conn)
-    if conn.execute("SELECT 1 FROM teams WHERE slug=?", (slug,)).fetchone():
+    if r.exists(f"fw:team:{slug}"):
         raise SystemExit(f"이미 '{slug}' 팀이 있습니다. 시드를 중단합니다.")
+    try:
+        team_id = add_team(r, slug, name, password)
+    except ApiError as e:
+        raise SystemExit(e.message)
     now = int(time.time())
     counts = {"cloud": 0, "instance": 0, "area": 0, "steps": 0, "page": 0, "scripts": 0}
-    conn.execute("BEGIN")
-    try:
-        h, salt = hash_password(password)
-        team_id = conn.execute("INSERT INTO teams(slug, name, pw_hash, pw_salt, created_at) VALUES(?,?,?,?,?)",
-                               (slug, name, h, salt, now)).lastrowid
-        cloud_id = {}
-        for i, (prov, cname, cdesc) in enumerate(CLOUDS):
-            cloud_id[prov] = _ins(conn, team_id, "cloud", None, i, {"name": cname, "provider": prov, "desc": cdesc}, now)
-            counts["cloud"] += 1
-        inst_id, area_id = {}, {}
-        for i, pid in enumerate(data["instances"]):
-            p = g.PAGES[pid]
-            body = {k: p.get(k) for k in INST_FIELDS}
-            body["short"] = g.INSTANCE_SHORT[pid]
-            body["slug"] = pid  # 예전 공개 링크(#cfg/inst/inst-s1/…) 연결용
-            inst_id[pid] = _ins(conn, team_id, "instance", cloud_id[p["cloud"]], i, body, now)
-            counts["instance"] += 1
-            for j, a in enumerate(p["areas"]):
-                abody = {k: a.get(k) for k in AREA_FIELDS}
-                abody["domains"] = g.AREA_DOMAINS[pid + "." + a["id"]]
-                abody["slug"] = a["id"]
-                area_id[(pid, a["id"])] = _ins(conn, team_id, "area", inst_id[pid], j, abody, now)
-                counts["area"] += 1
-        items = [{"no": s["no"], "title": s["title"], "where": s["where"], "why": s["why"], "gate": s["gate"],
-                  "instance_id": inst_id[s["page"]], "area_id": area_id[(s["page"], s["area"])]} for s in g.STEPS]
-        _ins(conn, team_id, "steps", None, 0, {"items": items}, now)
-        counts["steps"] += 1
-        for i, (pid, _title) in enumerate(g.REFERENCE):
-            p = g.PAGES[pid]
-            _ins(conn, team_id, "page", None, i, {"title": p["title"], "tag": p.get("tag", ""), "desc": p["desc"],
-                                                   "blocks": _page_blocks(p)}, now)
-            counts["page"] += 1
-        for sc in g.SCRIPTS:
-            if "url" in sc:
-                continue  # 외부 링크는 화면 정적 설정에 둔다
-            conn.execute("INSERT INTO scripts(team_id, path, host, status, keys, text) VALUES(?,?,?,?,?,?)",
-                         (team_id, sc["path"], sc["host"], sc["status"], json.dumps(sc["keys"], ensure_ascii=False),
-                          _script_text(sc)))
-            counts["scripts"] += 1
-        conn.execute("COMMIT")
-    except BaseException:
-        conn.execute("ROLLBACK")
-        raise
-    finally:
-        conn.close()
+    cloud_id = {}
+    for i, (prov, cname, cdesc) in enumerate(CLOUDS):
+        cloud_id[prov] = _ins(r, team_id, "cloud", None, i, {"name": cname, "provider": prov, "desc": cdesc}, now)
+        counts["cloud"] += 1
+    inst_id, area_id = {}, {}
+    for i, pid in enumerate(data["instances"]):
+        p = g.PAGES[pid]
+        body = {k: p.get(k) for k in INST_FIELDS}
+        body["short"] = g.INSTANCE_SHORT[pid]
+        body["slug"] = pid  # 예전 공개 링크(#cfg/inst/inst-s1/…) 연결용
+        inst_id[pid] = _ins(r, team_id, "instance", cloud_id[p["cloud"]], i, body, now)
+        counts["instance"] += 1
+        for j, a in enumerate(p["areas"]):
+            abody = {k: a.get(k) for k in AREA_FIELDS}
+            abody["domains"] = g.AREA_DOMAINS[pid + "." + a["id"]]
+            abody["slug"] = a["id"]
+            area_id[(pid, a["id"])] = _ins(r, team_id, "area", inst_id[pid], j, abody, now)
+            counts["area"] += 1
+    items = [{"no": s["no"], "title": s["title"], "where": s["where"], "why": s["why"], "gate": s["gate"],
+              "instance_id": inst_id[s["page"]], "area_id": area_id[(s["page"], s["area"])]} for s in g.STEPS]
+    _ins(r, team_id, "steps", None, 0, {"items": items}, now)
+    counts["steps"] += 1
+    for i, (pid, _title) in enumerate(g.REFERENCE):
+        p = g.PAGES[pid]
+        _ins(r, team_id, "page", None, i, {"title": p["title"], "tag": p.get("tag", ""), "desc": p["desc"],
+                                            "blocks": _page_blocks(p)}, now)
+        counts["page"] += 1
+    for sc in g.SCRIPTS:
+        if "url" in sc:
+            continue  # 외부 링크는 화면 정적 설정에 둔다
+        add_script(r, team_id, sc["path"], sc["host"], sc["status"], sc["keys"], _script_text(sc))
+        counts["scripts"] += 1
     return counts
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", required=True)
     ap.add_argument("--slug", default="figteam")
     ap.add_argument("--name", default="figteam (team6)")
     a = ap.parse_args()
@@ -127,7 +112,7 @@ def main():
         sys.exit("두 입력이 다릅니다")
     if len(pw) < 6:
         sys.exit("비밀번호는 6자 이상이어야 합니다")
-    print(seed(a.db, a.slug, a.name, pw))
+    print(seed(store.connect(), a.slug, a.name, pw))
 
 
 if __name__ == "__main__":

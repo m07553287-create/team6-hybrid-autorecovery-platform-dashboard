@@ -110,25 +110,20 @@ def test_changes_title_author(team):
     assert ch[0]["title"] == "WireGuard" and ch[0]["author"] == "다운" and len(ch) == 3
 
 
-def test_doc_limit_2000(team, conn):
-    tid, = conn.execute("select id from teams").fetchone()
-    now = int(time.time())
-    conn.executemany("insert into docs(team_id,kind,parent_id,sort,current_rev,current_body,created_at,updated_at) "
-                     "values(?,?,?,?,?,?,?,?)", [(tid, "page", None, 0, 1, '{"title":"x"}', now, now)] * 2000)
-    conn.commit()
-    r = team.post("/api/docs", json={"kind": "page", "body": {"title": "y"}})
-    assert r.status_code == 422
+def test_doc_limit_2000(team, r):
+    tid = r.hget("fw:team:t01", "id")
+    r.sadd(f"fw:docs:{tid}", *range(100000, 102000))
+    resp = team.post("/api/docs", json={"kind": "page", "body": {"title": "y"}})
+    assert resp.status_code == 422
 
 
 def test_requires_login(client):
     assert client.get("/api/tree").status_code == 401
 
 
-def test_scripts(team, conn):
-    tid, = conn.execute("select id from teams").fetchone()
-    conn.execute("insert into scripts(team_id,path,host,status,keys,text) values(?,?,?,?,?,?)",
-                 (tid, "/opt/a.sh", "db-01", "live", json.dumps(["a.sh"]), "echo hi"))
-    conn.commit()
+def test_scripts(team, r):
+    from wiki.docs import add_script
+    add_script(r, int(r.hget("fw:team:t01", "id")), "/opt/a.sh", "db-01", "live", ["a.sh"], "echo hi")
     lst = team.get("/api/scripts").json()
     assert lst[0]["keys"] == ["a.sh"] and "text" not in lst[0]
     assert team.get(f"/api/scripts/{lst[0]['id']}").json()["text"] == "echo hi"
@@ -144,3 +139,9 @@ def test_message_too_long_422(team):
     _, _, area = chain(team)
     r = team.put(f"/api/docs/{area}", json={"base_rev": 1, "body": AREA, "message": "가" * 201})
     assert r.status_code == 422
+
+
+def test_deleted_doc_not_editable(team):
+    _, _, area = chain(team)
+    team.request("DELETE", f"/api/docs/{area}", json={"base_rev": 1})
+    assert team.put(f"/api/docs/{area}", json={"base_rev": 2, "body": AREA}).status_code == 422

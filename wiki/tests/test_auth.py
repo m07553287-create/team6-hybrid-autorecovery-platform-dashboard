@@ -35,10 +35,16 @@ def test_login_rate_limit(client):
     assert codes[:10] == [401] * 10 and codes[10] == 429
 
 
-def test_password_hashed(client, conn):
+def test_password_hashed(client, r):
     client.post("/api/teams", json=T)
-    h, = conn.execute("select pw_hash from teams").fetchone()
+    h = r.hget("fw:team:t01", "pw_hash")
     assert h != T["password"] and len(h) == 64
+
+
+def test_session_has_ttl(client, r):
+    client.post("/api/teams", json=T)
+    keys = r.keys("fw:sess:*")
+    assert len(keys) == 1 and 0 < r.ttl(keys[0]) <= 7 * 24 * 3600
 
 
 def test_logout(client):

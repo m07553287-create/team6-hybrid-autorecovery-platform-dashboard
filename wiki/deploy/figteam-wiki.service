@@ -1,14 +1,14 @@
 [Unit]
-Description=figteam 구성 위키 API (FastAPI + SQLite)
-After=network-online.target
+Description=figteam 구성 위키 API (FastAPI + Redis)
+After=network-online.target redis-server.service
 Wants=network-online.target
+Requires=redis-server.service
 
 [Service]
 User=wiki
 Group=wiki
 WorkingDirectory=/opt/figteam-wiki
 EnvironmentFile=/etc/figteam-wiki/env
-Environment=WIKI_DB=/var/lib/figteam-wiki/wiki.db
 ExecStart=/opt/figteam-wiki/.venv/bin/uvicorn --factory wiki.app:create_app --host 0.0.0.0 --port 8080 --workers 1
 Restart=on-failure
 RestartSec=3
@@ -16,8 +16,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectHome=yes
 ProtectSystem=strict
-ReadWritePaths=/var/lib/figteam-wiki
-MemoryMax=400M
+MemoryMax=300M
 
 [Install]
 WantedBy=multi-user.target

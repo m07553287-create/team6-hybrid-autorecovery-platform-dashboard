@@ -54,7 +54,8 @@ figteam.ktci5.kr `#cfg/` 를 "정해진 가이드를 읽는 화면"에서 **팀�
 - 클라우드·인스턴스 "생성" = 위키 안 문서 생성.
 - 사용자 = 팀원과 수강생.
 - 계정 단위 = **팀**. 팀 비밀번호로 로그인하면 같은 팀 내용을 공유하고 누구나 추가·변경.
-- 저장 = **OpenStack 전용 VM wiki-01** (Python FastAPI + SQLite).
+- 저장 = **OpenStack 전용 VM wiki-01** (Python FastAPI + **Redis**, 2026-11-27 변경: 가벼운 NoSQL, 기존 db-01 과 완전히 독립).
+- 위치 = **ext-net 직결 DMZ 192.168.120.230** (2026-11-27 변경: 외부 터널과 내부망의 연결 접점, figteam-net·data-net 에 붙지 않음).
 - 개발 = 대시보드 저장소 `v2` 브랜치.
 - 팀 만들기 = 사용자(관리자)가 정한 **팀 생성 암호**가 있어야 가능. 암호는 wiki-01 `/etc/figteam-wiki/env`(600, `TEAM_CREATE_CODE`)에만 — 저장소·DB 평문 금지, 사용자가 직접 입력.
 - 공개 견본 없음 = **로그인해야만 보기**. 공개 페이지에서 정적 가이드 데이터(`#cfg-data`)와 `public/scripts/` 를 뺀다.
@@ -63,35 +64,31 @@ figteam.ktci5.kr `#cfg/` 를 "정해진 가이드를 읽는 화면"에서 **팀�
 
 ### 6.1 구성
 ```
-브라우저 ──https──▶ Cloudflare (figteam.ktci5.kr) ──터널──▶ s1 cloudflared
-                                                         ├─ path ^/api/ → http://172.20.0.50:8080  (wiki-01, uvicorn)
+브라우저 ──https──▶ Cloudflare (figteam.ktci5.kr) ──터널──▶ s1 cloudflared (192.168.120.2)
+                                                         ├─ path ^/api/ → http://192.168.120.230:8080  (wiki-01)
                                                          └─ 그 외       → https://m07553287-create.github.io (Pages)
-wiki-01 (OpenStack figteam 프로젝트, figteam-net 172.20.0.50 고정, compute4, Ubuntu-22.04, key s1-ktci5)
-  systemd figteam-wiki → uvicorn wiki.app:app --host 0.0.0.0 --port 8080 (사용자 wiki)
-  DB /var/lib/figteam-wiki/wiki.db (SQLite WAL) · env /etc/figteam-wiki/env
-  sg-wiki: 8080·22 ← 192.168.120.2/32 (s1), ICMP ← 172.20.0.0/24
+wiki-01 — OpenStack ext-net(192.168.120.0/24, flat, DHCP 없음) 직결 DMZ, 고정 192.168.120.230(풀 .200~.229 밖)
+  config drive 로 고정 IP·키 주입, 게이트웨이 s1(192.168.120.2) → 인터넷은 s1 MASQUERADE
+  figteam-net(앱)·data-net(db-01)에 포트 없음, sg-wiki: tcp 8080·22 ← 192.168.120.2/32 만
+  redis-server (127.0.0.1:6379, requirepass, AOF everysec, maxmemory 200mb noeviction) — 위키 전용, 외부 접속 불가
+  systemd figteam-wiki → uvicorn --factory wiki.app:create_app :8080 (사용자 wiki)
 ```
-저장소 `wiki/` : `wiki/app.py`(FastAPI 앱·라우트), `wiki/db.py`(스키마·연결), `wiki/auth.py`, `wiki/docs.py`, `wiki/guard.py`, `wiki/tests/`, `wiki/requirements.txt`(fastapi, uvicorn, pytest, httpx), `wiki/deploy/`(systemd 유닛, cloud-init, 백업 스크립트).
+저장소 `wiki/`: `app.py`, `store.py`(Redis 연결·키 구조), `auth.py`, `docs.py`, `guard.py`, `admin.py`, `tests/`(fakeredis), `deploy/`.
 
-### 6.2 데이터 (SQLite)
-```sql
-teams(id INTEGER PK, slug TEXT UNIQUE, name TEXT, pw_hash TEXT, pw_salt TEXT, created_at INTEGER)
-sessions(token_hash TEXT PK, team_id INTEGER, member TEXT, expires_at INTEGER)
-login_attempts(key TEXT PK, count INTEGER, window_start INTEGER)        -- slug+IP 별 실패 횟수
-docs(id INTEGER PK, team_id INTEGER, kind TEXT, parent_id INTEGER NULL, sort INTEGER,
-     current_rev INTEGER, current_body TEXT /*현재 판 JSON 사본*/, deleted INTEGER DEFAULT 0, created_at INTEGER, updated_at INTEGER)
-revisions(id INTEGER PK, doc_id INTEGER, rev INTEGER, body TEXT /*JSON*/, deleted INTEGER,
-          author TEXT, message TEXT, created_at INTEGER, UNIQUE(doc_id, rev))
-scripts(id INTEGER PK, team_id INTEGER, path TEXT, host TEXT, status TEXT, keys TEXT /*JSON*/, text TEXT)  -- figteam 시드 스크립트 사본
-CREATE INDEX docs_team ON docs(team_id, deleted);
-CREATE INDEX rev_doc ON revisions(doc_id, rev);
-CREATE INDEX rev_team_time ON revisions(created_at) -- 최근 변경은 docs 조인 + team_id 조건
+### 6.2 데이터 (Redis, 키 접두어 `fw:`)
 ```
+fw:team:<slug> hash · fw:teamid:<id> · fw:sess:<sha256> hash+TTL 7일 · fw:sesslist:<team> set · fw:rl:<key> int+TTL 10분
+fw:docs:<team> set · fw:doc:<id> hash(team_id, kind, parent_id, sort, rev, body, deleted, …) · fw:kids:<id> set
+fw:revs:<id> list(판 JSON) · fw:changes:<team> zset(점수=시각 ms) · fw:steps:<team> · fw:scripts:<team> list · fw:script:<id> hash
+```
+- 동시 저장 판정: `WATCH fw:doc:<id>` → rev 확인 → `MULTI` 로 문서·판·변경 기록을 한 번에. rev 가 다르거나 WatchError 면 409.
+- 세션은 TTL 로 자동 삭제, 비밀번호 변경 시 `fw:sesslist` 로 그 팀 세션 일괄 삭제.
+- 백업: `redis-cli --rdb` 매일 03:30, 14일 보관(+선택 rsync aws-dr).
 
 **성능 (1GB VM)**
 - 화면 열기(`/api/tree`)는 `docs` 만 읽는다(`current_body`). 판 기록은 기록 탭에서 해당 문서 것만 인덱스로 읽는다.
 - 모든 질의에 `team_id` 조건 + 인덱스. 팀당 문서 2,000개, body 64KB 상한.
-- 추정(50명 활발 사용/일): 요청 약 1만, DB 수십 MB, 메모리 uvicorn 1 worker 약 100MB. SQLite WAL, 쓰기는 한 번에 하나라 동시 편집 충돌은 `current_rev` 조건으로 판정.
+- 추정(50명 활발 사용/일): 요청 약 1만, 데이터 수십 MB(전부 메모리), Redis 약 10~50MB + uvicorn 약 100MB.
 `kind` 와 `body`(JSON):
 - `cloud` — `{name, provider: onprem|openstack|kt|aws|other, desc}` (parent 없음)
 - `instance` — `{title, short, tag, status: live|design|nolook, desc, steps, specs: [[k,v]]}` (parent = cloud)
@@ -153,27 +150,25 @@ POST   /api/team/password       {current,new}
 - 1판 작성자 `seed`, 메모 `2026-11-26 실측 가이드에서 가져옴`.
 
 ### 6.7 배포·되돌리기 (영향 범위를 단계마다 먼저 보여 주고 진행)
-1. controller(figteam rc): flavor `m1.wiki`(1 vCPU, 1024MB, 10GB), sg `sg-wiki`, 포트 172.20.0.50, 서버 `wiki-01` (`--availability-zone nova:compute4` 는 admin rc).
-2. wiki-01: cloud-init 로 python3-venv·sqlite3 설치, `/opt/figteam-wiki` 에 저장소 `wiki/` 배치, venv, systemd 유닛.
-3. 사용자: `/etc/figteam-wiki/env` 에 `TEAM_CREATE_CODE` 입력. 시드: `python3 tools/seed_wiki.py` (figteam 비밀번호 입력) → wiki.db 생성 → 시드 SQL 삭제.
-4. s1 cloudflared: ingress 에 `- hostname: figteam.ktci5.kr / path: ^/api/ / service: http://172.20.0.50:8080` 를 github 규칙 **앞에** 추가 → `cloudflared tunnel ingress validate` → 재시작.
-   **영향 범위**: figteam.ktci5.kr `/api/*` 만 wiki-01 로. 다른 호스트·대시보드 영향 없음(cloudflared 재시작 순간 같은 터널 호스트들 수 초 끊김).
-5. v2 브랜치 화면 확인 → main 합치기 → 사용자 push.
-**백업**: wiki-01 cron 03:30 `sqlite3 wiki.db ".backup"` → `/var/backups/figteam-wiki/` 14일 보관 + rsync 로 aws-dr `/var/backups/minwon/incoming/wiki/` (aws-dr 의 S3 업로드 스크립트 추가는 별도 승인).
+1. controller: flavor `m1.wiki`(1 vCPU, 1024MB, 10GB), sg `sg-wiki`(figteam), admin rc 로 ext-net 포트 `wiki-01-port` 192.168.120.230(project figteam, sg-wiki), 서버 `wiki-01` (`--config-drive true --availability-zone nova:compute4 --user-data cloud-init.yaml`).
+2. s1 에서 `bash wiki/deploy/install.sh` — 코드·venv·Redis 설정(비밀번호는 VM 안에서 생성)·systemd·백업 cron.
+3. 사용자: wiki-01 `/etc/figteam-wiki/env` 에 `TEAM_CREATE_CODE` 입력, `tools/seed_wiki.py` 로 figteam 시드(비밀번호 입력).
+4. s1 cloudflared: figteam 규칙 앞에 `path: ^/api/` → `http://192.168.120.230:8080` → validate → 재시작(같은 터널 호스트 수 초 끊김).
+5. v2 → main 합치기 → 사용자 push.
 **되돌리기**: s1 ingress 의 `/api/` 규칙 삭제 → 재시작. 화면은 이전 커밋으로 되돌려 배포.
 
 ### 6.8 시험
-- 서버: pytest + FastAPI TestClient(임시 SQLite) — 팀 만들기, 로그인 실패 제한, 문서 생성·수정·409 충돌·삭제·복구, 비밀값 422, 다른 팀 문서 접근 404.
-- 맥 로컬 통합: `uvicorn wiki.app:app` 에 `SERVE_STATIC=public` 일 때만 정적 파일도 제공(운영에서는 끔).
+- 서버: pytest + FastAPI TestClient(fakeredis) — 팀 만들기, 로그인 실패 제한, 문서 생성·수정·409 충돌·삭제·복구, 비밀값 422, 다른 팀 문서 접근 404.
+- 맥 로컬 통합: fakeredis 로 앱을 띄우고 `SERVE_STATIC=public` 으로 화면도 제공(운영에서는 끔).
 - 화면: 비교 함수 단위 시험(node), 헤드리스 Chrome 으로 미로그인/로그인/편집/비교 화면 스크린샷.
 
 ## 7. 빌더에게 맡기는 것
-- 파일 나누기 세부, 내부 함수 구조(의존성은 fastapi·uvicorn·pytest·httpx 만).
+- 파일 나누기 세부, 내부 함수 구조(의존성: fastapi·uvicorn·redis, 시험 pytest·httpx·fakeredis).
 - 편집 양식의 세부 배치, 비교 화면 색·밀도(현재 대시보드 톤 유지).
 
 
 ## 8. 설계자 판단 (사용자 확인용)
-- 비밀번호 분실: 관리자 화면 없이 운영자가 wiki-01 에서 `python3 -m wiki.admin reset-password <slug>` 로 재설정.
+- 비밀번호 분실: 관리자 화면 없이 운영자가 wiki-01 에서 `python3 -m wiki.admin reset-password <slug>` 로 재설정(env 의 REDIS_* 사용).
 - 대시보드 탭의 기존 클라이언트 비밀번호(`figteam`) 게이트는 이번 범위 밖 — 그대로 둔다.
 - 서비스 영역(도메인) 8개는 고정, 팀이 추가하지 못한다(v1).
 - 팀 생성 암호 변경은 wiki-01 `/etc/figteam-wiki/env` 수정 후 서비스 재시작(사용자가 직접 입력).

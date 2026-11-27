@@ -1,10 +1,9 @@
-"""운영자 도구: python3 -m wiki.admin reset-password <slug>"""
+"""운영자 도구: python3 -m wiki.admin reset-password <slug>   (REDIS_URL·REDIS_PASSWORD 환경변수)"""
 import getpass
-import os
 import sys
 
+from wiki import store
 from wiki.auth import reset_password
-from wiki.db import connect, init_schema
 
 
 def main(argv):
@@ -15,9 +14,7 @@ def main(argv):
     if pw != getpass.getpass("한 번 더: "):
         print("두 입력이 다릅니다", file=sys.stderr)
         return 1
-    conn = connect(os.environ.get("WIKI_DB", "/var/lib/figteam-wiki/wiki.db"))
-    init_schema(conn)
-    reset_password(conn, argv[1], pw)
+    reset_password(store.connect(), argv[1], pw)
     print("재설정했습니다. 기존 로그인은 모두 끊겼습니다.")
     return 0
 

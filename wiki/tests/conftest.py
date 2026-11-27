@@ -1,8 +1,7 @@
-import os
-import sqlite3
 import sys
 import pathlib
 
+import fakeredis
 import pytest
 from fastapi.testclient import TestClient
 
@@ -13,24 +12,20 @@ ORIGIN = "http://testserver"
 
 
 @pytest.fixture
-def db_path(tmp_path, monkeypatch):
-    p = tmp_path / "wiki.db"
-    monkeypatch.setenv("WIKI_DB", str(p))
+def r(monkeypatch):
     monkeypatch.setenv("TEAM_CREATE_CODE", "test-code")
     monkeypatch.setenv("ALLOWED_ORIGIN", ORIGIN)
-    return p
+    return fakeredis.FakeRedis(decode_responses=True)
 
 
-@pytest.fixture
-def client(db_path):
+def make_client(r):
     from wiki.app import create_app
-    with TestClient(create_app(), base_url="https://testserver") as c:
-        c.headers.update({"Origin": ORIGIN})
-        yield c
+    c = TestClient(create_app(redis_client=r), base_url="https://testserver")
+    c.headers.update({"Origin": ORIGIN})
+    return c
 
 
 @pytest.fixture
-def conn(db_path, client):
-    c = sqlite3.connect(db_path)
-    yield c
-    c.close()
+def client(r):
+    with make_client(r) as c:
+        yield c

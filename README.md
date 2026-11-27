@@ -80,38 +80,31 @@
 
 ```
 브라우저 → Cloudflare(figteam.ktci5.kr) → s1 cloudflared
-            ├─ path ^/api/ → http://172.20.0.50:8080  (OpenStack wiki-01, FastAPI + SQLite)
+            ├─ path ^/api/ → http://192.168.120.230:8080  (wiki-01: FastAPI + Redis, ext-net 직결 DMZ)
             └─ 그 외       → GitHub Pages (public/)
 ```
 
 | 항목 | 위치 |
 |---|---|
-| 서버 코드 | `wiki/` (FastAPI). 시험: `wiki/.venv/bin/pytest wiki/tests -q` |
+| 서버 코드 | `wiki/` (FastAPI + Redis). 시험: `wiki/.venv/bin/pytest wiki/tests -q` (fakeredis) |
 | 화면 코드 | `content/wiki.js`(로그인·편집·기록), `content/diff.js`(판 비교), `content/settings.js`(보기) → `tools/build.sh` |
-| wiki-01 | figteam-net 172.20.0.50, compute4, `m1.wiki`, sg `sg-wiki`(8080·22 ← 192.168.120.2) |
-| 서비스 | `systemctl status figteam-wiki` · 코드 `/opt/figteam-wiki` · DB `/var/lib/figteam-wiki/wiki.db` |
-| 비밀값 | `/etc/figteam-wiki/env` (`TEAM_CREATE_CODE`, 640 root:wiki) — 저장소에 넣지 않는다 |
+| wiki-01 | ext-net 192.168.120.230(고정, config drive), compute4, `m1.wiki`, sg `sg-wiki`(8080·22 ← 192.168.120.2). figteam-net·data-net 미연결 |
+| 저장소 | wiki-01 안 redis-server(127.0.0.1 전용, AOF) — db-01 MySQL 과 무관 |
+| 비밀값 | `/etc/figteam-wiki/env`(`TEAM_CREATE_CODE`, `REDIS_PASSWORD`, 640 root:wiki), `/etc/redis/figteam-pass.conf` — 저장소에 없음 |
 
 ### 배포·갱신 (s1 에서)
 ```bash
-bash wiki/deploy/install.sh ubuntu@172.20.0.50          # 코드 올리기 + venv + systemd + 백업 cron
-ssh ubuntu@172.20.0.50 'sudoedit /etc/figteam-wiki/env' # TEAM_CREATE_CODE 입력(최초 1회)
-ssh -t ubuntu@172.20.0.50 'cd /opt/figteam-wiki && sudo -u wiki .venv/bin/python tools/seed_wiki.py --db /var/lib/figteam-wiki/wiki.db'  # 최초 1회, figteam 비밀번호 입력
-ssh ubuntu@172.20.0.50 'sudo systemctl restart figteam-wiki'
+bash wiki/deploy/install.sh ubuntu@192.168.120.230        # 코드 + Redis 설정 + venv + systemd + 백업 cron
+ssh ubuntu@192.168.120.230 'sudoedit /etc/figteam-wiki/env' # TEAM_CREATE_CODE 입력(최초 1회)
+ssh -t ubuntu@192.168.120.230 'cd /opt/figteam-wiki && sudo -u wiki bash -c "set -a; . /etc/figteam-wiki/env; .venv/bin/python tools/seed_wiki.py"'  # 최초 1회
+ssh ubuntu@192.168.120.230 'sudo systemctl restart figteam-wiki'
 ```
 
-### 로컬 개발 (맥)
-```bash
-python3 -m venv wiki/.venv && wiki/.venv/bin/pip install -r wiki/requirements.txt
-WIKI_DB=/tmp/w.db TEAM_CREATE_CODE=dev ALLOWED_ORIGIN=http://127.0.0.1:18780 SERVE_STATIC=public \
-  wiki/.venv/bin/uvicorn --factory wiki.app:create_app --port 18780
-```
-
-### 자주 하는 운영
-| 일 | 명령 (wiki-01) |
+### 자주 하는 운영 (wiki-01)
+| 일 | 명령 |
 |---|---|
-| 팀 비밀번호 재설정 | `cd /opt/figteam-wiki && sudo -u wiki WIKI_DB=/var/lib/figteam-wiki/wiki.db .venv/bin/python -m wiki.admin reset-password <팀주소>` |
+| 팀 비밀번호 재설정 | `cd /opt/figteam-wiki && sudo -u wiki bash -c "set -a; . /etc/figteam-wiki/env; .venv/bin/python -m wiki.admin reset-password <팀주소>"` |
 | 팀 생성 암호 바꾸기 | `sudoedit /etc/figteam-wiki/env` → `sudo systemctl restart figteam-wiki` |
-| 백업 확인 | `ls -lt /var/backups/figteam-wiki` (매일 03:30, 14일) |
-| 복원 | `sudo systemctl stop figteam-wiki && sudo -u wiki cp /var/backups/figteam-wiki/wiki-<날짜>.db /var/lib/figteam-wiki/wiki.db && sudo systemctl start figteam-wiki` |
+| 백업 확인 | `ls -lt /var/backups/figteam-wiki` (매일 03:30 RDB, 14일) |
+| 복원 | `sudo systemctl stop figteam-wiki redis-server && sudo cp /var/backups/figteam-wiki/wiki-<날짜>.rdb /var/lib/redis/dump.rdb && sudo rm -f /var/lib/redis/appendonly.aof* && sudo chown redis: /var/lib/redis/dump.rdb && sudo systemctl start redis-server figteam-wiki` (AOF 는 시작 후 `redis-cli BGREWRITEAOF`) |
 | 되돌리기(위키 끄기) | s1 `/etc/cloudflared/config.yml` 의 `path: ^/api/` 규칙 삭제 → `sudo systemctl restart cloudflared` |
