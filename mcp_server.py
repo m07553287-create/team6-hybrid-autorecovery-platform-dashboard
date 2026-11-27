@@ -617,8 +617,8 @@ class McpHttpHandler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
 
-        # 1. 헬스체크
-        if path in ("/healthz", "/mcp/healthz", "/console/mcp/healthz"):
+        # 1. 헬스체크 및 개요
+        if path in ("/healthz", "/mcp/healthz", "/console/mcp/healthz", "/mcp", "/mcp/"):
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Access-Control-Allow-Origin", "*")
@@ -631,13 +631,67 @@ class McpHttpHandler(BaseHTTPRequestHandler):
                 "endpoints": {
                     "sse": "/mcp/sse",
                     "rpc": "/mcp/rpc",
-                    "healthz": "/mcp/healthz"
+                    "healthz": "/mcp/healthz",
+                    "mcp_json": "/mcp/mcp.json",
+                    "openapi_json": "/mcp/openapi.json",
+                    "installer": "/mcp/install",
+                    "rest_api": "/mcp/api"
+                },
+                "one_click_setup": {
+                    "claude_code": "claude mcp add --transport sse figteam-cfg https://figteam.ktci5.kr/mcp/sse",
+                    "agy": "agy mcp add figteam-cfg https://figteam.ktci5.kr/mcp/sse",
+                    "gemini": "gemini mcp add figteam-cfg https://figteam.ktci5.kr/mcp/sse",
+                    "universal_installer": "curl -sSL https://figteam.ktci5.kr/mcp/install | bash"
                 }
             }
-            self.wfile.write(json.dumps(resp, ensure_ascii=False).encode("utf-8"))
+            self.wfile.write(json.dumps(resp, ensure_ascii=False, indent=2).encode("utf-8"))
             return
 
-        # 2. SSE 엔드포인트: /sse, /mcp/sse, /console/mcp/sse
+        # 2. 공통 MCP 설정 JSON (Universal mcp.json)
+        if path in ("/mcp.json", "/mcp/mcp.json", "/.well-known/mcp.json"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            mcp_cfg = {
+                "$schema": "https://json.schemastore.org/mcp.json",
+                "mcpServers": {
+                    "figteam-cfg": {
+                        "url": "https://figteam.ktci5.kr/mcp/sse"
+                    }
+                }
+            }
+            self.wfile.write(json.dumps(mcp_cfg, ensure_ascii=False, indent=2).encode("utf-8"))
+            return
+
+        # 3. ChatGPT Actions / Custom GPTs 전용 OpenAPI 3.1.0 스펙
+        if path in ("/openapi.json", "/mcp/openapi.json", "/mcp/api/openapi.json"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            openapi_spec = self.get_openapi_spec()
+            self.wfile.write(json.dumps(openapi_spec, ensure_ascii=False, indent=2).encode("utf-8"))
+            return
+
+        # 4. 원클릭 만능 설치 스크립트 (curl -sSL https://figteam.ktci5.kr/mcp/install | bash)
+        if path in ("/install", "/mcp/install", "/install.sh", "/mcp/install.sh", "/setup.sh", "/mcp/setup.sh"):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/x-shellscript; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            installer_sh = self.get_installer_script()
+            self.wfile.write(installer_sh.encode("utf-8"))
+            return
+
+        # 5. ChatGPT 및 일반 REST 클라이언트 전용 직결 REST API (/mcp/api/*)
+        if path.startswith("/mcp/api/") or path.startswith("/api/"):
+            subpath = path.replace("/mcp/api/", "").replace("/api/", "").strip("/")
+            qs = urllib.parse.parse_qs(parsed.query)
+            self.handle_rest_api(subpath, qs)
+            return
+
+        # 6. SSE 엔드포인트: /sse, /mcp/sse, /console/mcp/sse
         if path in ("/sse", "/mcp/sse", "/console/mcp/sse"):
             session_id = str(uuid.uuid4())
             msg_queue = queue.Queue()
@@ -754,6 +808,275 @@ class McpHttpHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(b'{"error": "Not Found"}')
+
+    def handle_rest_api(self, subpath: str, qs: dict[str, list[str]]):
+        """ChatGPT Actions 및 일반 REST 클라이언트를 위한 직결 REST API 핸들러"""
+        try:
+            res_data: Any = None
+            if subpath == "topology":
+                res_data = self.core.get_topology()
+            elif subpath == "variables":
+                q = qs.get("query", [""])[0] or qs.get("q", [""])[0]
+                res_data = self.core.get_common_variables(q)
+            elif subpath == "instance":
+                inst_id = qs.get("instance_id", [""])[0] or qs.get("id", [""])[0]
+                res_data = self.core.get_instance_details(inst_id)
+            elif subpath == "area":
+                inst_id = qs.get("instance_id", [""])[0] or qs.get("instance", [""])[0]
+                area_id = qs.get("area_id", [""])[0] or qs.get("area", [""])[0]
+                res_data = self.core.get_area_config(inst_id, area_id)
+            elif subpath in ("auth-matrix", "auth_matrix"):
+                res_data = self.core.get_auth_matrix()
+            elif subpath == "troubleshoot":
+                q = qs.get("query", [""])[0] or qs.get("q", [""])[0]
+                res_data = self.core.search_troubleshooting(q)
+            elif subpath == "steps":
+                no = qs.get("step_no", [""])[0] or qs.get("no", [""])[0]
+                res_data = self.core.get_steps_guide(no)
+            elif subpath == "raw":
+                sec = qs.get("section", [""])[0]
+                res_data = self.core.query_config_raw(sec)
+            else:
+                self.send_response(404)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": f"알 수 없는 REST API 엔드포인트: {subpath}"}, ensure_ascii=False).encode("utf-8"))
+                return
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps(res_data, ensure_ascii=False, indent=2).encode("utf-8"))
+        except Exception as e:
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": f"REST API 처리 실패: {e}"}, ensure_ascii=False).encode("utf-8"))
+
+    def get_openapi_spec(self) -> dict[str, Any]:
+        """ChatGPT Custom Actions / GPTs 표준 OpenAPI 3.1.0 스키마 반환"""
+        return {
+            "openapi": "3.1.0",
+            "info": {
+                "title": "FIGTEAM Hybrid Multi-Cloud #cfg Knowledge API",
+                "version": "1.0.0",
+                "description": "온프레미스(s1/OpenStack), KT Cloud, AWS DR 3사 하이브리드 인프라 실측 사양, 공통 변수, 인증 매트릭스, 트러블슈팅 가이드를 질의하는 API"
+            },
+            "servers": [
+                {"url": "https://figteam.ktci5.kr/mcp/api"}
+            ],
+            "paths": {
+                "/topology": {
+                    "get": {
+                        "operationId": "getTopology",
+                        "summary": "전체 인프라 엔드투엔드 토폴로지 및 네트워크 경로 조회",
+                        "responses": {"200": {"description": "성공", "content": {"application/json": {"schema": {"type": "object"}}}}}
+                    }
+                },
+                "/variables": {
+                    "get": {
+                        "operationId": "getCommonVariables",
+                        "summary": "19대 핵심 공통 변수 실측값 검색",
+                        "parameters": [
+                            {"name": "query", "in": "query", "required": False, "schema": {"type": "string"}, "description": "변수명 또는 용도 검색어 (예: S1_HOST, OS_CONTROLLER, RAM)"}
+                        ],
+                        "responses": {"200": {"description": "성공", "content": {"application/json": {"schema": {"type": "array"}}}}}
+                    }
+                },
+                "/instance": {
+                    "get": {
+                        "operationId": "getInstanceDetails",
+                        "summary": "특정 인스턴스 사양 및 관리 영역 목록 조회",
+                        "parameters": [
+                            {"name": "instance_id", "in": "query", "required": True, "schema": {"type": "string"}, "description": "인스턴스명 (s1, controller, cp1, w1, db01, ktedge, awsdr, awsctl)"}
+                        ],
+                        "responses": {"200": {"description": "성공", "content": {"application/json": {"schema": {"type": "object"}}}}}
+                    }
+                },
+                "/area": {
+                    "get": {
+                        "operationId": "getAreaConfig",
+                        "summary": "인스턴스별 세부 영역 설계, 설정 코드, 운영 명령어, 트러블슈팅 조회",
+                        "parameters": [
+                            {"name": "instance_id", "in": "query", "required": True, "schema": {"type": "string"}},
+                            {"name": "area_id", "in": "query", "required": True, "schema": {"type": "string"}}
+                        ],
+                        "responses": {"200": {"description": "성공", "content": {"application/json": {"schema": {"type": "object"}}}}}
+                    }
+                },
+                "/auth-matrix": {
+                    "get": {
+                        "operationId": "getAuthMatrix",
+                        "summary": "전체 인프라 계층 접속 계정, 키 파일 경로, 권한 종합 매트릭스 조회",
+                        "responses": {"200": {"description": "성공", "content": {"application/json": {"schema": {"type": "object"}}}}}
+                    }
+                },
+                "/troubleshoot": {
+                    "get": {
+                        "operationId": "searchTroubleshooting",
+                        "summary": "장애 증상 및 오류 키워드로 해결 조치법 검색",
+                        "parameters": [
+                            {"name": "query", "in": "query", "required": True, "schema": {"type": "string"}, "description": "오류 키워드 (예: 6443, Permission denied, DNS, 메모리, MTU)"}
+                        ],
+                        "responses": {"200": {"description": "성공", "content": {"application/json": {"schema": {"type": "array"}}}}}
+                    }
+                },
+                "/steps": {
+                    "get": {
+                        "operationId": "getStepsGuide",
+                        "summary": "S0~S12 인프라 구축 및 장애 복구 선행 순서와 검증 Gate 조회",
+                        "parameters": [
+                            {"name": "step_no", "in": "query", "required": False, "schema": {"type": "string"}, "description": "단계 번호 (예: S0, S1)"}
+                        ],
+                        "responses": {"200": {"description": "성공", "content": {"application/json": {"schema": {"type": "object"}}}}}
+                    }
+                },
+                "/raw": {
+                    "get": {
+                        "operationId": "queryConfigRaw",
+                        "summary": "#cfg 사이트 구조화 원본 데이터 섹션별 질의",
+                        "parameters": [
+                            {"name": "section", "in": "query", "required": False, "schema": {"type": "string"}, "description": "섹션명 (variables, steps, instances, domains, scripts)"}
+                        ],
+                        "responses": {"200": {"description": "성공", "content": {"application/json": {"schema": {"type": "object"}}}}}
+                    }
+                }
+            }
+        }
+
+    def get_installer_script(self) -> str:
+        """클로드/GPT/AGY/커서/제미니 원클릭 만능 연동 스크립트"""
+        return r'''#!/usr/bin/env bash
+# ==============================================================================
+# FIGTEAM #cfg MCP Server One-Click Universal Setup
+# Supports: Claude Desktop · Claude Code · Cursor · Windsurf · AGY · Gemini · Codex
+# Endpoint: https://figteam.ktci5.kr/mcp/sse
+# ==============================================================================
+set -e
+
+SSE_URL="https://figteam.ktci5.kr/mcp/sse"
+SERVER_NAME="figteam-cfg"
+
+echo "======================================================================"
+echo "  🚀 FIGTEAM #cfg MCP Server 만능 연동 도구 (Universal Setup)"
+echo "  연동 대상: Claude Desktop · Claude Code · Cursor · AGY · Gemini · Codex"
+echo "  엔드포인트: ${SSE_URL}"
+echo "======================================================================"
+
+DETECTED=0
+
+# Python JSON helper
+update_json_mcp() {
+  local cfg_file="$1"
+  python3 -c "
+import json, os, sys
+
+path = os.path.expanduser('$cfg_file')
+os.makedirs(os.path.dirname(path), exist_ok=True)
+data = {}
+if os.path.exists(path):
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except Exception:
+        data = {}
+
+if 'mcpServers' not in data:
+    data['mcpServers'] = {}
+
+data['mcpServers']['$SERVER_NAME'] = {'url': '$SSE_URL'}
+
+with open(path, 'w', encoding='utf-8') as f:
+    json.dump(data, f, ensure_ascii=False, indent=2)
+print(f'   ✅ 설정 파일 반영 완료: {path}')
+"
+}
+
+# 1. Claude Desktop
+CLAUDE_CONFIG=""
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  CLAUDE_CONFIG="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
+elif [[ "$OSTYPE" == "linux"* ]]; then
+  CLAUDE_CONFIG="$HOME/.config/Claude/claude_desktop_config.json"
+elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+  CLAUDE_CONFIG="$APPDATA/Claude/claude_desktop_config.json"
+fi
+
+echo ""
+echo "[1/6] Claude Desktop 점검..."
+if [[ -n "$CLAUDE_CONFIG" ]]; then
+  update_json_mcp "$CLAUDE_CONFIG"
+  DETECTED=$((DETECTED + 1))
+fi
+
+# 2. Claude Code CLI
+echo ""
+echo "[2/6] Claude Code (CLI) 점검..."
+if command -v claude >/dev/null 2>&1; then
+  echo "   ⚙️  claude mcp add 실행 중..."
+  claude mcp add --transport sse "$SERVER_NAME" "$SSE_URL" 2>&1 || true
+  echo "   ✅ Claude Code 연동 완료"
+  DETECTED=$((DETECTED + 1))
+else
+  echo "   ℹ️  Claude Code CLI 미설치 (건너뜀)"
+fi
+
+# 3. Cursor & Windsurf
+echo ""
+echo "[3/6] Cursor / Windsurf 전역 설정 점검..."
+CURSOR_GLOBAL="$HOME/.cursor/mcp.json"
+update_json_mcp "$CURSOR_GLOBAL"
+DETECTED=$((DETECTED + 1))
+
+# 4. Google Antigravity (AGY)
+echo ""
+echo "[4/6] Google Antigravity (AGY) 점검..."
+if command -v agy >/dev/null 2>&1; then
+  echo "   ⚙️  agy mcp add 실행 중..."
+  agy mcp add "$SERVER_NAME" "$SSE_URL" 2>&1 || true
+  echo "   ✅ AGY 연동 완료"
+  DETECTED=$((DETECTED + 1))
+else
+  echo "   ℹ️  agy CLI 미설치 (건너뜀)"
+fi
+
+# 5. Gemini CLI & Config
+echo ""
+echo "[5/6] Gemini CLI & Settings 점검..."
+GEMINI_SETTINGS="$HOME/.gemini/settings.json"
+if [[ -f "$GEMINI_SETTINGS" || -d "$HOME/.gemini" ]]; then
+  update_json_mcp "$GEMINI_SETTINGS"
+  DETECTED=$((DETECTED + 1))
+fi
+if command -v gemini >/dev/null 2>&1; then
+  echo "   ⚙️  gemini mcp add 실행 중..."
+  gemini mcp add "$SERVER_NAME" "$SSE_URL" 2>&1 || true
+  echo "   ✅ Gemini CLI 연동 완료"
+  DETECTED=$((DETECTED + 1))
+fi
+
+# 6. Codex / OpenAI CLI
+echo ""
+echo "[6/6] Codex 설정 점검..."
+CODEX_CONFIG="$HOME/.codex/config.json"
+if [[ -d "$HOME/.codex" || -f "$CODEX_CONFIG" ]]; then
+  update_json_mcp "$CODEX_CONFIG"
+  DETECTED=$((DETECTED + 1))
+fi
+
+echo ""
+echo "======================================================================"
+echo "  🎉 FIGTEAM #cfg MCP 서버 연동이 성공적으로 완료되었습니다!"
+echo "  총 ${DETECTED}개 클라이언트/설정 파일이 등록되었습니다."
+echo ""
+echo "  • SSE 엔드포인트: ${SSE_URL}"
+echo "  • ChatGPT Custom Actions 스펙: https://figteam.ktci5.kr/mcp/openapi.json"
+echo "  • Direct RPC: https://figteam.ktci5.kr/mcp/rpc"
+echo "======================================================================"
+'''
 
     def log_message(self, format, *args):
         # 표준 로깅 축약
