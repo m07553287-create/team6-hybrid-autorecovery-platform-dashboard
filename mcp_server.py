@@ -615,7 +615,7 @@ class McpHttpHandler(BaseHTTPRequestHandler):
 
     def do_HEAD(self):
         """HEAD 요청 지원 (헬스체크 및 헤더 조회)"""
-        p = urlparse(self.path).path
+        p = urllib.parse.urlparse(self.path).path
         if p in ("/mcp/healthz", "/healthz"):
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
