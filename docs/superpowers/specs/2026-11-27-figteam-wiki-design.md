@@ -55,7 +55,7 @@ figteam.ktci5.kr `#cfg/` 를 "정해진 가이드를 읽는 화면"에서 **팀�
 - 사용자 = 팀원과 수강생.
 - 계정 단위 = **팀**. 팀 비밀번호로 로그인하면 같은 팀 내용을 공유하고 누구나 추가·변경.
 - 저장 = **OpenStack 전용 VM wiki-01** (Python FastAPI + **Redis**, 2026-11-27 변경: 가벼운 NoSQL, 기존 db-01 과 완전히 독립).
-- 위치 = **ext-net 직결 DMZ 192.168.120.230** (2026-11-27 변경: 외부 터널과 내부망의 연결 접점, figteam-net·data-net 에 붙지 않음).
+- 위치 = ext-net 연결 접점 **192.168.120.230** (2026-11-27). ext-net 직결은 compute 에 br-ex 가 없어(controller 만 extnet 매핑) 포트 바인딩 실패 → 사용자 선택으로 **전용 wiki-net(10.10.4.0/24) + 전용 라우터 rt-wiki(ext .203) + FIP 192.168.120.230**. 앱·DB 망과 라우터를 공유하지 않는다.
 - 개발 = 대시보드 저장소 `v3` 브랜치.
 - 팀 만들기 = 사용자(관리자)가 정한 **팀 생성 암호**가 있어야 가능. 암호는 wiki-01 `/etc/figteam-wiki/env`(600, `TEAM_CREATE_CODE`)에만 — 저장소·DB 평문 금지, 사용자가 직접 입력.
 - 공개 견본 없음 = **로그인해야만 보기**. 공개 페이지에서 정적 가이드 데이터(`#cfg-data`)와 `public/scripts/` 를 뺀다.
@@ -67,9 +67,9 @@ figteam.ktci5.kr `#cfg/` 를 "정해진 가이드를 읽는 화면"에서 **팀�
 브라우저 ──https──▶ Cloudflare (figteam.ktci5.kr) ──터널──▶ s1 cloudflared (192.168.120.2)
                                                          ├─ path ^/api/ → http://192.168.120.230:8080  (wiki-01)
                                                          └─ 그 외       → https://m07553287-create.github.io (Pages)
-wiki-01 — OpenStack ext-net(192.168.120.0/24, flat, DHCP 없음) 직결 DMZ, 고정 192.168.120.230(풀 .200~.229 밖)
-  config drive 로 고정 IP·키 주입, 게이트웨이 s1(192.168.120.2) → 인터넷은 s1 MASQUERADE
-  figteam-net(앱)·data-net(db-01)에 포트 없음, sg-wiki: tcp 8080·22 ← 192.168.120.2/32 만
+wiki-01 — 전용 wiki-net 10.10.4.10 (compute4) ── rt-wiki(SNAT, ext 192.168.120.203) ── ext-net
+  FIP 192.168.120.230 → 10.10.4.10 (풀 밖 고정), s1 은 같은 ext-net 이라 라우트 추가 없이 도달
+  figteam-net(앱)·data-net(db-01)·rt-edge·rt-data 와 무관, sg-wiki: tcp 8080·22·icmp ← 192.168.120.2/32 만
   redis-server (127.0.0.1:6379, requirepass, AOF everysec, maxmemory 200mb noeviction) — 위키 전용, 외부 접속 불가
   systemd figteam-wiki → uvicorn --factory wiki.app:create_app :8080 (사용자 wiki)
 ```
@@ -150,7 +150,7 @@ POST   /api/team/password       {current,new}
 - 1판 작성자 `seed`, 메모 `2026-11-26 실측 가이드에서 가져옴`.
 
 ### 6.7 배포·되돌리기 (영향 범위를 단계마다 먼저 보여 주고 진행)
-1. controller: flavor `m1.wiki`(1 vCPU, 1024MB, 10GB), sg `sg-wiki`(figteam), admin rc 로 ext-net 포트 `wiki-01-port` 192.168.120.230(project figteam, sg-wiki), 서버 `wiki-01` (`--config-drive true --availability-zone nova:compute4 --user-data cloud-init.yaml`).
+1. controller(figteam rc, figteam-admin=admin 역할): flavor `m1.wiki`, sg `sg-wiki`, `wiki-net`/`wiki-subnet` 10.10.4.0/24, 라우터 `rt-wiki`(ext-net 게이트웨이), 포트 10.10.4.10, 서버 `wiki-01`(`--availability-zone nova:compute4 --config-drive true --user-data`), FIP 192.168.120.230.
 2. s1 에서 `bash wiki/deploy/install.sh` — 코드·venv·Redis 설정(비밀번호는 VM 안에서 생성)·systemd·백업 cron.
 3. 사용자: wiki-01 `/etc/figteam-wiki/env` 에 `TEAM_CREATE_CODE` 입력, `tools/seed_wiki.py` 로 figteam 시드(비밀번호 입력).
 4. s1 cloudflared: figteam 규칙 앞에 `path: ^/api/` → `http://192.168.120.230:8080` → validate → 재시작(같은 터널 호스트 수 초 끊김).

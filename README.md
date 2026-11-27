@@ -80,7 +80,7 @@
 
 ```
 브라우저 → Cloudflare(figteam.ktci5.kr) → s1 cloudflared
-            ├─ path ^/api/ → http://192.168.120.230:8080  (wiki-01: FastAPI + Redis, ext-net 직결 DMZ)
+            ├─ path ^/api/ → http://192.168.120.230:8080  (wiki-01 FIP: FastAPI + Redis, 전용 wiki-net + rt-wiki)
             └─ 그 외       → GitHub Pages (public/)
 ```
 
@@ -88,7 +88,7 @@
 |---|---|
 | 서버 코드 | `wiki/` (FastAPI + Redis). 시험: `wiki/.venv/bin/pytest wiki/tests -q` (fakeredis) |
 | 화면 코드 | `content/wiki.js`(로그인·편집·기록), `content/diff.js`(판 비교), `content/settings.js`(보기) → `tools/build.sh` |
-| wiki-01 | ext-net 192.168.120.230(고정, config drive), compute4, `m1.wiki`, sg `sg-wiki`(8080·22 ← 192.168.120.2). figteam-net·data-net 미연결 |
+| wiki-01 | wiki-net 10.10.4.10 + FIP 192.168.120.230(rt-wiki, ext .203), compute4, `m1.wiki`, sg `sg-wiki`(8080·22·icmp ← 192.168.120.2). 앱·DB 망과 분리 |
 | 저장소 | wiki-01 안 redis-server(127.0.0.1 전용, AOF) — db-01 MySQL 과 무관 |
 | 비밀값 | `/etc/figteam-wiki/env`(`TEAM_CREATE_CODE`, `REDIS_PASSWORD`, 640 root:wiki), `/etc/redis/figteam-pass.conf` — 저장소에 없음 |
 
