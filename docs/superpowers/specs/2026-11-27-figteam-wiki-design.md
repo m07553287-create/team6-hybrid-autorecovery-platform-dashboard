@@ -30,7 +30,7 @@ figteam.ktci5.kr `#cfg/` 를 "정해진 가이드를 읽는 화면"에서 **팀�
 - 위키 서버는 OpenStack 전용 VM `wiki-01`. compute 여유 RAM(2026-11-27 실측): compute1 162MB, compute3 321MB, **compute4 1939MB** → compute4 에만 배치 가능.
 - 비용 우선순위(필수 제한 조건): 온프렘 > AWS > KT.
 - 공개 경로는 s1 cloudflared 하나(figteam.ktci5.kr 은 이미 s1 터널) — 경로 규칙 `^/api/` 를 github 규칙 앞에 추가.
-- 개발은 저장소 `team6-hybrid-autorecovery-platform-dashboard` 의 `v2` 브랜치. Pages 는 main 에서만 배포되므로 합치기 전까지 운영 화면 영향 없음.
+- 개발은 저장소 `team6-hybrid-autorecovery-platform-dashboard` 의 `v3` 브랜치. Pages 는 main 에서만 배포되므로 합치기 전까지 운영 화면 영향 없음.
 - `functions/_middleware.js`(옛 Cloudflare Pages Functions, s1 프록시)는 현재 동작 안 함 — 건드리지 않는다.
 
 ## 4. 접근안 (선택: 전용 VM ① OpenStack wiki-01)
@@ -56,7 +56,7 @@ figteam.ktci5.kr `#cfg/` 를 "정해진 가이드를 읽는 화면"에서 **팀�
 - 계정 단위 = **팀**. 팀 비밀번호로 로그인하면 같은 팀 내용을 공유하고 누구나 추가·변경.
 - 저장 = **OpenStack 전용 VM wiki-01** (Python FastAPI + **Redis**, 2026-11-27 변경: 가벼운 NoSQL, 기존 db-01 과 완전히 독립).
 - 위치 = **ext-net 직결 DMZ 192.168.120.230** (2026-11-27 변경: 외부 터널과 내부망의 연결 접점, figteam-net·data-net 에 붙지 않음).
-- 개발 = 대시보드 저장소 `v2` 브랜치.
+- 개발 = 대시보드 저장소 `v3` 브랜치.
 - 팀 만들기 = 사용자(관리자)가 정한 **팀 생성 암호**가 있어야 가능. 암호는 wiki-01 `/etc/figteam-wiki/env`(600, `TEAM_CREATE_CODE`)에만 — 저장소·DB 평문 금지, 사용자가 직접 입력.
 - 공개 견본 없음 = **로그인해야만 보기**. 공개 페이지에서 정적 가이드 데이터(`#cfg-data`)와 `public/scripts/` 를 뺀다.
 
@@ -154,7 +154,7 @@ POST   /api/team/password       {current,new}
 2. s1 에서 `bash wiki/deploy/install.sh` — 코드·venv·Redis 설정(비밀번호는 VM 안에서 생성)·systemd·백업 cron.
 3. 사용자: wiki-01 `/etc/figteam-wiki/env` 에 `TEAM_CREATE_CODE` 입력, `tools/seed_wiki.py` 로 figteam 시드(비밀번호 입력).
 4. s1 cloudflared: figteam 규칙 앞에 `path: ^/api/` → `http://192.168.120.230:8080` → validate → 재시작(같은 터널 호스트 수 초 끊김).
-5. v2 → main 합치기 → 사용자 push.
+5. v3 → main 합치기 → 사용자 push.
 **되돌리기**: s1 ingress 의 `/api/` 규칙 삭제 → 재시작. 화면은 이전 커밋으로 되돌려 배포.
 
 ### 6.8 시험

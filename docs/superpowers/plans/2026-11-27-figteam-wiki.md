@@ -11,7 +11,7 @@
 **Spec:** `docs/superpowers/specs/2026-11-27-figteam-wiki-design.md`
 
 ## Global Constraints
-- 브랜치 `v2` 에서 개발. main 합치기·push 는 마지막 Task 에서 사용자 확인 후.
+- 브랜치 `v3` 에서 개발. main 합치기·push 는 마지막 Task 에서 사용자 확인 후.
 - wiki-01: figteam 프로젝트, figteam-net `172.20.0.50` 고정, compute4, flavor `m1.wiki`(1 vCPU / 1024MB / 10GB), image `Ubuntu-22.04`, key `s1-ktci5`, sg `sg-wiki`(tcp 8080·22 ← `192.168.120.2/32`, icmp ← `172.20.0.0/24`).
 - 서버: `uvicorn wiki.app:app --host 0.0.0.0 --port 8080`, systemd `figteam-wiki`, 사용자 `wiki`, 코드 `/opt/figteam-wiki`, DB `/var/lib/figteam-wiki/wiki.db`, env `/etc/figteam-wiki/env`(600).
 - 환경변수: `WIKI_DB`(DB 경로), `TEAM_CREATE_CODE`, `ALLOWED_ORIGIN`(기본 `https://figteam.ktci5.kr`), `SERVE_STATIC`(로컬 개발 때만 `public` 경로).
@@ -233,8 +233,8 @@ def test_seed_twice_fails(tmp_path): ...
 - Consumes: 전 Task. 각 단계 전 영향 범위를 알리고 확인받는다.
 
 - [ ] **Step 1: OpenStack 자원** (controller) — `openstack flavor create m1.wiki --vcpus 1 --ram 1024 --disk 10` · `openstack security group create sg-wiki` + 규칙 3개 · `openstack port create wiki-01-port --network figteam-net --fixed-ip ip-address=172.20.0.50 --security-group sg-wiki` · admin rc 로 `openstack server create wiki-01 --flavor m1.wiki --image Ubuntu-22.04 --key-name s1-ktci5 --port wiki-01-port --availability-zone nova:compute4 --user-data cloud-init.yaml` → Expected: ACTIVE, s1 에서 `ssh ubuntu@172.20.0.50 hostname` → wiki-01
-- [ ] **Step 2: 설치** — `install.sh`: 사용자 wiki, `/opt/figteam-wiki`(git archive v2 의 `wiki/`), venv, systemd 유닛, `/var/lib/figteam-wiki`, backup cron 03:30 → `curl -s 172.20.0.50:8080/api/health` (s1) → `{"ok":true}`
+- [ ] **Step 2: 설치** — `install.sh`: 사용자 wiki, `/opt/figteam-wiki`(git archive v3 의 `wiki/`), venv, systemd 유닛, `/var/lib/figteam-wiki`, backup cron 03:30 → `curl -s 172.20.0.50:8080/api/health` (s1) → `{"ok":true}`
 - [ ] **Step 3: 사용자** — wiki-01 `/etc/figteam-wiki/env` 에 `TEAM_CREATE_CODE` 입력, `python3 tools/seed_wiki.py --db /var/lib/figteam-wiki/wiki.db --slug figteam --name "figteam (team6)"` (figteam 비밀번호 입력) → 서비스 재시작
 - [ ] **Step 4: s1 cloudflared** — `/etc/cloudflared/config.yml` 백업 → figteam 규칙 앞에 `path: ^/api/` → `http://172.20.0.50:8080` → `cloudflared tunnel ingress validate` · `ingress rule https://figteam.ktci5.kr/api/health` → 재시작 → `curl -s https://figteam.ktci5.kr/api/health` → `{"ok":true}`, `/api/me` → 401
 - [ ] **Step 5: README** — 운영 절차(배포, `wiki.admin reset-password`, 생성 암호 변경, 백업·복원, 되돌리기 = s1 `/api/` 규칙 삭제) → 커밋
-- [ ] **Step 6: main 합치기** — 사용자 확인 후 `git checkout main && git merge --no-ff v2` → **사용자 push** → 배포 확인(로그인 화면, figteam 로그인, 편집 1회, 비교 1회)
+- [ ] **Step 6: main 합치기** — 사용자 확인 후 `git checkout main && git merge --no-ff v3` → **사용자 push** → 배포 확인(로그인 화면, figteam 로그인, 편집 1회, 비교 1회)
