@@ -260,6 +260,8 @@
       const minors = cfgMinors(lens, major);
       if (minors.length && !minors.find(m => m.id === minor)) minor = cfgCarryMinor(lens, major, minors);
       CFG.lens = lens; CFG.major = major; CFG.minor = minor || '';
+      CFG.treeOpen = CFG.treeOpen || {};
+      CFG.treeOpen[major] = true;
       cfgRenderNav();
       cfgRenderBody();
       const hash = '#cfg/' + lens + '/' + major + (CFG.minor ? '/' + CFG.minor : '');
@@ -292,38 +294,94 @@
       return null;
     }
 
-    // ---------- 왼쪽: 렌즈 · 매트릭스 · 대분류 · 중분류 ----------
+    // ---------- 왼쪽: 통합 사이드바 (대분류 > 중분류 아코디언 및 계단식 트리) ----------
+    CFG.treeOpen = CFG.treeOpen || {};
+
+    function cfgIsTreeOpen(majorId) {
+      if (CFG.treeOpen[majorId] !== undefined) return CFG.treeOpen[majorId];
+      return majorId === CFG.major;
+    }
+
+    function cfgToggleTree(ev, majorId) {
+      if (ev) ev.stopPropagation();
+      CFG.treeOpen[majorId] = !cfgIsTreeOpen(majorId);
+      const el = document.getElementById('tree-node-' + majorId);
+      if (el) el.classList.toggle('open', CFG.treeOpen[majorId]);
+    }
+
+    function cfgClickMajor(majorId) {
+      CFG.treeOpen = CFG.treeOpen || {};
+      CFG.treeOpen[majorId] = true;
+      const minors = cfgMinors(CFG.lens, majorId);
+      const targetMinor = minors.length ? minors[0].id : '';
+      cfgSelect(CFG.lens, majorId, targetMinor);
+    }
+
     function cfgRenderNav() {
       const nav = document.getElementById('cfg-nav');
       const lens = LENSES.find(l => l.id === CFG.lens);
       let lastGroup = null;
-      let col1 = '<div class="cfg-col cfg-col-major">' + wikiTeamBar() +
+
+      // 1. 상단 렌즈 탭 & 힌트 & 매트릭스
+      let html = wikiTeamBar() +
         '<div class="cfg-lens" role="tablist" aria-label="보는 기준">' + LENSES.map(l =>
           '<button type="button" role="tab" aria-selected="' + (l.id === CFG.lens) + '" class="cfg-lens-btn' + (l.id === CFG.lens ? ' active' : '') +
           '" onclick="' + cfgGo(l.id, '', '') + '">' + cfgEsc(l.name) + '</button>').join('') + '</div>' +
-        '<p class="cfg-lens-hint">' + cfgEsc(lens.hint) + '</p>' + cfgMatrix() +
-        '<div class="cfg-col-head">대분류</div><div class="cfg-list-major">' +
-        cfgMajors(CFG.lens).map(m => {
-          let head = '';
-          if (m.group !== undefined && m.group !== lastGroup) { lastGroup = m.group; head = cfgGroupHead(m); }
-          return head + '<button type="button" class="cfg-item' + (m.id === CFG.major ? ' active' : '') + '" onclick="' + cfgGo(CFG.lens, m.id, '') + '">' +
-          '<span class="cfg-item-name">' + (m.cloud ? '<span class="cfg-dot cfg-c-' + m.cloud + '"></span>' : '') + cfgEsc(m.name) +
-          (m.status && m.status !== 'live' ? ' ' + cfgBadge(m.status) : '') + (m.count ? '<span class="cfg-count">' + m.count + '</span>' : '') + '</span>' +
-          '<span class="cfg-item-sub">' + cfgEsc(m.sub) + '</span></button>';
-        }).join('') + (typeof wikiMajorTail === 'function' ? wikiMajorTail() : '') + '</div></div>';
-      const minors = cfgMinors(CFG.lens, CFG.major);
-      let col2 = '<div class="cfg-col cfg-col-minor"><div class="cfg-col-head">중분류</div>';
-      if (minors.length) {
-        col2 += '<div class="cfg-list-minor">' + minors.map(m =>
-          '<button type="button" class="cfg-item cfg-item-minor' + (m.id === CFG.minor ? ' active' : '') + '" onclick="' + cfgGo(CFG.lens, CFG.major, m.id) + '">' +
-          '<span class="cfg-item-name">' + (m.cloud ? '<span class="cfg-dot cfg-c-' + m.cloud + '"></span>' : '') + cfgEsc(m.name) +
-          (m.status ? ' ' + cfgBadge(m.status) : '') + '</span>' +
-          '<span class="cfg-item-sub">' + cfgEsc(m.sub) + '</span></button>').join('') + '</div>';
-      } else {
-        col2 += '<p class="cfg-empty">' + (CFG.lens === 'ref' ? '이 항목은 하위 구분 없이 오른쪽에 바로 펼쳐집니다.' : '아직 항목이 없습니다.') + '</p>';
-      }
-      col2 += (typeof wikiMinorTail === 'function' ? wikiMinorTail() : '') + '</div>';
-      nav.innerHTML = col1 + col2;
+        '<p class="cfg-lens-hint">' + cfgEsc(lens.hint) + '</p>' +
+        (CFG.lens === 'inst' ? cfgMatrix() : '');
+
+      // 2. 통합 내비게이션 트리 (대분류 > 중분류 계단식/아코디언)
+      html += '<div class="cfg-col-head" style="margin-top:6px;">설계 및 설정 계층 트리</div>' +
+        '<div class="cfg-tree-nav">';
+
+      const majors = cfgMajors(CFG.lens);
+      majors.forEach(m => {
+        if (m.group !== undefined && m.group !== lastGroup) {
+          lastGroup = m.group;
+          html += cfgGroupHead(m);
+        }
+        const minors = cfgMinors(CFG.lens, m.id);
+        const hasMinors = minors.length > 0;
+        const isCurrentMajor = (m.id === CFG.major);
+        const isOpen = cfgIsTreeOpen(m.id);
+
+        html += '<div class="cfg-tree-node' + (isOpen ? ' open' : '') + '" id="tree-node-' + m.id + '">' +
+          '<div class="cfg-tree-major' + (isCurrentMajor ? ' active' : '') + '" onclick="cfgClickMajor(\'' + m.id + '\')">' +
+          '<div class="cfg-tree-major-main">' +
+          (hasMinors ? '<span class="cfg-tree-toggle" onclick="cfgToggleTree(event, \'' + m.id + '\')" title="하위 항목 접기/펼치기">▶</span>' : '<span style="width:18px;display:inline-block;"></span>') +
+          (m.cloud ? '<span class="cfg-dot cfg-c-' + m.cloud + '"></span>' : '') +
+          '<div class="cfg-tree-major-info">' +
+          '<span class="cfg-tree-major-name">' + cfgEsc(m.name) + '</span>' +
+          (m.sub ? '<span class="cfg-tree-major-sub">' + cfgEsc(m.sub) + '</span>' : '') +
+          '</div>' +
+          '</div>' +
+          '<div class="cfg-tree-major-meta">' +
+          (m.status && m.status !== 'live' ? cfgBadge(m.status) : '') +
+          (hasMinors ? '<span class="cfg-tree-badge-count">' + minors.length + '</span>' : '') +
+          '</div>' +
+          '</div>';
+
+        // 하위 중분류 (계단식 인덴트)
+        if (hasMinors) {
+          html += '<div class="cfg-tree-minors">' +
+            minors.map(sub => {
+              const isCurrentMinor = isCurrentMajor && (sub.id === CFG.minor);
+              return '<button type="button" class="cfg-tree-minor' + (isCurrentMinor ? ' active' : '') + '" onclick="' + cfgGo(CFG.lens, m.id, sub.id) + '">' +
+                '<span class="cfg-tree-minor-name">' +
+                (sub.cloud ? '<span class="cfg-dot cfg-c-' + sub.cloud + '"></span>' : '') +
+                cfgEsc(sub.name) +
+                (sub.status ? ' ' + cfgBadge(sub.status) : '') + '</span>' +
+                (sub.sub ? '<span class="cfg-tree-minor-sub">' + cfgEsc(sub.sub) + '</span>' : '') +
+                '</button>';
+            }).join('') +
+            '</div>';
+        }
+
+        html += '</div>';
+      });
+
+      html += (typeof wikiMajorTail === 'function' ? wikiMajorTail() : '') + '</div>';
+      nav.innerHTML = html;
     }
 
     function cfgGroupHead(m) {

@@ -1249,10 +1249,92 @@ LANDING_HTML = """<!DOCTYPE html>
       min-width: 1200px;
       height: 100% !important;
       display: grid !important;
-      grid-template-columns: 300px 260px minmax(0, 1fr) !important;
+      grid-template-columns: 340px minmax(0, 1fr) !important;
       overflow: hidden !important;
     }
-    #cfg-nav.settings-sidebar { display: contents; padding: 0; }
+    #cfg-nav.settings-sidebar {
+      display: flex !important;
+      flex-direction: column !important;
+      width: 340px !important;
+      height: 100% !important;
+      min-height: 0 !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+      background: #0c1322 !important;
+      border-right: 1px solid var(--surface-border) !important;
+      padding: 14px 10px 84px !important;
+      gap: 10px !important;
+      scrollbar-width: thin;
+      scrollbar-color: #334155 #0c1322;
+      overscroll-behavior-y: contain;
+    }
+    #cfg-nav.settings-sidebar::-webkit-scrollbar { width: 8px; }
+    #cfg-nav.settings-sidebar::-webkit-scrollbar-track { background: #0c1322; }
+    #cfg-nav.settings-sidebar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    #cfg-nav.settings-sidebar::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    /* 대분류-중분류 통합 아코디언 및 계단식 트리 */
+    .cfg-tree-nav { display: flex; flex-direction: column; gap: 3px; }
+    .cfg-tree-node { display: flex; flex-direction: column; }
+    .cfg-tree-major {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; padding: 8px 10px; border-radius: 6px;
+      background: transparent; border: 1px solid transparent;
+      color: var(--text-sub); cursor: pointer; text-align: left;
+      font-family: inherit; transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+      user-select: none;
+    }
+    .cfg-tree-major:hover { background: #131d33; color: #fff; }
+    .cfg-tree-major.active {
+      background: #172554; border-color: #2563eb; color: #fff; box-shadow: 0 0 10px rgba(37, 99, 235, 0.22);
+    }
+    .cfg-tree-major-main { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+    .cfg-tree-toggle {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 18px; height: 18px; border-radius: 4px; color: #64748b; font-size: 11px;
+      transition: transform 0.18s ease, color 0.14s ease; flex-shrink: 0;
+    }
+    .cfg-tree-toggle:hover { color: #93c5fd; background: rgba(147, 197, 253, 0.12); }
+    .cfg-tree-node.open > .cfg-tree-major .cfg-tree-toggle {
+      transform: rotate(90deg); color: #93c5fd;
+    }
+    .cfg-tree-major-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+    .cfg-tree-major-name {
+      font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .cfg-tree-major-sub {
+      font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .cfg-tree-major-meta { display: flex; align-items: center; gap: 6px; margin-left: 6px; flex-shrink: 0; }
+    .cfg-tree-badge-count {
+      font-size: 10.5px; color: #94a3b8; background: #1e293b; border-radius: 10px;
+      padding: 1px 6px; font-weight: 500; border: 1px solid #334155;
+    }
+
+    /* 중분류 계단식 하위 리스트 (아코디언 바디) */
+    .cfg-tree-minors {
+      display: none; flex-direction: column; gap: 2px;
+      margin-left: 17px; padding-left: 10px;
+      border-left: 2px solid #1e293b; margin-top: 3px; margin-bottom: 6px;
+    }
+    .cfg-tree-node.open > .cfg-tree-minors { display: flex; }
+    .cfg-tree-minor {
+      display: flex; flex-direction: column; gap: 2px;
+      width: 100%; padding: 6px 10px; border-radius: 5px;
+      background: transparent; border: 1px solid transparent; border-left: 3px solid transparent;
+      color: #94a3b8; cursor: pointer; text-align: left; font-family: inherit;
+      transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+    }
+    .cfg-tree-minor:hover { background: #0f172a; color: #e2e8f0; border-left-color: #475569; }
+    .cfg-tree-minor.active {
+      background: rgba(30, 58, 138, 0.45); color: #93c5fd;
+      border-left-color: #3b82f6; font-weight: 600;
+    }
+    .cfg-tree-minor-name { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+    .cfg-tree-minor-sub { font-size: 10.5px; color: #64748b; line-height: 1.3; }
+    .cfg-tree-minor.active .cfg-tree-minor-sub { color: #93c5fd; opacity: 0.8; }
+
     .cfg-col {
       min-height: 0;
       overflow-y: auto;
@@ -1431,9 +1513,9 @@ LANDING_HTML = """<!DOCTYPE html>
     .cfg-ln:hover { background: rgba(148, 163, 184, .08); }
     .cfg-vw-note { font-size: 11.5px; color: var(--text-muted); padding: 10px 20px 14px; border-top: 1px solid #1e293b; }
     @media (prefers-reduced-motion: reduce) { .cfg-mx-cell i { transition: none; } }
-    /* 데스크탑 뷰 고정: 모바일/좁은 화면에서도 3열 데스크탑 그리드 유지 */
+    /* 데스크탑 뷰 고정: 모바일/좁은 화면에서도 통합 내비게이션 + 바디 그리드 유지 */
     #view-settings .settings-layout {
-      grid-template-columns: 300px 260px minmax(0, 1fr) !important;
+      grid-template-columns: 340px minmax(0, 1fr) !important;
       display: grid !important;
       height: 100% !important;
     }
@@ -3209,6 +3291,8 @@ LANDING_HTML = """<!DOCTYPE html>
       const minors = cfgMinors(lens, major);
       if (minors.length && !minors.find(m => m.id === minor)) minor = cfgCarryMinor(lens, major, minors);
       CFG.lens = lens; CFG.major = major; CFG.minor = minor || '';
+      CFG.treeOpen = CFG.treeOpen || {};
+      CFG.treeOpen[major] = true;
       cfgRenderNav();
       cfgRenderBody();
       const hash = '#cfg/' + lens + '/' + major + (CFG.minor ? '/' + CFG.minor : '');
@@ -3241,38 +3325,94 @@ LANDING_HTML = """<!DOCTYPE html>
       return null;
     }
 
-    // ---------- 왼쪽: 렌즈 · 매트릭스 · 대분류 · 중분류 ----------
+    // ---------- 왼쪽: 통합 사이드바 (대분류 > 중분류 아코디언 및 계단식 트리) ----------
+    CFG.treeOpen = CFG.treeOpen || {};
+
+    function cfgIsTreeOpen(majorId) {
+      if (CFG.treeOpen[majorId] !== undefined) return CFG.treeOpen[majorId];
+      return majorId === CFG.major;
+    }
+
+    function cfgToggleTree(ev, majorId) {
+      if (ev) ev.stopPropagation();
+      CFG.treeOpen[majorId] = !cfgIsTreeOpen(majorId);
+      const el = document.getElementById('tree-node-' + majorId);
+      if (el) el.classList.toggle('open', CFG.treeOpen[majorId]);
+    }
+
+    function cfgClickMajor(majorId) {
+      CFG.treeOpen = CFG.treeOpen || {};
+      CFG.treeOpen[majorId] = true;
+      const minors = cfgMinors(CFG.lens, majorId);
+      const targetMinor = minors.length ? minors[0].id : '';
+      cfgSelect(CFG.lens, majorId, targetMinor);
+    }
+
     function cfgRenderNav() {
       const nav = document.getElementById('cfg-nav');
       const lens = LENSES.find(l => l.id === CFG.lens);
       let lastGroup = null;
-      let col1 = '<div class="cfg-col cfg-col-major">' + wikiTeamBar() +
+
+      // 1. 상단 렌즈 탭 & 힌트 & 매트릭스
+      let html = wikiTeamBar() +
         '<div class="cfg-lens" role="tablist" aria-label="보는 기준">' + LENSES.map(l =>
           '<button type="button" role="tab" aria-selected="' + (l.id === CFG.lens) + '" class="cfg-lens-btn' + (l.id === CFG.lens ? ' active' : '') +
           '" onclick="' + cfgGo(l.id, '', '') + '">' + cfgEsc(l.name) + '</button>').join('') + '</div>' +
-        '<p class="cfg-lens-hint">' + cfgEsc(lens.hint) + '</p>' + cfgMatrix() +
-        '<div class="cfg-col-head">대분류</div><div class="cfg-list-major">' +
-        cfgMajors(CFG.lens).map(m => {
-          let head = '';
-          if (m.group !== undefined && m.group !== lastGroup) { lastGroup = m.group; head = cfgGroupHead(m); }
-          return head + '<button type="button" class="cfg-item' + (m.id === CFG.major ? ' active' : '') + '" onclick="' + cfgGo(CFG.lens, m.id, '') + '">' +
-          '<span class="cfg-item-name">' + (m.cloud ? '<span class="cfg-dot cfg-c-' + m.cloud + '"></span>' : '') + cfgEsc(m.name) +
-          (m.status && m.status !== 'live' ? ' ' + cfgBadge(m.status) : '') + (m.count ? '<span class="cfg-count">' + m.count + '</span>' : '') + '</span>' +
-          '<span class="cfg-item-sub">' + cfgEsc(m.sub) + '</span></button>';
-        }).join('') + (typeof wikiMajorTail === 'function' ? wikiMajorTail() : '') + '</div></div>';
-      const minors = cfgMinors(CFG.lens, CFG.major);
-      let col2 = '<div class="cfg-col cfg-col-minor"><div class="cfg-col-head">중분류</div>';
-      if (minors.length) {
-        col2 += '<div class="cfg-list-minor">' + minors.map(m =>
-          '<button type="button" class="cfg-item cfg-item-minor' + (m.id === CFG.minor ? ' active' : '') + '" onclick="' + cfgGo(CFG.lens, CFG.major, m.id) + '">' +
-          '<span class="cfg-item-name">' + (m.cloud ? '<span class="cfg-dot cfg-c-' + m.cloud + '"></span>' : '') + cfgEsc(m.name) +
-          (m.status ? ' ' + cfgBadge(m.status) : '') + '</span>' +
-          '<span class="cfg-item-sub">' + cfgEsc(m.sub) + '</span></button>').join('') + '</div>';
-      } else {
-        col2 += '<p class="cfg-empty">' + (CFG.lens === 'ref' ? '이 항목은 하위 구분 없이 오른쪽에 바로 펼쳐집니다.' : '아직 항목이 없습니다.') + '</p>';
-      }
-      col2 += (typeof wikiMinorTail === 'function' ? wikiMinorTail() : '') + '</div>';
-      nav.innerHTML = col1 + col2;
+        '<p class="cfg-lens-hint">' + cfgEsc(lens.hint) + '</p>' +
+        (CFG.lens === 'inst' ? cfgMatrix() : '');
+
+      // 2. 통합 내비게이션 트리 (대분류 > 중분류 계단식/아코디언)
+      html += '<div class="cfg-col-head" style="margin-top:6px;">설계 및 설정 계층 트리</div>' +
+        '<div class="cfg-tree-nav">';
+
+      const majors = cfgMajors(CFG.lens);
+      majors.forEach(m => {
+        if (m.group !== undefined && m.group !== lastGroup) {
+          lastGroup = m.group;
+          html += cfgGroupHead(m);
+        }
+        const minors = cfgMinors(CFG.lens, m.id);
+        const hasMinors = minors.length > 0;
+        const isCurrentMajor = (m.id === CFG.major);
+        const isOpen = cfgIsTreeOpen(m.id);
+
+        html += '<div class="cfg-tree-node' + (isOpen ? ' open' : '') + '" id="tree-node-' + m.id + '">' +
+          '<div class="cfg-tree-major' + (isCurrentMajor ? ' active' : '') + '" onclick="cfgClickMajor(\\'' + m.id + '\\')">' +
+          '<div class="cfg-tree-major-main">' +
+          (hasMinors ? '<span class="cfg-tree-toggle" onclick="cfgToggleTree(event, \\'' + m.id + '\\')" title="하위 항목 접기/펼치기">▶</span>' : '<span style="width:18px;display:inline-block;"></span>') +
+          (m.cloud ? '<span class="cfg-dot cfg-c-' + m.cloud + '"></span>' : '') +
+          '<div class="cfg-tree-major-info">' +
+          '<span class="cfg-tree-major-name">' + cfgEsc(m.name) + '</span>' +
+          (m.sub ? '<span class="cfg-tree-major-sub">' + cfgEsc(m.sub) + '</span>' : '') +
+          '</div>' +
+          '</div>' +
+          '<div class="cfg-tree-major-meta">' +
+          (m.status && m.status !== 'live' ? cfgBadge(m.status) : '') +
+          (hasMinors ? '<span class="cfg-tree-badge-count">' + minors.length + '</span>' : '') +
+          '</div>' +
+          '</div>';
+
+        // 하위 중분류 (계단식 인덴트)
+        if (hasMinors) {
+          html += '<div class="cfg-tree-minors">' +
+            minors.map(sub => {
+              const isCurrentMinor = isCurrentMajor && (sub.id === CFG.minor);
+              return '<button type="button" class="cfg-tree-minor' + (isCurrentMinor ? ' active' : '') + '" onclick="' + cfgGo(CFG.lens, m.id, sub.id) + '">' +
+                '<span class="cfg-tree-minor-name">' +
+                (sub.cloud ? '<span class="cfg-dot cfg-c-' + sub.cloud + '"></span>' : '') +
+                cfgEsc(sub.name) +
+                (sub.status ? ' ' + cfgBadge(sub.status) : '') + '</span>' +
+                (sub.sub ? '<span class="cfg-tree-minor-sub">' + cfgEsc(sub.sub) + '</span>' : '') +
+                '</button>';
+            }).join('') +
+            '</div>';
+        }
+
+        html += '</div>';
+      });
+
+      html += (typeof wikiMajorTail === 'function' ? wikiMajorTail() : '') + '</div>';
+      nav.innerHTML = html;
     }
 
     function cfgGroupHead(m) {
