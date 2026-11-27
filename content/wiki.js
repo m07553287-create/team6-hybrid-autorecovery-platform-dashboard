@@ -267,11 +267,17 @@
     }
     function wikiActions(kind, docId) {
       if (!WIKI.ready) return '';
-      if (kind === 'steps') return '<div class="wk-acts">' + (docId ? '<button type="button" class="wk-mini" onclick="wikiEditSteps(false)">순서 편집</button>' : '') + '</div>';
+      if (kind === 'steps') {
+        return '<div class="wk-acts">' +
+          (docId ? '<button type="button" class="wk-mini" onclick="wikiEditSteps(false)">순서 편집</button>' : '') +
+          (typeof cfgGuideOpen === 'function' ? '<button type="button" class="wk-mini" onclick="cfgGuideOpen({action:\'reorder\',kind:\'steps\',docId:' + (docId || 'null') + '})">📋 지침으로 순서편집</button>' : '') +
+          '</div>';
+      }
       if (!docId) return '';
       const name = WK_KIND_NAME[kind];
       return '<div class="wk-acts">' +
         '<button type="button" class="wk-mini" onclick="wikiEdit(' + docId + ')">' + name + ' 편집</button>' +
+        (typeof cfgGuideOpen === 'function' ? '<button type="button" class="wk-mini" onclick="cfgGuideOpen({action:\'patch\',kind:\'' + kind + '\',docId:' + docId + '})">📋 지침 편집</button>' : '') +
         (typeof wikiHistory === 'function' ? '<button type="button" class="wk-mini" onclick="wikiHistory(' + docId + ')">기록</button>' : '') +
         '<button type="button" class="wk-mini wk-danger" onclick="wikiDelete(' + docId + ', this)">삭제</button></div>';
     }
@@ -361,6 +367,7 @@
       let html = '<form class="wk-editor" id="wk-editor" onsubmit="wikiSave(event)" oninput="wkSaveDraft()">' +
         '<div class="cfg-head"><h2 class="cfg-head-title">' + WK_KIND_NAME[meta.kind] + (isNew ? ' 만들기' : ' 편집') + cfgEsc(parentLabel) + '</h2>' +
         (meta.baseRev ? '<p class="manual-desc">' + meta.baseRev + '판을 고칩니다. 저장하면 ' + (meta.baseRev + 1) + '판이 됩니다.</p>' : '') + '</div>' +
+        (typeof cfgGuideInlineHtml === 'function' ? cfgGuideInlineHtml(meta) : '') +
         (notice || '') + '<p class="wk-error" id="wk-ed-err" role="alert" hidden></p>';
       fields.forEach(f => {
         const key = f[0], type = f[2], val = body[key];

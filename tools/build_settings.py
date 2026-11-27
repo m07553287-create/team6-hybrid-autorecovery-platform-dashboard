@@ -57,7 +57,7 @@ blocks = {
         '<script type="application/json" id="cfg-data">' + data + '</script>',
     ('// CFGJS:BEGIN', '// CFGJS:END'):
         '\n' + ''.join((root / 'content' / f).read_text(encoding='utf-8')
-                       for f in ('diff.js', 'wiki.js', 'settings.js', 'console.js', 'dashboard.js')) + '    ',
+                       for f in ('diff.js', 'wiki.js', 'guide.js', 'settings.js', 'console.js', 'dashboard.js')) + '    ',
     ('/* CFGCSS:BEGIN */', '/* CFGCSS:END */'):
         '\n' + ''.join((root / 'content' / f).read_text(encoding='utf-8')
                        for f in ('settings.css', 'console.css', 'dashboard.css')) + '    ',
