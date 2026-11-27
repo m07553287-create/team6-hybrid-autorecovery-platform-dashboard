@@ -16,6 +16,8 @@ from console.auth import Lock, TTL
 from console.pty_session import PtySession
 from console.status import Collector
 from console.presets import PresetError, PresetStore
+from console.session_hub import SessionHub, clean_owner
+from console import store as store_mod
 
 COOKIE = "fc_s"
 MAX_SESSIONS = 6
@@ -36,14 +38,37 @@ def create_app():
                 os.environ.get("CONSOLE_SESSIONS", "/var/lib/figteam-console/sessions.json"))
     origin = os.environ.get("ALLOWED_ORIGIN", "https://figteam.ktci5.kr")
     log_dir = pathlib.Path(os.environ.get("CONSOLE_LOG_DIR", "/var/log/figteam-console"))
-    live = set()
+    hub = SessionHub(store=store_mod.from_env())
+    app.state.hub = hub
     collector = Collector(targets, order, int(os.environ.get("CONSOLE_STATUS_INTERVAL", "20")))
     app.state.collector = collector
 
+    async def _reaper():
+        """살아 있는 세션 정리: 끝난 셸·30분 활동 없는 세션(분리 포함)을 닫는다."""
+        while True:
+            await asyncio.sleep(10)
+            now = time.time()
+            for s in list(hub.live.values()):
+                if s.pty is None:
+                    continue
+                if s.pty.closed.is_set():
+                    hub.drop(s)
+                    continue
+                if now - s.last_at > IDLE_SECONDS:
+                    if s.ws is not None:
+                        try:
+                            await s.ws.send_text("\r\n[30분 동안 활동이 없어 세션을 닫습니다]\r\n")
+                        except Exception:
+                            pass
+                    s.pty.close()
+                    hub.drop(s)
+
     @app.on_event("startup")
-    async def _start_collector():
+    async def _start_bg():
+        loop = asyncio.get_running_loop()
         if collector.interval > 0:
-            asyncio.get_running_loop().create_task(collector.loop())
+            loop.create_task(collector.loop())
+        loop.create_task(_reaper())
 
     @app.get("/console/api/status")
     def status():
@@ -131,6 +156,14 @@ def create_app():
         keys = ("id", "area", "name", "desc", "host", "disabled", "check", "fix", "parent", "kubectl", "role")
         return [{k: targets[i].get(k) for k in keys if k in targets[i]} for i in order]
 
+    @app.get("/console/api/sessions")
+    def my_sessions(request: Request):
+        """이 이름으로 아직 살아 있는 터미널 세션 목록 — 새로고침 후 자동 재접속에 쓴다."""
+        if not unlocked(request):
+            return JSONResponse({"error": "로그인이 필요합니다"}, status_code=401)
+        owner = clean_owner(request.query_params.get("u"))
+        return [s.meta() for s in hub.list(owner) if s.pty and not s.pty.closed.is_set()]
+
     @app.websocket("/console/ws/{target_id}")
     async def ws_term(ws: WebSocket, target_id: str):
         await ws.accept()
@@ -144,28 +177,45 @@ def create_app():
             return await ws.close(4404)
         if t.get("disabled"):
             return await ws.close(4409)
-        if len(live) >= MAX_SESSIONS:
+        owner = clean_owner(ws.query_params.get("u"))
+        sess = hub.get(owner, target_id)
+        reattach = bool(sess and sess.pty and not sess.pty.closed.is_set())
+        if not reattach and len(hub.live) >= MAX_SESSIONS:
             return await ws.close(4429)
-        day = log_dir / time.strftime("%Y-%m-%d")
-        day.mkdir(parents=True, exist_ok=True)
-        lf = open(day / f"{time.strftime('%H%M%S')}-{target_id}-{ip.replace(':', '_')}.log", "ab", buffering=0)
-        lf.write(f"# figteam-console {time.strftime('%F %T')} target={target_id} ip={ip} argv={t['argv']}\n".encode())
 
-        async def send(text):
+        if reattach:
+            sess.ws = ws                       # 출력은 항상 현재 붙은 ws 로 나간다(세션 객체가 추적)
+            await ws.send_text("\x1b[2J\x1b[3J\x1b[H")   # 화면 지우고 스크롤백 재생 → 복원
+            if sess.buf:
+                await ws.send_text(sess.buf)
+            await ws.send_text(f"\r\n\x1b[2m[{owner} 세션에 다시 연결했습니다]\x1b[0m\r\n")
+            log.info("reattach target=%s owner=%s ip=%s", target_id, owner, ip)
+        else:
+            day = log_dir / time.strftime("%Y-%m-%d")
+            day.mkdir(parents=True, exist_ok=True)
+            safe = clean_owner(owner).replace(" ", "_")
+            lf = open(day / f"{time.strftime('%H%M%S')}-{target_id}-{safe}.log", "ab", buffering=0)
+            lf.write(f"# figteam-console {time.strftime('%F %T')} target={target_id} owner={owner} ip={ip} argv={t['argv']}\n".encode())
             try:
-                await ws.send_text(text)
-            except Exception:
-                pass
+                cols = int(ws.query_params.get("cols", 100))
+                rows = int(ws.query_params.get("rows", 30))
+            except ValueError:
+                cols, rows = 100, 30
+            sess = hub.create(owner, target_id, pty=None, log=lf)
+            sess.ws = ws
 
-        try:
-            cols = int(ws.query_params.get("cols", 100))
-            rows = int(ws.query_params.get("rows", 30))
-        except ValueError:
-            cols, rows = 100, 30
-        sess = PtySession(t["argv"], cols, rows, send, lf)
-        sess.start()
-        live.add(sess)
-        log.info("open target=%s ip=%s", target_id, ip)
+            async def out(text):
+                sess.append_out(text)
+                w = sess.ws
+                if w is not None:
+                    try:
+                        await w.send_text(text)
+                    except Exception:
+                        pass
+
+            sess.pty = PtySession(t["argv"], cols, rows, out, lf)
+            sess.pty.start()
+            log.info("open target=%s owner=%s ip=%s", target_id, owner, ip)
 
         async def pump_in():
             while True:
@@ -175,30 +225,34 @@ def create_app():
                 except ValueError:
                     continue
                 if m.get("t") == "i" and isinstance(m.get("d"), str):
-                    sess.write(m["d"][:8192])
+                    d = m["d"][:8192]
+                    sess.feed_in(d)
+                    sess.pty.write(d)
+                    hub.save(sess)
                 elif m.get("t") == "r":
                     try:
-                        sess.resize(m.get("c", 100), m.get("r", 30))
+                        sess.pty.resize(m.get("c", 100), m.get("r", 30))
                     except (TypeError, ValueError):
                         pass
 
-        async def idle_guard():
-            while not sess.closed.is_set():
-                await asyncio.sleep(5)
-                if time.time() - sess.last_input > IDLE_SECONDS:
-                    await send("\r\n[30분 동안 입력이 없어 연결을 닫습니다]\r\n")
-                    sess.close()
-
-        tasks = [asyncio.ensure_future(pump_in()), asyncio.ensure_future(sess.closed.wait()),
-                 asyncio.ensure_future(idle_guard())]
+        tasks = [asyncio.ensure_future(pump_in()), asyncio.ensure_future(sess.pty.closed.wait())]
         try:
             await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         finally:
             for x in tasks:
                 x.cancel()
-            sess.close()
-            live.discard(sess)
-            log.info("close target=%s ip=%s", target_id, ip)
+            if sess.pty.closed.is_set():        # 셸이 끝남 → 세션 제거
+                try:
+                    await ws.send_text("\r\n[세션이 종료되었습니다]\r\n")
+                except Exception:
+                    pass
+                hub.drop(sess)
+                log.info("close target=%s owner=%s", target_id, owner)
+            else:                                # ws 만 끊김 → 셸은 유지(분리), 새로고침 때 재접속
+                if sess.ws is ws:
+                    sess.ws = None
+                hub.save(sess)
+                log.info("detach target=%s owner=%s", target_id, owner)
             try:
                 await ws.close(1000)
             except Exception:

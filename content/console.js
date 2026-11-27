@@ -2,7 +2,7 @@
     // 서버: s1 figteam-console (/console/api/*, /console/ws/<대상>) · 콘솔 비밀번호로 잠금
     // 예전 통합 터미널 기능: 대상별 「확인」·「⚠ 복구」 버튼, 탭, ⧉ 화면 위 창(끌기·크기·최소화·최대화·되돌리기), ↗ 새 창
     const CS = { open: false, solo: null, targets: null, layout: '1', slots: [], floats: [], active: 0, loaded: false,
-      sizes: { col: 50, row: 50 }, seq: 0, z: 900, pending: null, page: false, status: null, expanded: {}, openNow: {}, stTimer: null, presets: {} };
+      sizes: { col: 50, row: 50 }, seq: 0, z: 900, pending: null, page: false, status: null, owner: "", expanded: {}, openNow: {}, stTimer: null, presets: {} };
     const CS_TERM_URL = '/term/';
     // 대시보드에서: 통합 터미널 페이지로 이동 (원클릭 — 대상이 있으면 바로 접속)
     function csGo(id) { location.href = CS_TERM_URL + (id ? '?t=' + encodeURIComponent(id) : ''); }
@@ -113,6 +113,33 @@
       else t.queue = cmd;   // 연결되면 실행
     }
 
+    // ---------- 사용자 이름(세션 이어가기 열쇠) ----------
+    function csOwnerName() { try { return CS.owner || localStorage.getItem('fig.term.user') || ''; } catch (e) { return CS.owner || ''; } }
+    function csOwner(force) {
+      let n = '';
+      try { n = localStorage.getItem('fig.term.user') || ''; } catch (e) {}
+      if (!n || force) {
+        const v = (window.prompt('터미널 사용자 이름을 넣어 주세요.\n이 이름으로 세션이 저장돼, 새로고침해도 이어집니다.', n) || '').trim();
+        if (v) { n = v; try { localStorage.setItem('fig.term.user', n); } catch (e) {} }
+      }
+      CS.owner = n || 'guest';
+      const chip = document.getElementById('cs-owner-chip');
+      if (chip) chip.textContent = CS.owner;
+      return CS.owner;
+    }
+    // 이 이름으로 아직 살아 있는 세션을 받아, 열린 터미널이 없으면 자동 재접속한다
+    async function csResume() {
+      if (CS.solo || CS.slots.some(s => s.t)) return;
+      let n = '';
+      try { n = localStorage.getItem('fig.term.user') || ''; } catch (e) {}
+      if (!n) return;                      // 이름을 아직 안 넣었으면 조용히 건너뜀
+      let rows = [];
+      try { rows = await csApi('GET', '/console/api/sessions?u=' + encodeURIComponent(n)); } catch (e) { return; }
+      if (!rows.length) return;
+      CS.owner = n;
+      rows.slice(0, csPaneCount()).forEach((r, i) => { if (CS.targets.some(t => t.id === r.target && !t.disabled)) csConnectSlot(i, r.target); });
+    }
+
     // ---------- 열기 · 닫기 · 잠금 ----------
     async function csOpen(soloId) {
       const root = csRoot();
@@ -137,6 +164,7 @@
       if (!CS.stTimer) CS.stTimer = setInterval(() => { if (CS.open && !csRoot().hidden) csLoadStatus(); }, 20000);
       if (CS.solo && !CS.slots[0].t) csConnectSlot(0, CS.solo);
       else if (CS.pending) { const id = CS.pending; CS.pending = null; if (CS.targets.some(t => t.id === id && !t.disabled)) csPick(id); }
+      else await csResume();   // 새로고침·재진입 시 이 이름의 살아 있는 세션을 자동으로 다시 붙인다
     }
     // 머리글 [대시보드]·[설정]·[콘솔] 전환 (본문만 바뀜)
     function csView(v) {
@@ -199,7 +227,8 @@
       }
       if (CS.active >= n) CS.active = 0;
       const drawer = CS.solo ? '' :
-        '<aside class="cs-drawer"><div class="cs-drawer-head"><b>콘솔</b><span>인스턴스를 누르면 바로 접속 · 서비스를 누르면 상태 확인</span></div>' +
+        '<aside class="cs-drawer"><div class="cs-drawer-head"><b>콘솔</b><span>인스턴스를 누르면 바로 접속 · 서비스를 누르면 상태 확인</span>' +
+        '<button type="button" class="cs-owner" onclick="csOwner(true)" title="세션 이어가기에 쓰는 이름 — 누르면 변경">이름: <b id="cs-owner-chip">' + cfgEsc(csOwnerName() || '미설정') + '</b></button></div>' +
         '<div id="cs-tree">' + csTreeHtml() + '</div>' +
         '<div class="cs-drawer-foot"><button type="button" class="wk-mini" onclick="csBack()">← 대시보드</button>' +
         (CS.page ? '' : '<button type="button" class="wk-mini" onclick="window.open(\'/term/\', \'_blank\')">새 창으로</button>') + '</div></aside>';
@@ -305,7 +334,7 @@
       t.term = term; t.fit = fit;
       csStatus(t, 'wait', '연결 중…');
       const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/console/ws/' + encodeURIComponent(t.target) +
-        '?cols=' + term.cols + '&rows=' + term.rows;
+        '?cols=' + term.cols + '&rows=' + term.rows + '&u=' + encodeURIComponent(csOwner());
       const ws = new WebSocket(url);
       t.ws = ws;
       ws.onopen = () => {
