@@ -1239,7 +1239,7 @@ class McpHttpHandler(BaseHTTPRequestHandler):
         lines.append("- **실측 하드웨어**: **RAM 14GB 증설 완료** (기존 10GB 99% 고갈 해소), 4GB 스왑파일 확보 (가용 8.3GB, 38% 안정권)")
         lines.append("- **상주 제어 서비스**: Keystone(인증), Nova(컴퓨트), Glance(이미지), Cinder(볼륨), Neutron/OVN(가상 네트워크), RabbitMQ, MariaDB")
         lines.append("- **가상 네트워크**: 외부망 vmnet8(`192.168.120.0/24`), 내부 앱망 app-net(`172.20.0.0/24`), 데이터망 data-net(`10.10.2.0/24`)")
-        lines.append("- **연산 노드 현황**: `compute1(161)`, `compute3(163)`, `compute4(164)` 전 노드 **8GB RAM** 균등 증설 (162 compute2 삭제)")
+        lines.append("- **연산 노드 현황**: `compute1(161 · k8s 워커)`, `compute3(163 · k8s 마스터)`, `compute4(164 · DB)` 전 노드 **8GB RAM** 균등 증설 (162 compute2 삭제)")
         lines.append("- **주요 점검 명령어**:\n"
                      "  ```bash\n"
                      "  openstack hypervisor list && openstack compute service list\n"

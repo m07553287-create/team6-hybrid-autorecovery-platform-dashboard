@@ -14,7 +14,7 @@
  {
   "id": "controller",
   "area": "openstack",
-  "name": "controller",
+  "name": "controller (컨트롤러)",
   "desc": "192.168.120.160 · root · Keystone·Nova·Neutron(OVN)",
   "host": "192.168.120.160",
   "argv": [
@@ -111,7 +111,7 @@
  {
   "id": "compute1",
   "area": "openstack",
-  "name": "compute1",
+  "name": "compute1 (k8s 워커)",
   "desc": "192.168.120.161 · root · Nova 컴퓨트",
   "host": "192.168.120.161",
   "argv": [
@@ -170,7 +170,7 @@
  {
   "id": "compute3",
   "area": "openstack",
-  "name": "compute3",
+  "name": "compute3 (k8s 마스터)",
   "desc": "192.168.120.163 · root · Nova 컴퓨트",
   "host": "192.168.120.163",
   "argv": [
@@ -229,7 +229,7 @@
  {
   "id": "compute4",
   "area": "openstack",
-  "name": "compute4",
+  "name": "compute4 (DB)",
   "desc": "192.168.120.164 · root · Nova 컴퓨트",
   "host": "192.168.120.164",
   "argv": [

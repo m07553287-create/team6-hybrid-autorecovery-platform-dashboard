@@ -4792,6 +4792,17 @@
       return items.slice().sort((a, b) => DASH_ORDER.indexOf(a.area) - DASH_ORDER.indexOf(b.area));
     }
 
+    function dashDisplayName(name, id) {
+      if (name && name.includes('(')) return name;
+      const map = {
+        'compute4': 'compute4 (DB)',
+        'compute3': 'compute3 (k8s 마스터)',
+        'compute1': 'compute1 (k8s 워커)',
+        'controller': 'controller (컨트롤러)'
+      };
+      return map[id] || map[name] || name;
+    }
+
     function dashRender() {
       const grid = document.getElementById('matrix-5col-grid');
       if (!grid) return;
@@ -4829,9 +4840,10 @@
               '<span class="svc-row-name" title="' + cfgEsc(s.name) + '">' + cfgEsc(s.name) + '</span></div>' +
               '<span class="' + (s.ok ? 'badge-running' : 'dash-badge dash-down') + '" style="font-size:9px;padding:1px 5px;">' + cfgEsc(s.stateText) + '</span></div>' +
               '<div class="svc-row-bot"><span>' + cfgEsc(s.desc) + '</span><span style="color:#94a3b8;">' + dashFmtDur(s.since) + '</span></div></div>').join('');
+        const dispName = dashDisplayName(i.name, i.id);
         return '<div class="inst-grid-card' + (alive ? '' : ' dash-card-down') + '" id="card-' + cfgEsc(i.id) + '">' +
           '<div class="inst-grid-card-head"><div class="inst-head-title-wrap"><div style="display:flex;align-items:center;gap:6px;">' +
-          '<span class="cloud-tag ' + c[1] + '">' + c[0] + '</span><span class="inst-card-title">' + cfgEsc(i.name) + '</span></div>' +
+          '<span class="cloud-tag ' + c[1] + '">' + c[0] + '</span><span class="inst-card-title">' + cfgEsc(dispName) + '</span></div>' +
           '<div class="inst-card-ip">' + cfgEsc(i.host || '') + (i.latency_ms != null ? ' · 응답 ' + i.latency_ms + 'ms' : '') + '</div></div>' + badge + '</div>' +
           '<div class="inst-resource-hero">' + meters + '</div>' +
           '<div class="compact-service-list">' + rows + '</div>' +
@@ -4855,7 +4867,7 @@
       const all = dashSort(dashServices(i));
       document.getElementById('modal-cloud-tag').className = 'cloud-tag ' + c[1];
       document.getElementById('modal-cloud-tag').textContent = c[0];
-      document.getElementById('modal-title').textContent = i.name + ' 실측 상세';
+      document.getElementById('modal-title').textContent = dashDisplayName(i.name, i.id) + ' 실측 상세';
       document.getElementById('modal-ip-text').textContent = (i.host || '') + ' · ' + cfgEsc(i.desc || '');
       const spec = [['상태', i.alive === true ? '응답' : i.alive === false ? '응답 없음' : '-'], ['CPU', i.cpu_pct != null ? i.cpu_pct + '% (' + i.nproc + ' vCPU)' : '-'],
         ['메모리', dashFmtBytes(i.mem_used) + ' / ' + dashFmtBytes(i.mem_total)], ['디스크', dashFmtBytes(i.disk_used) + ' / ' + dashFmtBytes(i.disk_total)],
