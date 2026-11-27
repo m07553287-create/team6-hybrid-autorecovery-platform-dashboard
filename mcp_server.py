@@ -915,79 +915,147 @@ class McpHttpHandler(BaseHTTPRequestHandler):
         self.wfile.write(b'{"error": "Not Found"}')
 
     def build_web_structure_markdown(self) -> str:
-        """웹(#cfg)의 실측 현황 구조, 분석/설계 내용 및 실제 사용자가 접속할 직결 웹 URL 매핑 총람"""
+        """웹(#cfg)의 실측 현황 구조 총람: [1] s1 호스트 vs [2] 하이브리드 클러스터 (s1 제외 전체 하나로 통합)"""
         lines = []
-        lines.append("# FIGTEAM 3사 하이브리드 멀티클라우드 웹(#cfg) 현황 구조 및 설정 명세 총람\n")
-        lines.append(f"> **실측 일자**: {self.core.measured} (온프렘 OpenStack Controller 14GB 증설 / Compute 8GB 균등 증설 완료)")
+        lines.append("# FIGTEAM 3사 하이브리드 인프라 (#cfg) 2대 핵심 구조 명세 총람\n")
+        lines.append(f"> **실측 기준 일자**: {self.core.measured} (Controller 14GB · Compute 8GB 균등 증설 반영)")
         lines.append("> **공식 작업 웹 포털**: https://figteam.ktci5.kr/#cfg/")
-        lines.append("> **💡 운영 원칙**: 본 문서는 웹(#cfg)의 실측 구조와 설계 분석을 담은 지식 소스입니다. **AI는 이를 바탕으로 읽고 사실 기반 조언만 제공하며, 실제 입력·설정 변경·명령어 실행은 사용자가 아래의 각 웹 화면에 직접 접속하여 수행합니다.**\n")
+        lines.append("> **💡 운영 원칙**: 본 구조는 **[호스트 s1]**과 **[s1 제외 전체 하이브리드 클러스터]**의 2대 축으로 일원화되어 있습니다. AI는 이 사실을 바탕으로 분석/조언을 제공하며, **실제 설정 및 입력은 사용자가 아래의 공식 웹 화면에 직접 접속하여 수행**합니다.\n")
         lines.append("---\n")
 
-        lines.append("## 1. 인스턴스별 웹 현황 구조 및 직접 접속/설정 URL 매핑표\n")
-        lines.append("| 인스턴스명 | 역할 및 실측 스펙 | 주요 관리 영역 (Areas) | 실제 사용자가 접속하여 입력/설정할 공식 웹 URL |")
+        lines.append("## 1. 인프라 2대 핵심 축 요약 및 직접 접속/설정 웹 매핑표\n")
+        lines.append("| 구분 | 구성 인스턴스 및 역할 요약 | 실측 스펙 / 연결 구조 | 실제 사용자가 접속하여 입력/설정할 공식 웹 URL |")
         lines.append("| :--- | :--- | :--- | :--- |")
-        lines.append("| **`db-01`** | MySQL 8.4 Primary (`10.10.2.10:3306`), GTID ON, AWS DR 복제 | `mysql`, `backup` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-db01/mysql](https://figteam.ktci5.kr/#cfg/inst/inst-db01/mysql) |")
-        lines.append("| **`s1`** | 온프렘 호스트 (`10.10.10.8`), 20 vCPU / 30GB RAM, 8GB NVMe Swap | `access`, `vmnet`, `wg`, `cfd` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-s1/access](https://figteam.ktci5.kr/#cfg/inst/inst-s1/access) |")
-        lines.append("| **`controller`** | OpenStack Controller (`192.168.120.160`), **RAM 14GB 증설**, 4GB Swap | `svc`, `net`, `sg`, `image`, `server` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-controller/svc](https://figteam.ktci5.kr/#cfg/inst/inst-controller/svc) |")
-        lines.append("| **`compute1·3·4`** | OpenStack Compute (`161, 163, 164`), **전 노드 8GB RAM 균등 증설** | `compute` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-compute1/compute](https://figteam.ktci5.kr/#cfg/inst/inst-compute1/compute) |")
-        lines.append("| **`k8s-cp1`** | K8s Control Plane (`172.20.0.86`), FIP `192.168.120.226`, VIP `10.10.1.100` | `k3s`, `cni`, `app`, `hpa`, `argocd` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s](https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s) |")
-        lines.append("| **`k8s-w1`** | K8s Worker Node (`172.20.0.180`), Calico CNI, Pod `10.244.0.0/16` | `agent` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-w1/agent](https://figteam.ktci5.kr/#cfg/inst/inst-w1/agent) |")
-        lines.append("| **`kt-edge-dr-01`** | KT Edge WAF / WG 허브 (`14.63.212.190`), Nginx 10s 캐싱 | `wg`, `nginx`, `nat` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-ktedge/nginx](https://figteam.ktci5.kr/#cfg/inst/inst-ktedge/nginx) |")
-        lines.append("| **`kt-w1`** | KT 워커 노드 조인 설계 (`14.63.212.191`) | `pre`, `wg`, `join`, `ha`, `hpa` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-ktw1/join](https://figteam.ktci5.kr/#cfg/inst/inst-ktw1/join) |")
-        lines.append("| **`aws-dr`** | AWS DR Pilot-Light (`10.51.1.165`), MySQL Replica GTID ON | `wg`, `k3s`, `mysql` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-awsdr/mysql](https://figteam.ktci5.kr/#cfg/inst/inst-awsdr/mysql) |")
-        lines.append("| **`aws-ctl`** | AWS DR Orchestrator (`10.50.1.85:8080`) 복구 오케스트레이터 | `api` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-awsctl/api](https://figteam.ktci5.kr/#cfg/inst/inst-awsctl/api) |")
-        lines.append("| **전체 토폴로지** | 3사 하이브리드 토폴로지 및 19대 핵심 공통 변수 실측표 | `overview` | 👉 [https://figteam.ktci5.kr/#cfg/overview](https://figteam.ktci5.kr/#cfg/overview) |\n")
+        lines.append("| **① s1 온프렘 호스트**<br/>*(단일 점프호스트 / 베이스)* | • 물리 머신 `t1-vm2` (`10.10.10.8`)<br/>• 단일 점프호스트(Bastion), vmnet8 NAT<br/>• WireGuard wg-kt (10.200.0.2), Cloudflare Tunnel | 20 vCPU / 30GB RAM<br/>8GB NVMe Swapfile<br/>키: `~/.ssh/id_ed25519` | 👉 **[https://figteam.ktci5.kr/#cfg/inst/inst-s1/access](https://figteam.ktci5.kr/#cfg/inst/inst-s1/access)**<br/>*(라우팅: `.../vmnet`, 터널: `.../wg`)* |")
+        lines.append("| **② 하이브리드 클라우드 클러스터**<br/>*(s1 제외 전체 인프라 통합)* | • **IaaS**: OpenStack Controller + Compute 1·3·4<br/>• **PaaS**: K8s cp1(172.20.0.86) + w1(172.20.0.180)<br/>• **Data**: db-01(MySQL 8.4) ↔ aws-dr(GTID Replica)<br/>• **Edge/WAF**: KT Edge (14.63.212.190, 10s 캐싱)<br/>• **DR**: AWS Pilot-Light + aws-ctl(:8080 오케스트레이터) | Controller **14GB 증설**<br/>Compute 전원 **8GB 증설**<br/>DB GTID 지연 0초<br/>VIP: 10.10.1.100:80<br/>KT Hub: 10.200.0.1:51820 | 👉 **[https://figteam.ktci5.kr/#cfg/overview](https://figteam.ktci5.kr/#cfg/overview)**<br/>*(DB설정: `.../inst-db01/mysql`,<br/>컨트롤러: `.../inst-controller/svc`,<br/>K8s배포: `.../inst-cp1/k8s`)* |\n")
         lines.append("---\n")
 
-        lines.append("## 2. 세부 인스턴스별 웹 현황 구조 및 사용자 직접 설정 가이드\n")
-        inst_keys = ["inst-db01", "inst-s1", "inst-controller", "inst-cp1", "inst-w1", "inst-ktedge", "inst-awsdr", "inst-awsctl"]
-        for ik in inst_keys:
-            if ik not in self.core.pages:
-                continue
-            p = self.core.pages[ik]
-            lines.append(f"### 📌 [{p.get('title')}]")
-            lines.append(f"- **태그/상태**: `{p.get('tag')}` | `{p.get('status')}`")
-            lines.append(f"- **설명**: {p.get('desc')}")
-            if p.get("specs"):
-                specs_list = []
-                for s in p.get("specs"):
-                    if isinstance(s, (list, tuple)) and len(s) >= 2:
-                        specs_list.append(f"{s[0]}: {s[1]}")
-                    elif isinstance(s, dict):
-                        specs_list.append(f"{s.get('label')}: {s.get('val')}")
-                if specs_list:
-                    lines.append(f"- **실측 스펙**: {', '.join(specs_list)}")
-
-            lines.append("\n**관리 영역별 사용자 직접 접속 웹 화면:**")
-            for a in p.get("areas", []):
-                aid = a.get("id")
-                aname = a.get("name")
-                lines.append(f"* **{aname} (`{aid}`)**:")
-                lines.append(f"  👉 [https://figteam.ktci5.kr/#cfg/inst/{ik}/{aid}](https://figteam.ktci5.kr/#cfg/inst/{ik}/{aid})")
-                if a.get("design"):
-                    lines.append(f"  - 설계 원칙: {a.get('design')[0] if len(a.get('design')) > 0 else ''}")
-                if a.get("config"):
-                    cfgs = [c.get("label") for c in a.get("config")]
-                    lines.append(f"  - 설정 파일: {', '.join(cfgs)}")
-            lines.append("\n---\n")
-
-        lines.append("## 3. 19대 핵심 공통 변수 실측 요약\n")
-        vars_res = self.core.get_common_variables()
-        for v in vars_res:
-            lines.append(f"- **`{v['variable']}`**: `{v['value']}` — {v['usage']}")
+        lines.append("## 2. [블록 ①] s1 온프렘 호스트 & 게이트웨이 상세\n")
+        lines.append("온프레미스 모든 내부 VM과 외부 클라우드 통신의 관문 역할을 수행하는 단일 물리 호스트입니다.\n")
+        p_s1 = self.core.pages.get("inst-s1", {})
+        lines.append(f"- **실측 스펙**: 20 vCPU / 30GB RAM (NVMe swap 8GB 활성화)")
+        lines.append(f"- **접속 및 보안**: 팀원 개인키 `~/.ssh/id_ed25519`로만 인입 가능, 내부 VM 제어용 `osx` 래퍼 스크립트 보유")
+        lines.append(f"- **네트워크 게이트웨이**: vmnet8 NAT 라우팅 (`192.168.120.0/24`), WireGuard wg-kt (`10.200.0.2`), Cloudflare Ingress")
+        lines.append("👉 **실제 사용자가 접속하여 입력/설정할 공식 웹 화면:**")
+        lines.append("- [접속 경로 및 키 매트릭스](https://figteam.ktci5.kr/#cfg/inst/inst-s1/access)")
+        lines.append("- [VMware / vmnet8 / 라우팅 설정](https://figteam.ktci5.kr/#cfg/inst/inst-s1/vmnet)")
+        lines.append("- [WireGuard wg-kt 터널 설정](https://figteam.ktci5.kr/#cfg/inst/inst-s1/wg)")
+        lines.append("- [Cloudflare Tunnel ingress 설정](https://figteam.ktci5.kr/#cfg/inst/inst-s1/cfd)")
         lines.append("\n---\n")
 
-        lines.append("## 4. 개별 인스턴스 직결 마크다운 URL\n")
-        lines.append("AI나 사용자가 특정 인스턴스만의 구조와 설정을 집중 질의할 경우 아래 직결 URL을 사용하십시오:\n")
-        for ik in inst_keys:
-            short_name = ik.replace("inst-", "")
-            lines.append(f"- **{short_name}**: `https://figteam.ktci5.kr/md/inst/{short_name}` 또는 `https://figteam.ktci5.kr/md/v1/{short_name}`")
+        lines.append("## 3. [블록 ②] 하이브리드 클라우드 클러스터 (s1 제외 전체 통합 명세)\n")
+        lines.append("OpenStack IaaS, Kubernetes PaaS, MySQL 데이터 계층, KT Edge WAF, AWS DR 복구 엔진이 유기적으로 결합된 단일 통합 클러스터입니다.\n")
+
+        lines.append("### (1) OpenStack IaaS 제어 및 연산 계층")
+        lines.append("- **Controller (`192.168.120.160`)**: 기존 10GB 고갈(99%)에서 **14GB RAM**으로 증설 완료 + 내부 스왑 4GB 확보 (가용 8.3GB, 38% 안정권)")
+        lines.append("- **Compute 노드 (`161 compute1`, `163 compute3`, `164 compute4`)**: 전 노드 **8GB RAM**으로 균등 증설 완료 (162 compute2 삭제)")
+        lines.append("👉 **사용자 직접 설정 웹 화면**: [https://figteam.ktci5.kr/#cfg/inst/inst-controller/svc](https://figteam.ktci5.kr/#cfg/inst/inst-controller/svc) (컴퓨트: [inst-compute1](https://figteam.ktci5.kr/#cfg/inst/inst-compute1/compute))\n")
+
+        lines.append("### (2) Kubernetes (k3s) PaaS 컨테이너 계층")
+        lines.append("- **Control Plane (`cp1: 172.20.0.86`)**: FIP `192.168.120.226`, VIP `10.10.1.100:80` (NodePort 30080 연동)")
+        lines.append("- **Worker Node (`w1: 172.20.0.180`)**: Calico CNI, Pod 대역 `10.244.0.0/16`, ArgoCD GitOps 배포")
+        lines.append("👉 **사용자 직접 설정 웹 화면**: [https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s](https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s) (워커: [inst-w1](https://figteam.ktci5.kr/#cfg/inst/inst-w1/agent))\n")
+
+        lines.append("### (3) MySQL 8.4 데이터 및 실시간 복제 계층")
+        lines.append("- **Primary DB (`db-01: 10.10.2.10:3306`)**: MySQL 8.4 LTS, `gtid_mode=ON`, `enforce_gtid_consistency=ON`")
+        lines.append("- **Replica DB (`aws-dr: 10.51.1.165:3306`)**: AWS DR Pilot-Light, 채널 `ch_dr`, WireGuard 51820 터널 경유 실시간 동기화 (지연 0초)")
+        lines.append("👉 **사용자 직접 설정 웹 화면**: [https://figteam.ktci5.kr/#cfg/inst/inst-db01/mysql](https://figteam.ktci5.kr/#cfg/inst/inst-db01/mysql) (DR복제: [inst-awsdr](https://figteam.ktci5.kr/#cfg/inst/inst-awsdr/mysql))\n")
+
+        lines.append("### (4) KT Cloud Edge & 인입 WAF 계층")
+        lines.append("- **KT Edge (`14.63.212.190`)**: 사용자 인입 진입점, Nginx WAF 10s 마이크로캐싱, 3사 WireGuard 허브(`10.200.0.1:51820`)")
+        lines.append("- **KT 워커 확장 (`kt-w1`)**: 온프렘 과부하 시 하이브리드 버스팅 조인 설계")
+        lines.append("👉 **사용자 직접 설정 웹 화면**: [https://figteam.ktci5.kr/#cfg/inst/inst-ktedge/nginx](https://figteam.ktci5.kr/#cfg/inst/inst-ktedge/nginx) (KT워커: [inst-ktw1](https://figteam.ktci5.kr/#cfg/inst/inst-ktw1/join))\n")
+
+        lines.append("### (5) AWS DR Pilot-Light & 복구 오케스트레이터 계층")
+        lines.append("- **AWS Orchestrator (`aws-ctl: 10.50.1.85:8080`)**: 온프렘/KT 전면 다운 시 1초 내 자동 페일오버 트리거")
+        lines.append("👉 **사용자 직접 설정 웹 화면**: [https://figteam.ktci5.kr/#cfg/inst/inst-awsctl/api](https://figteam.ktci5.kr/#cfg/inst/inst-awsctl/api)\n")
+        lines.append("---\n")
+
+        lines.append("## 4. 직결 마크다운 URL 일람\n")
+        lines.append("- **전체 2대 구조 총람**: `https://figteam.ktci5.kr/md/v1`")
+        lines.append("- **[블록 ①] s1 단독 명세**: `https://figteam.ktci5.kr/md/v1/s1`")
+        lines.append("- **[블록 ②] 클러스터 통합 명세**: `https://figteam.ktci5.kr/md/v1/cluster`")
 
         return "\n".join(lines)
 
+    def build_cluster_unified_markdown(self) -> str:
+        """s1을 제외한 전체 하이브리드 멀티클라우드 클러스터 통합 명세 및 웹 설정 직결 마크다운"""
+        lines = []
+        lines.append("# [하이브리드 클라우드 클러스터] 통합 현황 구조 및 웹 설정 명세 총람\n")
+        lines.append(f"> **실측 일자**: {self.core.measured} (Controller 14GB / Compute 8GB 증설 완료)")
+        lines.append("> **포괄 범위**: s1 호스트를 제외한 온프렘 OpenStack, K8s PaaS, DB 데이터, KT Edge, AWS DR 전체 클러스터")
+        lines.append("> **공식 웹 포털**: https://figteam.ktci5.kr/#cfg/overview\n")
+        lines.append("---\n")
+
+        lines.append("## 1. 5대 서브시스템 통합 현황 및 사용자 직접 설정 웹 URL\n")
+
+        subsystems = [
+            {
+                "title": "MySQL 8.4 Primary & DR 복제 데이터 계층",
+                "inst": "inst-db01",
+                "summary": "온프렘 Primary db-01(10.10.2.10:3306) ↔ AWS DR aws-dr(10.51.1.165:3306) GTID Auto-Position 복제",
+                "areas": [("MySQL 설정 및 복제", "mysql", "https://figteam.ktci5.kr/#cfg/inst/inst-db01/mysql"),
+                          ("백업 및 덤프 절차", "backup", "https://figteam.ktci5.kr/#cfg/inst/inst-db01/backup")]
+            },
+            {
+                "title": "OpenStack IaaS 제어 및 연산 계층",
+                "inst": "inst-controller",
+                "summary": "Controller(192.168.120.160, RAM 14GB 증설, 4GB Swap), Compute 1·3·4 (전 노드 8GB 균등 증설)",
+                "areas": [("Controller 코어 서비스", "svc", "https://figteam.ktci5.kr/#cfg/inst/inst-controller/svc"),
+                          ("가상 네트워크 OVN/OVS", "net", "https://figteam.ktci5.kr/#cfg/inst/inst-controller/net"),
+                          ("보안 그룹 (Security Groups)", "sg", "https://figteam.ktci5.kr/#cfg/inst/inst-controller/sg"),
+                          ("Compute 1·3·4 연산 노드", "compute", "https://figteam.ktci5.kr/#cfg/inst/inst-compute1/compute")]
+            },
+            {
+                "title": "Kubernetes (k3s) PaaS 컨테이너 오케스트레이션 계층",
+                "inst": "inst-cp1",
+                "summary": "Control Plane cp1(172.20.0.86, FIP 192.168.120.226, VIP 10.10.1.100), Worker w1(172.20.0.180, Calico)",
+                "areas": [("k3s 서버 및 클러스터 설정", "k3s", "https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s"),
+                          ("Pod 배포 및 Service(NodePort 30080)", "app", "https://figteam.ktci5.kr/#cfg/inst/inst-cp1/app"),
+                          ("ArgoCD GitOps 배포 관리", "argocd", "https://figteam.ktci5.kr/#cfg/inst/inst-cp1/argocd"),
+                          ("Worker w1 에이전트 설정", "agent", "https://figteam.ktci5.kr/#cfg/inst/inst-w1/agent")]
+            },
+            {
+                "title": "KT Cloud Edge 인입 WAF 및 WireGuard 허브 계층",
+                "inst": "inst-ktedge",
+                "summary": "KT Edge(14.63.212.190), Nginx WAF 10s 마이크로캐싱, 3사 WireGuard 허브(10.200.0.1:51820)",
+                "areas": [("Nginx WAF 및 프록시 설정", "nginx", "https://figteam.ktci5.kr/#cfg/inst/inst-ktedge/nginx"),
+                          ("WireGuard 허브 wg0", "wg", "https://figteam.ktci5.kr/#cfg/inst/inst-ktedge/wg"),
+                          ("KT 워커 조인 설계 (하이브리드)", "join", "https://figteam.ktci5.kr/#cfg/inst/inst-ktw1/join")]
+            },
+            {
+                "title": "AWS DR Pilot-Light 및 복구 오케스트레이터 계층",
+                "inst": "inst-awsdr",
+                "summary": "aws-dr(10.51.1.165, MySQL Replica), aws-ctl(10.50.1.85:8080, Orchestrator API)",
+                "areas": [("DR DB Replica 설정 (ch_dr)", "mysql", "https://figteam.ktci5.kr/#cfg/inst/inst-awsdr/mysql"),
+                          ("복구 오케스트레이터 REST API", "api", "https://figteam.ktci5.kr/#cfg/inst/inst-awsctl/api")]
+            }
+        ]
+
+        for s in subsystems:
+            lines.append(f"### 📍 {s['title']}")
+            lines.append(f"- **실측 개요**: {s['summary']}")
+            lines.append("- **사용자가 직접 접속하여 설정 및 입력할 공식 웹 URL:**")
+            for aname, aid, aurl in s["areas"]:
+                lines.append(f"  • **{aname}**: 👉 [{aurl}]({aurl})")
+            lines.append("")
+
+        lines.append("---\n")
+        lines.append("## 2. 클러스터 전체 공통 변수 실측값\n")
+        vars_res = self.core.get_common_variables()
+        for v in vars_res:
+            if "S1_" not in v["variable"]:
+                lines.append(f"- **`{v['variable']}`**: `{v['value']}` — {v['usage']}")
+        lines.append("\n---\n")
+        lines.append("> 🔒 **운영 원칙 안내**: 본 마크다운은 s1을 제외한 클러스터 전반의 실측 지식 소스입니다. 실제 모든 설정 변경, 파라미터 입력, 명령어 실행은 위 명시된 공식 웹 콘솔 URL에서 직접 진행하십시오.\n")
+        return "\n".join(lines)
+
     def build_instance_markdown(self, inst_id: str) -> str:
-        """특정 인스턴스의 상세 현황 구조 및 해당 웹 설정 페이지 직결 마크다운"""
+        """특정 인스턴스 또는 s1 제외 전체 클러스터의 상세 현황 구조 및 해당 웹 설정 페이지 직결 마크다운"""
         key = inst_id.strip().lower()
+        if key in ("cluster", "services", "all", "cloud"):
+            return self.build_cluster_unified_markdown()
+
         if not key.startswith("inst-") and f"inst-{key}" in self.core.pages:
             key = f"inst-{key}"
         elif key in ("db", "db01"):
@@ -1000,7 +1068,7 @@ class McpHttpHandler(BaseHTTPRequestHandler):
             key = "inst-awsctl"
 
         if key not in self.core.pages:
-            return f"# 오류: 인스턴스 '{inst_id}'를 찾을 수 없습니다.\n\n사용 가능한 인스턴스: `db01`, `s1`, `controller`, `cp1`, `w1`, `ktedge`, `awsdr`, `awsctl`\n"
+            return f"# 오류: 인스턴스 '{inst_id}'를 찾을 수 없습니다.\n\n사용 가능한 대상: `s1` (호스트), `cluster` (s1 제외 전체 클러스터 통합), `db01`, `controller`, `cp1`, `w1`, `ktedge`, `awsdr`\n"
 
         p = self.core.pages[key]
         lines = []
