@@ -31,6 +31,17 @@ def _check(kind, body):
         raise ApiError(422, "비밀값처럼 보이는 내용은 저장할 수 없습니다. <개인키> 처럼 자리표시로 바꾸세요.", hit)
 
 
+def _message(data, default=""):
+    msg = data.get("message")
+    msg = default if msg in (None, "") else msg
+    if not isinstance(msg, str) or len(msg) > 200:
+        raise ApiError(422, "변경 메모는 200자 이하로 입력하세요", {"field": "message"})
+    if find_secret(msg, "message"):
+        raise ApiError(422, "비밀값처럼 보이는 내용은 저장할 수 없습니다. <개인키> 처럼 자리표시로 바꾸세요.",
+                       {"field": "message"})
+    return msg
+
+
 def _int(v, field):
     try:
         return int(v)
@@ -70,6 +81,7 @@ def create_doc(conn, s, data):
     n, = conn.execute("SELECT count(*) FROM docs WHERE team_id=?", (s.team_id,)).fetchone()
     if n >= MAX_DOCS:
         raise ApiError(422, "팀 문서는 2000개까지입니다")
+    message = _message(data)
     raw = json.dumps(body, ensure_ascii=False)
     now = _now()
     conn.execute("BEGIN IMMEDIATE")
@@ -79,7 +91,7 @@ def create_doc(conn, s, data):
             "VALUES(?,?,?,?,1,?,?,?)", (s.team_id, kind, parent_id, int(data.get("sort") or 0), raw, now, now))
         doc_id = cur.lastrowid
         conn.execute("INSERT INTO revisions(doc_id, rev, body, deleted, author, message, created_at) "
-                     "VALUES(?,?,?,?,?,?,?)", (doc_id, 1, raw, 0, s.member, str(data.get("message") or ""), now))
+                     "VALUES(?,?,?,?,?,?,?)", (doc_id, 1, raw, 0, s.member, message, now))
         conn.execute("COMMIT")
     except Exception:
         conn.execute("ROLLBACK")
@@ -106,7 +118,7 @@ def _new_rev(conn, s, row, base_rev, body, deleted, message):
                 "author": latest["author"], "created_at": latest["created_at"]}})
         rev = base_rev + 1
         conn.execute("INSERT INTO revisions(doc_id, rev, body, deleted, author, message, created_at) "
-                     "VALUES(?,?,?,?,?,?,?)", (row["id"], rev, raw, deleted, s.member, str(message or ""), now))
+                     "VALUES(?,?,?,?,?,?,?)", (row["id"], rev, raw, deleted, s.member, message, now))
         conn.execute("COMMIT")
     except ApiError:
         raise
@@ -120,7 +132,7 @@ def update_doc(conn, s, doc_id, data):
     row = _doc(conn, s.team_id, doc_id)
     body = data.get("body")
     _check(row["kind"], body)
-    return _new_rev(conn, s, row, _int(data.get("base_rev"), "base_rev"), body, row["deleted"], data.get("message"))
+    return _new_rev(conn, s, row, _int(data.get("base_rev"), "base_rev"), body, row["deleted"], _message(data))
 
 
 def delete_doc(conn, s, doc_id, data):
@@ -128,7 +140,7 @@ def delete_doc(conn, s, doc_id, data):
     if conn.execute("SELECT 1 FROM docs WHERE parent_id=? AND deleted=0", (doc_id,)).fetchone():
         raise ApiError(422, "하위 문서를 먼저 삭제하세요")
     return _new_rev(conn, s, row, _int(data.get("base_rev"), "base_rev"), json.loads(row["current_body"]), 1,
-                    data.get("message") or "삭제")
+                    _message(data, "삭제"))
 
 
 def list_revisions(conn, s, doc_id):
@@ -152,7 +164,7 @@ def restore_doc(conn, s, doc_id, data):
     old = get_revision(conn, s, doc_id, _int(data.get("rev"), "rev"))
     if row["parent_id"] and conn.execute("SELECT deleted FROM docs WHERE id=?", (row["parent_id"],)).fetchone()[0]:
         raise ApiError(422, "상위 문서가 삭제되어 있습니다. 상위 문서를 먼저 되돌리세요")
-    msg = data.get("message") or f"{old['rev']}판으로 되돌림"
+    msg = _message(data, f"{old['rev']}판으로 되돌림")
     return _new_rev(conn, s, row, _int(data.get("base_rev"), "base_rev"), old["body"], 0, msg)
 
 

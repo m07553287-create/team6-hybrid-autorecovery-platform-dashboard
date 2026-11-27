@@ -2434,7 +2434,12 @@
 
     // 해시 #cfg/hist/<id>/<a>/<b>
     function wikiRoute(h) {
-      if (h[1] === 'hist' && h[2]) { wikiHistory(Number(h[2]), Number(h[3]) || 0, Number(h[4]) || 0); cfgRenderNav(); return true; }
+      if (h[1] === 'hist' && h[2]) {
+        if (!CFG.lens) { CFG.lens = 'ref'; CFG.major = '__changes'; CFG.minor = ''; }  // 기록 주소로 바로 들어온 경우
+        cfgRenderNav();
+        wikiHistory(Number(h[2]), Number(h[3]) || 0, Number(h[4]) || 0);
+        return true;
+      }
       return false;
     }
 

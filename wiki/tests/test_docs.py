@@ -132,3 +132,15 @@ def test_scripts(team, conn):
     lst = team.get("/api/scripts").json()
     assert lst[0]["keys"] == ["a.sh"] and "text" not in lst[0]
     assert team.get(f"/api/scripts/{lst[0]['id']}").json()["text"] == "echo hi"
+
+
+def test_message_secret_422(team):
+    _, _, area = chain(team)
+    r = team.put(f"/api/docs/{area}", json={"base_rev": 1, "body": AREA, "message": "token=abcdef123456"})
+    assert r.status_code == 422 and r.json()["field"] == "message"
+
+
+def test_message_too_long_422(team):
+    _, _, area = chain(team)
+    r = team.put(f"/api/docs/{area}", json={"base_rev": 1, "body": AREA, "message": "가" * 201})
+    assert r.status_code == 422
