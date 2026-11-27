@@ -140,13 +140,10 @@
         all.map(s => '<tr' + (s.name === svcName ? ' style="background:rgba(37,99,235,.15)"' : '') + '><td>' + s.typeName + '</td><td><code class="cfg-ic">' + cfgEsc(s.name) + '</code></td><td>' + cfgEsc(s.desc) +
           '</td><td style="color:' + (s.ok ? '#34d399' : '#fca5a5') + '">' + cfgEsc(s.stateText) + '</td><td>' + dashFmtDur(s.since) + '</td></tr>').join('') +
         '</tbody></table></div>' +
-        (i.disabled || i.alive !== true ? '' : '<div class="wk-bar wk-bar-inline" style="margin-top:12px"><button type="button" class="wk-btn wk-primary" onclick="dashOpenConsole(\'' + cfgEsc(i.id) + '\')">통합콘솔에서 열기</button></div>');
+        (i.disabled || i.alive !== true ? '' : '<div class="wk-bar wk-bar-inline" style="margin-top:12px"><button type="button" class="wk-btn wk-primary" onclick="dashOpenConsole(\'' + cfgEsc(i.id) + '\')">통합 터미널로 접속</button></div>');
       document.getElementById('modal-backdrop').style.display = 'flex';
     }
-    function dashOpenConsole(id) {
-      const mb = document.getElementById('modal-backdrop'); if (mb) mb.style.display = 'none';
-      csOpen().then(() => { if (CS.targets) csPick(id); });
-    }
+    function dashOpenConsole(id) { csGo(id); }   // 통합 터미널 페이지로 이동해 바로 접속
 
     // 상단 배지: 영역별 살아 있는 인스턴스 수
     function dashHeader() {

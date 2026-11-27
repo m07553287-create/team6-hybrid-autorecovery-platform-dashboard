@@ -78,8 +78,9 @@ menu = ['<div class="cn-wrap"><button type="button" class="nav-btn cn-btn" id="c
 for grp in settings_guide.CONSOLES:
     menu.append('<div class="cn-group"><div class="cn-head"><span class="cfg-dot cfg-c-%s"></span>%s</div>' % (grp['cloud'], _html.escape(grp['name'])))
     for name, url, sub in grp['links']:
-        menu.append('<a class="cn-link" role="menuitem" href="%s" target="_blank" rel="noopener"><b>%s</b><span>%s</span></a>'
-                    % (_html.escape(url), _html.escape(name), _html.escape(sub)))
+        ext = '' if url.startswith('/') else ' target="_blank" rel="noopener"'   # 내부 페이지는 같은 탭에서 이동
+        menu.append('<a class="cn-link" role="menuitem" href="%s"%s><b>%s</b><span>%s</span></a>'
+                    % (_html.escape(url), ext, _html.escape(name), _html.escape(sub)))
     menu.append('</div>')
 menu.append('</div></div>')
 src = re.sub(r'<!--CONSOLES:BEGIN-->.*?<!--CONSOLES:END-->',
@@ -100,7 +101,9 @@ for old, new in [
 if '<!--CSRAIL-->' not in src:
     anchor = '<div id="view-dashboard" class="view-container">'
     assert anchor in src, '대시보드 뷰를 찾지 못했습니다'
-    src = src.replace(anchor, anchor + '\n    <!--CSRAIL--><button type="button" class="cs-rail" onclick="csOpen()" title="3대 영역 인스턴스에 실제 터미널로 접속">통합콘솔</button>', 1)
+    src = src.replace(anchor, anchor + '\n    <!--CSRAIL--><button type="button" class="cs-rail" onclick="csGo()" title="3대 영역 인스턴스에 실제 터미널로 접속">통합 터미널</button>', 1)
+src = src.replace('onclick="csOpen()" title="3대 영역 인스턴스에 실제 터미널로 접속">통합콘솔</button>',
+                  'onclick="csGo()" title="3대 영역 인스턴스에 실제 터미널로 접속">통합 터미널</button>')
 
 # 설정 탭으로 전환할 때 첫 화면 보장
 if 'cfgInit(); // settings-tab' not in src:
@@ -120,3 +123,12 @@ for f in (root / 'content' / 'scripts').rglob('*.sh'):   # 시드에 들어갈 �
     t = f.read_text(encoding='utf-8')
     assert not secret.search(t), '비밀값 의심: ' + str(f)
     assert 'fig-minwon-db-backup' not in t, '버킷 이름 노출: ' + str(f)
+
+# ---- 통합 터미널 전용 페이지 public/term/index.html (페이지 이동 방식) ----
+tpl = (root / 'content' / 'term_page.html').read_text(encoding='utf-8')
+term_css = ''.join((root / 'content' / f).read_text(encoding='utf-8') for f in ('settings.css', 'console.css'))
+term_js = (root / 'content' / 'console.js').read_text(encoding='utf-8')
+page = tpl.replace('/*TERM_CSS*/', term_css).replace('/*TERM_JS*/', term_js)
+(root / 'public' / 'term').mkdir(exist_ok=True)
+(root / 'public' / 'term' / 'index.html').write_text(page, encoding='utf-8')
+print('public/term/index.html', len(page), 'bytes')

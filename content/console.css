@@ -5,7 +5,7 @@
     .cs-rail:hover { background: var(--primary-hover); padding-left: 10px; }
     .cs-rail:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
     #cs-root { position: fixed; top: 52px; left: 0; right: 0; bottom: 0; z-index: 800; background: #070b14; }
-    #cs-root.cs-solo { top: 0; }
+    #cs-root.cs-solo, #cs-root.cs-page { top: 0; }
     body.cs-on .cs-rail { display: none; }
     body.cs-dragging, body.cs-dragging * { cursor: grabbing !important; user-select: none; }
     .cs-wait { padding: 40px; color: var(--text-sub); text-align: center; }

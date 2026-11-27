@@ -2,7 +2,10 @@
     // 서버: s1 figteam-console (/console/api/*, /console/ws/<대상>) · 콘솔 비밀번호로 잠금
     // 예전 통합 터미널 기능: 대상별 「확인」·「⚠ 복구」 버튼, 탭, ⧉ 화면 위 창(끌기·크기·최소화·최대화·되돌리기), ↗ 새 창
     const CS = { open: false, solo: null, targets: null, layout: '1', slots: [], floats: [], active: 0, loaded: false,
-      sizes: { col: 50, row: 50 }, seq: 0, z: 900 };
+      sizes: { col: 50, row: 50 }, seq: 0, z: 900, pending: null, page: false };
+    const CS_TERM_URL = '/term/';
+    // 대시보드에서: 통합 터미널 페이지로 이동 (원클릭 — 대상이 있으면 바로 접속)
+    function csGo(id) { location.href = CS_TERM_URL + (id ? '?t=' + encodeURIComponent(id) : ''); }
     const CS_AREAS = [['openstack', '온프렘 · OpenStack', ['onprem', 'openstack']], ['kt', 'KT Cloud', ['kt']], ['aws', 'AWS', ['aws']]];
     const CS_LAYOUTS = [['1', '하나'], ['h', '좌우'], ['v', '상하'], ['4', '4분할']];
     const CS_XTERM = 'https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0';
@@ -41,6 +44,7 @@
       const root = csRoot();
       root.hidden = false;
       root.classList.toggle('cs-solo', !!CS.solo);
+      root.classList.toggle('cs-page', CS.page);
       document.body.classList.add('cs-on');
       if (!root.querySelector('.cs-wrap')) root.innerHTML = '<p class="cs-wait">통합 콘솔을 불러오는 중…</p>';
       try { await csLoadXterm(); }
@@ -49,8 +53,10 @@
       catch (e) { return csShowUnlock(e.status === 401 ? '' : (e.error || '콘솔 서버에 연결하지 못했습니다 (' + e.status + ')')); }
       csRender();
       if (CS.solo && !CS.slots[0].t) csConnectSlot(0, CS.solo);
+      else if (CS.pending) { const id = CS.pending; CS.pending = null; if (CS.targets.some(t => t.id === id && !t.disabled)) csPick(id); }
     }
     function csClose() {
+      if (CS.page) { location.href = '/'; return; }
       CS.slots.forEach(s => csDispose(s.t)); CS.floats.forEach(csDispose);
       CS.slots = []; CS.floats = []; CS.open = false;
       const root = csRoot(); root.hidden = true; root.innerHTML = '';
@@ -93,13 +99,13 @@
       }
       if (CS.active >= n) CS.active = 0;
       const drawer = CS.solo ? '' :
-        '<aside class="cs-drawer"><div class="cs-drawer-head"><b>통합콘솔</b><span>실제 터미널 · 입력이 기록됩니다</span></div>' +
+        '<aside class="cs-drawer"><div class="cs-drawer-head"><b>통합 터미널</b><span>누르면 바로 접속 · 입력이 기록됩니다</span></div>' +
         CS_AREAS.map(a => '<div class="cs-area"><div class="cfg-group-head"><span class="cfg-dot cfg-c-' + a[0] + '"></span>' + a[1] + '</div>' +
           CS.targets.filter(t => a[2].indexOf(t.area) >= 0).map(t =>
             '<button type="button" class="cs-target"' + (t.disabled ? ' disabled title="' + cfgEsc(t.disabled) + '"' : '') +
             ' onclick="csPick(\'' + cfgEsc(t.id) + '\')"><b>' + cfgEsc(t.name) + '</b><span>' + cfgEsc(t.disabled || t.desc || '') + '</span></button>').join('') + '</div>').join('') +
         '<div class="cs-drawer-foot"><button type="button" class="wk-mini" onclick="csLock()">콘솔 잠그기</button>' +
-        '<button type="button" class="wk-mini" onclick="csClose()">대시보드로</button></div></aside>';
+        '<button type="button" class="wk-mini" onclick="csClose()">← 대시보드</button></div></aside>';
       const bar = CS.solo ? '' :
         '<div class="cs-bar"><div class="cs-layouts" role="group" aria-label="창 배치">' + CS_LAYOUTS.map(l =>
           '<button type="button" class="wk-mini' + (CS.layout === l[0] ? ' cs-on-btn' : '') + '" aria-pressed="' + (CS.layout === l[0]) + '" onclick="csLayout(\'' + l[0] + '\')">' + l[1] + '</button>').join('') +
@@ -253,7 +259,7 @@
     }
     function csPopout(uid) {
       const f = csFind(uid); if (!f) return;
-      window.open(location.pathname + '#console/' + encodeURIComponent(f.t.target), 'cs-' + f.t.target + '-' + Date.now(), 'width=1000,height=640');
+      window.open(CS_TERM_URL + '?solo=' + encodeURIComponent(f.t.target), 'cs-' + f.t.target + '-' + Date.now(), 'width=1000,height=640');
       csCloseTerm(uid);
     }
 
@@ -332,10 +338,14 @@
       else { f.t.el.classList.remove('cs-min'); f.t.el.style.zIndex = ++CS.z; csStackMin(); f.t.term && f.t.term.focus(); }
     }
 
-    // #console/<대상> 으로 들어온 새 창
+    // /term/ 페이지: ?t=<대상> 원클릭 접속, ?solo=<대상> 새 창. (예전 #console/<대상> 주소도 받음)
     window.addEventListener('load', () => {
-      const h = location.hash || '';
-      if (h.indexOf('#console/') === 0 && sessionStorage.getItem('figteam_auth_token')) {
-        setTimeout(() => csOpen(decodeURIComponent(h.slice('#console/'.length))), 300);
+      const q = new URLSearchParams(location.search), h = location.hash || '';
+      if (document.body.dataset.page === 'term') {
+        CS.page = true;
+        CS.pending = q.get('t');
+        csOpen(q.get('solo') || null);
+      } else if (h.indexOf('#console/') === 0) {
+        location.replace(CS_TERM_URL + '?solo=' + encodeURIComponent(decodeURIComponent(h.slice('#console/'.length))));
       }
     });
