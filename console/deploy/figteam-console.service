@@ -1,0 +1,17 @@
+[Unit]
+Description=figteam 통합 콘솔 (실제 터미널, 콘솔 비밀번호 잠금·감사 기록)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=user
+Group=user
+WorkingDirectory=/opt/figteam-console
+EnvironmentFile=/etc/figteam-console/env
+Environment=CONSOLE_LOG_DIR=/var/log/figteam-console
+ExecStart=/opt/figteam-console/.venv/bin/uvicorn --factory console.app:create_app --host 127.0.0.1 --port 18090 --workers 1
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
