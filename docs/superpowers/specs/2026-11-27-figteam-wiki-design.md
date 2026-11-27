@@ -173,3 +173,22 @@ POST   /api/team/password       {current,new}
 - 서비스 영역(도메인) 8개는 고정, 팀이 추가하지 못한다(v1).
 - 팀 생성 암호 변경은 wiki-01 `/etc/figteam-wiki/env` 수정 후 서비스 재시작(사용자가 직접 입력).
 - 로그인 화면에 예전 링크 위치를 기억해 로그인 뒤 그 문서로 이동.
+
+## 9. 추가 (2026-11-27 저녁) — figteam 자동 입장 · 통합 콘솔(실제 터미널)
+
+**사용자 결정**: 위키는 비밀번호 없이 figteam 자동 입장. 대시보드 왼편 [통합콘솔] → 3대 영역 → 인스턴스 → 실제 터미널, 창 분할·크기 조절·새 창. 콘솔은 **별도 콘솔 비밀번호로 잠근다**(자동 입장과 분리, 승인됨).
+
+### 9.1 자동 입장 (wiki-01)
+- env `AUTO_LOGIN_TEAM=figteam` 이면 `GET /api/me` 에 세션이 없을 때 그 팀 세션(작성자 `게스트`)을 발급. 비어 있으면 기존대로 401.
+- `POST /api/me/name {member}` 로 작성자 이름 변경(1~20자). 로그아웃하면 다음 진입 때 다시 자동 입장.
+
+### 9.2 통합 콘솔 (s1 `figteam-console`)
+```
+브라우저(xterm.js) ─WebSocket─▶ Cloudflare ─▶ s1 cloudflared ─ path ^/console/ ─▶ 127.0.0.1:18090
+figteam-console (FastAPI, 사용자 user, /opt/figteam-console) ─ 대상별 ssh -tt (s1 키) ─▶ PTY
+```
+- 대상 허용 목록 `console/targets.json`(비밀값 없음): 온프렘 s1(로컬 셸) / OpenStack controller·compute1·3·4(root), k8s-cp1·k8s-w1·db-01·wiki-01(ubuntu) / KT kt-edge-dr-01(root, edgekey) / AWS aws-dr(rocky, minwon-key) · aws-ctl(연결 불가 표시). 2026-11-27 s1 에서 11개 접속 실측.
+- 잠금: `POST /console/api/unlock {password}` — PBKDF2 해시는 `/etc/figteam-console/env`(640 root:user, 사용자가 `python -m console.setpass` 로 설정). 성공 시 쿠키 `fc_s`(HttpOnly·Secure·SameSite=Strict·Path=/console), 60분, IP(Cf-Connecting-Ip) 고정. 실패 10분 5회 → 429.
+- `GET /console/api/targets` (잠금 해제 필요) · `WS /console/ws/{target}` — Origin 확인, 잠금 해제 쿠키 필수(아니면 4401 종료). 메시지: 클라이언트 `{"t":"i","d":문자}` 입력 / `{"t":"r","c":열,"r":행}` 크기, 서버는 출력 텍스트.
+- 동시 세션 6개, 입력 없음 30분이면 종료. 세션마다 입출력 전체를 `/var/log/figteam-console/YYYY-MM-DD/<시각>-<대상>-<IP>.log` 에 기록, 시작·종료는 journal.
+- 화면: 대시보드 왼쪽 레일 [통합콘솔] → 콘솔 화면(왼쪽 서랍: 영역 → 인스턴스). 배치 1 / 좌우 / 상하 / 4분할, 경계 끌어 크기 조절, 창마다 다시 연결·새 창(`/#console/<대상>`)·닫기. 잠금 해제 화면은 콘솔 첫 진입 때.

@@ -238,3 +238,22 @@ def test_seed_twice_fails(tmp_path): ...
 - [ ] **Step 4: s1 cloudflared** — `/etc/cloudflared/config.yml` 백업 → figteam 규칙 앞에 `path: ^/api/` → `http://172.20.0.50:8080` → `cloudflared tunnel ingress validate` · `ingress rule https://figteam.ktci5.kr/api/health` → 재시작 → `curl -s https://figteam.ktci5.kr/api/health` → `{"ok":true}`, `/api/me` → 401
 - [ ] **Step 5: README** — 운영 절차(배포, `wiki.admin reset-password`, 생성 암호 변경, 백업·복원, 되돌리기 = s1 `/api/` 규칙 삭제) → 커밋
 - [ ] **Step 6: main 합치기** — 사용자 확인 후 `git checkout main && git merge --no-ff v3` → **사용자 push** → 배포 확인(로그인 화면, figteam 로그인, 편집 1회, 비교 1회)
+
+---
+
+## 추가 Task (스펙 9장)
+
+### Task 10: 위키 자동 입장 · 이름 바꾸기
+- 시험: `test_auto_login_me`(AUTO_LOGIN_TEAM=t01 → /api/me 200, member "게스트", Set-Cookie), `test_auto_login_off`(없으면 401), `test_rename_member`(POST /api/me/name → /api/me member 변경, 21자 422).
+- 화면: 팀 표시줄 "이름 바꾸기".
+
+### Task 11: s1 통합 콘솔 서비스 (`console/`)
+- `console/app.py` `create_app(targets_path=None)`, `console/pty_session.py`(PTY 생성·읽기·크기·종료), `console/auth.py`(해시·잠금 세션), `console/setpass.py`, `console/targets.json`, `console/tests/`.
+- 시험: unlock 틀림 401·6번째 429 / 잠금 전 targets 401 / Origin 다르면 403 / 잠금 전 WS 4401 / 대상 없음 4404 / 시험 대상(`cat`)으로 입력 왕복 / 크기 메시지 처리 / 감사 로그 파일 생성 / 동시 7번째 4429 / 연결 불가 대상 4409.
+
+### Task 12: 콘솔 화면 (`content/console.js`, `content/console.css`)
+- 대시보드 왼쪽 레일 버튼, 콘솔 화면, 서랍(영역→인스턴스), 배치 4종·끌어서 크기 조절, 새 창, 다시 연결, 잠금 해제 화면. xterm.js(@xterm/xterm, addon-fit) jsDelivr.
+- 확인: 맥 로컬에서 콘솔 서비스를 시험 대상(로컬 셸)으로 띄워 헤드리스 스크린샷.
+
+### Task 13: 배포 (확인받고)
+- s1: `/opt/figteam-console` 설치, systemd `figteam-console`(User=user), 사용자가 콘솔 비밀번호 설정. cloudflared `^/console/` → 127.0.0.1:18090. wiki-01 env `AUTO_LOGIN_TEAM=figteam`. main 합치기 → 사용자 push.
