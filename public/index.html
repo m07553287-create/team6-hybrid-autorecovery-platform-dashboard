@@ -1455,7 +1455,7 @@
     .cs-rail:hover { background: var(--primary-hover); padding-left: 10px; }
     .cs-rail:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
     #cs-root { position: fixed; top: 52px; left: 0; right: 0; bottom: 0; z-index: 800; background: #070b14; }
-    #cs-root.cs-solo { top: 0; }
+    #cs-root.cs-solo, #cs-root.cs-page { top: 0; }
     body.cs-on .cs-rail { display: none; }
     body.cs-dragging, body.cs-dragging * { cursor: grabbing !important; user-select: none; }
     .cs-wait { padding: 40px; color: var(--text-sub); text-align: center; }
@@ -1592,7 +1592,7 @@
     <div class="header-right">
       <button type="button" class="nav-btn active" id="btn-tab-dashboard" onclick="switchView('dashboard')">대시보드</button>
       <button type="button" class="nav-btn" id="btn-tab-settings" onclick="switchView('settings')">설정</button>
-      <!--CONSOLES:BEGIN--><div class="cn-wrap"><button type="button" class="nav-btn cn-btn" id="cn-btn" aria-haspopup="true" aria-expanded="false" onclick="cnToggle(event)">콘솔</button><div class="cn-menu" id="cn-menu" role="menu" hidden><div class="cn-group"><div class="cn-head"><span class="cfg-dot cfg-c-openstack"></span>OpenStack</div><a class="cn-link" role="menuitem" href="https://horizon.ktci5.kr/dashboard/" target="_blank" rel="noopener"><b>Horizon 웹 콘솔</b><span>controller 192.168.120.160 · figteam 프로젝트</span></a></div><div class="cn-group"><div class="cn-head"><span class="cfg-dot cfg-c-kt"></span>KT Cloud</div><a class="cn-link" role="menuitem" href="https://kt-edge.ktci5.kr/" target="_blank" rel="noopener"><b>KT Edge 상태 화면</b><span>kt-edge-dr-01 nginx 상태 (WG 10.200.0.1:8088)</span></a><a class="cn-link" role="menuitem" href="https://cloud.kt.com/" target="_blank" rel="noopener"><b>KT Cloud 콘솔</b><span>IAM 사용자 로그인 (서비스 번호 필요)</span></a></div><div class="cn-group"><div class="cn-head"><span class="cfg-dot cfg-c-aws"></span>AWS</div><a class="cn-link" role="menuitem" href="https://aws-ctl.ktci5.kr/healthz" target="_blank" rel="noopener"><b>Recovery Orchestrator</b><span>aws-ctl 10.200.0.3:8080 · /serving /report/summary</span></a><a class="cn-link" role="menuitem" href="https://console.aws.amazon.com/" target="_blank" rel="noopener"><b>AWS 콘솔</b><span>IAM 사용자 로그인 (서울 리전)</span></a></div></div></div><!--CONSOLES:END-->
+      <!--CONSOLES:BEGIN--><div class="cn-wrap"><button type="button" class="nav-btn cn-btn" id="cn-btn" aria-haspopup="true" aria-expanded="false" onclick="cnToggle(event)">콘솔</button><div class="cn-menu" id="cn-menu" role="menu" hidden><div class="cn-group"><div class="cn-head"><span class="cfg-dot cfg-c-onprem"></span>통합 터미널</div><a class="cn-link" role="menuitem" href="/term/"><b>통합 터미널 열기</b><span>3대 영역 VM 에 원클릭 접속 · 확인·복구 버튼 · 창 분할</span></a></div><div class="cn-group"><div class="cn-head"><span class="cfg-dot cfg-c-openstack"></span>OpenStack</div><a class="cn-link" role="menuitem" href="https://horizon.ktci5.kr/dashboard/" target="_blank" rel="noopener"><b>Horizon 웹 콘솔</b><span>controller 192.168.120.160 · figteam 프로젝트</span></a></div><div class="cn-group"><div class="cn-head"><span class="cfg-dot cfg-c-kt"></span>KT Cloud</div><a class="cn-link" role="menuitem" href="https://kt-edge.ktci5.kr/" target="_blank" rel="noopener"><b>KT Edge 상태 화면</b><span>kt-edge-dr-01 nginx 상태 (WG 10.200.0.1:8088)</span></a><a class="cn-link" role="menuitem" href="https://cloud.kt.com/" target="_blank" rel="noopener"><b>KT Cloud 콘솔</b><span>IAM 사용자 로그인 (서비스 번호 필요)</span></a></div><div class="cn-group"><div class="cn-head"><span class="cfg-dot cfg-c-aws"></span>AWS</div><a class="cn-link" role="menuitem" href="https://aws-ctl.ktci5.kr/healthz" target="_blank" rel="noopener"><b>Recovery Orchestrator</b><span>aws-ctl 10.200.0.3:8080 · /serving /report/summary</span></a><a class="cn-link" role="menuitem" href="https://console.aws.amazon.com/" target="_blank" rel="noopener"><b>AWS 콘솔</b><span>IAM 사용자 로그인 (서울 리전)</span></a></div></div></div><!--CONSOLES:END-->
       <button type="button" class="logout-btn" id="logout-btn" onclick="logout()" style="display:none;">로그아웃</button>
     </div>
   </header>
@@ -1611,7 +1611,7 @@
 
   <!-- VIEW 1: DASHBOARD VIEW (FHD FIXED / CLICK-FREE ONE-PAGE CONSOLE) -->
   <div id="view-dashboard" class="view-container">
-    <!--CSRAIL--><button type="button" class="cs-rail" onclick="csOpen()" title="3대 영역 인스턴스에 실제 터미널로 접속">통합콘솔</button>
+    <!--CSRAIL--><button type="button" class="cs-rail" onclick="csGo()" title="3대 영역 인스턴스에 실제 터미널로 접속">통합 터미널</button>
     <div class="desktop-dashboard-container">
       <!-- DASHBOARD TOOLBAR: SORT & SERVICE-TYPE FILTER -->
       <div class="dashboard-toolbar-row">
@@ -3039,7 +3039,10 @@
     // 서버: s1 figteam-console (/console/api/*, /console/ws/<대상>) · 콘솔 비밀번호로 잠금
     // 예전 통합 터미널 기능: 대상별 「확인」·「⚠ 복구」 버튼, 탭, ⧉ 화면 위 창(끌기·크기·최소화·최대화·되돌리기), ↗ 새 창
     const CS = { open: false, solo: null, targets: null, layout: '1', slots: [], floats: [], active: 0, loaded: false,
-      sizes: { col: 50, row: 50 }, seq: 0, z: 900 };
+      sizes: { col: 50, row: 50 }, seq: 0, z: 900, pending: null, page: false };
+    const CS_TERM_URL = '/term/';
+    // 대시보드에서: 통합 터미널 페이지로 이동 (원클릭 — 대상이 있으면 바로 접속)
+    function csGo(id) { location.href = CS_TERM_URL + (id ? '?t=' + encodeURIComponent(id) : ''); }
     const CS_AREAS = [['openstack', '온프렘 · OpenStack', ['onprem', 'openstack']], ['kt', 'KT Cloud', ['kt']], ['aws', 'AWS', ['aws']]];
     const CS_LAYOUTS = [['1', '하나'], ['h', '좌우'], ['v', '상하'], ['4', '4분할']];
     const CS_XTERM = 'https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0';
@@ -3078,6 +3081,7 @@
       const root = csRoot();
       root.hidden = false;
       root.classList.toggle('cs-solo', !!CS.solo);
+      root.classList.toggle('cs-page', CS.page);
       document.body.classList.add('cs-on');
       if (!root.querySelector('.cs-wrap')) root.innerHTML = '<p class="cs-wait">통합 콘솔을 불러오는 중…</p>';
       try { await csLoadXterm(); }
@@ -3086,8 +3090,10 @@
       catch (e) { return csShowUnlock(e.status === 401 ? '' : (e.error || '콘솔 서버에 연결하지 못했습니다 (' + e.status + ')')); }
       csRender();
       if (CS.solo && !CS.slots[0].t) csConnectSlot(0, CS.solo);
+      else if (CS.pending) { const id = CS.pending; CS.pending = null; if (CS.targets.some(t => t.id === id && !t.disabled)) csPick(id); }
     }
     function csClose() {
+      if (CS.page) { location.href = '/'; return; }
       CS.slots.forEach(s => csDispose(s.t)); CS.floats.forEach(csDispose);
       CS.slots = []; CS.floats = []; CS.open = false;
       const root = csRoot(); root.hidden = true; root.innerHTML = '';
@@ -3130,13 +3136,13 @@
       }
       if (CS.active >= n) CS.active = 0;
       const drawer = CS.solo ? '' :
-        '<aside class="cs-drawer"><div class="cs-drawer-head"><b>통합콘솔</b><span>실제 터미널 · 입력이 기록됩니다</span></div>' +
+        '<aside class="cs-drawer"><div class="cs-drawer-head"><b>통합 터미널</b><span>누르면 바로 접속 · 입력이 기록됩니다</span></div>' +
         CS_AREAS.map(a => '<div class="cs-area"><div class="cfg-group-head"><span class="cfg-dot cfg-c-' + a[0] + '"></span>' + a[1] + '</div>' +
           CS.targets.filter(t => a[2].indexOf(t.area) >= 0).map(t =>
             '<button type="button" class="cs-target"' + (t.disabled ? ' disabled title="' + cfgEsc(t.disabled) + '"' : '') +
             ' onclick="csPick(\'' + cfgEsc(t.id) + '\')"><b>' + cfgEsc(t.name) + '</b><span>' + cfgEsc(t.disabled || t.desc || '') + '</span></button>').join('') + '</div>').join('') +
         '<div class="cs-drawer-foot"><button type="button" class="wk-mini" onclick="csLock()">콘솔 잠그기</button>' +
-        '<button type="button" class="wk-mini" onclick="csClose()">대시보드로</button></div></aside>';
+        '<button type="button" class="wk-mini" onclick="csClose()">← 대시보드</button></div></aside>';
       const bar = CS.solo ? '' :
         '<div class="cs-bar"><div class="cs-layouts" role="group" aria-label="창 배치">' + CS_LAYOUTS.map(l =>
           '<button type="button" class="wk-mini' + (CS.layout === l[0] ? ' cs-on-btn' : '') + '" aria-pressed="' + (CS.layout === l[0]) + '" onclick="csLayout(\'' + l[0] + '\')">' + l[1] + '</button>').join('') +
@@ -3290,7 +3296,7 @@
     }
     function csPopout(uid) {
       const f = csFind(uid); if (!f) return;
-      window.open(location.pathname + '#console/' + encodeURIComponent(f.t.target), 'cs-' + f.t.target + '-' + Date.now(), 'width=1000,height=640');
+      window.open(CS_TERM_URL + '?solo=' + encodeURIComponent(f.t.target), 'cs-' + f.t.target + '-' + Date.now(), 'width=1000,height=640');
       csCloseTerm(uid);
     }
 
@@ -3369,11 +3375,15 @@
       else { f.t.el.classList.remove('cs-min'); f.t.el.style.zIndex = ++CS.z; csStackMin(); f.t.term && f.t.term.focus(); }
     }
 
-    // #console/<대상> 으로 들어온 새 창
+    // /term/ 페이지: ?t=<대상> 원클릭 접속, ?solo=<대상> 새 창. (예전 #console/<대상> 주소도 받음)
     window.addEventListener('load', () => {
-      const h = location.hash || '';
-      if (h.indexOf('#console/') === 0 && sessionStorage.getItem('figteam_auth_token')) {
-        setTimeout(() => csOpen(decodeURIComponent(h.slice('#console/'.length))), 300);
+      const q = new URLSearchParams(location.search), h = location.hash || '';
+      if (document.body.dataset.page === 'term') {
+        CS.page = true;
+        CS.pending = q.get('t');
+        csOpen(q.get('solo') || null);
+      } else if (h.indexOf('#console/') === 0) {
+        location.replace(CS_TERM_URL + '?solo=' + encodeURIComponent(decodeURIComponent(h.slice('#console/'.length))));
       }
     });
     // ===== 메인 대시보드: 살아 있는 인스턴스 실측 (content/dashboard.js) =====
@@ -3518,13 +3528,10 @@
         all.map(s => '<tr' + (s.name === svcName ? ' style="background:rgba(37,99,235,.15)"' : '') + '><td>' + s.typeName + '</td><td><code class="cfg-ic">' + cfgEsc(s.name) + '</code></td><td>' + cfgEsc(s.desc) +
           '</td><td style="color:' + (s.ok ? '#34d399' : '#fca5a5') + '">' + cfgEsc(s.stateText) + '</td><td>' + dashFmtDur(s.since) + '</td></tr>').join('') +
         '</tbody></table></div>' +
-        (i.disabled || i.alive !== true ? '' : '<div class="wk-bar wk-bar-inline" style="margin-top:12px"><button type="button" class="wk-btn wk-primary" onclick="dashOpenConsole(\'' + cfgEsc(i.id) + '\')">통합콘솔에서 열기</button></div>');
+        (i.disabled || i.alive !== true ? '' : '<div class="wk-bar wk-bar-inline" style="margin-top:12px"><button type="button" class="wk-btn wk-primary" onclick="dashOpenConsole(\'' + cfgEsc(i.id) + '\')">통합 터미널로 접속</button></div>');
       document.getElementById('modal-backdrop').style.display = 'flex';
     }
-    function dashOpenConsole(id) {
-      const mb = document.getElementById('modal-backdrop'); if (mb) mb.style.display = 'none';
-      csOpen().then(() => { if (CS.targets) csPick(id); });
-    }
+    function dashOpenConsole(id) { csGo(id); }   // 통합 터미널 페이지로 이동해 바로 접속
 
     // 상단 배지: 영역별 살아 있는 인스턴스 수
     function dashHeader() {

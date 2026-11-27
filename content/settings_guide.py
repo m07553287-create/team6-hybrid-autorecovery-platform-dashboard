@@ -1429,6 +1429,9 @@ SCRIPTS = [
 # 상단 [콘솔] 메뉴 — 3대 영역 접속 콘솔 (공개 페이지에 들어가므로 계정 별칭·비밀값 금지)
 # ---------------------------------------------------------------------------
 CONSOLES = [
+    {"cloud": "onprem", "name": "통합 터미널", "links": [
+        ["통합 터미널 열기", "/term/", "3대 영역 VM 에 원클릭 접속 · 확인·복구 버튼 · 창 분할"],
+    ]},
     {"cloud": "openstack", "name": "OpenStack", "links": [
         ["Horizon 웹 콘솔", "https://horizon.ktci5.kr/dashboard/", "controller 192.168.120.160 · figteam 프로젝트"],
     ]},
