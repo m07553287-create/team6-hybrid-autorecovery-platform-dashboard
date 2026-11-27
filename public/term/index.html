@@ -293,12 +293,36 @@
       background: #0284c7; color: #ffffff; border-color: #38bdf8;
     }
     .cfg-run-safe:hover { background: #0369a1; border-color: #7dd3fc; box-shadow: 0 0 8px rgba(56, 189, 248, .35); }
+    /* 뷰 모드 (확인/안전 조회) 버튼 */
+    .cfg-btn-view {
+      background: #0f766e; color: #ccfbf1; border-color: #14b8a6;
+    }
+    .cfg-btn-view:hover { background: #0d9488; border-color: #2dd4bf; box-shadow: 0 0 8px rgba(20, 184, 166, .4); }
     /* 위험 변경/재시작/중지/생성 실행 버튼 */
     .cfg-run-warn {
       background: #b45309; color: #fef3c7; border-color: #f59e0b;
     }
     .cfg-run-warn:hover { background: #d97706; border-color: #fbbf24; box-shadow: 0 0 10px rgba(245, 158, 11, .45); }
     .cfg-run-warn b { font-weight: 800; color: #fff; }
+    /* 빨강색 수정/변경 버튼 */
+    .cfg-run-danger {
+      background: #dc2626 !important; color: #ffffff !important; border-color: #ef4444 !important; font-weight: 700 !important;
+    }
+    .cfg-run-danger:hover {
+      background: #b91c1c !important; border-color: #f87171 !important; box-shadow: 0 0 12px rgba(239, 68, 68, .6) !important;
+    }
+
+    /* 위험/수정 변경 모달 레드 테마 */
+    .cfg-modal-danger .cfg-modal-card { border-color: #ef4444; }
+    .cfg-modal-danger .cfg-modal-head { background: #2a0e11; border-bottom: 1px solid #5c1d24; color: #f87171; }
+    .cfg-modal-danger .cfg-modal-alert { background: rgba(239, 68, 68, .14); border: 1px solid rgba(239, 68, 68, .35); color: #fca5a5; }
+    .cfg-modal-danger .cfg-btn-confirm { background: #dc2626; border-color: #ef4444; color: #fff; font-weight: 700; }
+    .cfg-modal-danger .cfg-btn-confirm:hover { background: #b91c1c; border-color: #f87171; box-shadow: 0 0 10px rgba(239, 68, 68, .5); }
+
+    /* 뷰 모드 팝업 테마 */
+    .cfg-modal-view .cfg-modal-card { border-color: #14b8a6; max-width: 680px; }
+    .cfg-modal-view .cfg-modal-head { background: #0f2d29; border-bottom: 1px solid #134e48; color: #2dd4bf; }
+    .cfg-modal-view .cfg-modal-alert { background: rgba(20, 184, 166, .12); border: 1px solid rgba(20, 184, 166, .3); color: #99f6e4; }
 
     /* 위험 명령어 사전 확인 모달 */
     .cfg-modal-overlay {

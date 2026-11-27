@@ -1492,12 +1492,36 @@
       background: #0284c7; color: #ffffff; border-color: #38bdf8;
     }
     .cfg-run-safe:hover { background: #0369a1; border-color: #7dd3fc; box-shadow: 0 0 8px rgba(56, 189, 248, .35); }
+    /* 뷰 모드 (확인/안전 조회) 버튼 */
+    .cfg-btn-view {
+      background: #0f766e; color: #ccfbf1; border-color: #14b8a6;
+    }
+    .cfg-btn-view:hover { background: #0d9488; border-color: #2dd4bf; box-shadow: 0 0 8px rgba(20, 184, 166, .4); }
     /* 위험 변경/재시작/중지/생성 실행 버튼 */
     .cfg-run-warn {
       background: #b45309; color: #fef3c7; border-color: #f59e0b;
     }
     .cfg-run-warn:hover { background: #d97706; border-color: #fbbf24; box-shadow: 0 0 10px rgba(245, 158, 11, .45); }
     .cfg-run-warn b { font-weight: 800; color: #fff; }
+    /* 빨강색 수정/변경 버튼 */
+    .cfg-run-danger {
+      background: #dc2626 !important; color: #ffffff !important; border-color: #ef4444 !important; font-weight: 700 !important;
+    }
+    .cfg-run-danger:hover {
+      background: #b91c1c !important; border-color: #f87171 !important; box-shadow: 0 0 12px rgba(239, 68, 68, .6) !important;
+    }
+
+    /* 위험/수정 변경 모달 레드 테마 */
+    .cfg-modal-danger .cfg-modal-card { border-color: #ef4444; }
+    .cfg-modal-danger .cfg-modal-head { background: #2a0e11; border-bottom: 1px solid #5c1d24; color: #f87171; }
+    .cfg-modal-danger .cfg-modal-alert { background: rgba(239, 68, 68, .14); border: 1px solid rgba(239, 68, 68, .35); color: #fca5a5; }
+    .cfg-modal-danger .cfg-btn-confirm { background: #dc2626; border-color: #ef4444; color: #fff; font-weight: 700; }
+    .cfg-modal-danger .cfg-btn-confirm:hover { background: #b91c1c; border-color: #f87171; box-shadow: 0 0 10px rgba(239, 68, 68, .5); }
+
+    /* 뷰 모드 팝업 테마 */
+    .cfg-modal-view .cfg-modal-card { border-color: #14b8a6; max-width: 680px; }
+    .cfg-modal-view .cfg-modal-head { background: #0f2d29; border-bottom: 1px solid #134e48; color: #2dd4bf; }
+    .cfg-modal-view .cfg-modal-alert { background: rgba(20, 184, 166, .12); border: 1px solid rgba(20, 184, 166, .3); color: #99f6e4; }
 
     /* 위험 명령어 사전 확인 모달 */
     .cfg-modal-overlay {
@@ -2882,20 +2906,42 @@
         return cfgLink(seg).split('**').map((s, j) => (j % 2 === 1 ? '<b>' + s + '</b>' : s)).join('');
       }).join('');
     }
+    function cfgExtractFilePath(label, code) {
+      const text = (label || '') + '\n' + (code || '');
+      const m = text.match(/(?:(?:nano|vi|vim|cat|touch|mkdir|cp|mv)\s+)?((?:\/|~)[A-Za-z0-9_./-]+(?:\.[A-Za-z0-9_-]+|\/[A-Za-z0-9_.-]+))/);
+      if (m && m[1]) return m[1];
+      if (/^[A-Za-z0-9_./-]+\.(cnf|conf|yaml|yml|json|toml|service|sh|cfg|env|txt|ini)$/i.test((label || '').trim())) {
+        return (label || '').trim();
+      }
+      return (label || '').trim();
+    }
+
     function cfgCode(code, label, cat) {
       CFG.codeMeta = CFG.codeMeta || [];
       const idx = CFG.codes.push(code) - 1;
       CFG.codeMeta[idx] = { code: code, label: label, cat: cat };
       const isDang = cfgIsDangerous(code, cat);
-      const btnTitle = isDang ? '서비스 중지/재시작/종료/생성 등 위험 명령 (실행 전 확인)' : '터미널에서 즉시 실행';
+      const isConfig = (cat === '설정' || /\b(cnf|conf|yaml|yml|json|toml|service|cfg|ini)\b/i.test(label || '') || /^\s*(\[|\{|\#|[A-Za-z0-9_-]+:)/.test(code || ''));
+
+      let acts = '<button type="button" class="cfg-copy" onclick="cfgCopy(' + idx + ', this)">복사</button>';
+
+      if (isConfig) {
+        // 설정인 경우: 뷰 모드(안전 확인) + 빨강색 수정/변경(vi/nano) 버튼
+        acts += '<button type="button" class="cfg-run-btn cfg-btn-view" onclick="cfgViewCode(' + idx + ')" title="안전한 뷰 모드로 설정 파일 내용 확인">👁️ 뷰 모드</button>';
+        acts += '<button type="button" class="cfg-run-btn cfg-run-danger" onclick="cfgEditCode(' + idx + ')" title="경고: vi/nano 편집기 접근 및 설정 수정/변경 (확인 후 진행)">✏️ 수정/변경 (vi/nano)</button>';
+      } else if (isDang || cat === '적용' || cat === '설치') {
+        // 위험/적용/변경 명령어인 경우: 뷰 모드(사전 확인) + 빨강색 수정/변경 버튼
+        acts += '<button type="button" class="cfg-run-btn cfg-btn-view" onclick="cfgViewCode(' + idx + ')" title="명령어 사전 확인 (뷰 모드)">👁️ 뷰 모드</button>';
+        acts += '<button type="button" class="cfg-run-btn cfg-run-danger" onclick="cfgRunCode(' + idx + ')" title="경고: 시스템 설정 변경 및 서비스 영향 (확인 후 진행)">⚠️ 수정/변경</button>';
+      } else {
+        // 일반 조회/검증 안전 명령어: 복사 + 안전 실행
+        acts += '<button type="button" class="cfg-run-btn cfg-run-safe" onclick="cfgRunCode(' + idx + ')" title="터미널에서 즉시 조회/검증 실행">▶ 뷰/확인</button>';
+      }
+
       return '<div class="cfg-code"><div class="cfg-code-head">' +
         (cat ? '<span class="cfg-cat cfg-cat-' + CAT_ORDER.indexOf(cat) + '">' + cfgEsc(cat) + '</span>' : '') +
         '<span class="cfg-code-label">' + cfgLink(cfgEsc(label || '')) + '</span>' +
-        '<div class="cfg-code-actions">' +
-        '<button type="button" class="cfg-copy" onclick="cfgCopy(' + idx + ', this)">복사</button>' +
-        '<button type="button" class="cfg-run-btn ' + (isDang ? 'cfg-run-warn' : 'cfg-run-safe') + '" onclick="cfgRunCode(' + idx + ')" title="' + cfgEsc(btnTitle) + '">' +
-        (isDang ? '⚠️ 실행' : '▶ 실행') + '</button>' +
-        '</div>' +
+        '<div class="cfg-code-actions">' + acts + '</div>' +
         '</div><pre>' + cfgLink(cfgEsc(code)) + '</pre></div>';
     }
 
@@ -3510,11 +3556,15 @@
       return { fl, dock };
     }
 
-    // 4. 실행 버튼 핸들러
+    // 4. 실행 버튼 핸들러 (수정/변경 및 안전 실행 분기)
     function cfgRunCode(idx) {
       const item = (CFG.codeMeta && CFG.codeMeta[idx]) || { code: CFG.codes[idx] || '', label: '', cat: '' };
       const target = cfgDetectTarget(item.code, item.label, item.cat);
-      if (cfgIsDangerous(item.code, item.cat)) {
+      if (target === 's1') {
+        alert('s1 호스트는 웹에서 콘솔 터미널 접근 및 명령 실행이 불가합니다.');
+        return;
+      }
+      if (cfgIsDangerous(item.code, item.cat) || item.cat === '적용' || item.cat === '설치') {
         cfgShowConfirm(item.code, target, item.label, () => {
           cfgOpenAndExec(item.code, target, item.label, true);
         });
@@ -3523,24 +3573,121 @@
       }
     }
 
-    // 5. 위험 명령어 사전 확인 모달
+    // 4-1. 뷰 모드 팝업 (안전 확인 · 읽기 전용)
+    function cfgViewCode(idx) {
+      const item = (CFG.codeMeta && CFG.codeMeta[idx]) || { code: CFG.codes[idx] || '', label: '', cat: '' };
+      const target = cfgDetectTarget(item.code, item.label, item.cat);
+      const filePath = cfgExtractFilePath(item.label, item.code);
+
+      const old = document.getElementById('cfg-view-modal');
+      if (old) old.remove();
+
+      const modal = document.createElement('div');
+      modal.id = 'cfg-view-modal';
+      modal.className = 'cfg-modal-overlay cfg-modal-view';
+      modal.innerHTML = '<div class="cfg-modal-card" role="dialog" aria-modal="true">' +
+        '<div class="cfg-modal-head"><span>👁️ 설정 및 명령어 확인 (뷰 모드 · 읽기 전용)</span><span style="font-size:12px;opacity:0.8;">ESC로 닫기</span></div>' +
+        '<div class="cfg-modal-body">' +
+        '<div class="cfg-modal-alert"><b>안내:</b> 본 뷰 모드는 시스템 변경 없이 안전하게 설정 파일 및 명령어 구성을 사전 확인·열람하는 모드입니다.</div>' +
+        '<div class="cfg-modal-meta">대상 노드: <strong>' + cfgEsc(target) + '</strong> &nbsp;|&nbsp; 항목/파일: ' + cfgEsc(item.label || '설정') + '</div>' +
+        '<pre class="cfg-modal-code" style="max-height:260px;">' + cfgEsc(item.code) + '</pre>' +
+        '</div>' +
+        '<div class="cfg-modal-foot">' +
+        '<button type="button" class="cfg-btn-cancel" id="cfg-view-close">닫기</button>' +
+        '<button type="button" class="cfg-run-btn cfg-btn-view" id="cfg-view-cat-run">터미널 cat 읽기 전용 확인</button>' +
+        '</div>' +
+        '</div>';
+      document.body.appendChild(modal);
+
+      const close = () => { modal.remove(); document.removeEventListener('keydown', onKey); };
+      const onKey = e => { if (e.key === 'Escape') close(); };
+      document.addEventListener('keydown', onKey);
+
+      modal.querySelector('#cfg-view-close').onclick = close;
+      modal.querySelector('#cfg-view-cat-run').onclick = () => {
+        close();
+        if (target === 's1') {
+          alert('s1 호스트는 웹 콘솔 터미널 접근 불가 대상입니다.');
+          return;
+        }
+        const catCmd = (filePath && filePath.startsWith('/')) ? ('cat ' + filePath) : item.code;
+        cfgOpenAndExec(catCmd, target, (item.label || '') + ' (cat 확인)', true);
+      };
+      modal.onclick = e => { if (e.target === modal) close(); };
+    }
+
+    // 4-2. 빨강색 수정/변경(vi/nano) 핸들러 및 사전 경고 모달
+    function cfgEditCode(idx) {
+      const item = (CFG.codeMeta && CFG.codeMeta[idx]) || { code: CFG.codes[idx] || '', label: '', cat: '' };
+      const target = cfgDetectTarget(item.code, item.label, item.cat);
+      if (target === 's1') {
+        alert('s1 호스트는 웹에서 콘솔 터미널 접근 및 설정 수정이 불가합니다.');
+        return;
+      }
+      const filePath = cfgExtractFilePath(item.label, item.code);
+
+      const old = document.getElementById('cfg-edit-modal');
+      if (old) old.remove();
+
+      const modal = document.createElement('div');
+      modal.id = 'cfg-edit-modal';
+      modal.className = 'cfg-modal-overlay cfg-modal-danger';
+      modal.innerHTML = '<div class="cfg-modal-card" role="dialog" aria-modal="true">' +
+        '<div class="cfg-modal-head">⚠️ 설정 파일 수정/변경 사전 확인 (vi / nano)</div>' +
+        '<div class="cfg-modal-body">' +
+        '<div class="cfg-modal-alert"><b>경고:</b> 운영 노드의 설정 파일을 직접 열어 수정하거나 구성을 변경합니다. 잘못된 설정 값이나 문법 오류는 서비스 다운타임의 원인이 될 수 있습니다. 사전 확인 후 신중히 진행하십시오.</div>' +
+        '<div class="cfg-modal-meta">대상 노드: <strong>' + cfgEsc(target) + '</strong> &nbsp;|&nbsp; 대상 파일: <strong>' + cfgEsc(filePath) + '</strong></div>' +
+        '<div style="font-size:12.5px;color:#cbd5e1;margin-top:2px;"><b>접근 편집기 방식 선택:</b></div>' +
+        '<div style="display:flex;gap:14px;font-size:12.5px;color:#e2e8f0;background:#090d16;padding:10px 12px;border-radius:6px;border:1px solid #334155;flex-wrap:wrap;">' +
+        '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="cfg-editor" value="vi" checked> <b>vi 편집기</b> (sudo vi ' + cfgEsc(filePath) + ')</label>' +
+        '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="cfg-editor" value="nano"> <b>nano 편집기</b> (sudo nano ' + cfgEsc(filePath) + ')</label>' +
+        '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="cfg-editor" value="apply"> <b>직접 덮어쓰기 적용</b></label>' +
+        '</div>' +
+        '<pre class="cfg-modal-code" style="max-height:120px;">' + cfgEsc(item.code) + '</pre>' +
+        '</div>' +
+        '<div class="cfg-modal-foot">' +
+        '<button type="button" class="cfg-btn-cancel" id="cfg-edit-cancel">취소</button>' +
+        '<button type="button" class="cfg-btn-confirm" id="cfg-edit-ok" style="background:#dc2626;border-color:#ef4444;color:#fff;font-weight:700;">확인 후 편집 터미널 실행</button>' +
+        '</div>' +
+        '</div>';
+      document.body.appendChild(modal);
+
+      const close = () => { modal.remove(); document.removeEventListener('keydown', onKey); };
+      const onKey = e => { if (e.key === 'Escape') close(); };
+      document.addEventListener('keydown', onKey);
+
+      modal.querySelector('#cfg-edit-cancel').onclick = close;
+      modal.querySelector('#cfg-edit-ok').onclick = () => {
+        const choice = modal.querySelector('input[name="cfg-editor"]:checked').value;
+        close();
+        let cmdToRun = '';
+        if (choice === 'vi') cmdToRun = 'sudo vi ' + filePath;
+        else if (choice === 'nano') cmdToRun = 'sudo nano ' + filePath;
+        else cmdToRun = "sudo bash -c 'cat << \"EOF\" > " + filePath + "\n" + item.code.trim() + "\nEOF'";
+
+        cfgOpenAndExec(cmdToRun, target, item.label + ' (' + choice + ' 수정)', true);
+      };
+      modal.onclick = e => { if (e.target === modal) close(); };
+    }
+
+    // 5. 위험 명령어 사전 확인 모달 (빨강색 경고 확인)
     function cfgShowConfirm(code, target, label, onConfirm) {
       const old = document.getElementById('cfg-confirm-modal');
       if (old) old.remove();
 
       const modal = document.createElement('div');
       modal.id = 'cfg-confirm-modal';
-      modal.className = 'cfg-modal-overlay';
+      modal.className = 'cfg-modal-overlay cfg-modal-danger';
       modal.innerHTML = '<div class="cfg-modal-card" role="dialog" aria-modal="true">' +
-        '<div class="cfg-modal-head">⚠️ 위험 명령어 실행 사전 확인</div>' +
+        '<div class="cfg-modal-head">⚠️ 시스템 수정/변경 실행 사전 확인</div>' +
         '<div class="cfg-modal-body">' +
-        '<div class="cfg-modal-alert"><b>주의:</b> 이 명령은 서비스 중지, 재시작, 삭제 또는 시스템 구성을 변경할 수 있습니다. 운영 환경에 미치는 영향을 확인하신 후 신중히 실행해 주세요.</div>' +
-        '<div class="cfg-modal-meta">대상 노드: <strong>' + cfgEsc(target) + '</strong> &nbsp;|&nbsp; 작업: ' + cfgEsc(label || '설정 적용') + '</div>' +
+        '<div class="cfg-modal-alert"><b>경고:</b> 이 명령은 서비스 중지, 재시작, 삭제 또는 시스템 구성을 직접 변경할 수 있습니다. 운영 환경에 미치는 영향을 확인하신 후 신중히 실행해 주세요.</div>' +
+        '<div class="cfg-modal-meta">대상 노드: <strong>' + cfgEsc(target) + '</strong> &nbsp;|&nbsp; 작업: ' + cfgEsc(label || '설정 수정/변경') + '</div>' +
         '<pre class="cfg-modal-code">' + cfgEsc(code) + '</pre>' +
         '</div>' +
         '<div class="cfg-modal-foot">' +
         '<button type="button" class="cfg-btn-cancel" id="cfg-modal-cancel">취소</button>' +
-        '<button type="button" class="cfg-btn-confirm" id="cfg-modal-ok">확인 후 터미널 실행</button>' +
+        '<button type="button" class="cfg-btn-confirm" id="cfg-modal-ok" style="background:#dc2626;border-color:#ef4444;color:#fff;font-weight:700;">확인 후 변경 실행</button>' +
         '</div>' +
         '</div>';
       document.body.appendChild(modal);
