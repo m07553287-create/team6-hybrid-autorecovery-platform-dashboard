@@ -530,14 +530,44 @@
  {
   "id": "aws-ctl",
   "area": "aws",
-  "name": "aws-ctl",
-  "desc": "10.200.0.3 · Recovery Orchestrator",
+  "name": "aws-ctl-01",
+  "role": "오케스트레이터",
+  "desc": "10.200.0.3 · Amazon Linux · 복구 오케스트레이터·관제(docker)",
   "host": "10.200.0.3",
   "argv": [
-   "true"
+   "ssh",
+   "-tt",
+   "-o",
+   "BatchMode=yes",
+   "-o",
+   "ConnectTimeout=8",
+   "-o",
+   "ServerAliveInterval=30",
+   "-o",
+   "LogLevel=ERROR",
+   "-i",
+   "/home/user/.ssh/id_ed25519",
+   "-o",
+   "IdentitiesOnly=yes",
+   "ec2-user@10.200.0.3"
   ],
-  "http": "http://10.200.0.3:8080/healthz",
-  "disabled": "연결 예정 — 키 재설정 후 추가합니다 (지금은 API 응답만 감시)",
-  "role": "오케스트레이터"
+  "units": [
+   [
+    "docker",
+    "daemon",
+    "컨테이너 런타임(관제 스택)"
+   ]
+  ],
+  "check": {
+   "상태 요약": "hostname; uptime; free -h | sed -n 1,2p; df -h / | tail -1",
+   "컨테이너": "sudo docker ps --format 'table {{.Names}}\\t{{.Status}}'",
+   "오케스트레이터 healthz": "curl -s -m4 http://127.0.0.1:8080/healthz; echo",
+   "관제 스택 상태": "for c in orchestrator prometheus grafana alertmanager loki node-exporter blackbox alloy; do printf '%-14s ' $c; sudo docker inspect -f '{{.State.Status}}' $c 2>/dev/null || echo none; done",
+   "WireGuard": "sudo wg show wg0 | grep -E 'interface|peer|endpoint|latest handshake'",
+   "온프렘·DR 도달": "for ip in 10.200.0.1 10.200.0.2 10.200.0.4; do ping -c1 -W2 $ip >/dev/null 2>&1 && echo \"$ip 응답\" || echo \"$ip 응답 없음\"; done"
+  },
+  "fix": {
+   "오케스트레이터 재시작": "sudo docker restart orchestrator && sleep 2 && curl -s -m4 http://127.0.0.1:8080/healthz; echo"
+  }
  }
 ]
