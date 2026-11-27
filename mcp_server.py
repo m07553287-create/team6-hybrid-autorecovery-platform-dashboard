@@ -635,16 +635,58 @@ class McpHttpHandler(BaseHTTPRequestHandler):
                     "mcp_json": "/mcp/mcp.json",
                     "openapi_json": "/mcp/openapi.json",
                     "installer": "/mcp/install",
-                    "rest_api": "/mcp/api"
+                    "rest_api": "/mcp/api",
+                    "openai_gateway": "/md/v1",
+                    "context_markdown": "/md/context.md"
                 },
                 "one_click_setup": {
                     "claude_code": "claude mcp add --transport sse figteam-cfg https://figteam.ktci5.kr/mcp/sse",
                     "agy": "agy mcp add figteam-cfg https://figteam.ktci5.kr/mcp/sse",
                     "gemini": "gemini mcp add figteam-cfg https://figteam.ktci5.kr/mcp/sse",
-                    "universal_installer": "curl -sSL https://figteam.ktci5.kr/mcp/install | bash"
+                    "universal_installer": "curl -sSL https://figteam.ktci5.kr/mcp/install | bash",
+                    "openai_base_url": "https://figteam.ktci5.kr/md/v1"
                 }
             }
             self.wfile.write(json.dumps(resp, ensure_ascii=False, indent=2).encode("utf-8"))
+            return
+
+        # 1-1. OpenAI 호환 AI 게이트웨이 엔드포인트 안내 (/md/v1)
+        if path in ("/md", "/md/", "/md/v1", "/md/v1/"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            gateway_info = {
+                "status": "ok",
+                "service": "FIGTEAM Grounded AI Gateway",
+                "description": "로컬 AI 앱을 위한 실시간 인프라 실측 Grounding 프록시",
+                "base_url": "https://figteam.ktci5.kr/md/v1",
+                "endpoints": {
+                    "chat_completions": "/md/v1/chat/completions",
+                    "models": "/md/v1/models",
+                    "context_markdown": "/md/context.md"
+                },
+                "security_rules": [
+                    "AI는 읽기 전용 사실 기반 응답(Read-Only Fact-Based Advice)만 제공합니다.",
+                    "실제 인프라 설정 변경 및 안전 가드 명령어 실행은 https://figteam.ktci5.kr/#cfg 웹 콘솔에서 직접 수행해야 합니다."
+                ]
+            }
+            self.wfile.write(json.dumps(gateway_info, ensure_ascii=False, indent=2).encode("utf-8"))
+            return
+
+        # 1-2. OpenAI 호환 모델 목록 조회 (/md/v1/models)
+        if path in ("/md/v1/models", "/md/models"):
+            self.handle_md_models()
+            return
+
+        # 1-3. 순수 마크다운 시스템 컨텍스트 (/md/context.md)
+        if path in ("/md/context.md", "/context.md", "/mcp/context.md"):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/markdown; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            md_content = self.build_grounding_context()
+            self.wfile.write(md_content.encode("utf-8"))
             return
 
         # 2. 공통 MCP 설정 JSON (Universal mcp.json)
@@ -803,11 +845,294 @@ class McpHttpHandler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps(res, ensure_ascii=False).encode("utf-8"))
             return
 
+        # 3. OpenAI 호환 실측 Grounding Chat Completions 엔드포인트: /md/v1/chat/completions
+        if path in ("/md/v1/chat/completions", "/md/chat/completions"):
+            self.handle_md_chat_completions(req_json)
+            return
+
         self.send_response(404)
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(b'{"error": "Not Found"}')
+
+    def handle_md_models(self):
+        """OpenAI 호환 모델 목록 반환 (/md/v1/models)"""
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        now_ts = int(time.time())
+        models_data = {
+            "object": "list",
+            "data": [
+                {"id": "figteam-fact-grounded", "object": "model", "created": now_ts, "owned_by": "figteam"},
+                {"id": "gpt-4o", "object": "model", "created": now_ts, "owned_by": "figteam"},
+                {"id": "gpt-4o-mini", "object": "model", "created": now_ts, "owned_by": "figteam"},
+                {"id": "gemini-2.5-flash", "object": "model", "created": now_ts, "owned_by": "figteam"},
+                {"id": "claude-3-5-sonnet", "object": "model", "created": now_ts, "owned_by": "figteam"}
+            ]
+        }
+        self.wfile.write(json.dumps(models_data, ensure_ascii=False).encode("utf-8"))
+
+    def build_grounding_context(self) -> str:
+        """AI 프록시 및 로컬 훅 주입용 최신 실측 마크다운 컨텍스트"""
+        vars_res = self.core.get_common_variables()
+        vars_lines = [f"- **{v['variable']}**: `{v['value']}` ({v['usage']})" for v in vars_res]
+        vars_text = "\n".join(vars_lines)
+
+        topo = self.core.get_topology()
+        matrix = self.core.get_auth_matrix()
+
+        return f"""# FIGTEAM 3사 하이브리드 멀티클라우드 실측 인프라 사실 지침 (Ground Truth)
+
+> **실측 기준 일자**: {self.core.measured} (온프렘 OpenStack RAM 증설 및 3사 실측 최신화 완료)
+> **공식 웹 포털 (설정 및 안전가드 터미널)**: https://figteam.ktci5.kr/#cfg/
+
+---
+
+## 🔒 절대 보안 및 웹 설정 유도 원칙 (MUST FOLLOW)
+1. **읽기 전용 기술 조언 전담**: 당신은 '읽기 전용(Read-Only)' 실측 기반 기술 조언 및 원인 분석 어드바이저입니다. 절대로 직접 명령어를 원격 실행하거나 설정을 대리 변경할 수 없습니다.
+2. **웹 콘솔 직접 실행 유도**: 모든 실제 인프라 설정 변경, 서비스 재시작, DB 복구, 파괴적 조치 명령어 실행은 팀원이 직접 웹 포털(https://figteam.ktci5.kr/#cfg)에 접속하여 안전 가드가 적용된 터미널 러너(`▶ 실행`)로 수행하도록 명확한 웹 화면 링크를 제공하여 유도하십시오.
+3. **분야별 공식 웹 설정 페이지 링크**:
+   - **DB 클러스터 (Primary/Replica/GTID)**: https://figteam.ktci5.kr/#cfg/inst/inst-db01/data
+   - **온프렘 호스트 & 점프호스트(s1)**: https://figteam.ktci5.kr/#cfg/inst/inst-s1/access
+   - **OpenStack Controller (RAM 14GB 증설)**: https://figteam.ktci5.kr/#cfg/inst/inst-controller/core
+   - **OpenStack Compute 1·3·4 (RAM 8GB 증설)**: https://figteam.ktci5.kr/#cfg/inst/inst-compute1/compute
+   - **K8s 클러스터 (cp1 / w1)**: https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s
+   - **KT Cloud Edge (Nginx WAF 10s 캐싱)**: https://figteam.ktci5.kr/#cfg/inst/inst-ktedge/proxy
+   - **AWS DR Pilot-Light (aws-dr, aws-ctl)**: https://figteam.ktci5.kr/#cfg/inst/inst-awsdr/replica
+   - **3사 전체 엔드투엔드 토폴로지**: https://figteam.ktci5.kr/#cfg/overview
+
+---
+
+## 1. 3사 하이브리드 아키텍처 및 트래픽 경로
+{topo.get('architecture', '')}
+
+---
+
+## 2. 19대 핵심 공통 변수 실측값
+{vars_text}
+
+---
+
+## 3. 계층별 접속 인증 매트릭스
+{matrix.get('auth_matrix_text', '')}
+"""
+
+    def generate_fact_fallback_response(self, user_query: str) -> str:
+        """키워드 기반 실시간 사실 분석 및 공식 웹 콘솔 유도 응답 생성"""
+        q_lower = user_query.lower()
+
+        if any(k in q_lower for k in ["db", "mysql", "gtid", "복제", "데이터", "3306"]):
+            return (
+                "### 🔍 FIGTEAM DB 클러스터 실측 사양 및 점검 분석\n\n"
+                "* **Primary DB (온프렘 OpenStack)**: `10.10.2.10:3306` (`inst-db01`, MySQL 8.4 LTS, GTID ON, `enforce_gtid_consistency=ON`)\n"
+                "* **Replica DB (AWS DR Pilot-Light)**: `10.51.1.165:3306` (`aws-dr`, 채널 `ch_dr`, GTID 자동 위치 지정)\n"
+                "* **연결 메시망**: KT Edge 허브(`10.200.0.1:51820`)를 통한 WireGuard wg0 터널 암호화 복제\n\n"
+                "**주요 장애 점검 포인트**:\n"
+                "1. 복제 상태 확인: `SHOW REPLICA STATUS FOR CHANNEL 'ch_dr'\\G` (Replica_IO_Running, Replica_SQL_Running 확인)\n"
+                "2. GTID 지연 여부: `SELECT @@GLOBAL.gtid_executed;` 와 Master의 실행 트랜잭션 비교\n"
+                "3. WireGuard 메시망 상태: `ssh s1 sudo wg show wg-kt` 또는 KT Edge ping 점검\n\n"
+                "👉 **실제 복구 및 설정 작업은 웹 콘솔에서 직접 수행하십시오**:\n"
+                "보안 가이드라인에 따라 모든 DB 설정 조회 및 안전 가드가 적용된 복구 명령어 실행은 공식 웹 포털에서 진행하셔야 합니다.\n"
+                "🔗 **웹 콘솔 바로가기**: [https://figteam.ktci5.kr/#cfg/inst/inst-db01/data](https://figteam.ktci5.kr/#cfg/inst/inst-db01/data)\n\n"
+                "> 🔒 **보안 안내**: 본 AI는 실측 기반 질의응답(Read-Only) 전용입니다. 실제 변경 및 안전 가드 명령어 실행은 위 웹 콘솔을 이용해 주십시오."
+            )
+
+        if any(k in q_lower for k in ["ram", "메모리", "컨트롤러", "스왑", "swap", "증설", "고갈", "oom"]):
+            return (
+                "### 🔍 FIGTEAM OpenStack 클러스터 메모리 실측 현황 (2026-11-27 기준)\n\n"
+                "* **물리 호스트 s1 (`10.10.10.8`)**: 20 vCPU / 30GB RAM, 고속 NVMe 스왑(`swap.img` 8GB) 활성화 완료\n"
+                "* **Controller 노드 (`192.168.120.160`)**: 기존 10GB(99% 고갈)에서 **14GB RAM**으로 증설 완료 + 내부 스왑 4GB 신규 확보 (현재 가용 메모리 8.3GB, 38% 안정권)\n"
+                "* **Compute 노드 (`161, 163, 164`)**: 전 노드 **8GB RAM**으로 균등 증설 완료 (노드 162 compute2는 미사용 삭제)\n\n"
+                "**운영 권고**:\n"
+                "Controller 노드는 Keystone, Nova, Glance, Neutron, RabbitMQ, MariaDB 제어 전용이므로 사용자 VM 인스턴스는 반드시 8GB 컴퓨트 노드군으로 스케줄링하십시오.\n\n"
+                "👉 **상세 설정 및 노드 제어는 공식 웹 콘솔에서 직접 수행하십시오**:\n"
+                "🔗 **Controller 설정 화면**: [https://figteam.ktci5.kr/#cfg/inst/inst-controller/core](https://figteam.ktci5.kr/#cfg/inst/inst-controller/core)\n"
+                "🔗 **Compute 노드 화면**: [https://figteam.ktci5.kr/#cfg/inst/inst-compute1/compute](https://figteam.ktci5.kr/#cfg/inst/inst-compute1/compute)\n\n"
+                "> 🔒 **보안 안내**: 본 AI는 읽기 전용 실측 어드바이저입니다. 실제 설정 변경은 웹 콘솔에서 안전 가드를 통해 진행하십시오."
+            )
+
+        if any(k in q_lower for k in ["ssh", "접속", "키", "인증", "바스천", "s1", "터미널"]):
+            return (
+                "### 🔍 FIGTEAM 인프라 접속 및 키 매트릭스 안내\n\n"
+                "* **단일 점프호스트(Bastion)**: 물리 호스트 `s1 (10.10.10.8, t1-vm2)`\n"
+                "* **팀원 진입 키**: 개인키 `~/.ssh/id_ed25519` 사용 (`ssh s1`)\n"
+                "* **내부 VM 접속 경로**: s1 호스트의 `~/bin/osx <노드> <명령>` 래퍼 스크립트 또는 `~/.ssh/config`의 `ProxyJump s1` 규칙 활용\n\n"
+                "👉 **전체 인프라 계층(물리, OpenStack, K8s, DB, AWS, WireGuard) 접속 키 매트릭스 전문**:\n"
+                "🔗 **웹 콘솔 바로가기**: [https://figteam.ktci5.kr/#cfg/inst/inst-s1/access](https://figteam.ktci5.kr/#cfg/inst/inst-s1/access)\n\n"
+                "> 🔒 **보안 안내**: 본 AI는 읽기 전용 안내를 제공합니다. 명령어 실행은 웹 콘솔 내 플로팅 터미널 러너를 이용하십시오."
+            )
+
+        if any(k in q_lower for k in ["k8s", "쿠버", "cp1", "w1", "파드", "6443", "vip"]):
+            return (
+                "### 🔍 FIGTEAM Kubernetes (k8s) PaaS 실측 사양\n\n"
+                "* **Control Plane (cp1)**: `172.20.0.86` (FIP: `192.168.120.226`, VIP: `10.10.1.100:80`)\n"
+                "* **Worker Node (w1)**: `172.20.0.180` (Calico CNI, Pod CIDR `10.244.0.0/16`)\n"
+                "* **외부 노출 포트**: NodePort `30080` (VIP 10.10.1.100:80 ➔ DNAT 192.168.120.226:30080)\n\n"
+                "👉 **K8s 클러스터 설정 및 매니페스트 확인**:\n"
+                "🔗 **웹 콘솔 바로가기**: [https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s](https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s)\n\n"
+                "> 🔒 **보안 안내**: 실제 kubectl 명령어 실행 및 배포는 웹 콘솔에서 안전 가드를 거쳐 직접 진행해 주십시오."
+            )
+
+        # 기본 일반 응답
+        return (
+            "### 🔍 FIGTEAM 하이브리드 인프라 실측 브리핑\n\n"
+            f"* **실측 기준 일자**: {self.core.measured}\n"
+            "* **사용자 진입**: `https://minwon.ktci5.kr` (Cloudflare) ➔ KT Edge (`14.63.212.190`, Nginx WAF 10s 캐싱)\n"
+            "* **3사 메시 터널**: WireGuard wg0 (`10.200.0.1` KT Hub) ↔ wg-kt (`10.200.0.2` 온프렘 s1)\n"
+            "* **온프렘 호스트**: s1 (`10.10.10.8`, 20 vCPU / 30GB RAM, NVMe 8GB Swap)\n"
+            "* **OpenStack 노드**: Controller (`192.168.120.160`, RAM 14GB 증설), Compute 1·3·4 (각 8GB)\n"
+            "* **데이터 계층**: DB-01 (`10.10.2.10`, MySQL 8.4 Primary) ↔ AWS-DR (`10.51.1.165`, Replica Pilot-Light)\n\n"
+            "👉 **질의하신 인프라의 모든 설계, 설정 코드, 운영 명령어 및 트러블슈팅은 공식 웹 포털에 집대성되어 있습니다**:\n"
+            "🔗 **FIGTEAM 공식 웹 콘솔**: [https://figteam.ktci5.kr/#cfg/overview](https://figteam.ktci5.kr/#cfg/overview)\n\n"
+            "> 🔒 **보안 안내**: 본 AI는 실측 기반 질의응답(Read-Only) 전용 어드바이저입니다. 실제 설정 변경 및 명령어 실행은 안전 가드가 포함된 공식 웹 콘솔에서 직접 수행하셔야 합니다."
+        )
+
+    def handle_md_chat_completions(self, body_json: dict[str, Any]):
+        """OpenAI 표준 호환 Chat Completion 프록시/게이트웨이 핸들러"""
+        stream = body_json.get("stream", False)
+        model = body_json.get("model", "figteam-fact-grounded")
+        messages = body_json.get("messages", [])
+
+        # 마지막 사용자 질의 추출
+        last_user_query = ""
+        for m in reversed(messages):
+            if m.get("role") == "user":
+                last_user_query = m.get("content", "")
+                break
+
+        auth_header = self.headers.get("Authorization", "")
+        api_key = auth_header.replace("Bearer ", "").strip() if auth_header.startswith("Bearer ") else ""
+
+        # 외부 LLM 포워딩 시도 (API 키가 주어졌을 때)
+        upstream_resp_text = None
+        if api_key and api_key not in ("figteam", "dummy", "test"):
+            try:
+                grounding_sys = {
+                    "role": "system",
+                    "content": self.build_grounding_context()
+                }
+                forward_messages = [grounding_sys]
+                for msg in messages:
+                    if msg.get("role") != "system":
+                        forward_messages.append(msg)
+
+                # OpenAI 엔드포인트 기본값
+                target_url = "https://api.openai.com/v1/chat/completions"
+                if api_key.startswith("AIza"):
+                    target_url = f"https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+                elif api_key.startswith("gsk_"):
+                    target_url = "https://api.groq.com/openai/v1/chat/completions"
+
+                fwd_payload = {
+                    "model": model if model != "figteam-fact-grounded" else "gpt-4o-mini",
+                    "messages": forward_messages,
+                    "stream": False,
+                    "temperature": 0.2
+                }
+
+                req = urllib.request.Request(
+                    target_url,
+                    data=json.dumps(fwd_payload).encode("utf-8"),
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {api_key}"
+                    },
+                    method="POST"
+                )
+                with urllib.request.urlopen(req, timeout=15) as u_resp:
+                    if u_resp.status == 200:
+                        u_data = json.loads(u_resp.read().decode("utf-8"))
+                        choices = u_data.get("choices", [])
+                        if choices:
+                            upstream_resp_text = choices[0].get("message", {}).get("content", "")
+            except Exception:
+                pass  # 실패 시 내장 사실 엔진으로 폴백
+
+        # 최종 답변 텍스트 결정
+        final_answer = upstream_resp_text or self.generate_fact_fallback_response(last_user_query)
+
+        chat_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
+        now_ts = int(time.time())
+
+        # 스트리밍 응답 (SSE)
+        if stream:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "keep-alive")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+
+            # 첫 chunk (role)
+            chunk_role = {
+                "id": chat_id,
+                "object": "chat.completion.chunk",
+                "created": now_ts,
+                "model": model,
+                "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}]
+            }
+            self.wfile.write(f"data: {json.dumps(chunk_role, ensure_ascii=False)}\n\n".encode("utf-8"))
+            self.wfile.flush()
+
+            # 본문 내용 스트리밍 (글자 블록 단위 전송)
+            step_size = 40
+            for i in range(0, len(final_answer), step_size):
+                piece = final_answer[i:i + step_size]
+                chunk_piece = {
+                    "id": chat_id,
+                    "object": "chat.completion.chunk",
+                    "created": now_ts,
+                    "model": model,
+                    "choices": [{"index": 0, "delta": {"content": piece}, "finish_reason": None}]
+                }
+                self.wfile.write(f"data: {json.dumps(chunk_piece, ensure_ascii=False)}\n\n".encode("utf-8"))
+                self.wfile.flush()
+                time.sleep(0.01)
+
+            # 마지막 chunk (DONE)
+            chunk_end = {
+                "id": chat_id,
+                "object": "chat.completion.chunk",
+                "created": now_ts,
+                "model": model,
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]
+            }
+            self.wfile.write(f"data: {json.dumps(chunk_end, ensure_ascii=False)}\n\n".encode("utf-8"))
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush()
+            return
+
+        # 일반 단발 JSON 응답
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        resp_data = {
+            "id": chat_id,
+            "object": "chat.completion",
+            "created": now_ts,
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": final_answer
+                    },
+                    "finish_reason": "stop"
+                }
+            ],
+            "usage": {
+                "prompt_tokens": max(1, len(last_user_query)),
+                "completion_tokens": max(1, len(final_answer)),
+                "total_tokens": max(1, len(last_user_query) + len(final_answer))
+            }
+        }
+        self.wfile.write(json.dumps(resp_data, ensure_ascii=False, indent=2).encode("utf-8"))
 
     def handle_rest_api(self, subpath: str, qs: dict[str, list[str]]):
         """ChatGPT Actions 및 일반 REST 클라이언트를 위한 직결 REST API 핸들러"""

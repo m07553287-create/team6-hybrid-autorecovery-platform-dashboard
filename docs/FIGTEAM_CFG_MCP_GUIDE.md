@@ -1,6 +1,7 @@
 # FIGTEAM #cfg Model Context Protocol (MCP) 통합 연동 가이드
 
 > **통합 공통 SSE 엔드포인트 URL**: `https://figteam.ktci5.kr/mcp/sse`  
+> **로컬 AI 앱 직결 Grounding 게이트웨이**: `https://figteam.ktci5.kr/md/v1`  
 > **ChatGPT Custom Actions 스펙**: `https://figteam.ktci5.kr/mcp/openapi.json`  
 > **만능 원클릭 설치 스크립트**: `curl -sSL https://figteam.ktci5.kr/mcp/install | bash`  
 > **Direct HTTP RPC**: `https://figteam.ktci5.kr/mcp/rpc`  
@@ -114,6 +115,23 @@ ChatGPT 웹에서 나만의 GPT(Custom GPT) 생성 시:
   }
 }
 ```
+
+### ⑧ 로컬 AI 앱 (Chatbox, NextChat, Cursor, Continue, LibreChat 등) 직결 Grounding 게이트웨이
+
+로컬 PC의 임의의 AI 채팅 앱에서 **OpenAI API Base URL**을 아래 단 한 줄로 설정하면, 어떤 복잡한 툴 설정 없이도 모든 대화가 **최신 인프라 실측 사실(Ground Truth)에 자동 융합(Hook)**되어 답변됩니다:
+
+* **API Base URL**: `https://figteam.ktci5.kr/md/v1`
+* **API Key**: 보유하신 OpenAI / Gemini / Groq 키 (또는 임의의 문자열 `figteam`)
+* **Model**: `figteam-fact-grounded` 또는 `gpt-4o` 등 자유 선택
+
+#### 동작 흐름 및 절대 보안 원칙:
+1. **사용자 질의 입력**: 팀원이 로컬 앱에서 "DB 장애 났어", "컨트롤러 RAM 상태 어때?" 등 질문.
+2. **Hook 인터셉터 자동 융합**: 요청이 들어오는 즉시 게이트웨이가 최신 실측 인프라 사양(DB IP, 포트, GTID 상태, Controller 14GB 증설 사양, 접속 키 매트릭스)을 시스템 프롬프트 최상단에 자동 융합(Prepend).
+3. **읽기 전용 사실 기반 응답(Read-Only Fact-Based Advice)**: AI는 실시간 사실만을 기반으로 정밀한 원인 분석과 조언을 생성합니다.
+4. **웹 콘솔 직접 실행 유도(보안 필수 원칙)**:
+   * 보안상 AI를 통한 원격 명령어 대리 실행이나 설정 변경은 원천 차단됩니다.
+   * 실제 모든 설정 변경, 서비스 재시작, DB 복구 명령어 실행은 **웹 포털([https://figteam.ktci5.kr/#cfg/](https://figteam.ktci5.kr/#cfg/))의 해당 인스턴스 화면으로 이동하여 안전 가드가 장착된 터미널 러너(`▶ 실행`)로 직접 수행하도록 유도**합니다.
+   * 예: DB 설정은 `https://figteam.ktci5.kr/#cfg/inst/inst-db01/data` 링크 제공.
 
 ---
 
