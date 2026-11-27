@@ -49,12 +49,15 @@ src = src.replace("loadManual('kt-edge');",
                   "cfgInit(); if ((location.hash || '').indexOf('#cfg/') === 0) switchView('settings');")
 
 # ---- 매번: 마커 사이 다시 채우기 ----
-data = json.dumps(settings_guide.data(), ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
+# 공개 페이지에는 정적 설정만 (가이드 내용은 로그인 뒤 위키 서버에서 받는다)
+data = json.dumps(settings_guide.static_config(), ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
+assert '"pages"' not in data and '"areas"' not in data, '공개 페이지에 가이드 데이터가 섞였습니다'
 blocks = {
     ('<!--CFG:BEGIN-->', '<!--CFG:END-->'):
         '<script type="application/json" id="cfg-data">' + data + '</script>',
     ('// CFGJS:BEGIN', '// CFGJS:END'):
-        '\n' + (root / 'content' / 'settings.js').read_text(encoding='utf-8') + '    ',
+        '\n' + ''.join((root / 'content' / f).read_text(encoding='utf-8')
+                       for f in ('diff.js', 'wiki.js', 'settings.js')) + '    ',
     ('/* CFGCSS:BEGIN */', '/* CFGCSS:END */'):
         '\n' + (root / 'content' / 'settings.css').read_text(encoding='utf-8') + '    ',
 }
@@ -71,28 +74,13 @@ if 'cfgInit(); // settings-tab' not in src:
 srv_path.write_text(src, encoding='utf-8')
 print('settings injected:', len(data), 'bytes json')
 
-# ---- *.sh 사본을 public/scripts/ 로 (링크 대상) ----
+# ---- 스크립트 사본은 위키 서버(로그인한 팀)에서만 제공 — 공개 public/scripts/ 는 두지 않는다 ----
 import shutil  # noqa: E402
 pub_scripts = root / 'public' / 'scripts'
 if pub_scripts.exists():
     shutil.rmtree(pub_scripts)
-src_scripts = root / 'content' / 'scripts'
-shutil.copytree(src_scripts, pub_scripts)
-for sc in settings_guide.SCRIPTS:
-    if 'generate' in sc:   # 화면의 설정 코드에서 파일을 만든다(설계 스크립트)
-        pid, aid, idx = sc['generate']
-        area = next(a for a in settings_guide.PAGES[pid]['areas'] if a['id'] == aid)
-        code = area['config'][idx]['code']
-        lines = code.split('\n')
-        lines.insert(1, '# 원본: 이 가이드의 설계안 (' + sc['path'] + ' 로 저장해 실행) · 아직 적용 전')
-        out = pub_scripts / sc['file']
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text('\n'.join(lines) + '\n', encoding='utf-8')
-    if 'file' in sc:
-        assert (pub_scripts / sc['file']).is_file(), '스크립트 사본 없음: ' + sc['file']
 secret = re.compile(r'(PASSWORD|PrivateKey|TOKEN)\s*=\s*[^\s<$"\']', re.I)
-for f in pub_scripts.rglob('*.sh'):
+for f in (root / 'content' / 'scripts').rglob('*.sh'):   # 시드에 들어갈 사본 검사
     t = f.read_text(encoding='utf-8')
     assert not secret.search(t), '비밀값 의심: ' + str(f)
     assert 'fig-minwon-db-backup' not in t, '버킷 이름 노출: ' + str(f)
-print('scripts copied:', len(list(pub_scripts.rglob('*.sh'))))

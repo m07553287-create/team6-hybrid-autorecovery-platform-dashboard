@@ -7,8 +7,8 @@
     const LENSES = [
       { id: 'inst', name: '인스턴스 기준', hint: '서버 하나를 골라 그 안의 서비스 영역을 봅니다' },
       { id: 'svc', name: '서비스 기준', hint: '보안·웹 같은 영역을 골라 맡은 인스턴스를 봅니다' },
-      { id: 'step', name: '진행 순서', hint: '처음 구성할 때 지켜야 하는 S0~S12 순서' },
-      { id: 'ref', name: '참고', hint: '변수표, KT 확장 설계, 오류 색인' }
+      { id: 'step', name: '진행 순서', hint: '처음 구성할 때 지켜야 하는 순서와 통과 조건' },
+      { id: 'ref', name: '참고', hint: '변수표·설계·오류 색인 같은 팀 참고 문서' }
     ];
 
     // ---------- 공통 조각 ----------
@@ -48,7 +48,7 @@
         const s = list[CFG_SH_KEY[key]];
         const tip = cfgEsc(s.host + ' ' + s.path + (s.url ? ' (새 창)' : ' 내용 보기'));
         if (s.url) return pre + '<a class="cfg-sh cfg-sh-ext" href="' + cfgEsc(s.url) + '" target="_blank" rel="noopener" title="' + tip + '">' + key + '</a>';
-        return pre + '<a class="cfg-sh" href="scripts/' + cfgEsc(s.file) + '" title="' + tip + '" onclick="cfgViewScript(' + CFG_SH_KEY[key] + '); return false;">' + key + '</a>';
+        return pre + '<a class="cfg-sh" href="javascript:void(0)" title="' + tip + '" onclick="cfgViewScript(' + CFG_SH_KEY[key] + '); return false;">' + key + '</a>';
       });
     }
 
@@ -77,7 +77,7 @@
           '<h2 id="cfg-viewer-title" class="cfg-vw-title">' + cfgEsc(s.path) + '</h2>' +
           '<div class="cfg-vw-actions">' +
             '<button type="button" class="cfg-copy" id="cfg-vw-copy" disabled>복사</button>' +
-            '<a class="cfg-copy" href="scripts/' + cfgEsc(s.file) + '" target="_blank" rel="noopener">파일 받기</a>' +
+            '<button type="button" class="cfg-copy" id="cfg-vw-dl" disabled>파일 받기</button>' +
             '<button type="button" class="cfg-copy" onclick="document.getElementById(&quot;cfg-viewer&quot;).close()">닫기</button>' +
           '</div></div>' +
         (used.length ? '<div class="cfg-vw-used">이 스크립트가 나오는 곳: ' + used.map(u =>
@@ -87,18 +87,25 @@
           ? '이 가이드의 설계안에서 만든 파일입니다. 아직 서버에 적용되지 않았습니다.'
           : '서버에서 읽어 온 사본입니다(실측 ' + cfgEsc(CFG.data.measured) + '). 원본을 고치면 이 사본도 다시 받아야 합니다.') + '</p>';
       if (!dlg.open) dlg.showModal();
-      fetch('scripts/' + s.file, { cache: 'no-store' })
-        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-        .then(text => {
+      api('GET', '/api/scripts/' + s.id)
+        .then(r => {
+          const text = r.text;
           const body = document.getElementById('cfg-vw-body');
           body.innerHTML = text.replace(/\n$/, '').split('\n').map(l => '<span class="cfg-ln">' + cfgLink(cfgEsc(l)) + '</span>').join('\n');
           const btn = document.getElementById('cfg-vw-copy');
           btn.disabled = false;
           btn.onclick = () => { const idx = CFG.codes.push(text) - 1; cfgCopy(idx, btn); };
+          const dl = document.getElementById('cfg-vw-dl');
+          dl.disabled = false;
+          dl.onclick = () => {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+            a.download = s.path.split('/').pop().split(' ')[0];
+            a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+          };
         })
         .catch(err => {
-          document.getElementById('cfg-vw-body').textContent =
-            '파일을 불러오지 못했습니다 (' + err.message + '). 스크립트 사본은 figteam.ktci5.kr 배포본의 scripts/ 경로에서 제공합니다.';
+          document.getElementById('cfg-vw-body').textContent = '파일을 불러오지 못했습니다 (' + (err.error || err.status) + ').';
         });
     }
     function cfgCopy(idx, btn) {
@@ -136,10 +143,10 @@
       const d = CFG.data;
       if (lens === 'inst') return d.instances.map(pid => {
         const p = cfgPage(pid);
-        return { id: pid, name: p.title.split(' (')[0], sub: CLOUD_NAME[p.cloud] + ' / ' + p.tag, cloud: p.cloud, status: p.status };
+        return { id: pid, name: p.title.split(' (')[0], sub: p.tag, cloud: p.cloud, status: p.status, group: p.cloudName, groupId: p.cloudId };
       });
       if (lens === 'svc') return d.domains.map(dm => ({ id: dm.id, name: dm.name, sub: dm.desc, count: cfgMinors('svc', dm.id).length }));
-      if (lens === 'step') return [{ id: 'all', name: '처음부터 끝까지', sub: 'S0 접속 경로 확보부터 S12 KT 워커 조인까지' }];
+      if (lens === 'step') return [{ id: 'all', name: '처음부터 끝까지', sub: d.steps.length ? d.steps.length + '단계' : '아직 단계가 없습니다' }];
       return d.reference.map(r => ({ id: r[0], name: r[1], sub: cfgPage(r[0]).tag }));
     }
     function cfgMinors(lens, major) {
@@ -164,18 +171,19 @@
 
     // ---------- 선택·상태 ----------
     function cfgInit() {
-      if (!CFG.data) {
-        const el = document.getElementById('cfg-data');
-        if (!el) return;
-        CFG.data = JSON.parse(el.textContent);
-      }
+      if (!WIKI.ready) { wikiInit(); return; }
       const h = (location.hash || '').split('/');
-      if (h[0] === '#cfg' && h.length > 1) {
-        if (['inst', 'svc', 'step', 'ref'].indexOf(h[1]) >= 0) return cfgSelect(h[1], h[2], h[3], true);
-        if (cfgPage(h[1])) {   // 예전 주소(#cfg/inst-ktw1/join) 호환
-          const p = cfgPage(h[1]);
-          return p.kind === 'instance' ? cfgSelect('inst', h[1], h[2], true) : cfgSelect('ref', h[1], '', true);
+      const lg = CFG.data.legacy || {};
+      if (h[0] === '#cfg' && h.length > 1 && h[1]) {
+        let lens = h[1], major = h[2], minor = h[3];
+        if (typeof wikiRoute === 'function' && wikiRoute(h)) return;
+        if (['inst', 'svc', 'step', 'ref'].indexOf(lens) < 0 && lg[lens]) { major = lens; minor = h[2]; lens = 'inst'; }  // #cfg/inst-ktw1/join
+        if (lens === 'inst' && major && !cfgPage(major) && lg[major]) {
+          const am = lg[major + '.' + minor];
+          major = lg[major]; minor = am ? am.split('.')[1] : '';
         }
+        if (lens === 'svc' && minor && lg[minor]) minor = lg[minor];
+        if (['inst', 'svc', 'step', 'ref'].indexOf(lens) >= 0) return cfgSelect(lens, major, minor, true);
       }
       if (!CFG.lens) { const df = CFG.data.default; cfgSelect(df.lens, df.major, df.minor, true); }
     }
@@ -183,6 +191,12 @@
     function cfgSelect(lens, major, minor, fromHash) {
       if (!CFG.data) return;
       const majors = cfgMajors(lens);
+      if (!majors.length) {
+        CFG.lens = lens; CFG.major = ''; CFG.minor = '';
+        cfgRenderNav(); cfgRenderBody();
+        history.replaceState(null, '', '#cfg/' + lens);
+        return;
+      }
       if (!majors.find(m => m.id === major)) {
         major = lens === CFG.lens || !CFG.lens ? majors[0].id : cfgCarryMajor(lens);
       }
@@ -219,17 +233,21 @@
     function cfgRenderNav() {
       const nav = document.getElementById('cfg-nav');
       const lens = LENSES.find(l => l.id === CFG.lens);
-      let col1 = '<div class="cfg-col cfg-col-major">' +
+      let lastGroup = null;
+      let col1 = '<div class="cfg-col cfg-col-major">' + wikiTeamBar() +
         '<div class="cfg-lens" role="tablist" aria-label="보는 기준">' + LENSES.map(l =>
           '<button type="button" role="tab" aria-selected="' + (l.id === CFG.lens) + '" class="cfg-lens-btn' + (l.id === CFG.lens ? ' active' : '') +
           '" onclick="' + cfgGo(l.id, '', '') + '">' + cfgEsc(l.name) + '</button>').join('') + '</div>' +
         '<p class="cfg-lens-hint">' + cfgEsc(lens.hint) + '</p>' + cfgMatrix() +
         '<div class="cfg-col-head">대분류</div><div class="cfg-list-major">' +
-        cfgMajors(CFG.lens).map(m =>
-          '<button type="button" class="cfg-item' + (m.id === CFG.major ? ' active' : '') + '" onclick="' + cfgGo(CFG.lens, m.id, '') + '">' +
+        cfgMajors(CFG.lens).map(m => {
+          let head = '';
+          if (m.group !== undefined && m.group !== lastGroup) { lastGroup = m.group; head = cfgGroupHead(m); }
+          return head + '<button type="button" class="cfg-item' + (m.id === CFG.major ? ' active' : '') + '" onclick="' + cfgGo(CFG.lens, m.id, '') + '">' +
           '<span class="cfg-item-name">' + (m.cloud ? '<span class="cfg-dot cfg-c-' + m.cloud + '"></span>' : '') + cfgEsc(m.name) +
           (m.status && m.status !== 'live' ? ' ' + cfgBadge(m.status) : '') + (m.count ? '<span class="cfg-count">' + m.count + '</span>' : '') + '</span>' +
-          '<span class="cfg-item-sub">' + cfgEsc(m.sub) + '</span></button>').join('') + '</div></div>';
+          '<span class="cfg-item-sub">' + cfgEsc(m.sub) + '</span></button>';
+        }).join('') + (typeof wikiMajorTail === 'function' ? wikiMajorTail() : '') + '</div></div>';
       const minors = cfgMinors(CFG.lens, CFG.major);
       let col2 = '<div class="cfg-col cfg-col-minor"><div class="cfg-col-head">중분류</div>';
       if (minors.length) {
@@ -239,10 +257,15 @@
           (m.status ? ' ' + cfgBadge(m.status) : '') + '</span>' +
           '<span class="cfg-item-sub">' + cfgEsc(m.sub) + '</span></button>').join('') + '</div>';
       } else {
-        col2 += '<p class="cfg-empty">이 항목은 하위 구분 없이 오른쪽에 바로 펼쳐집니다.</p>';
+        col2 += '<p class="cfg-empty">' + (CFG.lens === 'ref' ? '이 항목은 하위 구분 없이 오른쪽에 바로 펼쳐집니다.' : '아직 항목이 없습니다.') + '</p>';
       }
-      col2 += '</div>';
+      col2 += (typeof wikiMinorTail === 'function' ? wikiMinorTail() : '') + '</div>';
       nav.innerHTML = col1 + col2;
+    }
+
+    function cfgGroupHead(m) {
+      return '<div class="cfg-group-head">' + (m.cloud ? '<span class="cfg-dot cfg-c-' + m.cloud + '"></span>' : '') + cfgEsc(m.group) +
+        (typeof wikiGroupTail === 'function' ? wikiGroupTail(m.groupId) : '') + '</div>';
     }
 
     // 인스턴스(행) × 서비스 영역(열). 행으로 읽으면 인스턴스 기준, 열로 읽으면 서비스 기준.
@@ -284,18 +307,24 @@
       CFG.codes = [];
       const body = document.getElementById('manual-body-content');
       let html = cfgCrumb();
+      const empty = msg => '<div class="cfg-empty-panel"><p>' + msg + '</p>' +
+        (typeof wikiEmptyActions === 'function' ? wikiEmptyActions(CFG.lens) : '') + '</div>';
       if (CFG.lens === 'ref') {
-        html += cfgDoc(cfgPage(CFG.major));
+        const p = cfgPage(CFG.major);
+        html += p ? cfgDoc(p) : empty('아직 참고 문서가 없습니다.');
       } else if (CFG.lens === 'step') {
         const s = CFG.data.steps.find(x => x.no === CFG.minor);
-        html += cfgStepHead(s) + cfgAreaView(s.page, s.area, false);
+        html += s ? cfgStepHead(s) + cfgAreaView(s.page, s.area, false) : empty('아직 진행 순서가 없습니다.');
       } else {
         const cur = cfgCurrentArea();
-        if (CFG.lens === 'svc') {
+        if (CFG.lens === 'svc' && CFG.major) {
           const dm = cfgDomain(CFG.major);
           html += '<div class="cfg-domain-note"><b>' + cfgEsc(dm.name) + '</b> ' + cfgEsc(dm.desc) + '</div>';
         }
-        html += cfgAreaView(cur.pid, cur.area.id, CFG.lens === 'inst');
+        if (cur) html += cfgAreaView(cur.pid, cur.area.id, CFG.lens === 'inst');
+        else if (CFG.lens === 'inst' && cfgPage(CFG.major)) html += empty('이 인스턴스에 아직 서비스 영역이 없습니다.');
+        else if (CFG.lens === 'inst') html += empty(CFG.data.clouds && CFG.data.clouds.length ? '클라우드 아래에 인스턴스를 만드세요.' : '클라우드부터 만드세요. 클라우드 → 인스턴스 → 서비스 영역 순서로 채워 갑니다.');
+        else html += empty('이 서비스에 해당하는 영역이 아직 없습니다.');
       }
       html += cfgPager();
       body.innerHTML = html;

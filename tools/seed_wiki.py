@@ -82,11 +82,13 @@ def seed(db_path, slug, name, password):
             p = g.PAGES[pid]
             body = {k: p.get(k) for k in INST_FIELDS}
             body["short"] = g.INSTANCE_SHORT[pid]
+            body["slug"] = pid  # 예전 공개 링크(#cfg/inst/inst-s1/…) 연결용
             inst_id[pid] = _ins(conn, team_id, "instance", cloud_id[p["cloud"]], i, body, now)
             counts["instance"] += 1
             for j, a in enumerate(p["areas"]):
                 abody = {k: a.get(k) for k in AREA_FIELDS}
                 abody["domains"] = g.AREA_DOMAINS[pid + "." + a["id"]]
+                abody["slug"] = a["id"]
                 area_id[(pid, a["id"])] = _ins(conn, team_id, "area", inst_id[pid], j, abody, now)
                 counts["area"] += 1
         items = [{"no": s["no"], "title": s["title"], "where": s["where"], "why": s["why"], "gate": s["gate"],

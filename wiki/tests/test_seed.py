@@ -31,6 +31,8 @@ def test_seed_login_tree(tmp_path, monkeypatch):
         assert len(docs) == 46
         inst = [d for d in docs if d["kind"] == "instance"]
         assert {d["body"]["short"] for d in inst} >= {"s1", "db-01", "kt-w1", "aws-ctl"}
+        assert {d["body"]["slug"] for d in inst} >= {"inst-s1", "inst-awsdr"}
+        assert "mysql" in {d["body"].get("slug") for d in docs if d["kind"] == "area"}
         revs = c.get(f"/api/docs/{inst[0]['id']}/revisions").json()
         assert revs[0]["author"] == "seed" and revs[0]["message"] == "2026-11-26 실측 가이드에서 가져옴"
 

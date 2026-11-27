@@ -179,4 +179,9 @@ def create_app():
     def script(script_id: int, request: Request):
         return with_session(lambda c, s: docs.get_script(c, s, script_id))(request)
 
+    static_dir = os.environ.get("SERVE_STATIC")
+    if static_dir:  # 로컬 개발 전용: 화면(public/)도 같은 출처로 제공
+        from fastapi.staticfiles import StaticFiles
+        app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+
     return app

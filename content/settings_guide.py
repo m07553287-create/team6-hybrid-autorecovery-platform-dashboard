@@ -1425,6 +1425,13 @@ SCRIPTS = [
 ]
 
 
+def static_config():
+    """공개 페이지(#cfg-data)에 넣는 정적 설정 — 가이드 내용은 넣지 않는다."""
+    return {"domains": DOMAINS, "measured": MEASURED,
+            "extScripts": [{k: v for k, v in x.items() if k in ("keys", "url", "host", "path", "status")}
+                           for x in SCRIPTS if "url" in x]}
+
+
 def data():
     for pid in INSTANCE_ORDER:
         page = PAGES[pid]
