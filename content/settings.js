@@ -691,7 +691,7 @@
       return { fl, dock };
     }
 
-    // 4. 실행 버튼 핸들러 (수정/변경 및 안전 실행 분기)
+    // 4. 실행 버튼 핸들러 (뷰/확인 vs 수정/변경 분리)
     function cfgRunCode(idx) {
       const item = (CFG.codeMeta && CFG.codeMeta[idx]) || { code: CFG.codes[idx] || '', label: '', cat: '' };
       const target = cfgDetectTarget(item.code, item.label, item.cat);
@@ -699,12 +699,13 @@
         alert('s1 호스트는 웹에서 콘솔 터미널 접근 및 명령 실행이 불가합니다.');
         return;
       }
-      if (cfgIsDangerous(item.code, item.cat) || item.cat === '적용' || item.cat === '설치') {
+      const isDangerous = cfgIsDangerous(item.code, item.cat) || item.cat === '적용' || item.cat === '설치';
+      if (isDangerous) {
         cfgShowConfirm(item.code, target, item.label, () => {
-          cfgOpenAndExec(item.code, target, item.label, true);
+          cfgOpenAndExec(item.code, target, item.label, true, null, 'modify');
         });
       } else {
-        cfgOpenAndExec(item.code, target, item.label, true);
+        cfgOpenAndExec(item.code, target, item.label, true, null, 'view');
       }
     }
 
@@ -746,7 +747,7 @@
           return;
         }
         const catCmd = (filePath && filePath.startsWith('/')) ? ('cat ' + filePath) : item.code;
-        cfgOpenAndExec(catCmd, target, (item.label || '') + ' (cat 확인)', true);
+        cfgOpenAndExec(catCmd, target, (item.label || '') + ' (cat 확인)', true, null, 'view');
       };
       modal.onclick = e => { if (e.target === modal) close(); };
     }
@@ -800,7 +801,7 @@
         else if (choice === 'nano') cmdToRun = 'sudo nano ' + filePath;
         else cmdToRun = "sudo bash -c 'cat << \"EOF\" > " + filePath + "\n" + item.code.trim() + "\nEOF'";
 
-        cfgOpenAndExec(cmdToRun, target, item.label + ' (' + choice + ' 수정)', true);
+        cfgOpenAndExec(cmdToRun, target, item.label + ' (' + choice + ' 수정)', true, null, 'modify');
       };
       modal.onclick = e => { if (e.target === modal) close(); };
     }
@@ -859,8 +860,49 @@
       await add('script', { src: CS_FIT + '/lib/addon-fit.min.js' });
     }
 
-    // 7. 터미널 윈도우 생성 및 명령 자동 실행
-    async function cfgOpenAndExec(code, target, label, autoExec = true, saved = null) {
+    // 6-1. 세션 웹소켓 재연결 헬퍼
+    function cfgReconnectAndSend(s, code) {
+      const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const u = typeof csOwner === 'function' ? csOwner() : 'team';
+      const wsUrl = wsProto + '//' + location.host + '/console/ws/' + encodeURIComponent(s.target) +
+        '?cols=' + s.term.cols + '&rows=' + s.term.rows + '&u=' + encodeURIComponent(u);
+      s.term.write('\r\n\x1b[33m[연결 재시도 중…]\x1b[0m\r\n');
+      try {
+        const ws = new WebSocket(wsUrl);
+        s.ws = ws;
+        ws.onopen = () => {
+          s.status = 'ok';
+          const statDot = s.winEl.querySelector('.cfg-win-status-dot');
+          const statText = s.winEl.querySelector('.cfg-win-status-text');
+          if (statDot) statDot.className = 'cfg-win-status-dot';
+          if (statText) statText.textContent = '연결됨';
+          cfgUpdateChipStatus(s.id, true);
+          s.term.focus();
+          try { s.fit.fit(); } catch (e) {}
+          if (code) {
+            setTimeout(() => {
+              if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'i', d: code.trim() + '\r' }));
+            }, 500);
+          }
+        };
+        ws.onmessage = e => s.term.write(e.data);
+        ws.onclose = e => {
+          s.status = 'off';
+          const statDot = s.winEl.querySelector('.cfg-win-status-dot');
+          const statText = s.winEl.querySelector('.cfg-win-status-text');
+          if (statDot) statDot.className = 'cfg-win-status-dot off';
+          if (statText) statText.textContent = '연결 끊김 (' + e.code + ')';
+          cfgUpdateChipStatus(s.id, false);
+        };
+        s.term.onData(d => { if (s.ws && s.ws.readyState === 1) s.ws.send(JSON.stringify({ t: 'i', d: d })); });
+        s.term.onResize(sz => { if (s.ws && s.ws.readyState === 1) s.ws.send(JSON.stringify({ t: 'r', c: sz.cols, r: sz.rows })); });
+      } catch (err) {
+        s.term.write('\r\n\x1b[31m[재연결 실패: ' + err.message + ']\x1b[0m\r\n');
+      }
+    }
+
+    // 7. 터미널 윈도우 생성 및 명령 자동 실행 (뷰/수정 분리 및 기존 창 재사용)
+    async function cfgOpenAndExec(code, target, label, autoExec = true, saved = null, mode = null) {
       try {
         await cfgEnsureXterm();
       } catch (err) {
@@ -869,9 +911,37 @@
       }
 
       const { fl, dock } = cfgEnsureLayers();
-      const id = saved ? saved.id : ('term_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
-      if (CFG_RUNNER.sessions[id]) {
+      const actualMode = mode || (saved && saved.mode) || (cfgIsDangerous(code, '') || (label && (label.includes('수정') || label.includes('적용'))) ? 'modify' : 'view');
+      const id = saved ? saved.id : ('term__' + target + '__' + actualMode);
+
+      // 동일한 인스턴스/모드의 창이 이미 띄워져 있는 경우: 새 창을 열지 않고 그 창에서 실행!
+      const existing = CFG_RUNNER.sessions[id];
+      if (existing) {
+        if (existing.min) {
+          existing.min = false;
+          existing.winEl.classList.remove('minimized');
+        }
         cfgFocusWin(id);
+        if (label) {
+          existing.label = label;
+          const titleText = existing.winEl.querySelector('.cfg-win-title-text');
+          if (titleText) titleText.textContent = cfgEsc(label);
+        }
+        setTimeout(() => { try { existing.fit.fit(); } catch (e) {} }, 50);
+
+        if (autoExec && code) {
+          existing.code = code;
+          const banner = '\r\n\x1b[36m[FIG Runner ⚡ ' + (actualMode === 'modify' ? '수정/변경' : '조회/확인') + ' 실행] ' + (label ? label + '\r\n' : '') + '\x1b[0m';
+          existing.term.write(banner);
+
+          if (existing.ws && existing.ws.readyState === 1) {
+            existing.ws.send(JSON.stringify({ t: 'i', d: code.trim() + '\r' }));
+          } else {
+            cfgReconnectAndSend(existing, code);
+          }
+        }
+        cfgRenderDock();
+        cfgSaveState();
         return;
       }
 
@@ -900,10 +970,13 @@
       win.style.height = h + 'px';
       win.style.zIndex = String(++CFG_RUNNER.zIndex);
 
+      const modeBadgeClass = actualMode === 'modify' ? 'cfg-badge-modify' : 'cfg-badge-view';
+      const modeBadgeText = actualMode === 'modify' ? (target + ' · 수정/변경') : (target + ' · 뷰/확인');
+
       win.innerHTML = '<div class="cfg-win-head">' +
         '<div class="cfg-win-title">' +
-        '<span class="cfg-win-badge">' + cfgEsc(target) + '</span>' +
-        '<span>' + cfgEsc(label || '명령어 실행') + '</span>' +
+        '<span class="cfg-win-badge ' + modeBadgeClass + '">' + cfgEsc(modeBadgeText) + '</span>' +
+        '<span class="cfg-win-title-text">' + cfgEsc(label || '명령어 실행') + '</span>' +
         '</div>' +
         '<div class="cfg-win-ctrls">' +
         '<button type="button" class="cfg-win-btn btn-min" title="최소화">_</button>' +
@@ -996,7 +1069,7 @@
 
       // 세션 등록
       const session = {
-        id, target, label, code, term, fit, winEl: win,
+        id, target, mode: actualMode, label, code, term, fit, winEl: win,
         x, y, w, h, min: isMin, max: isMax,
         status: 'wait', autoExec
       };
@@ -1027,7 +1100,7 @@
           term.focus();
           try { fit.fit(); } catch (e) {}
           if (autoExec && code) {
-            term.write('\r\n\x1b[36m[FIG Runner ⚡ 자동 실행] 대상: ' + target + '\x1b[0m\r\n');
+            term.write('\r\n\x1b[36m[FIG Runner ⚡ ' + (actualMode === 'modify' ? '수정/변경' : '조회/확인') + ' 실행] 대상: ' + target + '\x1b[0m\r\n');
             setTimeout(() => {
               if (ws.readyState === 1) {
                 ws.send(JSON.stringify({ t: 'i', d: code.trim() + '\r' }));
@@ -1119,7 +1192,7 @@
       ids.forEach(id => cfgCloseTerm(id));
     }
 
-    // 10. 하단 푸터 닥(Footer Dock) 렌더링
+    // 10. 하단 푸터 닥(Footer Dock) 렌더링 (뷰 / 수정 라벨 구분)
     function cfgRenderDock() {
       const dock = document.getElementById('cfg-footer-dock');
       const list = document.getElementById('cfg-dock-list');
@@ -1136,9 +1209,11 @@
       list.innerHTML = ids.map(id => {
         const s = CFG_RUNNER.sessions[id];
         const isOk = s.status === 'ok';
-        return '<div class="cfg-dock-chip" id="chip-' + id + '" onclick="cfgOnChipClick(\'' + id + '\')">' +
+        const modeTxt = s.mode === 'modify' ? '수정' : '뷰';
+        const chipCls = s.mode === 'modify' ? 'chip-modify' : 'chip-view';
+        return '<div class="cfg-dock-chip ' + chipCls + '" id="chip-' + id + '" onclick="cfgOnChipClick(\'' + id + '\')">' +
           '<span class="cfg-dock-chip-dot ' + (isOk ? '' : 'off') + '"></span>' +
-          '<span class="cfg-dock-chip-name">[' + cfgEsc(s.target) + '] ' + cfgEsc(s.label || '명령어') + '</span>' +
+          '<span class="cfg-dock-chip-name">[' + cfgEsc(s.target) + ' · ' + modeTxt + '] ' + cfgEsc(s.label || '명령어') + '</span>' +
           '<span class="cfg-dock-chip-close" onclick="event.stopPropagation(); cfgCloseTerm(\'' + id + '\')" title="닫기">✕</span>' +
           '</div>';
       }).join('');
@@ -1175,7 +1250,7 @@
         const payload = Object.keys(CFG_RUNNER.sessions).map(id => {
           const s = CFG_RUNNER.sessions[id];
           return {
-            id: s.id, target: s.target, label: s.label, code: s.code,
+            id: s.id, target: s.target, mode: s.mode, label: s.label, code: s.code,
             x: s.x, y: s.y, w: s.w, h: s.h, min: s.min, max: s.max
           };
         });
@@ -1192,7 +1267,7 @@
         if (!Array.isArray(list) || !list.length) return;
         for (const item of list) {
           // 새로고침 복원 시에는 명령어를 재실행하지 않고 터미널 세션 및 창 상태만 복원
-          await cfgOpenAndExec(item.code, item.target, item.label, false, item);
+          await cfgOpenAndExec(item.code, item.target, item.label, false, item, item.mode);
         }
       } catch (e) {
         console.error('Failed to restore terminal runner sessions', e);
