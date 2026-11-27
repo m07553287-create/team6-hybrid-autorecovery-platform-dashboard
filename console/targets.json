@@ -3,52 +3,13 @@
   "id": "s1",
   "area": "onprem",
   "name": "s1 (t1-vm2)",
-  "desc": "10.10.10.8 · 온프렘 호스트(VMware·NAT·WG·터널)",
+  "role": "기반 호스트",
+  "desc": "10.10.10.8 · VMware·NAT·WG·터널",
   "host": "10.10.10.8",
   "argv": [
-   "bash",
-   "-l"
+   "true"
   ],
-  "units": [
-   [
-    "cloudflared",
-    "gw",
-    "Cloudflare 터널(공개 진입)"
-   ],
-   [
-    "wg-quick@wg-kt",
-    "gw",
-    "WireGuard → KT 허브"
-   ],
-   [
-    "wg-quick@wg0",
-    "gw",
-    "WireGuard 관리망(맥)"
-   ],
-   [
-    "openstack-vmnet",
-    "daemon",
-    "vmnet8 게이트웨이·NAT·라우트"
-   ],
-   [
-    "figteam-console",
-    "daemon",
-    "통합 콘솔·상태 수집"
-   ]
-  ],
-  "check": {
-   "상태 요약": "hostname; uptime; free -h | sed -n 1,2p; df -h / | tail -1",
-   "실패한 서비스": "systemctl --failed --no-legend || true",
-   "WireGuard 상태": "sudo wg show | grep -E 'interface|peer|endpoint|handshake|transfer'",
-   "라우트·NAT": "ip r | grep -E 'vmnet8|wg'; sudo iptables -t nat -S | grep -E 'DNAT|MASQ' | sort -u",
-   "VMware VM": "vmrun list",
-   "VIP 앱": "curl -s -m4 -o /dev/null -w '10.10.1.100 → %{http_code}\\n' http://10.10.1.100/healthz",
-   "터널 라우트": "sudo grep -E 'hostname|path|service' /etc/cloudflared/config.yml | grep -v '#'"
-  },
-  "fix": {
-   "네트워크 재적용(openstack-vmnet)": "sudo systemctl restart openstack-vmnet && ip r | grep -E '172.20|10.10.2'",
-   "cloudflared 재시작": "sudo systemctl restart cloudflared && sleep 4 && systemctl is-active cloudflared"
-  }
+  "disabled": "정책상 터미널 접속 없음 — root급 기반 호스트, 이름만 표시"
  },
  {
   "id": "controller",
@@ -144,13 +105,14 @@
    "neutron-server 재시작": "systemctl restart neutron-server && sleep 5 && systemctl is-active neutron-server",
    "httpd(API) 재시작": "systemctl restart httpd && sleep 3 && systemctl is-active httpd"
   },
-  "parent": "s1"
+  "role": "컨트롤러",
+  "vms": true
  },
  {
   "id": "compute1",
   "area": "openstack",
   "name": "compute1",
-  "desc": "192.168.120.161 · root · k8s-w1 호스트",
+  "desc": "192.168.120.161 · root · Nova 컴퓨트",
   "host": "192.168.120.161",
   "argv": [
    "ssh",
@@ -202,13 +164,14 @@
   "fix": {
    "nova-compute 재시작": "systemctl restart openstack-nova-compute && sleep 3 && systemctl is-active openstack-nova-compute ovn-controller neutron-ovn-metadata-agent virtqemud"
   },
-  "parent": "s1"
+  "role": "컴퓨트",
+  "vms": true
  },
  {
   "id": "compute3",
   "area": "openstack",
   "name": "compute3",
-  "desc": "192.168.120.163 · root · k8s-cp1 호스트",
+  "desc": "192.168.120.163 · root · Nova 컴퓨트",
   "host": "192.168.120.163",
   "argv": [
    "ssh",
@@ -260,13 +223,14 @@
   "fix": {
    "nova-compute 재시작": "systemctl restart openstack-nova-compute && sleep 3 && systemctl is-active openstack-nova-compute ovn-controller neutron-ovn-metadata-agent virtqemud"
   },
-  "parent": "s1"
+  "role": "컴퓨트",
+  "vms": true
  },
  {
   "id": "compute4",
   "area": "openstack",
   "name": "compute4",
-  "desc": "192.168.120.164 · root · db-01 호스트",
+  "desc": "192.168.120.164 · root · Nova 컴퓨트",
   "host": "192.168.120.164",
   "argv": [
    "ssh",
@@ -318,7 +282,8 @@
   "fix": {
    "nova-compute 재시작": "systemctl restart openstack-nova-compute && sleep 3 && systemctl is-active openstack-nova-compute ovn-controller neutron-ovn-metadata-agent virtqemud"
   },
-  "parent": "s1"
+  "role": "컴퓨트",
+  "vms": true
  },
  {
   "id": "k8s-cp1",
@@ -360,7 +325,8 @@
    "앱 롤아웃 재시작": "sudo k3s kubectl -n minwon-sample rollout restart deploy/minwon-app && sudo k3s kubectl -n minwon-sample rollout status deploy/minwon-app --timeout=90s"
   },
   "parent": "compute3",
-  "kubectl": "sudo k3s kubectl"
+  "kubectl": "sudo k3s kubectl",
+  "role": "마스터"
  },
  {
   "id": "k8s-w1",
@@ -396,7 +362,8 @@
   "fix": {
    "k3s-agent 재시작": "sudo systemctl restart k3s-agent && sleep 3 && systemctl is-active k3s-agent"
   },
-  "parent": "compute1"
+  "parent": "compute1",
+  "role": "워커"
  },
  {
   "id": "db-01",
@@ -440,7 +407,8 @@
    "지금 백업": "sudo /usr/local/sbin/mysql-backup.sh && sudo ls -lh /var/backups/mysql | tail -2",
    "MySQL 재시작": "sudo systemctl restart mysql && systemctl is-active mysql"
   },
-  "parent": "compute4"
+  "parent": "compute4",
+  "role": "DB"
  },
  {
   "id": "kt-edge",
@@ -499,7 +467,8 @@
   },
   "fix": {
    "nginx 검사 후 reload": "nginx -t && nginx -s reload && echo reloaded"
-  }
+  },
+  "role": "엣지"
  },
  {
   "id": "aws-dr",
@@ -555,7 +524,8 @@
    "복제 재시작": "echo 'STOP REPLICA; START REPLICA;' | sudo /usr/local/bin/k3s kubectl -n minwon-dr exec -i minwon-mysql-0 -- sh -c 'mysql -E -uroot -p\"$MYSQL_ROOT_PASSWORD\" 2>/dev/null'; sleep 3; echo 'SHOW REPLICA STATUS' | sudo /usr/local/bin/k3s kubectl -n minwon-dr exec -i minwon-mysql-0 -- sh -c 'mysql -E -uroot -p\"$MYSQL_ROOT_PASSWORD\" 2>/dev/null' | grep -E 'Running:|Seconds_Behind'",
    "dr 앱 재시작": "sudo /usr/local/bin/k3s kubectl -n minwon-dr rollout restart deploy/minwon-app && sudo /usr/local/bin/k3s kubectl -n minwon-dr rollout status deploy/minwon-app --timeout=90s"
   },
-  "kubectl": "sudo /usr/local/bin/k3s kubectl"
+  "kubectl": "sudo /usr/local/bin/k3s kubectl",
+  "role": "DR"
  },
  {
   "id": "aws-ctl",
@@ -567,6 +537,7 @@
    "true"
   ],
   "http": "http://10.200.0.3:8080/healthz",
-  "disabled": "연결 예정 — 키 재설정 후 추가합니다 (지금은 API 응답만 감시)"
+  "disabled": "연결 예정 — 키 재설정 후 추가합니다 (지금은 API 응답만 감시)",
+  "role": "오케스트레이터"
  }
 ]

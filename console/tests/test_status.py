@@ -67,3 +67,40 @@ def test_status_api_no_lock(client, app):
 def test_targets_include_presets(unlocked):
     t = unlocked.get("/console/api/targets").json()
     assert "check" in t[0] and "argv" not in t[0]
+
+
+# ---- 오픈스택 배치: 호스트(virsh) → VM 부모 자동 결정 ----
+def test_build_script_vms():
+    s = build_script([], None, vms=True)
+    assert "virsh list --all --name" in s and "LANG=C" in s and "nova:name" in s
+    assert "virsh" not in build_script([], None)
+
+
+def test_parse_vm_lines():
+    d = parse("vm k8s-cp1 running\nvm db-01 shutoff\nvm bad\n")
+    assert d["vms"] == [{"name": "k8s-cp1", "state": "running"}, {"name": "db-01", "state": "shutoff"}]
+
+
+def test_collector_places_vm_under_actual_host():
+    from console.status import Collector
+    targets = {
+        "compute3": {"id": "compute3", "area": "openstack", "name": "compute3", "argv": ["true"], "vms": True},
+        "compute4": {"id": "compute4", "area": "openstack", "name": "compute4", "argv": ["true"], "vms": True},
+        "db-01": {"id": "db-01", "area": "openstack", "name": "db-01", "argv": ["true"], "parent": "compute4"},
+        "k8s-cp1": {"id": "k8s-cp1", "area": "openstack", "name": "k8s-cp1", "argv": ["true"], "parent": "compute3"},
+    }
+    c = Collector(targets, list(targets), 0)
+    items = [c._meta(targets[i]) for i in targets]
+    items[0]["vms"] = [{"name": "db-01", "state": "running"}]   # db-01 이 compute3 으로 옮겨진 상황
+    items[1]["vms"] = []
+    Collector.place(items)
+    by = {i["id"]: i for i in items}
+    assert by["db-01"]["parent"] == "compute3" and by["db-01"]["vm_state"] == "running"
+    assert by["k8s-cp1"]["parent"] == "compute3" and "vm_state" not in by["k8s-cp1"]   # 못 찾으면 정적 부모 유지
+
+
+def test_s1_is_name_only():
+    t = {x["id"]: x for x in json.load(open("console/targets.json", encoding="utf-8"))}
+    assert t["s1"].get("disabled") and t["s1"]["argv"] == ["true"] and not t["s1"].get("check")
+    assert all(t[h].get("parent") != "s1" for h in ("controller", "compute1", "compute3", "compute4"))
+    assert t["k8s-cp1"]["role"] == "마스터" and t["k8s-w1"]["role"] == "워커" and t["db-01"]["role"] == "DB"

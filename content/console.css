@@ -85,6 +85,13 @@
     .cs-tog { width: 18px; height: 18px; background: transparent; border: 0; color: var(--text-sub); cursor: pointer; font-size: 11px; flex-shrink: 0; }
     .cs-tog:hover { color: #fff; }
     .cs-tog-sp { width: 18px; flex-shrink: 0; }
+    .cs-role { font-style: normal; font-family: var(--font-sans, inherit); font-size: 10px; font-weight: 600; margin-left: 6px; padding: 1px 6px; border-radius: 9px; vertical-align: 1px; }
+    .cs-role-host { background: #1e3a5f; color: #bfdbfe; }
+    .cs-role-vm { background: #14532d; color: #bbf7d0; }
+    .cs-role-none { background: #334155; color: #cbd5e1; }
+    .cs-svc-head { background: transparent; border: 0; color: var(--text-sub); font-size: 11px; cursor: pointer; padding: 3px 4px; font-family: inherit; }
+    .cs-svc-head:hover { color: #fff; }
+    .cs-svc-head b { color: #fca5a5; font-weight: 600; }
     .cs-svcs { display: flex; flex-direction: column; gap: 1px; padding: 2px 0 6px calc(var(--d, 1) * 14px + 22px); }
     .cs-svc { display: flex; align-items: center; gap: 6px; background: transparent; border: 0; border-radius: 4px; padding: 3px 6px; color: #cbd5e1; cursor: pointer; text-align: left; font-family: inherit; }
     .cs-svc:hover { background: var(--surface-card); color: #fff; }

@@ -128,7 +128,7 @@ def create_app():
     def list_targets(request: Request):
         if not lock.check(request.cookies.get(COOKIE), ip_of(request)):
             return JSONResponse({"error": "콘솔 잠금을 먼저 푸세요"}, status_code=401)
-        keys = ("id", "area", "name", "desc", "host", "disabled", "check", "fix", "parent", "kubectl")
+        keys = ("id", "area", "name", "desc", "host", "disabled", "check", "fix", "parent", "kubectl", "role")
         return [{k: targets[i].get(k) for k in keys if k in targets[i]} for i in order]
 
     @app.websocket("/console/ws/{target_id}")
