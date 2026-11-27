@@ -18,7 +18,7 @@
       try { data = await res.json(); } catch (e) { data = null; }
       if (!res.ok) {
         const err = Object.assign({ status: res.status }, data || {});
-        if (res.status === 401 && path !== '/api/login' && path !== '/api/team/password') {
+        if (res.status === 401 && ['/api/login', '/api/me', '/api/team/password'].indexOf(path) < 0) {
           WIKI.ready = false;
           if (typeof wikiOnSessionLost === 'function') wikiOnSessionLost();
           else wikiShowLogin();
@@ -41,7 +41,7 @@
       try {
         WIKI.me = await api('GET', '/api/me');
       } catch (e) {
-        if (e.status !== 401) wikiShowLogin(e.error || '서버에 연결하지 못했습니다.');
+        wikiShowLogin(e.status === 401 ? '' : (e.error || '서버에 연결하지 못했습니다.'));
         return;
       }
       await wikiReload();
@@ -190,4 +190,393 @@
       if (!WIKI.me) return '';
       return '<div class="wk-teambar"><div><b>' + cfgEsc(WIKI.me.team_name) + '</b><span>' + cfgEsc(WIKI.me.member) + ' 님</span></div>' +
         '<button type="button" class="cfg-copy" onclick="wikiLogout()">로그아웃</button></div>';
+    }
+
+    // ===== 만들기 · 편집 · 삭제 =====
+    const WK_STATUS = [['live', '실측'], ['design', '설계 · 미적용'], ['nolook', '미실측']];
+    const WK_PROVIDERS = [['onprem', '온프렘'], ['openstack', 'OpenStack'], ['kt', 'KT Cloud'], ['aws', 'AWS'], ['other', '기타']];
+    const WK_CATS = ['설치', '적용', '조회', '검증'];
+    const WK_KIND_NAME = { cloud: '클라우드', instance: '인스턴스', area: '서비스 영역', steps: '진행 순서', page: '참고 문서' };
+    // 화면용 비밀값 검사 — 서버(wiki/guard.py)와 같은 패턴
+    const WK_SECRET = [
+      /-----BEGIN [A-Z ]*PRIVATE KEY-----/, /PrivateKey\s*=\s*[A-Za-z0-9+/]{43}=/, /AKIA[0-9A-Z]{16}/,
+      /gh[pousr]_[A-Za-z0-9]{36}/, /(password|passwd|pwd|secret|token)\s*[:=]\s*(?![<$'"{])\S{6,}/i
+    ];
+    function wikiFindSecret(v, path) {
+      path = path || 'body';
+      if (typeof v === 'string') return WK_SECRET.some(p => p.test(v)) ? { field: path } : null;
+      if (Array.isArray(v)) { for (let i = 0; i < v.length; i++) { const h = wikiFindSecret(v[i], path + '[' + i + ']'); if (h) return h; } return null; }
+      if (v && typeof v === 'object') { for (const k in v) { const h = wikiFindSecret(v[k], path + '.' + k); if (h) return h; } }
+      return null;
+    }
+
+    function wikiToast(msg) {
+      let t = document.getElementById('wk-toast');
+      if (!t) { t = document.createElement('div'); t.id = 'wk-toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
+      t.textContent = msg; t.classList.add('show');
+      clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600);
+    }
+
+    // ---------- + 버튼 (렌더러 훅) ----------
+    function wkAdd(label, js) {
+      return '<button type="button" class="wk-add" onclick="' + js + '">+ ' + cfgEsc(label) + '</button>';
+    }
+    function wikiMajorTail() {
+      if (!WIKI.ready) return '';
+      if (CFG.lens === 'inst') return wkAdd('클라우드', "wikiCreate('cloud', null)");
+      if (CFG.lens === 'ref') return wkAdd('문서', "wikiCreate('page', null)");
+      return '';
+    }
+    function wikiGroupTail(cloudId) {
+      if (!WIKI.ready || !cloudId) return '';
+      return '<span class="wk-group-acts"><button type="button" class="wk-mini" title="클라우드 편집" onclick="event.stopPropagation();wikiEdit(' + cloudId + ')">편집</button>' +
+        '<button type="button" class="wk-mini" onclick="event.stopPropagation();wikiCreate(\'instance\', ' + cloudId + ')">+ 인스턴스</button></span>';
+    }
+    function wikiMinorTail() {
+      if (!WIKI.ready) return '';
+      if (CFG.lens === 'inst' && cfgPage(CFG.major)) return wkAdd('서비스 영역', "wikiCreate('area', " + cfgPage(CFG.major).docId + ")");
+      if (CFG.lens === 'step') return wkAdd('단계', 'wikiEditSteps(true)');
+      return '';
+    }
+    function wikiEmptyActions(lens) {
+      if (lens === 'inst') {
+        if (cfgPage(CFG.major)) return wkAdd('서비스 영역', "wikiCreate('area', " + cfgPage(CFG.major).docId + ")");
+        const c = CFG.data.clouds || [];
+        return c.length ? c.map(x => wkAdd(x.name + ' 아래 인스턴스', "wikiCreate('instance', " + x.id + ")")).join(' ')
+          : wkAdd('클라우드', "wikiCreate('cloud', null)");
+      }
+      if (lens === 'step') return wkAdd('단계', 'wikiEditSteps(true)');
+      if (lens === 'ref') return wkAdd('문서', "wikiCreate('page', null)");
+      return '';
+    }
+    function wikiActions(kind, docId) {
+      if (!WIKI.ready) return '';
+      if (kind === 'steps') return '<div class="wk-acts">' + (docId ? '<button type="button" class="wk-mini" onclick="wikiEditSteps(false)">순서 편집</button>' : '') + '</div>';
+      if (!docId) return '';
+      const name = WK_KIND_NAME[kind];
+      return '<div class="wk-acts">' +
+        '<button type="button" class="wk-mini" onclick="wikiEdit(' + docId + ')">' + name + ' 편집</button>' +
+        (typeof wikiHistory === 'function' ? '<button type="button" class="wk-mini" onclick="wikiHistory(' + docId + ')">기록</button>' : '') +
+        '<button type="button" class="wk-mini wk-danger" onclick="wikiDelete(' + docId + ', this)">삭제</button></div>';
+    }
+
+    // ---------- 편집기 ----------
+    function wkDoc(id) { return CFG.data.byId[id]; }
+    function wikiCreate(kind, parentId) {
+      const blank = {
+        cloud: { name: '', provider: 'openstack', desc: '' },
+        instance: { title: '', short: '', tag: '', status: 'live', steps: '', desc: '', specs: [] },
+        area: { name: '', status: 'live', domains: [], design: [], config: [], commands: [], verify: [], trouble: [] },
+        page: { title: '', tag: '', desc: '', blocks: [] }
+      }[kind];
+      wikiOpenEditor({ kind: kind, docId: null, parentId: parentId, baseRev: null }, blank);
+    }
+    function wikiEdit(docId) {
+      const d = wkDoc(docId);
+      if (!d) return;
+      wikiOpenEditor({ kind: d.kind, docId: d.id, parentId: d.parent_id, baseRev: d.rev }, JSON.parse(JSON.stringify(d.body)));
+    }
+    function wikiEditSteps(addRow) {
+      const id = CFG.data.stepsDocId;
+      const d = id ? wkDoc(id) : null;
+      const body = d ? JSON.parse(JSON.stringify(d.body)) : { items: [] };
+      if (addRow) body.items.push({ no: 'S' + body.items.length, title: '', where: '', why: '', gate: '', instance_id: null, area_id: null });
+      wikiOpenEditor({ kind: 'steps', docId: d ? d.id : null, parentId: null, baseRev: d ? d.rev : null }, body);
+    }
+
+    // 필드 정의: [키, 라벨, 종류, 옵션]
+    function wkFields(kind) {
+      if (kind === 'cloud') return [['name', '클라우드 이름', 'text'], ['provider', '종류', 'select', WK_PROVIDERS], ['desc', '설명', 'textarea']];
+      if (kind === 'instance') return [['title', '인스턴스 이름', 'text'], ['short', '짧은 이름 (매트릭스에 표시)', 'text'],
+        ['tag', '주소·태그 (예: 172.20.0.86)', 'text'], ['status', '상태', 'select', WK_STATUS], ['steps', '진행 순서 표시 (예: S6 · S8)', 'text'],
+        ['desc', '설명', 'textarea'], ['specs', '사양', 'rows', [['0', '항목', 'text'], ['1', '값', 'text']]]];
+      if (kind === 'area') return [['name', '서비스 영역 이름', 'text'], ['status', '상태', 'select', WK_STATUS], ['domains', '서비스 분류 (하나 이상)', 'checks'],
+        ['design', '설계 (한 줄에 하나)', 'lines'],
+        ['config', '설정', 'rows', [['label', '라벨 (파일 경로 등)', 'text'], ['code', '내용', 'code']]],
+        ['commands', '명령어', 'rows', [['cat', '분류', 'select', WK_CATS.map(c => [c, c])], ['label', '설명', 'text'], ['code', '명령', 'code']]],
+        ['verify', '검증', 'rows', [['label', '설명', 'text'], ['code', '명령', 'code'], ['expect', '기대 결과', 'text']]],
+        ['trouble', '오류 시 확인', 'rows', [['0', '증상', 'text'], ['1', '의심 변수·영역', 'text'], ['2', '확인 명령', 'text'], ['3', '조치', 'text']]]];
+      if (kind === 'steps') return [['items', '단계', 'rows', [['no', '번호', 'text'], ['title', '제목', 'text'], ['where', '실행 위치', 'text'],
+        ['why', '이유', 'textarea'], ['gate', '통과 조건 (명령)', 'code'], ['area_ref', '연결할 서비스 영역', 'arearef']]]];
+      return [['title', '문서 제목', 'text'], ['tag', '태그', 'text'], ['desc', '설명', 'textarea'],
+        ['blocks', '내용 블록', 'rows', [['type', '종류', 'select', [['h', '소제목'], ['p', '문단'], ['code', '코드'], ['table', '표']]],
+          ['label', '코드 라벨 (코드일 때)', 'text'], ['text', '내용 (표는 한 줄에 한 행, 칸은 | 로 구분, 첫 줄은 제목)', 'code']]]];
+    }
+
+    function wkInput(name, def, val) {
+      const type = def[2];
+      const v = val == null ? '' : val;
+      if (type === 'select') return '<select name="' + name + '">' + def[3].map(o => '<option value="' + cfgEsc(o[0]) + '"' + (o[0] === v ? ' selected' : '') + '>' + cfgEsc(o[1]) + '</option>').join('') + '</select>';
+      if (type === 'textarea') return '<textarea name="' + name + '" rows="3">' + cfgEsc(v) + '</textarea>';
+      if (type === 'code') return '<textarea name="' + name + '" rows="5" class="wk-code" spellcheck="false">' + cfgEsc(v) + '</textarea>';
+      if (type === 'arearef') {
+        const opts = ['<option value="">(연결 안 함)</option>'];
+        CFG.data.instances.forEach(pid => { const p = cfgPage(pid); p.areas.forEach(a => opts.push('<option value="' + p.docId + ':' + a.docId + '"' + (v === p.docId + ':' + a.docId ? ' selected' : '') + '>' + cfgEsc(p.short + ' / ' + a.name) + '</option>')); });
+        return '<select name="' + name + '">' + opts.join('') + '</select>';
+      }
+      return '<input name="' + name + '" value="' + cfgEsc(v) + '">';
+    }
+
+    function wkRow(fieldKey, cols, item, idx) {
+      return '<div class="wk-row" data-field="' + fieldKey + '">' +
+        '<div class="wk-row-cols">' + cols.map(c => '<label class="wk-field">' + cfgEsc(c[1]) + wkInput(fieldKey + '.' + c[0], c, item[c[0]]) + '</label>').join('') + '</div>' +
+        '<div class="wk-row-tools"><button type="button" class="wk-mini" title="위로" onclick="wkMove(this,-1)">↑</button>' +
+        '<button type="button" class="wk-mini" title="아래로" onclick="wkMove(this,1)">↓</button>' +
+        '<button type="button" class="wk-mini wk-danger" title="이 줄 삭제" onclick="wkDelRow(this)">삭제</button></div></div>';
+    }
+    function wkRowItem(kind, key, raw) {
+      // 저장된 값 → 행 편집용 객체
+      if (key === 'specs' || key === 'trouble') return Object.assign({}, raw);
+      if (kind === 'steps') return Object.assign({}, raw, { area_ref: raw.instance_id && raw.area_id ? raw.instance_id + ':' + raw.area_id : '' });
+      if (kind === 'page' && key === 'blocks') {
+        if (raw.type === 'table') return { type: 'table', label: '', text: [(raw.head || []).join(' | ')].concat((raw.rows || []).map(r => r.join(' | '))).join(WIKI_NL) };
+        if (raw.type === 'code') return { type: 'code', label: raw.label || '', text: raw.code || '' };
+        return { type: raw.type, label: '', text: raw.text || '' };
+      }
+      return Object.assign({}, raw);
+    }
+
+    function wikiOpenEditor(meta, body, notice) {
+      WIKI.editing = { meta: meta, orig: body };
+      const fields = wkFields(meta.kind);
+      const isNew = !meta.docId;
+      let parentLabel = '';
+      if (meta.parentId && wkDoc(meta.parentId)) { const pb = wkDoc(meta.parentId).body; parentLabel = ' — ' + (pb.name || pb.title) + ' 아래'; }
+      let html = '<form class="wk-editor" id="wk-editor" onsubmit="wikiSave(event)" oninput="wkSaveDraft()">' +
+        '<div class="cfg-head"><h2 class="cfg-head-title">' + WK_KIND_NAME[meta.kind] + (isNew ? ' 만들기' : ' 편집') + cfgEsc(parentLabel) + '</h2>' +
+        (meta.baseRev ? '<p class="manual-desc">' + meta.baseRev + '판을 고칩니다. 저장하면 ' + (meta.baseRev + 1) + '판이 됩니다.</p>' : '') + '</div>' +
+        (notice || '') + '<p class="wk-error" id="wk-ed-err" role="alert" hidden></p>';
+      fields.forEach(f => {
+        const key = f[0], type = f[2], val = body[key];
+        if (type === 'rows') {
+          const items = Array.isArray(val) ? val : [];
+          html += '<fieldset class="wk-set"><legend>' + cfgEsc(f[1]) + '</legend><div class="wk-rows" data-key="' + key + '">' +
+            items.map((it, i) => wkRow(key, f[3], wkRowItem(meta.kind, key, it), i)).join('') + '</div>' +
+            '<button type="button" class="wk-add" onclick="wkAddRow(\'' + key + '\')">+ ' + cfgEsc(f[1]) + ' 추가</button></fieldset>';
+        } else if (type === 'checks') {
+          html += '<fieldset class="wk-set" data-key="domains"><legend>' + cfgEsc(f[1]) + '</legend><div class="wk-checks">' +
+            CFG.data.domains.map(d => '<label><input type="checkbox" name="domains" value="' + d.id + '"' + ((val || []).indexOf(d.id) >= 0 ? ' checked' : '') + '> ' + cfgEsc(d.name) + '</label>').join('') + '</div></fieldset>';
+        } else if (type === 'lines') {
+          html += '<label class="wk-field" data-key="' + key + '">' + cfgEsc(f[1]) + '<textarea name="' + key + '" rows="6">' + cfgEsc((val || []).join(WIKI_NL)) + '</textarea></label>';
+        } else {
+          html += '<label class="wk-field" data-key="' + key + '">' + cfgEsc(f[1]) + wkInput(key, f, val) + '</label>';
+        }
+      });
+      html += '<label class="wk-field">변경 메모 <span>(선택 — 기록에 남습니다)</span><input name="__message" maxlength="200" placeholder="예: sg-db 규칙 추가 반영"></label>' +
+        '<div class="wk-bar"><button type="submit" class="wk-btn wk-primary">저장</button>' +
+        '<button type="button" class="wk-btn" onclick="wikiCancel()">취소</button></div></form>';
+      const bodyEl = document.getElementById('manual-body-content');
+      bodyEl.innerHTML = html;
+      bodyEl.scrollTop = 0;
+      wkSaveDraft();
+    }
+
+    function wkAddRow(key) {
+      const f = wkFields(WIKI.editing.meta.kind).find(x => x[0] === key);
+      const box = document.querySelector('.wk-rows[data-key="' + key + '"]');
+      const blank = {};
+      f[3].forEach(c => { blank[c[0]] = c[2] === 'select' ? c[3][0][0] : ''; });
+      box.insertAdjacentHTML('beforeend', wkRow(key, f[3], blank, box.children.length));
+      wkSaveDraft();
+    }
+    function wkDelRow(btn) { btn.closest('.wk-row').remove(); wkSaveDraft(); }
+    function wkMove(btn, dir) {
+      const row = btn.closest('.wk-row');
+      const sib = dir < 0 ? row.previousElementSibling : row.nextElementSibling;
+      if (sib) { if (dir < 0) sib.before(row); else sib.after(row); }
+      wkSaveDraft();
+    }
+
+    // 양식 → body (원래 body 의 숨은 칸(slug 등)은 유지)
+    function wkCollect() {
+      const ed = WIKI.editing, form = document.getElementById('wk-editor');
+      const body = JSON.parse(JSON.stringify(ed.orig || {}));
+      wkFields(ed.meta.kind).forEach(f => {
+        const key = f[0], type = f[2];
+        if (type === 'rows') {
+          body[key] = Array.prototype.map.call(form.querySelectorAll('.wk-rows[data-key="' + key + '"] > .wk-row'), row => {
+            const o = {};
+            f[3].forEach(c => { o[c[0]] = row.querySelector('[name="' + key + '.' + c[0] + '"]').value; });
+            return o;
+          }).map(o => wkRowBack(ed.meta.kind, key, o)).filter(o => o !== null);
+        } else if (type === 'checks') {
+          body[key] = Array.prototype.filter.call(form.querySelectorAll('input[name="domains"]'), x => x.checked).map(x => x.value);
+        } else if (type === 'lines') {
+          body[key] = form.elements[key].value.split(WIKI_NL).map(x => x.trim()).filter(Boolean);
+        } else {
+          body[key] = form.elements[key].value.trim();
+        }
+      });
+      return body;
+    }
+    function wkRowBack(kind, key, o) {
+      if (key === 'specs') return o['0'] || o['1'] ? [o['0'], o['1']] : null;
+      if (key === 'trouble') return o['0'] || o['3'] ? [o['0'], o['1'], o['2'], o['3']] : null;
+      if (kind === 'steps') {
+        const ref = (o.area_ref || '').split(':');
+        const out = { no: o.no, title: o.title, where: o.where, why: o.why, gate: o.gate,
+          instance_id: ref[0] ? Number(ref[0]) : null, area_id: ref[1] ? Number(ref[1]) : null };
+        return out.title || out.no ? out : null;
+      }
+      if (kind === 'page' && key === 'blocks') {
+        if (o.type === 'table') {
+          const ls = o.text.split(WIKI_NL).filter(l => l.trim()).map(l => l.split('|').map(x => x.trim()));
+          return ls.length ? { type: 'table', head: ls[0], rows: ls.slice(1) } : null;
+        }
+        if (o.type === 'code') return o.text ? { type: 'code', label: o.label, code: o.text } : null;
+        return o.text ? { type: o.type, text: o.text } : null;
+      }
+      return o;
+    }
+
+    function wkDraftKey() { const m = WIKI.editing.meta; return 'fw_editing'; }
+    function wkSaveDraft() {
+      if (!WIKI.editing || !document.getElementById('wk-editor')) return;
+      try { sessionStorage.setItem(wkDraftKey(), JSON.stringify({ meta: WIKI.editing.meta, orig: WIKI.editing.orig, body: wkCollect() })); } catch (e) {}
+    }
+    function wikiCancel() {
+      sessionStorage.removeItem('fw_editing');
+      WIKI.editing = null;
+      cfgRenderBody();
+    }
+
+    function wkShowError(msg, field) {
+      const el = document.getElementById('wk-ed-err');
+      el.textContent = msg; el.hidden = false;
+      document.querySelectorAll('.wk-bad').forEach(x => x.classList.remove('wk-bad'));
+      if (field) {
+        const key = String(field).replace('body.', '').split(/[.[]/)[0];
+        const tgt = document.querySelector('[data-key="' + key + '"]');
+        if (tgt) { tgt.classList.add('wk-bad'); tgt.scrollIntoView({ block: 'center' }); }
+      }
+      el.scrollIntoView({ block: 'nearest' });
+    }
+
+    async function wikiSave(ev, force) {
+      if (ev) ev.preventDefault();
+      const ed = WIKI.editing;
+      const body = force ? force.body : wkCollect();
+      const msg = force ? force.message : (document.getElementById('wk-editor').elements.__message.value || '');
+      const secret = wikiFindSecret(body);
+      if (secret) return wkShowError('비밀값처럼 보이는 내용은 저장할 수 없습니다. <개인키> 처럼 자리표시로 바꾸세요.', secret.field);
+      const baseRev = force ? force.baseRev : ed.meta.baseRev;
+      try {
+        let r, id = ed.meta.docId;
+        if (!id) {
+          r = await api('POST', '/api/docs', { kind: ed.meta.kind, parent_id: ed.meta.parentId, sort: wkNextSort(ed.meta), body: body, message: msg });
+          id = r.id;
+        } else {
+          r = await api('PUT', '/api/docs/' + id, { base_rev: baseRev, body: body, message: msg });
+        }
+        sessionStorage.removeItem('fw_editing');
+        WIKI.editing = null;
+        wikiToast('저장했습니다 (' + r.rev + '판)');
+        await wikiReload(true);
+        wkGoTo(ed.meta.kind, id);
+      } catch (e) {
+        if (e.status === 401) return;  // 로그인 화면으로 — 초안은 sessionStorage 에 남아 있다
+        if (e.status === 409 && e.current) return wikiConflict(body, msg, e.current);
+        wkShowError(e.error || '저장하지 못했습니다', e.field);
+      }
+    }
+    function wkNextSort(meta) {
+      const sib = Object.values(CFG.data.byId).filter(d => d.kind === meta.kind && d.parent_id === meta.parentId);
+      return sib.length ? Math.max.apply(null, sib.map(d => d.sort)) + 1 : 0;
+    }
+    function wkGoTo(kind, id) {
+      if (kind === 'area') { const d = CFG.data.byId[id]; if (d) return cfgSelect('inst', 'inst-' + d.parent_id, 'a' + id); }
+      if (kind === 'instance') return cfgSelect('inst', 'inst-' + id, '');
+      if (kind === 'page') return cfgSelect('ref', 'page-' + id, '');
+      if (kind === 'steps') return cfgSelect('step', 'all', '');
+      cfgSelect(CFG.lens || 'inst', CFG.major, CFG.minor);
+    }
+
+    // 409: 내 초안 ↔ 최신 판 나란히
+    function wikiConflict(myBody, myMsg, current) {
+      const ed = WIKI.editing;
+      WIKI.conflict = { body: myBody, message: myMsg, current: current };
+      const html = '<div class="wk-conflict"><h3>다른 팀원이 먼저 저장했습니다</h3>' +
+        '<p>' + cfgEsc(current.author) + ' 님이 ' + current.rev + '판을 저장했습니다. 왼쪽은 최신 판, 오른쪽은 내가 고친 내용입니다. 둘을 비교해 정하세요.</p>' +
+        wikiDiffView(bodyToText(ed.meta.kind, current.body), bodyToText(ed.meta.kind, myBody), current.rev + '판 (최신)', '내 초안') +
+        '<div class="wk-bar"><button type="button" class="wk-btn" onclick="wikiConflictReload()">최신 판으로 다시 편집</button>' +
+        '<button type="button" class="wk-btn wk-primary" onclick="wikiConflictForce()">내 초안으로 저장</button></div></div>';
+      const bodyEl = document.getElementById('manual-body-content');
+      bodyEl.innerHTML = html; bodyEl.scrollTop = 0;
+    }
+    function wikiConflictReload() {
+      const c = WIKI.conflict, m = WIKI.editing.meta;
+      wikiOpenEditor(Object.assign({}, m, { baseRev: c.current.rev }), c.current.body);
+    }
+    function wikiConflictForce() {
+      const c = WIKI.conflict;
+      wikiSave(null, { body: c.body, message: c.message || '충돌 후 내 초안으로 저장', baseRev: c.current.rev });
+    }
+
+    // 나란히 비교 표 (Task 8 기록 화면도 사용)
+    function wikiDiffView(aLines, bLines, aTitle, bTitle) {
+      const d = diffLines(aLines, bLines);
+      const rows = [];
+      let i = 0;
+      while (i < d.length) {
+        if (d[i].op === 'same') {
+          let j = i; while (j < d.length && d[j].op === 'same') j++;
+          const run = d.slice(i, j);
+          if (run.length > 6) {
+            run.slice(0, 2).forEach(x => rows.push(['same', x.a, x.text, x.b, x.text]));
+            rows.push(['fold', run.length - 4]);
+            run.slice(-2).forEach(x => rows.push(['same', x.a, x.text, x.b, x.text]));
+          } else run.forEach(x => rows.push(['same', x.a, x.text, x.b, x.text]));
+          i = j;
+        } else {
+          const dels = [], adds = [];
+          while (i < d.length && d[i].op !== 'same') { (d[i].op === 'del' ? dels : adds).push(d[i]); i++; }
+          for (let k = 0; k < Math.max(dels.length, adds.length); k++) {
+            const a = dels[k], b = adds[k];
+            rows.push(['chg', a ? a.a : null, a ? a.text : null, b ? b.b : null, b ? b.text : null]);
+          }
+        }
+      }
+      const changed = d.filter(x => x.op !== 'same').length;
+      return '<div class="wk-diff-wrap"><div class="wk-diff-sum">' + (changed ? '바뀐 줄 ' + changed + '개' : '두 판의 내용이 같습니다') + '</div>' +
+        '<table class="wk-diff"><colgroup><col style="width:48px"><col><col style="width:48px"><col></colgroup><thead><tr><th colspan="2">' + cfgEsc(aTitle) + '</th><th colspan="2">' + cfgEsc(bTitle) + '</th></tr></thead><tbody>' +
+        rows.map(r => {
+          if (r[0] === 'fold') return '<tr class="wk-fold"><td colspan="4">같은 줄 ' + r[1] + '개</td></tr>';
+          const left = r[2] === null ? '<td class="wk-ln"></td><td class="wk-empty"></td>' : '<td class="wk-ln">' + (r[1] + 1) + '</td><td class="' + (r[0] === 'chg' ? 'wk-del' : '') + '">' + cfgEsc(r[2]) + '</td>';
+          const right = r[4] === null ? '<td class="wk-ln"></td><td class="wk-empty"></td>' : '<td class="wk-ln">' + (r[3] + 1) + '</td><td class="' + (r[0] === 'chg' ? 'wk-ins' : '') + '">' + cfgEsc(r[4]) + '</td>';
+          return '<tr>' + left + right + '</tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+
+    // ---------- 삭제 (두 번 눌러 확인) ----------
+    async function wikiDelete(docId, btn) {
+      if (!btn.dataset.armed) {
+        btn.dataset.armed = '1'; btn.textContent = '한 번 더 누르면 삭제';
+        setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.textContent = '삭제'; } }, 4000);
+        return;
+      }
+      const d = wkDoc(docId);
+      try {
+        const r = await api('DELETE', '/api/docs/' + docId, { base_rev: d.rev, message: '삭제' });
+        wikiToast('삭제했습니다 (' + r.rev + '판, 기록에서 되돌릴 수 있습니다)');
+        await wikiReload(true);
+        cfgSelect(CFG.lens, '', '');
+      } catch (e) {
+        if (e.status === 401) return;
+        wikiToast(e.status === 422 ? '하위 문서를 먼저 삭제하세요' : (e.error || '삭제하지 못했습니다'));
+      }
+    }
+
+    // ---------- 세션이 끊겼을 때 초안 지키기 ----------
+    function wikiOnSessionLost() {
+      if (WIKI.editing && document.getElementById('wk-editor')) wkSaveDraft();
+      wikiShowLogin('로그인이 끊겼습니다. 다시 들어오면 쓰던 내용을 이어서 편집할 수 있습니다.');
+    }
+    function wikiAfterLogin() {
+      const raw = sessionStorage.getItem('fw_editing');
+      if (!raw) return;
+      try {
+        const v = JSON.parse(raw);
+        wikiOpenEditor(v.meta, Object.assign({}, v.orig, v.body), '<p class="wk-note">로그인 전에 쓰던 내용을 되살렸습니다. 확인하고 저장하세요.</p>');
+        WIKI.editing.orig = v.orig;
+      } catch (e) { sessionStorage.removeItem('fw_editing'); }
     }

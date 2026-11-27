@@ -335,21 +335,21 @@
       const p = cfgPage(pid);
       const a = cfgAreaOf(pid, aid);
       const st = a.status || p.status;
-      let html = '<div class="cfg-head">' +
+      let html = '<div class="cfg-head">' + (typeof wikiActions === 'function' ? wikiActions('area', a.docId) : '') +
         '<div class="cfg-head-line">' + '<span class="cfg-cloud cfg-c-' + p.cloud + '">' + cfgEsc(CLOUD_NAME[p.cloud]) + '</span>' +
           '<span class="cfg-head-inst">' + cfgEsc(p.title) + '</span><span class="manual-tag">' + cfgEsc(p.tag) + '</span></div>' +
         '<h2 class="cfg-head-title">' + cfgEsc(a.name) + ' ' + cfgBadge(st) + '</h2>' +
         '<div class="cfg-head-domains">이 영역은 ' + a.domains.map(x =>
           '<a href="javascript:void(0)" class="cfg-dom-link" onclick="' + cfgGo('svc', x, pid + '.' + aid) + '">' + cfgEsc(cfgDomain(x).name) + '</a>').join(', ') +
           ' 서비스에 속합니다' + (p.steps ? '. 진행 순서 ' + cfgEsc(p.steps) : '') + '.</div></div>';
-      html += '<details class="cfg-inst"' + (specsOpen ? ' open' : '') + '><summary>인스턴스 개요와 사양</summary>' +
+      html += '<details class="cfg-inst"' + (specsOpen ? ' open' : '') + '><summary>인스턴스 개요와 사양</summary>' + (typeof wikiActions === 'function' ? wikiActions('instance', p.docId) : '') +
         '<p class="manual-desc">' + cfgFmt(p.desc) + '</p><div class="spec-grid">' + p.specs.map(s =>
           '<div class="spec-item"><span class="spec-k">' + cfgEsc(s[0]) + '</span><span class="spec-v">' + cfgEsc(s[1]) + '</span></div>').join('') + '</div></details>';
       return html + cfgArea(a);
     }
 
     function cfgStepHead(s) {
-      return '<div class="cfg-head cfg-step-head"><div class="cfg-step-no">' + cfgEsc(s.no) + '</div><div>' +
+      return (typeof wikiActions === 'function' ? wikiActions('steps', CFG.data.stepsDocId) : '') + '<div class="cfg-head cfg-step-head"><div class="cfg-step-no">' + cfgEsc(s.no) + '</div><div>' +
         '<h2 class="cfg-head-title">' + cfgEsc(s.title) + '</h2>' +
         '<p class="manual-desc">' + cfgFmt(s.why) + ' 실행 위치: ' + cfgEsc(s.where) + '</p></div></div>' +
         cfgCode(s.gate, '통과 조건 (이게 나와야 다음 단계)', '검증');
@@ -389,10 +389,11 @@
 
     // ---------- 참고 문서 ----------
     function cfgDoc(p) {
-      let html = '<div class="cfg-head"><h2 class="cfg-head-title">' + cfgEsc(p.title) + ' <span class="manual-tag">' + cfgEsc(p.tag || '') + '</span></h2>' +
+      let html = '<div class="cfg-head">' + (typeof wikiActions === 'function' ? wikiActions('page', p.docId) : '') + '<h2 class="cfg-head-title">' + cfgEsc(p.title) + ' <span class="manual-tag">' + cfgEsc(p.tag || '') + '</span></h2>' +
         '<p class="manual-desc">' + cfgFmt(p.desc) + '</p></div>';
       p.blocks.forEach(b => {
         if (b.type === 'h') html += '<h3 class="cfg-h">' + cfgEsc(b.text) + '</h3>';
+        else if (b.type === 'p') html += '<p class="manual-desc">' + cfgFmt(b.text) + '</p>';
         else if (b.type === 'code') html += cfgCode(b.code, b.label);
         else if (b.type === 'table') html += cfgTable(b.head, b.rows);
         else if (b.type === 'vars') html += cfgTable(['변수', '값 (실측)', '사용처', '바뀌면 확인'], CFG.data.vars, 'cfg-vars');
