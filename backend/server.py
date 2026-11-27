@@ -1531,6 +1531,41 @@ LANDING_HTML = """<!DOCTYPE html>
     @media (max-width: 860px) { .cs-wrap { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } .cs-drawer { max-height: 30vh; } }
     .cs-term-inner { width: 100%; height: 100%; }
     .cs-unlock .wk-bar { background: transparent; }
+    /* 예전 통합 터미널 기능: 확인·복구 버튼, 탭, 띄운 창 */
+    .cs-presets { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 5px 8px; background: #0a1120; border-bottom: 1px solid #1e293b; }
+    .cs-pre-lbl { font-size: 10.5px; font-weight: 700; color: var(--text-muted); margin-right: 2px; }
+    .cs-pre-warn { color: #fbbf24; margin-left: 8px; }
+    .cs-pre { background: #111a2e; border: 1px solid #263248; color: #cbd5e1; border-radius: 4px; font-size: 11px; padding: 2px 7px; cursor: pointer; font-family: inherit; }
+    .cs-pre:hover { border-color: #3b82f6; color: #fff; }
+    .cs-pre-fix { border-color: #78350f; color: #fde68a; }
+    .cs-pre-fix[data-armed] { background: #7c2d12; color: #fff; }
+    .cs-bar { flex-wrap: wrap; }
+    .cs-tabs { display: flex; gap: 4px; flex-wrap: wrap; min-width: 0; }
+    .cs-tab { display: inline-flex; align-items: center; gap: 6px; background: #0f172a; border: 1px solid #263248; color: #e2e8f0; border-radius: 5px; padding: 3px 9px; font-size: 12px; cursor: pointer; font-family: var(--font-mono); }
+    .cs-tab small { color: var(--text-muted); font-family: 'Pretendard', sans-serif; font-size: 10.5px; }
+    .cs-tab:hover { border-color: #3b82f6; }
+    .cs-float-layer { position: fixed; inset: 0; pointer-events: none; z-index: 850; }
+    .cs-float { position: fixed; pointer-events: auto; width: 720px; height: 440px; min-width: 340px; min-height: 200px; resize: both; overflow: hidden;
+      display: flex; flex-direction: column; background: #06090e; border: 1px solid #3b82f6; border-radius: 8px; box-shadow: 0 14px 40px rgba(2, 6, 15, .7); }
+    .cs-float > .cs-pane-head { cursor: move; }
+    .cs-float.cs-max { left: 8px !important; top: 60px !important; width: calc(100vw - 16px) !important; height: calc(100vh - 68px) !important; resize: none; }
+    .cs-float.cs-min { height: 34px !important; width: 260px !important; resize: none; }
+    .cs-float.cs-min > :not(.cs-pane-head) { display: none; }
+    #cs-root.cs-solo .cs-float { top: 8px; }
+    /* ===== 메인 대시보드 실측 (content/dashboard.css) ===== */
+    #matrix-5col-grid.dash-live { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); overflow-y: auto; align-content: start; padding-right: 4px; }
+    #matrix-5col-grid.dash-live .inst-grid-card { height: 470px; }
+    .dash-msg { grid-column: 1 / -1; padding: 40px; text-align: center; color: var(--text-sub); font-size: 13px; }
+    .dash-msg-small { padding: 16px 10px; font-size: 11.5px; grid-column: auto; line-height: 1.6; }
+    .dash-badge { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; border: 1px solid; }
+    .dash-down { color: #fca5a5; border-color: #7f1d1d; background: rgba(239, 68, 68, .1); }
+    .dash-warn { color: #fbbf24; border-color: #78350f; background: rgba(245, 158, 11, .1); }
+    .dash-api { color: #93c5fd; border-color: #1e3a8a; background: rgba(37, 99, 235, .12); }
+    .dash-card-down { border-color: #7f1d1d; }
+    .inst-card-footer { display: flex; gap: 6px; }
+    .inst-card-footer .open-modal-btn { flex: 1; }
+    .state-red { color: #fca5a5 !important; }
+    .state-yellow { color: #fbbf24 !important; }
     /* CFGCSS:END */
   </style>
 </head>
@@ -1608,10 +1643,10 @@ LANDING_HTML = """<!DOCTYPE html>
       <div class="dashboard-toolbar-row">
         <div class="toolbar-left">
           <div class="toolbar-title">
-            <span>5대 클라우드 인스턴스 서비스 매트릭스</span>
+            <span>살아 있는 인스턴스 실측 현황</span>
             <span class="badge-running" style="font-size: 10px; padding: 1px 6px;">실시간 관제</span>
           </div>
-          <div class="toolbar-sub">데스크탑 FHD 고정 뷰 · 순위 구분 없는 5대 기준 정렬 (종류별·서비스별·리소스크기별·이름별·실행시간별)</div>
+          <div class="toolbar-sub">s1 상태 수집기(20초) 기준 · 정렬: 종류·서비스·이상 우선·이름·실행 시간</div>
         </div>
         <div class="toolbar-right">
           <!-- 정렬 기준 5종 버튼 그룹 (순위 구분 없음) -->
@@ -3028,7 +3063,9 @@ LANDING_HTML = """<!DOCTYPE html>
     });
     // ===== 통합 콘솔: 3대 영역 → 인스턴스 → 실제 터미널 (content/console.js) =====
     // 서버: s1 figteam-console (/console/api/*, /console/ws/<대상>) · 콘솔 비밀번호로 잠금
-    const CS = { open: false, solo: null, targets: null, layout: '1', panes: [], active: 0, loaded: false, sizes: { col: 50, row: 50 } };
+    // 예전 통합 터미널 기능: 대상별 「확인」·「⚠ 복구」 버튼, 탭, ⧉ 화면 위 창(끌기·크기·최소화·최대화·되돌리기), ↗ 새 창
+    const CS = { open: false, solo: null, targets: null, layout: '1', slots: [], floats: [], active: 0, loaded: false,
+      sizes: { col: 50, row: 50 }, seq: 0, z: 900 };
     const CS_AREAS = [['openstack', '온프렘 · OpenStack', ['onprem', 'openstack']], ['kt', 'KT Cloud', ['kt']], ['aws', 'AWS', ['aws']]];
     const CS_LAYOUTS = [['1', '하나'], ['h', '좌우'], ['v', '상하'], ['4', '4분할']];
     const CS_XTERM = 'https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0';
@@ -3046,7 +3083,6 @@ LANDING_HTML = """<!DOCTYPE html>
         add('script', { src: CS_XTERM + '/lib/xterm.min.js' })
       ]).then(() => add('script', { src: CS_FIT + '/lib/addon-fit.min.js' })).then(() => { CS.loaded = true; });
     }
-
     async function csApi(method, path, body) {
       const opt = { method: method, credentials: 'same-origin', cache: 'no-store', headers: {} };
       if (body) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
@@ -3055,37 +3091,37 @@ LANDING_HTML = """<!DOCTYPE html>
       if (!r.ok) throw Object.assign({ status: r.status }, d || {});
       return d;
     }
-
     function csRoot() {
       let el = document.getElementById('cs-root');
       if (!el) { el = document.createElement('div'); el.id = 'cs-root'; el.setAttribute('role', 'region'); el.setAttribute('aria-label', '통합 콘솔'); document.body.appendChild(el); }
       return el;
     }
+    function csT(id) { return (CS.targets || []).find(t => t.id === id) || { name: id }; }
 
-    // 열기: 대시보드 왼쪽 버튼 또는 #console/<대상> (새 창)
+    // ---------- 열기 · 닫기 · 잠금 ----------
     async function csOpen(soloId) {
       CS.open = true; CS.solo = soloId || null;
       const root = csRoot();
       root.hidden = false;
       root.classList.toggle('cs-solo', !!CS.solo);
       document.body.classList.add('cs-on');
-      root.innerHTML = '<p class="cs-wait">통합 콘솔을 불러오는 중…</p>';
+      if (!root.querySelector('.cs-wrap')) root.innerHTML = '<p class="cs-wait">통합 콘솔을 불러오는 중…</p>';
       try { await csLoadXterm(); }
       catch (e) { root.innerHTML = '<p class="cs-wait wk-error">터미널 화면 구성요소(xterm.js)를 불러오지 못했습니다. 인터넷 연결을 확인하세요.</p>'; return; }
       try { CS.targets = await csApi('GET', '/console/api/targets'); }
       catch (e) { return csShowUnlock(e.status === 401 ? '' : (e.error || '콘솔 서버에 연결하지 못했습니다 (' + e.status + ')')); }
       csRender();
-      if (CS.solo) csConnect(0, CS.solo);
+      if (CS.solo && !CS.slots[0].t) csConnectSlot(0, CS.solo);
     }
     function csClose() {
-      CS.panes.forEach(p => csDisconnect(p));
-      CS.panes = []; CS.open = false;
+      CS.slots.forEach(s => csDispose(s.t)); CS.floats.forEach(csDispose);
+      CS.slots = []; CS.floats = []; CS.open = false;
       const root = csRoot(); root.hidden = true; root.innerHTML = '';
       document.body.classList.remove('cs-on');
       if ((location.hash || '').indexOf('#console') === 0) history.replaceState(null, '', location.pathname);
     }
-
     function csShowUnlock(msg) {
+      CS.slots.forEach(s => csDispose(s.t)); CS.floats.forEach(csDispose); CS.slots = []; CS.floats = [];
       csRoot().innerHTML =
         '<div class="cs-unlock"><form class="wk-card" onsubmit="csUnlock(event)"><h3>통합 콘솔 잠금 해제</h3>' +
         '<p class="manual-desc">실제 서버에 접속하는 터미널입니다. 콘솔 비밀번호를 넣으면 60분 동안 열립니다. 모든 입력과 출력은 기록됩니다.</p>' +
@@ -3098,7 +3134,7 @@ LANDING_HTML = """<!DOCTYPE html>
     async function csUnlock(ev) {
       ev.preventDefault();
       const err = document.getElementById('cs-unlock-err');
-      try { await csApi('POST', '/console/api/unlock', { password: ev.target.password.value }); csOpen(CS.solo); }
+      try { await csApi('POST', '/console/api/unlock', { password: ev.target.password.value }); csRoot().innerHTML = ''; csOpen(CS.solo); }
       catch (e) {
         err.textContent = e.status === 401 ? '콘솔 비밀번호가 맞지 않습니다' : e.status === 429 ? '시도가 많습니다. 10분 뒤 다시 시도하세요' : (e.error || '잠금을 풀지 못했습니다');
         err.hidden = false;
@@ -3106,16 +3142,18 @@ LANDING_HTML = """<!DOCTYPE html>
     }
     async function csLock() {
       try { await csApi('POST', '/console/api/lock', {}); } catch (e) {}
-      CS.panes.forEach(p => csDisconnect(p)); CS.panes = [];
       csShowUnlock('콘솔을 잠갔습니다.');
     }
 
-    // ---------- 화면 ----------
-    function csPaneCount() { return { '1': 1, h: 2, v: 2, '4': 4 }[CS.layout]; }
+    // ---------- 화면 구성 ----------
+    function csPaneCount() { return CS.solo ? 1 : { '1': 1, h: 2, v: 2, '4': 4 }[CS.layout]; }
     function csRender() {
-      const n = CS.solo ? 1 : csPaneCount();
-      while (CS.panes.length < n) CS.panes.push({ target: null });
-      while (CS.panes.length > n) csDisconnect(CS.panes.pop());
+      const n = csPaneCount();
+      while (CS.slots.length < n) CS.slots.push({ t: null });
+      while (CS.slots.length > n) {   // 줄어든 칸의 터미널은 끊지 않고 화면 위 창으로 띄운다
+        const s = CS.slots.pop();
+        if (s.t) CS.floats.push(s.t);
+      }
       if (CS.active >= n) CS.active = 0;
       const drawer = CS.solo ? '' :
         '<aside class="cs-drawer"><div class="cs-drawer-head"><b>통합콘솔</b><span>실제 터미널 · 입력이 기록됩니다</span></div>' +
@@ -3128,26 +3166,16 @@ LANDING_HTML = """<!DOCTYPE html>
       const bar = CS.solo ? '' :
         '<div class="cs-bar"><div class="cs-layouts" role="group" aria-label="창 배치">' + CS_LAYOUTS.map(l =>
           '<button type="button" class="wk-mini' + (CS.layout === l[0] ? ' cs-on-btn' : '') + '" aria-pressed="' + (CS.layout === l[0]) + '" onclick="csLayout(\\'' + l[0] + '\\')">' + l[1] + '</button>').join('') +
-        '</div><span class="cs-hint">칸을 누른 뒤 왼쪽에서 인스턴스를 고르세요. 경계를 끌면 크기가 바뀝니다.</span></div>';
+        '</div><nav class="cs-tabs" id="cs-tabs" aria-label="열린 터미널"></nav></div>';
       const grid = '<div class="cs-grid cs-l' + (CS.solo ? '1' : CS.layout) + '" id="cs-grid">' +
-        CS.panes.map((p, i) => '<section class="cs-pane' + (i === CS.active ? ' cs-active' : '') + '" data-i="' + i + '" onmousedown="csFocus(' + i + ')">' +
-          '<header class="cs-pane-head"><span class="cs-dot" id="cs-dot-' + i + '"></span><b id="cs-name-' + i + '">' + (p.target ? cfgEsc(csT(p.target).name) : '빈 칸') + '</b>' +
-          '<span class="cs-status" id="cs-st-' + i + '"></span>' +
-          '<span class="cs-pane-acts"><button type="button" class="wk-mini" title="다시 연결" onclick="csReconnect(' + i + ')">⟳</button>' +
-          (CS.solo ? '' : '<button type="button" class="wk-mini" title="새 창으로" onclick="csPopout(' + i + ')">↗</button>') +
-          '<button type="button" class="wk-mini" title="닫기" onclick="csClosePane(' + i + ')">✕</button></span></header>' +
-          '<div class="cs-term" id="cs-term-' + i + '">' + (p.target ? '' : '<p class="cs-empty">왼쪽에서 인스턴스를 고르면 이 칸에 터미널이 열립니다.</p>') + '</div></section>').join('') +
+        CS.slots.map((s, i) => '<section class="cs-pane' + (i === CS.active ? ' cs-active' : '') + '" data-i="' + i + '" onmousedown="csFocus(' + i + ')" id="cs-slot-' + i + '"></section>').join('') +
         csGutters() + '</div>';
-      csRoot().innerHTML = '<div class="cs-wrap">' + drawer + '<div class="cs-main">' + bar + grid + '</div></div>';
-      // 배치를 바꿔도 이미 열린 터미널은 다시 연결하지 않고 새 칸으로 옮긴다
-      CS.panes.forEach((p, i) => {
-        if (!p.target) return;
-        if (p.term && p.box) { const slot = document.getElementById('cs-term-' + i); slot.innerHTML = ''; slot.appendChild(p.box); csStatus(i, p.stKind || 'ok', p.stText || ''); }
-        else csMount(i);
-      });
+      csRoot().innerHTML = '<div class="cs-wrap">' + drawer + '<div class="cs-main">' + bar + grid + '</div></div><div class="cs-float-layer" id="cs-float-layer"></div>';
+      CS.slots.forEach((s, i) => csFillSlot(i));
+      CS.floats.forEach(t => csPlaceFloat(t));
       csApplySizes();
+      csTabs();
     }
-    function csT(id) { return (CS.targets || []).find(t => t.id === id) || { name: id }; }
     function csGutters() {
       const L = CS.solo ? '1' : CS.layout;
       return (L === 'h' || L === '4' ? '<div class="cs-gutter cs-gx" onmousedown="csDrag(event,\\'col\\')" title="좌우 크기 조절"></div>' : '') +
@@ -3157,7 +3185,7 @@ LANDING_HTML = """<!DOCTYPE html>
       const g = document.getElementById('cs-grid'); if (!g) return;
       g.style.setProperty('--cs-col', CS.sizes.col + '%');
       g.style.setProperty('--cs-row', CS.sizes.row + '%');
-      CS.panes.forEach(p => { if (p.fit) try { p.fit.fit(); } catch (e) {} });
+      csAllTerms().forEach(t => { try { t.fit.fit(); } catch (e) {} });
     }
     function csDrag(ev, axis) {
       ev.preventDefault();
@@ -3176,77 +3204,195 @@ LANDING_HTML = """<!DOCTYPE html>
       CS.active = i;
       document.querySelectorAll('.cs-pane').forEach(el => el.classList.toggle('cs-active', Number(el.dataset.i) === i));
     }
-    function csPick(id) {
-      let i = CS.active;
-      if (CS.panes[i].target) { const empty = CS.panes.findIndex(p => !p.target); if (empty >= 0) i = empty; }
-      csConnect(i, id);
-    }
+    function csAllTerms() { return CS.slots.map(s => s.t).filter(Boolean).concat(CS.floats); }
 
-    // ---------- 터미널 연결 ----------
-    function csConnect(i, id) {
-      const p = CS.panes[i];
-      csDisconnect(p);
-      p.target = id;
-      document.getElementById('cs-name-' + i).textContent = csT(id).name;
-      csFocus(i);
-      csMount(i);
+    // ---------- 터미널 한 개 (칸·띄운 창이 함께 쓰는 단위) ----------
+    function csHeadHtml(t, inFloat) {
+      const tg = csT(t.target);
+      const pre = (label, kind) => Object.keys(tg[kind] || {}).map(k =>
+        '<button type="button" class="cs-pre' + (kind === 'fix' ? ' cs-pre-fix' : '') + '" onclick="csPreset(' + t.uid + ',\\'' + kind + '\\',this)" data-k="' + cfgEsc(k) + '">' + cfgEsc(k) + '</button>').join('');
+      return '<header class="cs-pane-head"><span class="cs-dot cs-dot-' + (t.stKind || 'wait') + '" id="cs-dot-' + t.uid + '"></span><b>' + cfgEsc(tg.name) + '</b>' +
+        '<span class="cs-status" id="cs-st-' + t.uid + '">' + cfgEsc(t.stText || '') + '</span>' +
+        '<span class="cs-pane-acts">' +
+          (inFloat ? '<button type="button" class="wk-mini" title="최소화" onclick="csFloatMin(' + t.uid + ')">▁</button><button type="button" class="wk-mini" title="최대화" onclick="csFloatMax(' + t.uid + ')">▢</button>' +
+            (CS.solo ? '' : '<button type="button" class="wk-mini" title="칸으로 되돌리기" onclick="csDock(' + t.uid + ')">⇲</button>')
+            : (CS.solo ? '' : '<button type="button" class="wk-mini" title="화면 위에 띄우기" onclick="csFloat(' + t.uid + ')">⧉</button>')) +
+          '<button type="button" class="wk-mini" title="다시 연결" onclick="csReconnect(' + t.uid + ')">⟳</button>' +
+          (CS.solo ? '' : '<button type="button" class="wk-mini" title="새 창으로" onclick="csPopout(' + t.uid + ')">↗</button>') +
+          '<button type="button" class="wk-mini" title="닫기" onclick="csCloseTerm(' + t.uid + ')">✕</button></span></header>' +
+        (tg.check || tg.fix ? '<div class="cs-presets"><span class="cs-pre-lbl">확인</span>' + pre('확인', 'check') +
+          (tg.fix ? '<span class="cs-pre-lbl cs-pre-warn">⚠ 복구</span>' + pre('복구', 'fix') : '') + '</div>' : '');
     }
-    function csMount(i) {
-      const p = CS.panes[i], slot = document.getElementById('cs-term-' + i);
-      slot.innerHTML = '';
-      const box = document.createElement('div');
-      box.className = 'cs-term-inner';
-      slot.appendChild(box);
-      p.box = box;
+    function csFillSlot(i) {
+      const el = document.getElementById('cs-slot-' + i), t = CS.slots[i].t;
+      if (!el) return;
+      if (!t) {
+        el.innerHTML = '<header class="cs-pane-head"><span class="cs-dot"></span><b>빈 칸</b></header>' +
+          '<div class="cs-term"><p class="cs-empty">왼쪽에서 인스턴스를 고르면 이 칸에 터미널이 열립니다.</p></div>';
+        return;
+      }
+      el.innerHTML = csHeadHtml(t, false) + '<div class="cs-term" id="cs-host-' + t.uid + '"></div>';
+      document.getElementById('cs-host-' + t.uid).appendChild(t.box);
+      setTimeout(() => { try { t.fit.fit(); } catch (e) {} }, 0);
+    }
+    function csNewTerm(target) {
+      const t = { uid: ++CS.seq, target: target, stKind: 'wait', stText: '연결 중…' };
+      t.box = document.createElement('div'); t.box.className = 'cs-term-inner';
+      return t;
+    }
+    function csStart(t) {
       const term = new window.Terminal({ cursorBlink: true, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, scrollback: 5000,
         theme: { background: '#06090e', foreground: '#e2e8f0', cursor: '#93c5fd', selectionBackground: '#1e3a8a' } });
       const fit = new window.FitAddon.FitAddon();
-      term.loadAddon(fit); term.open(box);
+      term.loadAddon(fit); term.open(t.box);
       try { fit.fit(); } catch (e) {}
-      p.term = term; p.fit = fit;
-      csStatus(i, 'wait', '연결 중…');
-      const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/console/ws/' + encodeURIComponent(p.target) +
+      t.term = term; t.fit = fit;
+      csStatus(t, 'wait', '연결 중…');
+      const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/console/ws/' + encodeURIComponent(t.target) +
         '?cols=' + term.cols + '&rows=' + term.rows;
       const ws = new WebSocket(url);
-      p.ws = ws;
-      ws.onopen = () => { csStatus(CS.panes.indexOf(p), 'ok', '연결됨'); term.focus(); };
+      t.ws = ws;
+      ws.onopen = () => { csStatus(t, 'ok', '연결됨'); term.focus(); };
       ws.onmessage = e => term.write(e.data);
       ws.onclose = e => {
-        if (p.ws !== ws) return;
+        if (t.ws !== ws) return;
         const msg = CS_CLOSE_MSG[e.code] || (e.code === 1000 ? '세션이 끝났습니다' : '연결이 끊겼습니다 (' + e.code + ')');
-        csStatus(CS.panes.indexOf(p), 'off', msg);
+        csStatus(t, 'off', msg);
         term.write('\\r\\n\\x1b[33m[' + msg + ' — ⟳ 로 다시 연결]\\x1b[0m\\r\\n');
         if (e.code === 4401) csShowUnlock('잠금이 만료되었습니다. 다시 풀어 주세요.');
       };
       term.onData(d => { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'i', d: d })); });
       term.onResize(sz => { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'r', c: sz.cols, r: sz.rows })); });
-      p.ro = new ResizeObserver(() => { try { fit.fit(); } catch (e) {} });
-      p.ro.observe(box);
+      t.ro = new ResizeObserver(() => { try { fit.fit(); } catch (e) {} });
+      t.ro.observe(t.box);
     }
-    function csStatus(i, kind, text) {
-      const p = CS.panes[i]; if (p) { p.stKind = kind; p.stText = text; }
-      const d = document.getElementById('cs-dot-' + i), s = document.getElementById('cs-st-' + i);
+    function csStatus(t, kind, text) {
+      t.stKind = kind; t.stText = text;
+      const d = document.getElementById('cs-dot-' + t.uid), s = document.getElementById('cs-st-' + t.uid);
       if (d) d.className = 'cs-dot cs-dot-' + kind;
       if (s) s.textContent = text;
+      csTabs();
     }
-    function csDisconnect(p) {
-      if (!p) return;
-      if (p.ro) { p.ro.disconnect(); p.ro = null; }
-      if (p.ws) { const w = p.ws; p.ws = null; try { w.close(); } catch (e) {} }
-      if (p.term) { try { p.term.dispose(); } catch (e) {} p.term = null; p.fit = null; p.box = null; }
+    function csDispose(t) {
+      if (!t) return;
+      if (t.ro) { t.ro.disconnect(); t.ro = null; }
+      if (t.ws) { const w = t.ws; t.ws = null; try { w.close(); } catch (e) {} }
+      if (t.term) { try { t.term.dispose(); } catch (e) {} t.term = null; }
+      if (t.el) { t.el.remove(); t.el = null; }
     }
-    function csReconnect(i) { if (CS.panes[i].target) csConnect(i, CS.panes[i].target); }
-    function csClosePane(i) {
-      csDisconnect(CS.panes[i]);
-      CS.panes[i] = { target: null };
-      if (CS.solo) return window.close();
-      csRender();
+    function csFind(uid) {
+      const i = CS.slots.findIndex(s => s.t && s.t.uid === uid);
+      if (i >= 0) return { where: 'slot', i: i, t: CS.slots[i].t };
+      const f = CS.floats.findIndex(t => t.uid === uid);
+      return f >= 0 ? { where: 'float', i: f, t: CS.floats[f] } : null;
     }
-    function csPopout(i) {
-      const id = CS.panes[i].target;
-      if (!id) return;
-      window.open(location.pathname + '#console/' + encodeURIComponent(id), 'cs-' + id + '-' + Date.now(), 'width=1000,height=640');
-      csClosePane(i);
+
+    // ---------- 고르기 · 다시 연결 · 닫기 · 새 창 ----------
+    function csPick(id) {
+      let i = CS.active;
+      if (CS.slots[i].t) { const empty = CS.slots.findIndex(s => !s.t); if (empty >= 0) i = empty; }
+      csConnectSlot(i, id);
+    }
+    function csConnectSlot(i, id) {
+      csDispose(CS.slots[i].t);
+      const t = csNewTerm(id);
+      CS.slots[i].t = t;
+      csFillSlot(i); csFocus(i); csStart(t); csTabs();
+    }
+    function csReconnect(uid) {
+      const f = csFind(uid); if (!f) return;
+      const old = f.t, t = csNewTerm(old.target);
+      if (f.where === 'slot') { csDispose(old); CS.slots[f.i].t = t; csFillSlot(f.i); csStart(t); }
+      else { const pos = old.el ? { left: old.el.style.left, top: old.el.style.top, w: old.el.style.width, h: old.el.style.height } : null;
+        csDispose(old); CS.floats[f.i] = t; csPlaceFloat(t, pos); csStart(t); }
+      csTabs();
+    }
+    function csCloseTerm(uid) {
+      const f = csFind(uid); if (!f) return;
+      csDispose(f.t);
+      if (f.where === 'slot') { CS.slots[f.i].t = null; if (CS.solo) return window.close(); csFillSlot(f.i); }
+      else CS.floats.splice(f.i, 1);
+      csTabs();
+    }
+    function csPopout(uid) {
+      const f = csFind(uid); if (!f) return;
+      window.open(location.pathname + '#console/' + encodeURIComponent(f.t.target), 'cs-' + f.t.target + '-' + Date.now(), 'width=1000,height=640');
+      csCloseTerm(uid);
+    }
+
+    // ---------- 확인 · ⚠ 복구 버튼 (예전 통합 터미널) ----------
+    function csPreset(uid, kind, btn) {
+      const f = csFind(uid); if (!f || !f.t.ws || f.t.ws.readyState !== 1) return;
+      const tg = csT(f.t.target), label = btn.dataset.k, cmd = (tg[kind] || {})[label];
+      if (!cmd) return;
+      if (kind === 'fix' && !btn.dataset.armed) {   // 복구는 한 번 더 눌러야 실행
+        btn.dataset.armed = '1'; btn.textContent = '한 번 더 누르면 실행: ' + label;
+        setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.textContent = label; } }, 4000);
+        return;
+      }
+      if (kind === 'fix') { delete btn.dataset.armed; btn.textContent = label; }
+      f.t.ws.send(JSON.stringify({ t: 'i', d: cmd + '\\r' }));
+      f.t.term.focus();
+    }
+
+    // ---------- ⧉ 화면 위 창 ----------
+    function csFloat(uid) {
+      const f = csFind(uid); if (!f || f.where !== 'slot') return;
+      CS.slots[f.i].t = null; csFillSlot(f.i);
+      CS.floats.push(f.t); csPlaceFloat(f.t); csTabs();
+    }
+    function csPlaceFloat(t, pos) {
+      const layer = document.getElementById('cs-float-layer'); if (!layer) return;
+      const n = CS.floats.indexOf(t);
+      const el = document.createElement('div');
+      el.className = 'cs-float'; el.id = 'cs-float-' + t.uid;
+      el.style.left = (pos && pos.left) || (320 + 28 * n) + 'px'; el.style.top = (pos && pos.top) || (90 + 28 * n) + 'px';
+      if (pos && pos.w) { el.style.width = pos.w; el.style.height = pos.h; }
+      el.style.zIndex = ++CS.z;
+      el.innerHTML = csHeadHtml(t, true) + '<div class="cs-term" id="cs-host-' + t.uid + '"></div>';
+      layer.appendChild(el);
+      document.getElementById('cs-host-' + t.uid).appendChild(t.box);
+      t.el = el;
+      el.addEventListener('mousedown', () => { el.style.zIndex = ++CS.z; });
+      const head = el.querySelector('.cs-pane-head');
+      head.addEventListener('mousedown', e => {
+        if (e.target.closest('button') || el.classList.contains('cs-max')) return;
+        const sx = e.clientX - el.offsetLeft, sy = e.clientY - el.offsetTop;
+        const mv = ev => { el.style.left = Math.max(0, ev.clientX - sx) + 'px'; el.style.top = Math.max(0, ev.clientY - sy) + 'px'; };
+        const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); document.body.classList.remove('cs-dragging'); };
+        document.body.classList.add('cs-dragging');
+        document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+      });
+      setTimeout(() => { try { t.fit.fit(); } catch (e) {} }, 0);
+    }
+    function csFloatMin(uid) { const f = csFind(uid); if (f && f.t.el) { f.t.el.classList.toggle('cs-min'); f.t.el.classList.remove('cs-max'); csStackMin(); } }
+    function csFloatMax(uid) { const f = csFind(uid); if (f && f.t.el) { f.t.el.classList.toggle('cs-max'); f.t.el.classList.remove('cs-min'); setTimeout(() => { try { f.t.fit.fit(); } catch (e) {} }, 50); csStackMin(); } }
+    function csStackMin() {
+      let x = 290;
+      CS.floats.forEach(t => { if (t.el && t.el.classList.contains('cs-min')) { t.el.style.left = x + 'px'; t.el.style.top = (window.innerHeight - 96) + 'px'; x += 270; } });
+    }
+    function csDock(uid) {
+      const f = csFind(uid); if (!f || f.where !== 'float') return;
+      let i = CS.slots[CS.active] && !CS.slots[CS.active].t ? CS.active : CS.slots.findIndex(s => !s.t);
+      if (i < 0) { if (typeof wikiToast === 'function') wikiToast('빈 칸이 없습니다. 배치를 늘리거나 칸 하나를 닫으세요.'); return; }
+      f.t.el.remove(); f.t.el = null;
+      CS.floats.splice(f.i, 1);
+      CS.slots[i].t = f.t; csFillSlot(i); csFocus(i); csTabs();
+    }
+
+    // ---------- 탭: 열린 터미널 전체 ----------
+    function csTabs() {
+      const nav = document.getElementById('cs-tabs'); if (!nav) return;
+      const items = CS.slots.map((s, i) => s.t ? { t: s.t, label: (i + 1) + '번 칸' } : null).filter(Boolean)
+        .concat(CS.floats.map(t => ({ t: t, label: '⧉ 띄운 창' })));
+      nav.innerHTML = items.length ? items.map(x =>
+        '<button type="button" class="cs-tab" onclick="csTabGo(' + x.t.uid + ')"><span class="cs-dot cs-dot-' + (x.t.stKind || 'wait') + '"></span>' +
+        cfgEsc(csT(x.t.target).name) + '<small>' + x.label + '</small></button>').join('') : '<span class="cs-hint">칸을 누른 뒤 왼쪽에서 인스턴스를 고르세요. 경계를 끌면 크기가 바뀝니다.</span>';
+    }
+    function csTabGo(uid) {
+      const f = csFind(uid); if (!f) return;
+      if (f.where === 'slot') { csFocus(f.i); f.t.term && f.t.term.focus(); }
+      else { f.t.el.classList.remove('cs-min'); f.t.el.style.zIndex = ++CS.z; csStackMin(); f.t.term && f.t.term.focus(); }
     }
 
     // #console/<대상> 으로 들어온 새 창
@@ -3256,6 +3402,173 @@ LANDING_HTML = """<!DOCTYPE html>
         setTimeout(() => csOpen(decodeURIComponent(h.slice('#console/'.length))), 300);
       }
     });
+    // ===== 메인 대시보드: 살아 있는 인스턴스 실측 (content/dashboard.js) =====
+    // 데이터: s1 figteam-console 의 읽기 전용 /console/api/status (20초마다 수집)
+    const DASH = { snap: null, err: null, timer: null };
+    const DASH_CLOUD = { onprem: ['온프렘', 'cloud-onprem'], openstack: ['OpenStack', 'cloud-onprem'], kt: ['KT Cloud', 'cloud-kt'], aws: ['AWS', 'cloud-aws'] };
+    const DASH_TYPE = { web: '웹/API', gw: '보안/관문', daemon: '상시데몬', data: '데이터/DR' };
+    const DASH_ORDER = ['kt', 'onprem', 'openstack', 'aws'];
+
+    function dashFmtBytes(b) { if (b == null) return '-'; const g = b / 1073741824; return g >= 10 ? g.toFixed(0) + ' GB' : g.toFixed(1) + ' GB'; }
+    function dashFmtDur(s) {
+      if (s == null) return '-';
+      const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+      return d ? d + '일 ' + h + '시간' : h ? h + '시간 ' + m + '분' : m + '분';
+    }
+    function dashPct(a, b) { return a != null && b ? Math.round(100 * a / b) : null; }
+
+    async function dashLoad() {
+      try {
+        const r = await fetch('/console/api/status', { cache: 'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        DASH.snap = await r.json(); DASH.err = null;
+      } catch (e) { DASH.err = e.message; }
+      dashHeader();
+      if (document.getElementById('view-dashboard').style.display !== 'none') dashRender();
+    }
+    function dashStart() {
+      if (DASH.timer) return;
+      dashLoad();
+      DASH.timer = setInterval(dashLoad, 20000);
+    }
+
+    // 인스턴스 → 화면용 서비스 목록 (systemd 유닛 + k8s 파드)
+    function dashServices(i) {
+      const list = (i.units || []).map(u => {
+        const m = (i.unit_meta || {})[u.unit] || {};
+        const ok = u.state === 'active';
+        return { kind: 'unit', type: m.type || 'daemon', typeName: DASH_TYPE[m.type] || '상시데몬', name: u.unit, desc: m.desc || '',
+          ok: ok, stateText: ok ? 'Running' : (u.state || 'unknown'), since: u.since_s, uptimeHours: u.since_s ? u.since_s / 3600 : 0 };
+      });
+      (i.pods || []).forEach(p => {
+        const sys = p.ns === 'kube-system' || p.ns === 'argocd';
+        const data = /mysql|redis/.test(p.name);
+        const start = p.start && p.start !== '<none>' ? Date.parse(p.start) : NaN;
+        const since = isNaN(start) ? null : Math.max(0, Math.round((Date.now() - start) / 1000));
+        list.push({ kind: 'pod', type: data ? 'data' : sys ? 'daemon' : 'web', typeName: data ? '데이터/DR' : sys ? '상시데몬' : '웹/API',
+          name: p.name, desc: '파드 · ' + p.ns, ok: p.phase === 'Running' || p.phase === 'Succeeded', stateText: p.phase,
+          since: since, uptimeHours: since ? since / 3600 : 0, hide: p.phase === 'Succeeded' });
+      });
+      return list.filter(s => !s.hide);
+    }
+    function dashSort(list) {
+      const m = typeof currentSortMode === 'string' ? currentSortMode : 'type';
+      list.sort((a, b) => {
+        if (m === 'type') return a.typeName.localeCompare(b.typeName, 'ko') || a.name.localeCompare(b.name);
+        if (m === 'service') return a.desc.localeCompare(b.desc, 'ko') || a.name.localeCompare(b.name);
+        if (m === 'resource') return (a.ok - b.ok) || a.name.localeCompare(b.name);   // 이상 있는 것 먼저
+        if (m === 'runtime') return (b.uptimeHours || 0) - (a.uptimeHours || 0);
+        return a.name.localeCompare(b.name);
+      });
+      return list;
+    }
+
+    function dashInstances() {
+      const items = (DASH.snap && DASH.snap.instances) || [];
+      return items.slice().sort((a, b) => DASH_ORDER.indexOf(a.area) - DASH_ORDER.indexOf(b.area));
+    }
+
+    function dashRender() {
+      const grid = document.getElementById('matrix-5col-grid');
+      if (!grid) return;
+      grid.classList.add('dash-live');
+      if (!DASH.snap) {
+        grid.innerHTML = '<div class="dash-msg">' + (DASH.err ? '실측 상태를 불러오지 못했습니다 (' + cfgEsc(DASH.err) + '). s1 통합 콘솔 서비스(/console/api/status)를 확인하세요.' : '실측 상태를 불러오는 중…') + '</div>';
+        return;
+      }
+      const filter = typeof currentServiceFilter === 'string' ? currentServiceFilter : 'all';
+      grid.innerHTML = dashInstances().map(i => {
+        const c = DASH_CLOUD[i.area] || ['기타', ''];
+        const all = dashServices(i);
+        const list = dashSort(filter === 'all' ? all.slice() : all.filter(s => s.type === filter));
+        const okN = all.filter(s => s.ok).length;
+        const alive = i.alive === true, apiOnly = !!i.disabled;
+        const cpuPct = i.cpu_pct, memPct = dashPct(i.mem_used, i.mem_total), diskPct = dashPct(i.disk_used, i.disk_total);
+        const usedCpu = cpuPct != null && i.nproc ? (cpuPct * i.nproc / 100).toFixed(2) : '-';
+        const badge = !alive ? '<span class="dash-badge dash-down">응답 없음</span>'
+          : apiOnly ? '<span class="dash-badge dash-api">API 응답</span>'
+          : okN === all.length ? '<span class="badge-running" style="font-size:10px;padding:2px 6px;">정상</span>'
+          : '<span class="dash-badge dash-warn">점검 ' + (all.length - okN) + '</span>';
+        const meters = apiOnly ? '<div class="dash-msg dash-msg-small">' + cfgEsc(i.disabled) + '<br>응답 ' + (i.latency_ms != null ? i.latency_ms + 'ms' : '-') + '</div>' :
+          dashMeter('CPU', 'cpu', usedCpu + ' vCPU', (i.nproc || '-') + ' vCPU', cpuPct) +
+          dashMeter('RAM', 'ram', dashFmtBytes(i.mem_used), dashFmtBytes(i.mem_total), memPct) +
+          '<div class="hero-sub-stats">' +
+            '<div class="hero-stat-pill"><span class="stat-k">디스크:</span><strong class="stat-v">' + (diskPct != null ? diskPct + '%' : '-') + '</strong></div>' +
+            '<div class="hero-stat-pill"><span class="stat-k">가동:</span><strong class="stat-v">' + dashFmtDur(i.uptime_s) + '</strong></div>' +
+            '<div class="hero-stat-pill"><span class="stat-k">서비스:</span><strong class="stat-v" style="color:' + (okN === all.length ? '#34d399' : '#fbbf24') + '">' + okN + '/' + all.length + '</strong></div>' +
+          '</div>';
+        const rows = !alive ? '<div class="dash-msg dash-msg-small">' + cfgEsc(i.error || '응답이 없습니다') + '</div>'
+          : list.length === 0 ? '<div class="dash-msg dash-msg-small">' + (apiOnly ? '세부 수집은 연결 후 표시됩니다.' : '해당 유형의 서비스가 없습니다.') + '</div>'
+          : list.map(s =>
+            '<div class="compact-service-row" onclick="openDetailModal(\\'' + cfgEsc(i.id) + '\\', \\'' + cfgEsc(s.name) + '\\')">' +
+              '<div class="svc-row-top"><div class="svc-row-left"><span class="type-badge type-' + s.type + '">' + s.typeName + '</span>' +
+              '<span class="svc-row-name" title="' + cfgEsc(s.name) + '">' + cfgEsc(s.name) + '</span></div>' +
+              '<span class="' + (s.ok ? 'badge-running' : 'dash-badge dash-down') + '" style="font-size:9px;padding:1px 5px;">' + cfgEsc(s.stateText) + '</span></div>' +
+              '<div class="svc-row-bot"><span>' + cfgEsc(s.desc) + '</span><span style="color:#94a3b8;">' + dashFmtDur(s.since) + '</span></div></div>').join('');
+        return '<div class="inst-grid-card' + (alive ? '' : ' dash-card-down') + '" id="card-' + cfgEsc(i.id) + '">' +
+          '<div class="inst-grid-card-head"><div class="inst-head-title-wrap"><div style="display:flex;align-items:center;gap:6px;">' +
+          '<span class="cloud-tag ' + c[1] + '">' + c[0] + '</span><span class="inst-card-title">' + cfgEsc(i.name) + '</span></div>' +
+          '<div class="inst-card-ip">' + cfgEsc(i.host || '') + (i.latency_ms != null ? ' · 응답 ' + i.latency_ms + 'ms' : '') + '</div></div>' + badge + '</div>' +
+          '<div class="inst-resource-hero">' + meters + '</div>' +
+          '<div class="compact-service-list">' + rows + '</div>' +
+          '<div class="inst-card-footer"><button type="button" class="open-modal-btn" onclick="openDetailModal(\\'' + cfgEsc(i.id) + '\\', null)">상세 보기</button>' +
+          (apiOnly || !alive ? '' : '<button type="button" class="open-modal-btn" onclick="dashOpenConsole(\\'' + cfgEsc(i.id) + '\\')">콘솔 열기</button>') + '</div></div>';
+      }).join('');
+    }
+    function dashMeter(label, cls, used, total, pct) {
+      const p = pct == null ? 0 : pct;
+      return '<div class="hero-meter-row"><div class="meter-head"><div class="meter-label-wrap"><span class="meter-badge ' + cls + '-badge">' + label + '</span>' +
+        '<strong class="meter-val-used ' + cls + '-used">' + used + '</strong><span class="meter-val-total">/ ' + total + '</span>' +
+        '<span class="meter-pct ' + cls + '-pct">' + (pct == null ? '-' : pct + '%') + '</span></div>' +
+        '<div class="meter-free-wrap"><span class="free-k">여유:</span><strong class="free-v">' + (pct == null ? '-' : (100 - p) + '%') + '</strong></div></div>' +
+        '<div class="meter-gauge-track"><div class="meter-gauge-fill ' + cls + '-fill" style="width:' + p + '%;' + (p >= 85 ? 'background:#ef4444;' : '') + '"></div></div></div>';
+    }
+
+    function dashModal(id, svcName) {
+      const i = dashInstances().find(x => x.id === id);
+      if (!i) return;
+      const c = DASH_CLOUD[i.area] || ['기타', ''];
+      const all = dashSort(dashServices(i));
+      document.getElementById('modal-cloud-tag').className = 'cloud-tag ' + c[1];
+      document.getElementById('modal-cloud-tag').textContent = c[0];
+      document.getElementById('modal-title').textContent = i.name + ' 실측 상세';
+      document.getElementById('modal-ip-text').textContent = (i.host || '') + ' · ' + cfgEsc(i.desc || '');
+      const spec = [['상태', i.alive === true ? '응답' : i.alive === false ? '응답 없음' : '-'], ['CPU', i.cpu_pct != null ? i.cpu_pct + '% (' + i.nproc + ' vCPU)' : '-'],
+        ['메모리', dashFmtBytes(i.mem_used) + ' / ' + dashFmtBytes(i.mem_total)], ['디스크', dashFmtBytes(i.disk_used) + ' / ' + dashFmtBytes(i.disk_total)],
+        ['load 1분', i.load1 != null ? i.load1 : '-'], ['가동 시간', dashFmtDur(i.uptime_s)], ['응답 시간', i.latency_ms != null ? i.latency_ms + 'ms' : '-'],
+        ['수집 시각', DASH.snap.collected_at ? new Date(DASH.snap.collected_at * 1000).toLocaleTimeString('ko-KR', { hour12: false }) : '-']];
+      document.getElementById('modal-body').innerHTML =
+        '<div class="spec-grid">' + spec.map(s => '<div class="spec-item"><span class="spec-k">' + s[0] + '</span><span class="spec-v">' + cfgEsc(String(s[1])) + '</span></div>').join('') + '</div>' +
+        (i.error ? '<p class="wk-error" style="margin-top:10px">' + cfgEsc(i.error) + '</p>' : '') +
+        '<div class="cfg-table-wrap" style="margin-top:12px"><table class="cfg-table"><thead><tr><th>종류</th><th>이름</th><th>설명</th><th>상태</th><th>실행 시간</th></tr></thead><tbody>' +
+        all.map(s => '<tr' + (s.name === svcName ? ' style="background:rgba(37,99,235,.15)"' : '') + '><td>' + s.typeName + '</td><td><code class="cfg-ic">' + cfgEsc(s.name) + '</code></td><td>' + cfgEsc(s.desc) +
+          '</td><td style="color:' + (s.ok ? '#34d399' : '#fca5a5') + '">' + cfgEsc(s.stateText) + '</td><td>' + dashFmtDur(s.since) + '</td></tr>').join('') +
+        '</tbody></table></div>' +
+        (i.disabled || i.alive !== true ? '' : '<div class="wk-bar wk-bar-inline" style="margin-top:12px"><button type="button" class="wk-btn wk-primary" onclick="dashOpenConsole(\\'' + cfgEsc(i.id) + '\\')">통합콘솔에서 열기</button></div>');
+      document.getElementById('modal-backdrop').style.display = 'flex';
+    }
+    function dashOpenConsole(id) {
+      const mb = document.getElementById('modal-backdrop'); if (mb) mb.style.display = 'none';
+      csOpen().then(() => { if (CS.targets) csPick(id); });
+    }
+
+    // 상단 배지: 영역별 살아 있는 인스턴스 수
+    function dashHeader() {
+      const box = document.querySelector('.header-infra-status');
+      if (!box) return;
+      if (!DASH.snap) { box.innerHTML = '<div class="infra-badge-item"><span class="infra-badge-name">실측</span><span class="infra-badge-state ' + (DASH.err ? 'state-red' : '') + '">' + (DASH.err ? '연결 실패' : '수집 중') + '</span></div>'; return; }
+      const groups = [['kt', 'KT Cloud', ['kt']], ['os', '온프렘·OpenStack', ['onprem', 'openstack']], ['aws', 'AWS', ['aws']]];
+      box.innerHTML = groups.map(g => {
+        const xs = DASH.snap.instances.filter(i => g[2].indexOf(i.area) >= 0);
+        const up = xs.filter(i => i.alive === true).length;
+        const bad = xs.some(i => i.alive === true && (i.units || []).some(u => u.state !== 'active'));
+        return '<div class="infra-badge-item"><span class="infra-badge-name">' + g[1] + '</span><span class="infra-badge-state ' +
+          (up < xs.length ? 'state-red' : bad ? 'state-yellow' : 'state-green') + '">' + up + '/' + xs.length + '</span></div>';
+      }).join('') + '<div class="infra-badge-item"><span class="infra-badge-name">수집</span><span class="infra-badge-state">' +
+        new Date(DASH.snap.collected_at * 1000).toLocaleTimeString('ko-KR', { hour12: false }) + '</span></div>';
+    }
+
+    window.addEventListener('load', () => setTimeout(dashStart, 200));
     // CFGJS:END
 
     // 5. INSTANCE-SPECIFIC TOP 10 DATA & CONTROLLER
@@ -3575,6 +3888,7 @@ LANDING_HTML = """<!DOCTYPE html>
     }
 
     function applySortAndFilter() {
+      if (typeof dashRender === 'function') return dashRender();
       const grid = document.getElementById('matrix-5col-grid');
       if (!grid) return;
 
@@ -3704,6 +4018,7 @@ LANDING_HTML = """<!DOCTYPE html>
 
     // 7. DETAIL MODAL POPUP LOGIC
     function openDetailModal(instKey, targetSvcName) {
+      if (typeof dashModal === 'function') return dashModal(instKey, targetSvcName);
       const data = INSTANCE_TOP10_DATA[instKey];
       if (!data) return;
 

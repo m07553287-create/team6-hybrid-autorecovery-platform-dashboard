@@ -55,3 +55,24 @@
     @media (max-width: 860px) { .cs-wrap { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } .cs-drawer { max-height: 30vh; } }
     .cs-term-inner { width: 100%; height: 100%; }
     .cs-unlock .wk-bar { background: transparent; }
+    /* 예전 통합 터미널 기능: 확인·복구 버튼, 탭, 띄운 창 */
+    .cs-presets { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 5px 8px; background: #0a1120; border-bottom: 1px solid #1e293b; }
+    .cs-pre-lbl { font-size: 10.5px; font-weight: 700; color: var(--text-muted); margin-right: 2px; }
+    .cs-pre-warn { color: #fbbf24; margin-left: 8px; }
+    .cs-pre { background: #111a2e; border: 1px solid #263248; color: #cbd5e1; border-radius: 4px; font-size: 11px; padding: 2px 7px; cursor: pointer; font-family: inherit; }
+    .cs-pre:hover { border-color: #3b82f6; color: #fff; }
+    .cs-pre-fix { border-color: #78350f; color: #fde68a; }
+    .cs-pre-fix[data-armed] { background: #7c2d12; color: #fff; }
+    .cs-bar { flex-wrap: wrap; }
+    .cs-tabs { display: flex; gap: 4px; flex-wrap: wrap; min-width: 0; }
+    .cs-tab { display: inline-flex; align-items: center; gap: 6px; background: #0f172a; border: 1px solid #263248; color: #e2e8f0; border-radius: 5px; padding: 3px 9px; font-size: 12px; cursor: pointer; font-family: var(--font-mono); }
+    .cs-tab small { color: var(--text-muted); font-family: 'Pretendard', sans-serif; font-size: 10.5px; }
+    .cs-tab:hover { border-color: #3b82f6; }
+    .cs-float-layer { position: fixed; inset: 0; pointer-events: none; z-index: 850; }
+    .cs-float { position: fixed; pointer-events: auto; width: 720px; height: 440px; min-width: 340px; min-height: 200px; resize: both; overflow: hidden;
+      display: flex; flex-direction: column; background: #06090e; border: 1px solid #3b82f6; border-radius: 8px; box-shadow: 0 14px 40px rgba(2, 6, 15, .7); }
+    .cs-float > .cs-pane-head { cursor: move; }
+    .cs-float.cs-max { left: 8px !important; top: 60px !important; width: calc(100vw - 16px) !important; height: calc(100vh - 68px) !important; resize: none; }
+    .cs-float.cs-min { height: 34px !important; width: 260px !important; resize: none; }
+    .cs-float.cs-min > :not(.cs-pane-head) { display: none; }
+    #cs-root.cs-solo .cs-float { top: 8px; }
