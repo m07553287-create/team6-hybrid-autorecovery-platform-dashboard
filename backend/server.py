@@ -1478,6 +1478,32 @@ LANDING_HTML = """<!DOCTYPE html>
     .wk-rename { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-end; width: 100%; }
     .wk-rename label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--text-muted); flex: 1; min-width: 140px; }
     .wk-rename input { background: #06090e; border: 1px solid #334155; border-radius: 5px; color: #fff; padding: 6px 8px; font-size: 13px; font-family: inherit; }
+
+    /* ===== 시점(줌) 렌즈 ===== */
+    .cfg-zoombar { display: flex; align-items: stretch; flex-wrap: wrap; gap: 4px; margin: 4px 0 16px; }
+    .cfg-zoom-step { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 120px; padding: 8px 12px;
+      background: var(--surface-card); border: 1px solid #263244; border-radius: 8px; color: var(--text-sub); cursor: pointer; text-align: left; font-family: inherit; }
+    .cfg-zoom-step:hover { border-color: #3b82f6; color: #fff; }
+    .cfg-zoom-step.past { opacity: .78; }
+    .cfg-zoom-step.on { background: #172554; border-color: #60a5fa; color: #fff; }
+    .cfg-zoom-step:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+    .cfg-zoom-n { font-size: 10.5px; font-weight: 700; color: #93c5fd; }
+    .cfg-zoom-t { font-size: 13px; font-weight: 700; }
+    .cfg-zoom-who { font-size: 11px; color: var(--text-muted); }
+    .cfg-zoom-sep { align-self: center; color: var(--text-muted); font-size: 14px; }
+    .cfg-forest { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 18px; }
+    .cfg-forest-cloud { display: flex; flex-direction: column; gap: 6px; padding: 10px; background: var(--surface-card); border: 1px solid #263244; border-radius: 10px; }
+    .cfg-forest-name { display: flex; align-items: center; gap: 7px; background: transparent; border: 0; color: #fff; font-size: 14px; font-weight: 700;
+      padding: 2px 4px 6px; cursor: pointer; text-align: left; font-family: inherit; border-bottom: 1px solid #263244; }
+    .cfg-forest-name small { margin-left: auto; font-size: 11px; font-weight: 500; color: var(--text-muted); }
+    .cfg-forest-name:hover { color: #93c5fd; }
+    .cfg-forest-inst { display: flex; flex-direction: column; gap: 1px; background: #0b1220; border: 1px solid #1e293b; border-radius: 7px;
+      padding: 7px 9px; color: #e2e8f0; cursor: pointer; text-align: left; font-family: inherit; }
+    .cfg-forest-inst b { font-family: var(--font-mono); font-size: 12.5px; }
+    .cfg-forest-inst span { font-size: 11px; color: var(--text-muted); }
+    .cfg-forest-inst:hover { border-color: #3b82f6; }
+    .cfg-forest-name:focus-visible, .cfg-forest-inst:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+    .cfg-term-btn { margin-top: 10px; }
     /* ===== 통합 콘솔 (content/console.css) ===== */
     .cs-rail { position: fixed; left: 0; top: 50%; transform: translateY(-50%); z-index: 700; writing-mode: vertical-rl; letter-spacing: .12em;
       background: var(--primary); color: #fff; border: 0; border-radius: 0 8px 8px 0; padding: 16px 7px; font-size: 13px; font-weight: 700;
@@ -2711,6 +2737,7 @@ LANDING_HTML = """<!DOCTYPE html>
     const LENSES = [
       { id: 'inst', name: '클라우드 기준', hint: '클라우드(AWS·KT·OpenStack)를 펼쳐 그 안 인스턴스의 영역을 봅니다' },
       { id: 'svc', name: '서비스 기준', hint: '보안·웹 같은 영역을 골라 맡은 인스턴스를 봅니다' },
+      { id: 'zoom', name: '시점(줌)', hint: '숲 → 부서장 → 팀장 → 팀원: 같은 시스템을 줌에 따라 봅니다' },
       { id: 'step', name: '진행 순서', hint: '처음 구성할 때 지켜야 하는 순서와 통과 조건' },
       { id: 'ref', name: '참고', hint: '변수표·설계·오류 색인 같은 팀 참고 문서' }
     ];
@@ -2719,6 +2746,18 @@ LANDING_HTML = """<!DOCTYPE html>
     function cfgInstOrder() {
       return (CFG.data.instances || []).slice().sort((a, b) =>
         ((CLOUD_ORDER[cfgPage(a).cloud] ?? 9) - (CLOUD_ORDER[cfgPage(b).cloud] ?? 9)));
+    }
+    // 시점(줌) 렌즈: 같은 데이터를 줌 단계별로 다시 묶어 보여준다
+    const ZOOM_LEVELS = [
+      { id: 'forest', name: '숲 · 전체', sub: '클라우드와 연결 구조 한 장', who: '처음 보는 사람 · 전원' },
+      { id: 'dept', name: '부서장 · 클라우드', sub: '클라우드별 책임·구성·위험', who: '부서장' },
+      { id: 'lead', name: '팀장 · 서비스 영역', sub: '영역별 설계와 맡은 인스턴스', who: '팀장' },
+      { id: 'member', name: '팀원 · 인스턴스 작업', sub: '서버별 실제 명령·설정·검증', who: '팀원' }
+    ];
+    function cfgClouds() {   // 인스턴스가 있는 클라우드만, 정해진 순서로
+      const seen = {};
+      cfgInstOrder().forEach(pid => { seen[cfgPage(pid).cloud] = true; });
+      return Object.keys(CLOUD_ORDER).filter(c => seen[c]);
     }
 
     // ---------- 공통 조각 ----------
@@ -2856,6 +2895,7 @@ LANDING_HTML = """<!DOCTYPE html>
         return { id: pid, name: p.title.split(' (')[0], sub: p.tag, cloud: p.cloud, status: p.status, group: p.cloudName, groupId: p.cloudId };
       });
       if (lens === 'svc') return d.domains.map(dm => ({ id: dm.id, name: dm.name, sub: dm.desc, count: cfgMinors('svc', dm.id).length }));
+      if (lens === 'zoom') return ZOOM_LEVELS.map(z => ({ id: z.id, name: z.name, sub: z.sub }));
       if (lens === 'step') return [{ id: 'all', name: '처음부터 끝까지', sub: d.steps.length ? d.steps.length + '단계' : '아직 단계가 없습니다' }];
       return d.reference.map(r => ({ id: r[0], name: r[1], sub: cfgPage(r[0]).tag }))
         .concat(typeof wikiChangesView === 'function' ? [{ id: '__changes', name: '최근 변경', sub: '팀 전체 변경 기록' }] : []);
@@ -2877,6 +2917,15 @@ LANDING_HTML = """<!DOCTYPE html>
         return out;
       }
       if (lens === 'step') return d.steps.map(s => ({ id: s.no, name: s.no + '  ' + s.title, sub: s.where }));
+      if (lens === 'zoom') {
+        if (major === 'forest') return [{ id: 'all', name: '전체 토폴로지', sub: '진입 · 터널 · 서비스 · 복구 흐름' }];
+        if (major === 'dept') return cfgClouds().map(c => {
+          const n = cfgInstOrder().filter(pid => cfgPage(pid).cloud === c).length;
+          return { id: c, name: CLOUD_NAME[c], sub: '인스턴스 ' + n + '대', cloud: c };
+        });
+        if (major === 'lead') return d.domains.map(dm => ({ id: dm.id, name: dm.name, sub: cfgMinors('svc', dm.id).length + '개 영역' }));
+        if (major === 'member') return cfgInstOrder().map(pid => { const p = cfgPage(pid); return { id: pid, name: p.short, sub: p.tag, cloud: p.cloud }; });
+      }
       return [];
     }
 
@@ -2888,13 +2937,13 @@ LANDING_HTML = """<!DOCTYPE html>
       if (h[0] === '#cfg' && h.length > 1 && h[1]) {
         let lens = h[1], major = h[2], minor = h[3];
         if (typeof wikiRoute === 'function' && wikiRoute(h)) return;
-        if (['inst', 'svc', 'step', 'ref'].indexOf(lens) < 0 && lg[lens]) { major = lens; minor = h[2]; lens = 'inst'; }  // #cfg/inst-ktw1/join
+        if (['inst', 'svc', 'zoom', 'step', 'ref'].indexOf(lens) < 0 && lg[lens]) { major = lens; minor = h[2]; lens = 'inst'; }  // #cfg/inst-ktw1/join
         if (lens === 'inst' && major && !cfgPage(major) && lg[major]) {
           const am = lg[major + '.' + minor];
           major = lg[major]; minor = am ? am.split('.')[1] : '';
         }
         if (lens === 'svc' && minor && lg[minor]) minor = lg[minor];
-        if (['inst', 'svc', 'step', 'ref'].indexOf(lens) >= 0) return cfgSelect(lens, major, minor, true);
+        if (['inst', 'svc', 'zoom', 'step', 'ref'].indexOf(lens) >= 0) return cfgSelect(lens, major, minor, true);
       }
       if (!CFG.lens) { const df = CFG.data.default; cfgSelect(df.lens, df.major, df.minor, true); }
     }
@@ -2924,10 +2973,16 @@ LANDING_HTML = """<!DOCTYPE html>
       const cur = cfgCurrentArea();
       if (cur && lens === 'inst') return cur.pid;
       if (cur && lens === 'svc') return cur.area.domains[0];
+      if (lens === 'inst' && CFG.lens === 'zoom' && CFG.major === 'member' && cfgPage(CFG.minor)) return CFG.minor;
+      if (cur && lens === 'zoom') return 'member';   // 보던 서버의 "팀원 작업" 시점으로
       return cfgMajors(lens)[0].id;
     }
     function cfgCarryMinor(lens, major, minors) {
       const cur = cfgCurrentArea();
+      if (cur && lens === 'zoom') {
+        const want = major === 'member' ? cur.pid : major === 'dept' ? cfgPage(cur.pid).cloud : major === 'lead' ? cur.area.domains[0] : 'all';
+        if (minors.find(m => m.id === want)) return want;
+      }
       if (cur && lens === 'inst' && major === cur.pid) return cur.area.id;
       if (cur && lens === 'svc') { const k = cur.pid + '.' + cur.area.id; if (minors.find(m => m.id === k)) return k; }
       if (cur && lens === 'step') { const s = CFG.data.steps.find(x => x.page === cur.pid && x.area === cur.area.id); if (s) return s.no; }
@@ -2979,22 +3034,24 @@ LANDING_HTML = """<!DOCTYPE html>
         (typeof wikiGroupTail === 'function' ? wikiGroupTail(m.groupId) : '') + '</div>';
     }
 
+    function cfgColOn(dmId) { return (CFG.lens === 'svc' && CFG.major === dmId) || (CFG.lens === 'zoom' && CFG.major === 'lead' && CFG.minor === dmId); }
     // 인스턴스(행) × 서비스 영역(열). 행으로 읽으면 인스턴스 기준, 열로 읽으면 서비스 기준.
     function cfgMatrix() {
       const d = CFG.data;
       const cur = cfgCurrentArea();
       let html = '<div class="cfg-matrix" aria-label="인스턴스와 서비스 영역 지도"><div class="cfg-mx-row cfg-mx-headrow"><span class="cfg-mx-label"></span>' +
-        d.domains.map(dm => '<span class="cfg-mx-col' + (CFG.lens === 'svc' && CFG.major === dm.id ? ' on' : '') + '" title="' + cfgEsc(dm.name) + '">' + cfgEsc(dm.short) + '</span>').join('') + '</div>';
+        d.domains.map(dm => '<span class="cfg-mx-col' + (cfgColOn(dm.id) ? ' on' : '') + '" title="' + cfgEsc(dm.name) + '">' + cfgEsc(dm.short) + '</span>').join('') + '</div>';
       cfgInstOrder().forEach(pid => {
         const p = cfgPage(pid);
-        const rowOn = CFG.lens === 'inst' && CFG.major === pid;
+        const rowOn = (CFG.lens === 'inst' && CFG.major === pid) || (CFG.lens === 'zoom' && CFG.major === 'member' && CFG.minor === pid);
         html += '<div class="cfg-mx-row' + (rowOn ? ' on' : '') + '"><span class="cfg-mx-label">' + cfgEsc(p.short) + '</span>';
         d.domains.forEach(dm => {
           const areas = p.areas.filter(a => a.domains.indexOf(dm.id) >= 0);
           if (!areas.length) { html += '<span class="cfg-mx-cell"></span>'; return; }
-          const colOn = CFG.lens === 'svc' && CFG.major === dm.id;
+          const colOn = cfgColOn(dm.id);
           const here = cur && cur.pid === pid && areas.some(a => a.id === cur.area.id);
-          const go = CFG.lens === 'svc' ? cfgGo('svc', dm.id, pid + '.' + areas[0].id) : cfgGo('inst', pid, areas[0].id);
+          const go = CFG.lens === 'svc' ? cfgGo('svc', dm.id, pid + '.' + areas[0].id)
+            : CFG.lens === 'zoom' ? (CFG.major === 'lead' ? cfgGo('zoom', 'lead', dm.id) : cfgGo('zoom', 'member', pid)) : cfgGo('inst', pid, areas[0].id);
           html += '<button type="button" class="cfg-mx-cell has' + (colOn || rowOn ? ' lit' : '') + (here ? ' here' : '') +
             (p.status === 'design' ? ' design' : '') + '" title="' + cfgEsc(p.short + ' / ' + dm.name + ': ' + areas.map(a => a.name).join(', ')) +
             '" aria-label="' + cfgEsc(p.short + ' ' + dm.name) + '" onclick="' + go + '"><i></i></button>';
@@ -3028,6 +3085,12 @@ LANDING_HTML = """<!DOCTYPE html>
       } else if (CFG.lens === 'step') {
         const s = CFG.data.steps.find(x => x.no === CFG.minor);
         html += s ? cfgStepHead(s) + cfgAreaView(s.page, s.area, false) : empty('아직 진행 순서가 없습니다.');
+      } else if (CFG.lens === 'zoom') {
+        html += cfgZoomBar();
+        if (CFG.major === 'forest') html += cfgZoomForest();
+        else if (CFG.major === 'dept') html += cfgZoomDept(CFG.minor);
+        else if (CFG.major === 'lead') html += cfgZoomLead(CFG.minor);
+        else if (CFG.major === 'member') html += cfgZoomMember(CFG.minor);
       } else {
         const cur = cfgCurrentArea();
         if (CFG.lens === 'svc' && CFG.major) {
@@ -3054,7 +3117,7 @@ LANDING_HTML = """<!DOCTYPE html>
         '<h2 class="cfg-head-title">' + cfgEsc(a.name) + ' ' + cfgBadge(st) + '</h2>' +
         '<div class="cfg-head-domains">이 영역은 ' + a.domains.map(x =>
           '<a href="javascript:void(0)" class="cfg-dom-link" onclick="' + cfgGo('svc', x, pid + '.' + aid) + '">' + cfgEsc(cfgDomain(x).name) + '</a>').join(', ') +
-          ' 서비스에 속합니다' + (p.steps ? '. 진행 순서 ' + cfgEsc(p.steps) : '') + '.</div></div>';
+          ' 서비스에 속합니다' + (p.steps ? '. 진행 순서 ' + cfgEsc(p.steps) : '') + '.</div>' + cfgConsoleBtn(p) + '</div>';
       html += '<details class="cfg-inst"' + (specsOpen ? ' open' : '') + '><summary>인스턴스 개요와 사양</summary>' + (typeof wikiActions === 'function' ? wikiActions('instance', p.docId) : '') +
         '<p class="manual-desc">' + cfgFmt(p.desc) + '</p><div class="spec-grid">' + p.specs.map(s =>
           '<div class="spec-item"><span class="spec-k">' + cfgEsc(s[0]) + '</span><span class="spec-v">' + cfgEsc(s[1]) + '</span></div>').join('') + '</div></details>';
@@ -3098,6 +3161,105 @@ LANDING_HTML = """<!DOCTYPE html>
       };
       return '<div class="cfg-pager">' + (i > 0 ? link(list[i - 1], '이전') : '<span></span>') +
         (i < list.length - 1 ? link(list[i + 1], '다음') : '<span></span>') + '</div>';
+    }
+
+    // ---------- 시점(줌) 렌즈: 숲 → 부서장 → 팀장 → 팀원 ----------
+    // 설계 문서의 서버 → 통합 콘솔 대상 (s1 은 정책상 터미널 없음, kt-w1 은 콘솔 대상 아님)
+    const CFG_CONSOLE = { 'controller': 'controller', 'cp1': 'k8s-cp1', 'w1': 'k8s-w1', 'db-01': 'db-01', 'kt-edge': 'kt-edge', 'aws-dr': 'aws-dr', 'aws-ctl': 'aws-ctl' };
+    function cfgConsoleId(p) { return (p && CFG_CONSOLE[p.short]) || null; }
+    function cfgOpenConsole(id) {
+      if (typeof CS !== 'undefined') CS.pending = id;
+      if (typeof switchView === 'function') switchView('console');
+    }
+    function cfgConsoleBtn(p) {
+      const id = cfgConsoleId(p);
+      return id ? '<button type="button" class="wk-btn cfg-term-btn" onclick="cfgOpenConsole(&quot;' + cfgEsc(id) + '&quot;)">이 서버 터미널 열기</button>' : '';
+    }
+    function cfgZoomBar() {
+      const lv = ZOOM_LEVELS.findIndex(z => z.id === CFG.major);
+      return '<nav class="cfg-zoombar" aria-label="줌 단계">' + ZOOM_LEVELS.map((z, i) =>
+        '<button type="button" class="cfg-zoom-step' + (i === lv ? ' on' : '') + (i < lv ? ' past' : '') + '"' + (i === lv ? ' aria-current="step"' : '') +
+        ' onclick="' + cfgGo('zoom', z.id, '') + '"><span class="cfg-zoom-n">' + (i + 1) + '</span><span class="cfg-zoom-t">' + cfgEsc(z.name) +
+        '</span><span class="cfg-zoom-who">' + cfgEsc(z.who) + '</span></button>').join('<span class="cfg-zoom-sep" aria-hidden="true">›</span>') + '</nav>';
+    }
+    function cfgTopologyPage() {
+      const ref = (CFG.data.reference || []).find(r => /^전체 토폴로지/.test(r[1] || ''));
+      return ref ? cfgPage(ref[0]) : null;
+    }
+    // 숲: 클라우드별 서버 지도 + 실측 토폴로지 문서(위키)
+    function cfgZoomForest() {
+      let html = '<div class="cfg-head"><h2 class="cfg-head-title">숲 · 전체 구성</h2><p class="manual-desc">세 클라우드와 그 안 서버가 한 화면에 보입니다. ' +
+        '클라우드 이름을 누르면 부서장 시점으로, 서버를 누르면 팀원 시점(실제 작업)으로 내려갑니다.</p></div>';
+      html += '<div class="cfg-forest">' + cfgClouds().map(c => {
+        const list = cfgInstOrder().filter(pid => cfgPage(pid).cloud === c);
+        return '<section class="cfg-forest-cloud"><button type="button" class="cfg-forest-name" onclick="' + cfgGo('zoom', 'dept', c) + '">' +
+          '<span class="cfg-dot cfg-c-' + c + '"></span>' + cfgEsc(CLOUD_NAME[c]) + '<small>' + list.length + '대</small></button>' +
+          list.map(pid => {
+            const p = cfgPage(pid);
+            return '<button type="button" class="cfg-forest-inst" onclick="' + cfgGo('zoom', 'member', pid) + '"><b>' + cfgEsc(p.short) + '</b>' +
+              (p.status && p.status !== 'live' ? ' ' + cfgBadge(p.status) : '') + '<span>' + cfgEsc(p.tag) + '</span></button>';
+          }).join('') + '</section>';
+      }).join('') + '</div>';
+      const topo = cfgTopologyPage();
+      return html + (topo ? cfgDoc(topo) : '<div class="cfg-empty-panel"><p>실측 토폴로지 문서(“전체 토폴로지 · 실측”)가 아직 없습니다. 참고 문서로 추가하면 여기에 나옵니다.</p></div>');
+    }
+    // 부서장: 클라우드 하나가 책임지는 것 — 분류 분포·서버별 역할·위험
+    function cfgZoomDept(c) {
+      const list = cfgInstOrder().filter(pid => cfgPage(pid).cloud === c);
+      if (!list.length) return '<div class="cfg-empty-panel"><p>이 클라우드에 서버가 없습니다.</p></div>';
+      const areas = [], troubles = [], doms = {};
+      list.forEach(pid => { const p = cfgPage(pid); p.areas.forEach(a => {
+        areas.push([p, a]); (a.trouble || []).forEach(t => troubles.push([p, a, t]));
+        a.domains.forEach(d => { doms[d] = (doms[d] || 0) + 1; });
+      }); });
+      const first = t => { t = String(t || ''); const i = t.search(/[.。]\\s/); return (i > 0 ? t.slice(0, i + 1) : t).slice(0, 120); };
+      let html = '<div class="cfg-head"><div class="cfg-head-line"><span class="cfg-cloud cfg-c-' + c + '">' + cfgEsc(CLOUD_NAME[c]) + '</span><span class="manual-tag">부서장 시점</span></div>' +
+        '<h2 class="cfg-head-title">' + cfgEsc(CLOUD_NAME[c]) + ' 이(가) 책임지는 것</h2>' +
+        '<p class="manual-desc">서버 ' + list.length + '대 · 서비스 영역 ' + areas.length + '개 · 알려진 오류 대응 ' + troubles.length + '건. 분류를 누르면 팀장 시점으로 내려갑니다.</p></div>';
+      html += '<section class="manual-card-box"><h3 class="box-title">맡은 서비스 분류</h3><div class="cfg-chips">' + Object.keys(doms).map(d =>
+        '<a href="javascript:void(0)" class="cfg-chip" onclick="' + cfgGo('zoom', 'lead', d) + '">' + cfgEsc((cfgDomain(d) || { name: d }).name) + ' ' + doms[d] + '</a>').join('') + '</div></section>';
+      html += '<section class="manual-card-box"><h3 class="box-title">서버별 역할</h3>' + cfgTable(['서버', '역할', '서비스 영역', '상태'], list.map(pid => {
+        const p = cfgPage(pid);
+        return [p.short, first(p.desc), p.areas.map(a => a.name).join(', '), STATUS_NAME[p.status] || p.status || ''];
+      })) + '</section>';
+      if (troubles.length) html += '<section class="manual-card-box"><h3 class="box-title">위험 — 알려진 오류 증상</h3>' +
+        cfgTable(['서버 / 영역', '증상', '의심 지점', '조치'], troubles.slice(0, 12).map(x => [x[0].short + ' / ' + x[1].name, x[2][0], x[2][1], x[2][3]]), 'cfg-trouble') +
+        (troubles.length > 12 ? '<p class="manual-desc">외 ' + (troubles.length - 12) + '건은 참고 › 오류 확인 색인에서 봅니다.</p>' : '') + '</section>';
+      return html;
+    }
+    // 팀장: 서비스 분류 하나 — 영역별 설계와 맡은 서버
+    function cfgZoomLead(dmId) {
+      const dm = cfgDomain(dmId);
+      if (!dm) return '<div class="cfg-empty-panel"><p>분류를 고르세요.</p></div>';
+      const rows = [];
+      cfgInstOrder().forEach(pid => { const p = cfgPage(pid); p.areas.forEach(a => { if (a.domains.indexOf(dmId) >= 0) rows.push([pid, p, a]); }); });
+      let html = '<div class="cfg-head"><div class="cfg-head-line"><span class="manual-tag">팀장 시점</span></div>' +
+        '<h2 class="cfg-head-title">' + cfgEsc(dm.name) + ' — 설계와 담당</h2><p class="manual-desc">' + cfgEsc(dm.desc) + ' 이 분류에 속한 영역 ' + rows.length + '개.</p></div>';
+      if (!rows.length) return html + '<div class="cfg-empty-panel"><p>이 분류에 속한 영역이 아직 없습니다.</p></div>';
+      html += '<section class="manual-card-box"><h3 class="box-title">맡은 서버</h3>' + cfgTable(['클라우드', '서버', '영역'], rows.map(r => [CLOUD_NAME[r[1].cloud], r[1].short, r[2].name])) + '</section>';
+      return html + rows.map(r =>
+        '<section class="manual-card-box"><h3 class="box-title"><span class="cfg-dot cfg-c-' + r[1].cloud + '"></span>' + cfgEsc(r[1].short) + ' · ' + cfgEsc(r[2].name) +
+        (r[2].status && r[2].status !== 'live' ? ' ' + cfgBadge(r[2].status) : '') +
+        ' <a href="javascript:void(0)" class="cfg-dom-link" onclick="' + cfgGo('zoom', 'member', r[0]) + '">팀원 작업 ›</a></h3>' +
+        (r[2].design && r[2].design.length ? '<ul class="cfg-list">' + r[2].design.map(d => '<li>' + cfgFmt(d) + '</li>').join('') + '</ul>' : '<p class="manual-desc">설계 설명이 아직 없습니다.</p>') +
+        '</section>').join('');
+    }
+    // 팀원: 서버 하나에서 실제로 실행하는 것 — 명령·검증 + 터미널 바로 열기
+    function cfgZoomMember(pid) {
+      const p = cfgPage(pid);
+      if (!p) return '<div class="cfg-empty-panel"><p>서버를 고르세요.</p></div>';
+      let html = '<div class="cfg-head"><div class="cfg-head-line"><span class="cfg-cloud cfg-c-' + p.cloud + '">' + cfgEsc(CLOUD_NAME[p.cloud]) + '</span>' +
+        '<span class="cfg-head-inst">' + cfgEsc(p.title) + '</span><span class="manual-tag">팀원 시점</span></div>' +
+        '<h2 class="cfg-head-title">' + cfgEsc(p.short) + ' 에서 하는 일</h2><p class="manual-desc">' + cfgFmt(p.desc) + '</p>' + cfgConsoleBtn(p) + '</div>';
+      if (!p.areas.length) return html + '<div class="cfg-empty-panel"><p>이 서버에 서비스 영역이 아직 없습니다.</p></div>';
+      return html + p.areas.map(a => {
+        const cmds = (a.commands || []).slice().sort((x, y) => CAT_ORDER.indexOf(x.cat) - CAT_ORDER.indexOf(y.cat));
+        const ver = (a.verify || []).map(v => cfgCode(v.code, v.label, '검증') + '<div class="cfg-expect">기대 결과: ' + cfgFmt(v.expect) + '</div>').join('');
+        return '<section class="manual-card-box"><h3 class="box-title">' + cfgEsc(a.name) + (a.status && a.status !== 'live' ? ' ' + cfgBadge(a.status) : '') +
+          ' <a href="javascript:void(0)" class="cfg-dom-link" onclick="' + cfgGo('inst', pid, a.id) + '">설계·설정·오류까지 ›</a></h3>' +
+          cmds.map(c => cfgCode(c.code, c.label, c.cat)).join('') + ver +
+          (!cmds.length && !ver ? '<p class="manual-desc">이 영역에 실행 명령이 아직 없습니다.</p>' : '') + '</section>';
+      }).join('');
     }
 
     // ---------- 참고 문서 ----------
