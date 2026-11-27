@@ -88,7 +88,7 @@ class FigteamMcpCore:
                 "3. 온프렘 호스트: s1 (t1-vm2 / 10.10.10.8) VIP 10.10.1.100:80 ➔ DNAT 192.168.120.226:30080\n"
                 "4. VMware OpenStack: Controller(160, RAM 14GB), Compute1(161, 8GB), Compute3(163, 8GB), Compute4(164, 8GB)\n"
                 "5. OpenStack PaaS/Data: k8s-cp1(172.20.0.86), k8s-w1(172.20.0.180), db-01(10.10.2.10 MySQL 8.4 Primary)\n"
-                "6. AWS DR (Pilot-Light): aws-dr (10.51.1.165, MySQL Replica GTID ON), aws-ctl (10.50.1.85, Orchestrator :8080)"
+                "6. AWS DR (Warm-Standby): aws-dr (10.51.1.165, MySQL Replica GTID ON), aws-ctl (10.50.1.85, Orchestrator :8080)"
             ),
             "traffic_diagram": codes[0] if len(codes) > 0 else "",
             "cloudflared_ingress": codes[1] if len(codes) > 1 else ""
@@ -1218,7 +1218,7 @@ class McpHttpHandler(BaseHTTPRequestHandler):
                      "  • Primary DB (db-01: 10.10.2.10:3306, MySQL 8.4 LTS, GTID ON)\n"
                      "  │ WireGuard 51820 터널 암호화 복제 (Auto_Position = 1, 지연 0초)\n"
                      "  ▼\n"
-                     "AWS DR Pilot-Light (aws-dr: 10.51.1.165:3306 / 10.200.0.4, read_only=1)\n"
+                     "AWS DR Warm-Standby (aws-dr: 10.51.1.165:3306 / 10.200.0.4, read_only=1)\n"
                      "  • 오케스트레이터: aws-ctl (10.50.1.85:8080 / 10.200.0.3)\n"
                      "```\n---\n")
 
@@ -1330,8 +1330,8 @@ class McpHttpHandler(BaseHTTPRequestHandler):
                      "  • WireGuard 허브(wg0): [https://figteam.ktci5.kr/#cfg/inst/inst-ktedge/wg](https://figteam.ktci5.kr/#cfg/inst/inst-ktedge/wg)\n"
                      "  • KT 워커 조인 설계: [https://figteam.ktci5.kr/#cfg/inst/inst-ktw1/join](https://figteam.ktci5.kr/#cfg/inst/inst-ktw1/join)\n")
 
-        # 5. AWS DR Pilot-Light
-        lines.append("### [5] AWS DR Pilot-Light (`inst-awsdr`, `inst-awsctl`) — 재해 복구")
+        # 5. AWS DR Warm-Standby
+        lines.append("### [5] AWS DR Warm-Standby (`inst-awsdr`, `inst-awsctl`) — 재해 복구")
         lines.append("- **DB Replica (`aws-dr`)**: 사설 `10.51.1.165:3306` (WG: `10.200.0.4`), MySQL 8.4 (`read_only=1`, 채널 `ch_dr`)")
         lines.append("- **복구 오케스트레이터 (`aws-ctl`)**: 사설 `10.50.1.85:8080` (WG: `10.200.0.3`), 온프렘 다운 시 1초 내 승격 트리거")
         lines.append("- **복제 채널 설정 파일**:\n"
@@ -1404,7 +1404,7 @@ class McpHttpHandler(BaseHTTPRequestHandler):
                           ("KT 워커 조인 설계 (하이브리드)", "join", "https://figteam.ktci5.kr/#cfg/inst/inst-ktw1/join")]
             },
             {
-                "title": "AWS DR Pilot-Light 및 복구 오케스트레이터 계층",
+                "title": "AWS DR Warm-Standby 및 복구 오케스트레이터 계층",
                 "inst": "inst-awsdr",
                 "summary": "aws-dr(10.51.1.165, MySQL Replica), aws-ctl(10.50.1.85:8080, Orchestrator API)",
                 "areas": [("DR DB Replica 설정 (ch_dr)", "mysql", "https://figteam.ktci5.kr/#cfg/inst/inst-awsdr/mysql"),
@@ -1565,7 +1565,7 @@ class McpHttpHandler(BaseHTTPRequestHandler):
    - **OpenStack Compute 1·3·4 (RAM 8GB 증설)**: https://figteam.ktci5.kr/#cfg/inst/inst-compute1/compute
    - **K8s 클러스터 (cp1 / w1)**: https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s
    - **KT Cloud Edge (Nginx WAF 10s 캐싱)**: https://figteam.ktci5.kr/#cfg/inst/inst-ktedge/proxy
-   - **AWS DR Pilot-Light (aws-dr, aws-ctl)**: https://figteam.ktci5.kr/#cfg/inst/inst-awsdr/replica
+   - **AWS DR Warm-Standby (aws-dr, aws-ctl)**: https://figteam.ktci5.kr/#cfg/inst/inst-awsdr/replica
    - **3사 전체 엔드투엔드 토폴로지**: https://figteam.ktci5.kr/#cfg/overview
 
 ---
@@ -1592,7 +1592,7 @@ class McpHttpHandler(BaseHTTPRequestHandler):
             return (
                 "### 🔍 FIGTEAM DB 클러스터 실측 사양 및 점검 분석\n\n"
                 "* **Primary DB (온프렘 OpenStack)**: `10.10.2.10:3306` (`inst-db01`, MySQL 8.4 LTS, GTID ON, `enforce_gtid_consistency=ON`)\n"
-                "* **Replica DB (AWS DR Pilot-Light)**: `10.51.1.165:3306` (`aws-dr`, 채널 `ch_dr`, GTID 자동 위치 지정)\n"
+                "* **Replica DB (AWS DR Warm-Standby)**: `10.51.1.165:3306` (`aws-dr`, 채널 `ch_dr`, GTID 자동 위치 지정)\n"
                 "* **연결 메시망**: KT Edge 허브(`10.200.0.1:51820`)를 통한 WireGuard wg0 터널 암호화 복제\n\n"
                 "**주요 장애 점검 포인트**:\n"
                 "1. 복제 상태 확인: `SHOW REPLICA STATUS FOR CHANNEL 'ch_dr'\\G` (Replica_IO_Running, Replica_SQL_Running 확인)\n"
@@ -1648,7 +1648,7 @@ class McpHttpHandler(BaseHTTPRequestHandler):
             "* **3사 메시 터널**: WireGuard wg0 (`10.200.0.1` KT Hub) ↔ wg-kt (`10.200.0.2` 온프렘 s1)\n"
             "* **온프렘 호스트**: s1 (`10.10.10.8`, 20 vCPU / 30GB RAM, NVMe 8GB Swap)\n"
             "* **OpenStack 노드**: Controller (`192.168.120.160`, RAM 14GB 증설), Compute 1·3·4 (각 8GB)\n"
-            "* **데이터 계층**: DB-01 (`10.10.2.10`, MySQL 8.4 Primary) ↔ AWS-DR (`10.51.1.165`, Replica Pilot-Light)\n\n"
+            "* **데이터 계층**: DB-01 (`10.10.2.10`, MySQL 8.4 Primary) ↔ AWS-DR (`10.51.1.165`, Replica Warm-Standby)\n\n"
             "👉 **질의하신 인프라의 모든 설계, 설정 코드, 운영 명령어 및 트러블슈팅은 공식 웹 포털에 집대성되어 있습니다**:\n"
             "🔗 **FIGTEAM 공식 웹 콘솔**: [https://figteam.ktci5.kr/#cfg/overview](https://figteam.ktci5.kr/#cfg/overview)\n\n"
             "> 🔒 **보안 안내**: 본 AI는 실측 기반 질의응답(Read-Only) 전용 어드바이저입니다. 실제 설정 변경 및 명령어 실행은 안전 가드가 포함된 공식 웹 콘솔에서 직접 수행하셔야 합니다."
