@@ -44,10 +44,10 @@ VARIABLES = [
 # 선행 순서 — 아래 순서를 지켜야 다음 단계의 명령이 오류 없이 돈다.
 # ---------------------------------------------------------------------------
 STEPS = [
-    {"no": "S0", "title": "접속 경로 확보", "where": "맥 → Controller", "page": "inst-controller", "area": "access",
+    {"no": "S0", "title": "접속 경로 확보", "where": "맥 → Controller", "page": "inst-controller", "area": "svc",
      "why": "모든 작업은 점프 호스트(s1)를 거쳐 OpenStack·K8s·DB로 연결된다. s1은 물리 보호 구역이므로 OpenStack Controller 접속부터 검증한다.",
      "gate": "ssh -J s1 root@192.168.120.160 hostname   # os-controller\nssh root@14.63.212.190 hostname # kt-edge-dr-01"},
-    {"no": "S1", "title": "호스트 기반 및 가상 네트워크 점검", "where": "s1 (보호 구역)", "page": "overview", "area": "main",
+    {"no": "S1", "title": "호스트 기반 및 가상 네트워크 점검", "where": "s1 (보호 구역)", "page": "inst-controller", "area": "net",
      "why": "OpenStack VM 4대가 vmnet8(192.168.120.0/24) 위에 있다. 게이트웨이 .2 와 MASQUERADE 가 없으면 VM 이 인터넷·DNS 를 못 쓴다. (s1은 물리 전용 보호 구역으로 웹 직접 설정 제외)",
      "gate": "ip -br a show vmnet8 | grep 192.168.120.2\nsysctl net.ipv4.ip_forward   # = 1"},
     {"no": "S2", "title": "OpenStack 노드 기동·서비스 확인", "where": "s1 → controller", "page": "inst-controller", "area": "svc",

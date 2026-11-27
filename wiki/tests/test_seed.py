@@ -13,7 +13,7 @@ PW = "pw-123456"
 
 def test_seed_counts(r):
     c = seed(r, "figteam", "figteam (team6)", PW)
-    assert c == {"cloud": 4, "instance": 9, "area": 29, "steps": 1, "page": 3, "scripts": 18}
+    assert c == {"cloud": 4, "instance": 8, "area": 25, "steps": 1, "page": 3, "scripts": 18}
 
 
 def test_seed_login_tree(r):
@@ -21,10 +21,10 @@ def test_seed_login_tree(r):
     with make_client(r) as c:
         assert c.post("/api/login", json={"slug": "figteam", "password": PW, "member": "seed-test"}).status_code == 200
         docs = c.get("/api/tree").json()["docs"]
-        assert len(docs) == 46
+        assert len(docs) == 41
         inst = [d for d in docs if d["kind"] == "instance"]
-        assert {d["body"]["short"] for d in inst} >= {"s1", "db-01", "kt-w1", "aws-ctl"}
-        assert {d["body"]["slug"] for d in inst} >= {"inst-s1", "inst-awsdr"}
+        assert {d["body"]["short"] for d in inst} >= {"controller", "db-01", "kt-w1", "aws-ctl"}
+        assert {d["body"]["slug"] for d in inst} >= {"inst-controller", "inst-awsdr"}
         assert "mysql" in {d["body"].get("slug") for d in docs if d["kind"] == "area"}
         revs = c.get(f"/api/docs/{inst[0]['id']}/revisions").json()
         assert revs[0]["author"] == "seed" and revs[0]["message"] == "2026-11-26 실측 가이드에서 가져옴"
