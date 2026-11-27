@@ -1458,6 +1458,18 @@ LANDING_HTML = """<!DOCTYPE html>
     .wk-ch-row { cursor: pointer; }
     .wk-ch-row:hover td, .wk-ch-row:focus td { background: var(--surface-hover); }
     .cfg-crumb a { color: var(--blue); text-decoration: none; }
+
+    /* ===== 상단 [콘솔] 메뉴 ===== */
+    .cn-wrap { position: relative; display: inline-block; }
+    .cn-btn::after { content: " ▾"; font-size: .8em; }
+    .cn-menu { position: absolute; right: 0; top: calc(100% + 6px); width: 340px; background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 8px; z-index: 900; box-shadow: 0 12px 32px rgba(2, 6, 15, .6); }
+    .cn-group + .cn-group { border-top: 1px solid #1e293b; margin-top: 6px; padding-top: 6px; }
+    .cn-head { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: var(--text-sub); padding: 4px 8px; }
+    .cn-link { display: flex; flex-direction: column; gap: 2px; padding: 7px 10px; border-radius: 6px; text-decoration: none; color: #fff; }
+    .cn-link b { font-size: 13px; font-weight: 600; }
+    .cn-link span { font-size: 11px; color: var(--text-muted); }
+    .cn-link:hover, .cn-link:focus { background: var(--surface-hover); outline: none; }
+    .cn-link:focus-visible { outline: 2px solid #93c5fd; }
     /* CFGCSS:END */
   </style>
 </head>
@@ -1510,6 +1522,7 @@ LANDING_HTML = """<!DOCTYPE html>
     <div class="header-right">
       <button type="button" class="nav-btn active" id="btn-tab-dashboard" onclick="switchView('dashboard')">대시보드</button>
       <button type="button" class="nav-btn" id="btn-tab-settings" onclick="switchView('settings')">설정</button>
+      <!--CONSOLES:BEGIN--><div class="cn-wrap"><button type="button" class="nav-btn cn-btn" id="cn-btn" aria-haspopup="true" aria-expanded="false" onclick="cnToggle(event)">콘솔</button><div class="cn-menu" id="cn-menu" role="menu" hidden><div class="cn-group"><div class="cn-head"><span class="cfg-dot cfg-c-openstack"></span>OpenStack</div><a class="cn-link" role="menuitem" href="https://horizon.ktci5.kr/dashboard/" target="_blank" rel="noopener"><b>Horizon 웹 콘솔</b><span>controller 192.168.120.160 · figteam 프로젝트</span></a></div><div class="cn-group"><div class="cn-head"><span class="cfg-dot cfg-c-kt"></span>KT Cloud</div><a class="cn-link" role="menuitem" href="https://kt-edge.ktci5.kr/" target="_blank" rel="noopener"><b>KT Edge 상태 화면</b><span>kt-edge-dr-01 nginx 상태 (WG 10.200.0.1:8088)</span></a><a class="cn-link" role="menuitem" href="https://cloud.kt.com/" target="_blank" rel="noopener"><b>KT Cloud 콘솔</b><span>IAM 사용자 로그인 (서비스 번호 필요)</span></a></div><div class="cn-group"><div class="cn-head"><span class="cfg-dot cfg-c-aws"></span>AWS</div><a class="cn-link" role="menuitem" href="https://aws-ctl.ktci5.kr/healthz" target="_blank" rel="noopener"><b>Recovery Orchestrator</b><span>aws-ctl 10.200.0.3:8080 · /serving /report/summary</span></a><a class="cn-link" role="menuitem" href="https://console.aws.amazon.com/" target="_blank" rel="noopener"><b>AWS 콘솔</b><span>IAM 사용자 로그인 (서울 리전)</span></a></div></div></div><!--CONSOLES:END-->
       <button type="button" class="logout-btn" id="logout-btn" onclick="logout()" style="display:none;">로그아웃</button>
     </div>
   </header>
@@ -2915,6 +2928,23 @@ LANDING_HTML = """<!DOCTYPE html>
         tr.style.display = !q || tr.textContent.toLowerCase().indexOf(q) >= 0 ? '' : 'none';
       });
     }
+
+    // ===== 상단 [콘솔] 메뉴 =====
+    function cnToggle(ev) {
+      ev.stopPropagation();
+      const m = document.getElementById('cn-menu'), b = document.getElementById('cn-btn');
+      const open = m.hidden;
+      m.hidden = !open; b.setAttribute('aria-expanded', String(open));
+      if (open) { const f = m.querySelector('a'); if (f) f.focus(); }
+    }
+    document.addEventListener('click', e => {
+      const m = document.getElementById('cn-menu');
+      if (m && !m.hidden && !e.target.closest('.cn-wrap')) { m.hidden = true; document.getElementById('cn-btn').setAttribute('aria-expanded', 'false'); }
+    });
+    document.addEventListener('keydown', e => {
+      const m = document.getElementById('cn-menu');
+      if (e.key === 'Escape' && m && !m.hidden) { m.hidden = true; const b = document.getElementById('cn-btn'); b.setAttribute('aria-expanded', 'false'); b.focus(); }
+    });
     // CFGJS:END
 
     // 5. INSTANCE-SPECIFIC TOP 10 DATA & CONTROLLER

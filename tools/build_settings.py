@@ -66,6 +66,24 @@ for (beg, end), body in blocks.items():
     assert pat.search(src), beg
     src = pat.sub(lambda m: beg + py_safe(body) + end, src, count=1)
 
+# 상단 [콘솔] 메뉴 (3대 영역) — 마커 사이를 매번 다시 만든다
+import html as _html  # noqa: E402
+if '<!--CONSOLES:BEGIN-->' not in src:
+    btn = '<button type="button" class="nav-btn" id="btn-tab-settings" onclick="switchView(\'settings\')">설정</button>'
+    assert btn in src, '설정 버튼을 찾지 못했습니다'
+    src = src.replace(btn, btn + '\n      <!--CONSOLES:BEGIN--><!--CONSOLES:END-->', 1)
+menu = ['<div class="cn-wrap"><button type="button" class="nav-btn cn-btn" id="cn-btn" aria-haspopup="true" aria-expanded="false" '
+        'onclick="cnToggle(event)">콘솔</button><div class="cn-menu" id="cn-menu" role="menu" hidden>']
+for grp in settings_guide.CONSOLES:
+    menu.append('<div class="cn-group"><div class="cn-head"><span class="cfg-dot cfg-c-%s"></span>%s</div>' % (grp['cloud'], _html.escape(grp['name'])))
+    for name, url, sub in grp['links']:
+        menu.append('<a class="cn-link" role="menuitem" href="%s" target="_blank" rel="noopener"><b>%s</b><span>%s</span></a>'
+                    % (_html.escape(url), _html.escape(name), _html.escape(sub)))
+    menu.append('</div>')
+menu.append('</div></div>')
+src = re.sub(r'<!--CONSOLES:BEGIN-->.*?<!--CONSOLES:END-->',
+             lambda m: '<!--CONSOLES:BEGIN-->' + py_safe(''.join(menu)) + '<!--CONSOLES:END-->', src, count=1, flags=re.S)
+
 # 설정 탭으로 전환할 때 첫 화면 보장
 if 'cfgInit(); // settings-tab' not in src:
     src = src.replace("        btnSet.classList.add('active');\n",
