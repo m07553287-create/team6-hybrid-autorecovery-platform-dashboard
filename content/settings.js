@@ -388,10 +388,10 @@
       const isS1 = (pid === 'inst-s1' || (p && p.short === 's1') || (p && p.cloud === 'onprem'));
       let html = '';
       if (isS1 || p.status === 'protected') {
-        html += '<div style="background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); border-radius:8px; padding:14px 18px; margin-bottom:18px; color:#fca5a5; font-size:13px; line-height:1.6;">' +
-          '<div style="font-weight:700; font-size:14px; margin-bottom:4px; color:#ef4444;">🔒 s1 온프렘 호스트 (명령 제외 · 연결 제외 · 설정 제외)</div>' +
-          '기본 팀(figteam) 환경에서 <b>s1 영역은 명령 제외 · 연결 제외 · 설정 제외</b> 대상이며, <b>웹에서 콘솔 터미널 접근이 불가</b>합니다.<br>' +
-          '온프렘 물리 베이스에 대한 간략한 설명만 제공되며, 모든 인프라 명령 실행 및 설정 조작은 <b>OpenStack Controller / Compute, K8s cp1, DB db-01</b> 및 <b>KT Cloud, AWS</b> 설정 화면에서 진행하십시오.' +
+        html += '<div style="background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.25); border-radius:8px; padding:14px 18px; margin-bottom:18px; color:#93c5fd; font-size:13px; line-height:1.6;">' +
+          '<div style="font-weight:700; font-size:14px; margin-bottom:4px; color:#60a5fa;">💡 s1 가상화 기반 안내 (OpenStack 상위 호스트)</div>' +
+          's1 영역은 OpenStack VM들이 구동되는 가상화 기반 호스트로, 프로젝트와 사실관계가 먼 물리 세부정보는 제외하고 상위 구성 관계만 간략히 표시합니다. (명령·연결·설정 조작 및 웹 콘솔 터미널 접근 제외)<br>' +
+          '<b>본 프로젝트의 모든 실질적인 인프라 설계, 설정 및 명령어는 VM 위의 OpenStack 계층부터 시작됩니다.</b>' +
           '</div>';
       }
       html += '<div class="cfg-head">' + (typeof wikiActions === 'function' ? wikiActions('area', a.docId) : '') +
