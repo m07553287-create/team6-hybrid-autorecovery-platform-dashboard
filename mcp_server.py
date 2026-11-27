@@ -938,10 +938,11 @@ class McpHttpHandler(BaseHTTPRequestHandler):
         lines.append("# FIGTEAM 하이브리드 멀티클라우드 인프라 (#cfg) 실측 구조 및 설정 총람 (AI 분석용)\n")
         lines.append(f"> **실측 일자**: {self.core.measured} (온프렘 OpenStack Controller 14GB 증설 / Compute 8GB 균등 증설 반영)")
         lines.append("> **공식 작업 웹 포털**: https://figteam.ktci5.kr/#cfg/")
+        lines.append("> **기본 팀(Team)**: figteam (기본 팀으로 고정 설정)")
         lines.append("> **🤖 AI(에이전트) 분석 지침**:\n"
                      "> 1. 본 문서는 s1을 제외한 **OpenStack IaaS/PaaS/Data - KT Cloud - AWS DR** 3사 전체의 실측 사양, 가상 네트워크, 설정 파일, 점검 명령어를 구조화한 단일 진실 소스(Single Source of Truth)입니다.\n"
                      "> 2. 사용자가 문제를 질문하면 본 명세를 참조하여 **대화로 근본 원인과 조치 방향을 명확히 잡고**, 실제 수정/적용은 **사용자가 해당 공식 웹 URL에 접속하여 안전 가드를 거쳐 직접 입력/실행**하도록 웹 링크를 안내하십시오.\n"
-                     "> 3. **s1 호스트는 물리 베이스 및 백엔드 게이트웨이로 웹 직접 접근이 제한**된 보호 영역이므로 조작 대상에서 제외하십시오.\n")
+                     "> 3. **기본 팀(figteam) 환경에서 s1 영역은 명령 제외 · 연결 제외 · 설정 제외** 대상이며 간략 설명만 제공되고 **웹에서 콘솔 터미널 접근이 불가**합니다. 인프라 조작은 OpenStack, KT Cloud, AWS 화면을 안내하십시오.\n")
         lines.append("---\n")
 
         lines.append("## 1. 3사 하이브리드 네트워크 토폴로지 및 트래픽 경로\n")
