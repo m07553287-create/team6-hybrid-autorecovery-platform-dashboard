@@ -22,6 +22,7 @@ class Session:
     slug: str
     team_name: str
     member: str
+    auto: bool = False
 
 
 def hash_password(password, salt=None):
@@ -62,11 +63,11 @@ def rate_fail(r, key):
         r.expire(k, WINDOW)
 
 
-def new_session(r, team_id, member):
+def new_session(r, team_id, member, auto=False):
     token = secrets.token_urlsafe(32)
     k = _skey(token)
     p = r.pipeline()
-    p.hset(k, mapping={"team_id": team_id, "member": member})
+    p.hset(k, mapping={"team_id": team_id, "member": member, "auto": 1 if auto else 0})
     p.expire(k, SESSION_TTL)
     p.sadd(f"fw:sesslist:{team_id}", k)
     p.execute()
@@ -131,7 +132,25 @@ def get_session(r, token):
     t = r.hgetall(f"fw:team:{slug}") if slug else {}
     if not t:
         return None
-    return Session(int(s["team_id"]), slug, t["name"], s["member"])
+    return Session(int(s["team_id"]), slug, t["name"], s["member"], s.get("auto") == "1")
+
+
+def auto_session(r, slug):
+    """AUTO_LOGIN_TEAM 용: 비밀번호 없이 그 팀 세션(작성자 '게스트')을 만든다. 팀이 없으면 None."""
+    t = r.hgetall(f"fw:team:{slug}") if slug and SLUG_RE.match(slug) else {}
+    if not t:
+        return None, None
+    token = new_session(r, int(t["id"]), "게스트", auto=True)
+    return token, Session(int(t["id"]), slug, t["name"], "게스트", True)
+
+
+def rename(r, token, member):
+    member = check_member(member)
+    k = _skey(token or "")
+    if not token or not r.exists(k):
+        raise ApiError(401, "로그인이 필요합니다")
+    r.hset(k, "member", member)
+    return member
 
 
 def logout(r, token):

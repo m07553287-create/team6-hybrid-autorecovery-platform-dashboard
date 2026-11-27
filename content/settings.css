@@ -233,3 +233,7 @@
     .cn-link span { font-size: 11px; color: var(--text-muted); }
     .cn-link:hover, .cn-link:focus { background: var(--surface-hover); outline: none; }
     .cn-link:focus-visible { outline: 2px solid #93c5fd; }
+    .wk-teambar-acts { display: flex; gap: 4px; }
+    .wk-rename { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-end; width: 100%; }
+    .wk-rename label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--text-muted); flex: 1; min-width: 140px; }
+    .wk-rename input { background: #06090e; border: 1px solid #334155; border-radius: 5px; color: #fff; padding: 6px 8px; font-size: 13px; font-family: inherit; }

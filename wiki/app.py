@@ -75,9 +75,23 @@ def create_app(redis_client=None):
         return {"ok": True}
 
     @app.get("/api/me")
-    def me(request: Request):
-        s = session_of(request)
-        return {"slug": s.slug, "team_name": s.team_name, "member": s.member}
+    def me(request: Request, response: Response):
+        s = auth.get_session(r, request.cookies.get(auth.COOKIE))
+        if not s and os.environ.get("AUTO_LOGIN_TEAM"):
+            token, s = auth.auto_session(r, os.environ["AUTO_LOGIN_TEAM"])
+            if token:
+                set_cookie(response, token)
+        if not s:
+            raise ApiError(401, "로그인이 필요합니다")
+        out = {"slug": s.slug, "team_name": s.team_name, "member": s.member}
+        if s.auto:
+            out["auto"] = True
+        return out
+
+    @app.post("/api/me/name")
+    async def me_name(request: Request):
+        data = await body_of(request)
+        return {"member": auth.rename(r, request.cookies.get(auth.COOKIE), data.get("member"))}
 
     @app.post("/api/team/password")
     async def team_password(request: Request, response: Response):

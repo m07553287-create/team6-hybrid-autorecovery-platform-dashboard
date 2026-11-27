@@ -1444,6 +1444,10 @@
     .cn-link span { font-size: 11px; color: var(--text-muted); }
     .cn-link:hover, .cn-link:focus { background: var(--surface-hover); outline: none; }
     .cn-link:focus-visible { outline: 2px solid #93c5fd; }
+    .wk-teambar-acts { display: flex; gap: 4px; }
+    .wk-rename { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-end; width: 100%; }
+    .wk-rename label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--text-muted); flex: 1; min-width: 140px; }
+    .wk-rename input { background: #06090e; border: 1px solid #334155; border-radius: 5px; color: #fff; padding: 6px 8px; font-size: 13px; font-family: inherit; }
     /* CFGCSS:END */
   </style>
 </head>
@@ -1962,8 +1966,27 @@
 
     function wikiTeamBar() {
       if (!WIKI.me) return '';
-      return '<div class="wk-teambar"><div><b>' + cfgEsc(WIKI.me.team_name) + '</b><span>' + cfgEsc(WIKI.me.member) + ' 님</span></div>' +
-        '<button type="button" class="cfg-copy" onclick="wikiLogout()">로그아웃</button></div>';
+      return '<div class="wk-teambar" id="wk-teambar"><div><b>' + cfgEsc(WIKI.me.team_name) + '</b><span>' + cfgEsc(WIKI.me.member) + ' 님' +
+        (WIKI.me.auto ? ' · 자동 입장' : '') + '</span></div>' +
+        '<div class="wk-teambar-acts"><button type="button" class="cfg-copy" onclick="wikiRenameStart()">이름 바꾸기</button>' +
+        '<button type="button" class="cfg-copy" onclick="wikiLogout()">' + (WIKI.me.auto ? '다른 팀' : '로그아웃') + '</button></div></div>';
+    }
+    function wikiRenameStart() {
+      const bar = document.getElementById('wk-teambar');
+      bar.innerHTML = '<form class="wk-rename" onsubmit="wikiRenameSave(event)"><label>고친 기록에 남을 이름' +
+        '<input name="member" maxlength="20" required value="' + cfgEsc(WIKI.me.member === '게스트' ? '' : WIKI.me.member) + '"></label>' +
+        '<button type="submit" class="cfg-copy">저장</button><button type="button" class="cfg-copy" onclick="cfgRenderNav()">취소</button></form>';
+      bar.querySelector('input').focus();
+    }
+    async function wikiRenameSave(ev) {
+      ev.preventDefault();
+      try {
+        const r = await api('POST', '/api/me/name', { member: ev.target.member.value.trim() });
+        WIKI.me.member = r.member;
+        localStorage.setItem('fw_last', JSON.stringify({ slug: WIKI.me.slug, member: r.member }));
+        wikiToast('이름을 바꿨습니다: ' + r.member);
+      } catch (e) { if (e.status !== 401) wikiToast(e.error || '바꾸지 못했습니다'); }
+      cfgRenderNav();
     }
 
     // ===== 만들기 · 편집 · 삭제 =====
