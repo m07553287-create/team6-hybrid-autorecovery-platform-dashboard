@@ -650,28 +650,86 @@ class McpHttpHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(resp, ensure_ascii=False, indent=2).encode("utf-8"))
             return
 
-        # 1-1. OpenAI 호환 AI 게이트웨이 엔드포인트 안내 (/md/v1)
-        if path in ("/md", "/md/", "/md/v1", "/md/v1/"):
+        # 1-1. 웹 현황 구조 및 설계 총람 마크다운 서빙 (/md, /md/v1, /md/inst/*)
+        if path in ("/md", "/md/", "/md/v1", "/md/v1/") or path.startswith("/md/v1/inst/") or path.startswith("/md/inst/") or (path.startswith("/md/") and not path.startswith("/md/v1/chat") and not path.startswith("/md/v1/models")):
+            # 특정 인스턴스 지정 여부 파악
+            target_inst = ""
+            for prefix in ("/md/v1/inst/", "/md/inst/", "/md/v1/", "/md/"):
+                if path.startswith(prefix) and path != prefix:
+                    candidate = path[len(prefix):].strip("/").lower()
+                    if candidate and candidate not in ("v1", "chat", "models", "context.md"):
+                        target_inst = candidate
+                        break
+
+            if target_inst:
+                md_content = self.build_instance_markdown(target_inst)
+            else:
+                md_content = self.build_web_structure_markdown()
+
+            accept_header = self.headers.get("Accept", "")
+            # 브라우저 직접 방문 시 깔끔한 다크모드 HTML 뷰어로 서빙
+            if "text/html" in accept_header and "curl" not in self.headers.get("User-Agent", "").lower():
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                html_resp = f"""<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FIGTEAM #cfg 인프라 현황 구조 및 웹 설정 직결 명세</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.0/github-markdown-dark.min.css">
+  <style>
+    body {{
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 30px 15px;
+      margin: 0;
+    }}
+    .container {{
+      max-width: 1080px;
+      margin: 0 auto;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 32px;
+    }}
+    pre {{ background: #0d1117 !important; border: 1px solid #30363d; border-radius: 6px; padding: 14px; overflow-x: auto; }}
+    code {{ color: #79c0ff; }}
+    a {{ color: #58a6ff; text-decoration: none; }}
+    a:hover {{ text-decoration: underline; }}
+    .web-btn {{
+      display: inline-block;
+      background: #238636;
+      color: #fff !important;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: bold;
+      margin-left: 6px;
+    }}
+  </style>
+</head>
+<body class="markdown-body">
+  <div class="container">
+    <div style="margin-bottom: 20px; padding: 12px 16px; background: #1f2937; border-left: 4px solid #38bdf8; border-radius: 4px;">
+      <strong>💡 안내:</strong> 본 문서는 <a href="https://figteam.ktci5.kr/#cfg/" target="_blank">https://figteam.ktci5.kr/#cfg/</a> 웹의 실측 현황과 설계 내용을 기반으로 생성된 마크다운 지식 소스입니다. AI는 이를 읽고 사실 기반 조언을 제공하며, 실제 입력·설정 변경은 아래 각 웹 화면에 직접 접속하여 수행합니다.
+    </div>
+    <pre style="white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; line-height: 1.6;">{md_content}</pre>
+  </div>
+</body>
+</html>"""
+                self.wfile.write(html_resp.encode("utf-8"))
+                return
+
+            # curl / AI Agent / 일반 텍스트 요청 시 순수 마크다운 반환
             self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Type", "text/markdown; charset=utf-8")
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
-            gateway_info = {
-                "status": "ok",
-                "service": "FIGTEAM Grounded AI Gateway",
-                "description": "로컬 AI 앱을 위한 실시간 인프라 실측 Grounding 프록시",
-                "base_url": "https://figteam.ktci5.kr/md/v1",
-                "endpoints": {
-                    "chat_completions": "/md/v1/chat/completions",
-                    "models": "/md/v1/models",
-                    "context_markdown": "/md/context.md"
-                },
-                "security_rules": [
-                    "AI는 읽기 전용 사실 기반 응답(Read-Only Fact-Based Advice)만 제공합니다.",
-                    "실제 인프라 설정 변경 및 안전 가드 명령어 실행은 https://figteam.ktci5.kr/#cfg 웹 콘솔에서 직접 수행해야 합니다."
-                ]
-            }
-            self.wfile.write(json.dumps(gateway_info, ensure_ascii=False, indent=2).encode("utf-8"))
+            self.wfile.write(md_content.encode("utf-8"))
             return
 
         # 1-2. OpenAI 호환 모델 목록 조회 (/md/v1/models)
@@ -855,6 +913,164 @@ class McpHttpHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(b'{"error": "Not Found"}')
+
+    def build_web_structure_markdown(self) -> str:
+        """웹(#cfg)의 실측 현황 구조, 분석/설계 내용 및 실제 사용자가 접속할 직결 웹 URL 매핑 총람"""
+        lines = []
+        lines.append("# FIGTEAM 3사 하이브리드 멀티클라우드 웹(#cfg) 현황 구조 및 설정 명세 총람\n")
+        lines.append(f"> **실측 일자**: {self.core.measured} (온프렘 OpenStack Controller 14GB 증설 / Compute 8GB 균등 증설 완료)")
+        lines.append("> **공식 작업 웹 포털**: https://figteam.ktci5.kr/#cfg/")
+        lines.append("> **💡 운영 원칙**: 본 문서는 웹(#cfg)의 실측 구조와 설계 분석을 담은 지식 소스입니다. **AI는 이를 바탕으로 읽고 사실 기반 조언만 제공하며, 실제 입력·설정 변경·명령어 실행은 사용자가 아래의 각 웹 화면에 직접 접속하여 수행합니다.**\n")
+        lines.append("---\n")
+
+        lines.append("## 1. 인스턴스별 웹 현황 구조 및 직접 접속/설정 URL 매핑표\n")
+        lines.append("| 인스턴스명 | 역할 및 실측 스펙 | 주요 관리 영역 (Areas) | 실제 사용자가 접속하여 입력/설정할 공식 웹 URL |")
+        lines.append("| :--- | :--- | :--- | :--- |")
+        lines.append("| **`db-01`** | MySQL 8.4 Primary (`10.10.2.10:3306`), GTID ON, AWS DR 복제 | `mysql`, `backup` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-db01/mysql](https://figteam.ktci5.kr/#cfg/inst/inst-db01/mysql) |")
+        lines.append("| **`s1`** | 온프렘 호스트 (`10.10.10.8`), 20 vCPU / 30GB RAM, 8GB NVMe Swap | `access`, `vmnet`, `wg`, `cfd` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-s1/access](https://figteam.ktci5.kr/#cfg/inst/inst-s1/access) |")
+        lines.append("| **`controller`** | OpenStack Controller (`192.168.120.160`), **RAM 14GB 증설**, 4GB Swap | `svc`, `net`, `sg`, `image`, `server` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-controller/svc](https://figteam.ktci5.kr/#cfg/inst/inst-controller/svc) |")
+        lines.append("| **`compute1·3·4`** | OpenStack Compute (`161, 163, 164`), **전 노드 8GB RAM 균등 증설** | `compute` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-compute1/compute](https://figteam.ktci5.kr/#cfg/inst/inst-compute1/compute) |")
+        lines.append("| **`k8s-cp1`** | K8s Control Plane (`172.20.0.86`), FIP `192.168.120.226`, VIP `10.10.1.100` | `k3s`, `cni`, `app`, `hpa`, `argocd` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s](https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s) |")
+        lines.append("| **`k8s-w1`** | K8s Worker Node (`172.20.0.180`), Calico CNI, Pod `10.244.0.0/16` | `agent` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-w1/agent](https://figteam.ktci5.kr/#cfg/inst/inst-w1/agent) |")
+        lines.append("| **`kt-edge-dr-01`** | KT Edge WAF / WG 허브 (`14.63.212.190`), Nginx 10s 캐싱 | `wg`, `nginx`, `nat` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-ktedge/nginx](https://figteam.ktci5.kr/#cfg/inst/inst-ktedge/nginx) |")
+        lines.append("| **`kt-w1`** | KT 워커 노드 조인 설계 (`14.63.212.191`) | `pre`, `wg`, `join`, `ha`, `hpa` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-ktw1/join](https://figteam.ktci5.kr/#cfg/inst/inst-ktw1/join) |")
+        lines.append("| **`aws-dr`** | AWS DR Pilot-Light (`10.51.1.165`), MySQL Replica GTID ON | `wg`, `k3s`, `mysql` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-awsdr/mysql](https://figteam.ktci5.kr/#cfg/inst/inst-awsdr/mysql) |")
+        lines.append("| **`aws-ctl`** | AWS DR Orchestrator (`10.50.1.85:8080`) 복구 오케스트레이터 | `api` | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-awsctl/api](https://figteam.ktci5.kr/#cfg/inst/inst-awsctl/api) |")
+        lines.append("| **전체 토폴로지** | 3사 하이브리드 토폴로지 및 19대 핵심 공통 변수 실측표 | `overview` | 👉 [https://figteam.ktci5.kr/#cfg/overview](https://figteam.ktci5.kr/#cfg/overview) |\n")
+        lines.append("---\n")
+
+        lines.append("## 2. 세부 인스턴스별 웹 현황 구조 및 사용자 직접 설정 가이드\n")
+        inst_keys = ["inst-db01", "inst-s1", "inst-controller", "inst-cp1", "inst-w1", "inst-ktedge", "inst-awsdr", "inst-awsctl"]
+        for ik in inst_keys:
+            if ik not in self.core.pages:
+                continue
+            p = self.core.pages[ik]
+            lines.append(f"### 📌 [{p.get('title')}]")
+            lines.append(f"- **태그/상태**: `{p.get('tag')}` | `{p.get('status')}`")
+            lines.append(f"- **설명**: {p.get('desc')}")
+            if p.get("specs"):
+                specs_list = []
+                for s in p.get("specs"):
+                    if isinstance(s, (list, tuple)) and len(s) >= 2:
+                        specs_list.append(f"{s[0]}: {s[1]}")
+                    elif isinstance(s, dict):
+                        specs_list.append(f"{s.get('label')}: {s.get('val')}")
+                if specs_list:
+                    lines.append(f"- **실측 스펙**: {', '.join(specs_list)}")
+
+            lines.append("\n**관리 영역별 사용자 직접 접속 웹 화면:**")
+            for a in p.get("areas", []):
+                aid = a.get("id")
+                aname = a.get("name")
+                lines.append(f"* **{aname} (`{aid}`)**:")
+                lines.append(f"  👉 [https://figteam.ktci5.kr/#cfg/inst/{ik}/{aid}](https://figteam.ktci5.kr/#cfg/inst/{ik}/{aid})")
+                if a.get("design"):
+                    lines.append(f"  - 설계 원칙: {a.get('design')[0] if len(a.get('design')) > 0 else ''}")
+                if a.get("config"):
+                    cfgs = [c.get("label") for c in a.get("config")]
+                    lines.append(f"  - 설정 파일: {', '.join(cfgs)}")
+            lines.append("\n---\n")
+
+        lines.append("## 3. 19대 핵심 공통 변수 실측 요약\n")
+        vars_res = self.core.get_common_variables()
+        for v in vars_res:
+            lines.append(f"- **`{v['variable']}`**: `{v['value']}` — {v['usage']}")
+        lines.append("\n---\n")
+
+        lines.append("## 4. 개별 인스턴스 직결 마크다운 URL\n")
+        lines.append("AI나 사용자가 특정 인스턴스만의 구조와 설정을 집중 질의할 경우 아래 직결 URL을 사용하십시오:\n")
+        for ik in inst_keys:
+            short_name = ik.replace("inst-", "")
+            lines.append(f"- **{short_name}**: `https://figteam.ktci5.kr/md/inst/{short_name}` 또는 `https://figteam.ktci5.kr/md/v1/{short_name}`")
+
+        return "\n".join(lines)
+
+    def build_instance_markdown(self, inst_id: str) -> str:
+        """특정 인스턴스의 상세 현황 구조 및 해당 웹 설정 페이지 직결 마크다운"""
+        key = inst_id.strip().lower()
+        if not key.startswith("inst-") and f"inst-{key}" in self.core.pages:
+            key = f"inst-{key}"
+        elif key in ("db", "db01"):
+            key = "inst-db01"
+        elif key == "ktedge":
+            key = "inst-ktedge"
+        elif key == "awsdr":
+            key = "inst-awsdr"
+        elif key == "awsctl":
+            key = "inst-awsctl"
+
+        if key not in self.core.pages:
+            return f"# 오류: 인스턴스 '{inst_id}'를 찾을 수 없습니다.\n\n사용 가능한 인스턴스: `db01`, `s1`, `controller`, `cp1`, `w1`, `ktedge`, `awsdr`, `awsctl`\n"
+
+        p = self.core.pages[key]
+        lines = []
+        lines.append(f"# [{p.get('title')}] 웹 현황 구조 및 직접 설정 명세서\n")
+        lines.append(f"> **클라우드 / 태그**: `{p.get('cloud')}` / `{p.get('tag')}`")
+        lines.append(f"> **상태 / 단계**: `{p.get('status')}` / `{p.get('steps')}`")
+        lines.append(f"> **개요**: {p.get('desc')}\n")
+
+        if p.get("specs"):
+            lines.append("### ⚙️ 실측 하드웨어 / 네트워크 사양")
+            for s in p.get("specs"):
+                if isinstance(s, (list, tuple)) and len(s) >= 2:
+                    lines.append(f"- **{s[0]}**: `{s[1]}`")
+                elif isinstance(s, dict):
+                    lines.append(f"- **{s.get('label')}**: `{s.get('val')}`")
+            lines.append("")
+
+        lines.append("---\n")
+        lines.append("### 🌐 사용자가 직접 접속하여 설정 및 입력할 웹 화면 링크 (Areas)\n")
+
+        for a in p.get("areas", []):
+            aid = a.get("id")
+            aname = a.get("name")
+            web_url = f"https://figteam.ktci5.kr/#cfg/inst/{key}/{aid}"
+            lines.append(f"#### 📍 {aname} (`{aid}`)")
+            lines.append(f"👉 **공식 웹 설정 화면 URL**: [{web_url}]({web_url})\n")
+
+            if a.get("design"):
+                lines.append("**설계 원칙 및 배경:**")
+                for d in a.get("design"):
+                    lines.append(f"- {d}")
+                lines.append("")
+
+            if a.get("config"):
+                lines.append("**설정 파일 및 코드 블록:**")
+                for c in a.get("config"):
+                    lines.append(f"```ini\n# [{c.get('label')}] (경로: {c.get('path', '설정 파일')})\n{c.get('code', '').strip()}\n```\n")
+
+            if a.get("commands"):
+                lines.append("**운영 및 점검 명령어 (웹 콘솔 안전가드 터미널에서 실행 권장):**")
+                for cmd in a.get("commands"):
+                    if isinstance(cmd, dict):
+                        lines.append(f"```bash\n# [{cmd.get('label', '')}] ({cmd.get('cat', '')})\n{cmd.get('code', '').strip()}\n```\n")
+                    elif isinstance(cmd, (list, tuple)) and len(cmd) >= 2:
+                        lines.append(f"- `{cmd[0]}` ({cmd[1]})\n")
+                lines.append("")
+
+            if a.get("trouble"):
+                lines.append("**트러블슈팅 및 장애 복구:**")
+                for tr in a.get("trouble"):
+                    if isinstance(tr, (list, tuple)):
+                        symptom = tr[0] if len(tr) > 0 else ""
+                        cause = tr[1] if len(tr) > 1 else ""
+                        chk = tr[2] if len(tr) > 2 else ""
+                        fix = tr[3] if len(tr) > 3 else ""
+                        lines.append(f"- **증상**: {symptom} ➔ **원인**: {cause}")
+                        if chk:
+                            lines.append(f"  - 점검: `{chk}`")
+                        if fix:
+                            lines.append(f"  - 해결: `{fix}`")
+                    elif isinstance(tr, dict):
+                        lines.append(f"- **증상**: {tr.get('symptom')} ➔ **원인**: {tr.get('cause')}")
+                        if tr.get("fix"):
+                            lines.append(f"  - 해결: `{tr.get('fix')}`")
+                lines.append("")
+
+            lines.append("---\n")
+
+        lines.append("> 🔒 **운영 원칙 안내**: AI는 본 명세를 읽고 기술적 조언 및 분석을 제공합니다. 실제 설정 입력, 파일 저장, 안전 가드가 포함된 명령어 실행은 위 명시된 공식 웹 콘솔 URL에서 직접 진행하십시오.\n")
+        return "\n".join(lines)
 
     def handle_md_models(self):
         """OpenAI 호환 모델 목록 반환 (/md/v1/models)"""
