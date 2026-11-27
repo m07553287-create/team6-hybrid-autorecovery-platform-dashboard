@@ -915,76 +915,179 @@ class McpHttpHandler(BaseHTTPRequestHandler):
         self.wfile.write(b'{"error": "Not Found"}')
 
     def build_web_structure_markdown(self) -> str:
-        """웹(#cfg)의 사실기반 해석 기초, 방향성 및 웹 명령어 등록 가이드 총람"""
+        """AI 분석 및 사실기반 문제 해결용 인프라 전체 구조·설정 총람 (s1 웹 접근 제외, 오픈스택·KT·AWS 중심)"""
         lines = []
-        lines.append("# FIGTEAM 하이브리드 인프라 (#cfg) 사실기반 해석 기초 및 웹 등록 가이드\n")
-        lines.append(f"> **실측 일자**: {self.core.measured} (온프렘 OpenStack Controller 14GB 증설 / Compute 8GB 균등 증설 완료)")
-        lines.append("> **작업 대상 공식 웹 포털**: https://figteam.ktci5.kr/#cfg/")
-        lines.append("> **💡 핵심 정의**: 본 사이트(`https://figteam.ktci5.kr/md/v1`)는 **AI의 임의 개입 없이, 인프라의 실측 사실과 설계 해석 기초, 그리고 엔지니어가 나아갈 방향성을 사용자에게 알려주는 길(내비게이션 이정표)**입니다. 실제 모든 설정 입력, 신규 명령어 등록, 인프라 조작은 **사용자가 웹 포털([https://figteam.ktci5.kr/#cfg/](https://figteam.ktci5.kr/#cfg/))에 직접 접속하여 해당 화면에서 수행**합니다.\n")
+        lines.append("# FIGTEAM 하이브리드 멀티클라우드 인프라 (#cfg) 실측 구조 및 설정 총람 (AI 분석용)\n")
+        lines.append(f"> **실측 일자**: {self.core.measured} (온프렘 OpenStack Controller 14GB 증설 / Compute 8GB 균등 증설 반영)")
+        lines.append("> **공식 작업 웹 포털**: https://figteam.ktci5.kr/#cfg/")
+        lines.append("> **🤖 AI(에이전트) 분석 지침**:\n"
+                     "> 1. 본 문서는 s1을 제외한 **OpenStack IaaS/PaaS/Data - KT Cloud - AWS DR** 3사 전체의 실측 사양, 가상 네트워크, 설정 파일, 점검 명령어를 구조화한 단일 진실 소스(Single Source of Truth)입니다.\n"
+                     "> 2. 사용자가 문제를 질문하면 본 명세를 참조하여 **대화로 근본 원인과 조치 방향을 명확히 잡고**, 실제 수정/적용은 **사용자가 해당 공식 웹 URL에 접속하여 안전 가드를 거쳐 직접 입력/실행**하도록 웹 링크를 안내하십시오.\n"
+                     "> 3. **s1 호스트는 물리 베이스 및 백엔드 게이트웨이로 웹 직접 접근이 제한**된 보호 영역이므로 조작 대상에서 제외하십시오.\n")
         lines.append("---\n")
 
-        lines.append("## 🛠️ [작업 매뉴얼] 웹 포털(#cfg)에서 명령어 추가 및 설정 등록하는 방법\n")
-        lines.append("사용자가 공식 웹 사이트 [https://figteam.ktci5.kr/#cfg/](https://figteam.ktci5.kr/#cfg/) 에 접속하여 각 인프라 위치에 명령어를 등록하고 실행하는 구체적인 4단계 방법입니다:\n")
+        lines.append("## 1. 3사 하이브리드 네트워크 토폴로지 및 트래픽 경로\n")
+        lines.append("```text\n"
+                     "사용자 요청 인입\n"
+                     "  │ https://minwon.ktci5.kr (Cloudflare 프록시/WAF)\n"
+                     "  ▼\n"
+                     "KT Cloud Edge (kt-edge-dr-01: 14.63.212.190 / 172.27.0.160)\n"
+                     "  • Nginx :80/:443 ➔ ModSecurity WAF + 10초 마이크로캐싱\n"
+                     "  • Upstream: minwon_backend = 10.10.1.100:80\n"
+                     "  │ WireGuard wg0 10.200.0.1 (UDP 51820 메시 허브) ──▶ s1 wg-kt 10.200.0.2\n"
+                     "  ▼\n"
+                     "[백엔드 게이트웨이 s1: 10.10.10.8 (물리 베이스, 웹 직접 접근 제외)]\n"
+                     "  • VIP 10.10.1.100:80 ➔ iptables DNAT ➔ OpenStack FIP 192.168.120.226:30080\n"
+                     "  │ vmnet8 가상 브리지 (192.168.120.0/24)\n"
+                     "  ▼\n"
+                     "OpenStack 가상 라우터 (rt-edge: FIP 192.168.120.226 ↔ 172.20.0.86)\n"
+                     "  ▼\n"
+                     "Kubernetes k3s 클러스터\n"
+                     "  • Control Plane (k8s-cp1: 172.20.0.86, NodePort 30080)\n"
+                     "  • Worker Node (k8s-w1: 172.20.0.180, Calico CNI, Pods x2)\n"
+                     "  │ DB_HOST = 10.10.2.10 (호스트 라우트: 172.20.0.0/24 ➔ 10.10.2.0/24 via 172.20.0.125 rt-data)\n"
+                     "  ▼\n"
+                     "Database 데이터 계층\n"
+                     "  • Primary DB (db-01: 10.10.2.10:3306, MySQL 8.4 LTS, GTID ON)\n"
+                     "  │ WireGuard 51820 터널 암호화 복제 (Auto_Position = 1, 지연 0초)\n"
+                     "  ▼\n"
+                     "AWS DR Pilot-Light (aws-dr: 10.51.1.165:3306 / 10.200.0.4, read_only=1)\n"
+                     "  • 오케스트레이터: aws-ctl (10.50.1.85:8080 / 10.200.0.3)\n"
+                     "```\n---\n")
 
-        lines.append("### 1단계: 웹 포털 접속 및 대상 위치(인스턴스) 화면 이동")
-        lines.append("- 브라우저로 [https://figteam.ktci5.kr/#cfg/](https://figteam.ktci5.kr/#cfg/) 에 접속합니다.")
-        lines.append("- 좌측 사이드바에서 작업을 수행할 대상 인스턴스(예: `OpenStack controller`, `k8s-cp1`, `db-01`, `kt-edge` 등)와 관리 영역(Area)을 클릭하여 해당 화면으로 이동합니다.\n")
-
-        lines.append("### 2단계: 기존 명령어 즉시 실행 및 실시간 터미널 러너 열기")
-        lines.append("- 각 설정 코드 및 명령어 블록 우측의 **`▶ 실행`** 버튼을 클릭합니다.")
-        lines.append("- 클릭 즉시 화면 하단에 **푸터 닥(Taskbar)**이 생성되며, 대상 노드로 웹소켓 SSH 터널이 자동 연결된 **플로팅 윈도우 터미널**이 열립니다.")
-        lines.append("- 블록의 명령어가 해당 노드로 자동 전송되어 실행 결과가 실시간으로 화면에 스트리밍됩니다.\n")
-
-        lines.append("### 3단계: 사용자 신규 명령어 추가 및 직접 입력 (등록)")
-        lines.append("- **새로운 명령어 추가 실행**: 열려 있는 플로팅 터미널 창에서 일반 터미널과 동일하게 키보드로 원하는 리눅스/쿠버네티스/MySQL 명령어를 직접 타이핑하여 실행합니다.")
-        lines.append("- **창 조작 및 다중 세션 관리**: 터미널 윈도우는 마우스로 타이틀바를 드래그하여 이동하거나 우측 하단을 잡아 크기(Resize)를 자유롭게 조절할 수 있습니다. 하단 닥(Dock)에서 세션을 최소화/복원할 수 있습니다.")
-        lines.append("- **작업 상태 영속화**: 다른 인스턴스 메뉴로 이동하거나 브라우저를 새로고침(F5)해도 터미널 세션과 작업 이력이 그대로 유지됩니다 (`localStorage` 영속화).\n")
-
-        lines.append("### 4단계: 파괴적 명령에 대한 안전 가드 (Safety Guard) 확인")
-        lines.append("- 서비스 중지(`stop`), 재시작(`restart`), 프로세스 종료(`kill`), 데이터 삭제(`drop`, `delete`) 등 위험 명령은 주황색 **`⚠️ 실행`** 버튼으로 자동 분류되어 표시됩니다.")
-        lines.append("- 운영 실수를 방지하기 위해 확인 모달(Modal) 창이 나타나며, 사용자가 확인을 클릭해야만 최종 실행됩니다.\n")
-        lines.append("---\n")
-
-        lines.append("## 2. 인프라 사실기반 해석 기초 및 작업 방향성 요약 (2대 축)\n")
-        lines.append("현재 인프라는 **[물리 베이스 게이트웨이 s1]**과 **[하이브리드 클라우드 클러스터 (s1 제외 전체)]**의 2대 축으로 설계되어 있습니다.\n")
-        lines.append("| 구분 | 실측 사양 및 해석 기초 | 작업 방향성 (해석 지침) | 실제 접속하여 명령 추가할 웹 URL |")
-        lines.append("| :--- | :--- | :--- | :--- |")
-        lines.append("| **① s1 온프렘 호스트**<br/>*(물리 게이트웨이)* | • 20 vCPU / 30GB RAM (NVMe swap 8GB)<br/>• 단일 점프호스트(Bastion), vmnet8 NAT<br/>• WireGuard `wg-kt` (10.200.0.2) | 겉(메뉴)에서는 정돈되어 있으나 백엔드 게이트웨이로 상시 가동. 내부 VM 및 터널 점검 시 접속 | 👉 [https://figteam.ktci5.kr/#cfg/inst/inst-s1/access](https://figteam.ktci5.kr/#cfg/inst/inst-s1/access) |")
-        lines.append("| **② 하이브리드 클러스터**<br/>*(s1 제외 전체 인프라)* | • **IaaS**: OpenStack Controller 14GB 증설, Compute 8GB 증설<br/>• **PaaS**: K8s cp1(172.20.0.86), w1(172.20.0.180)<br/>• **Data**: db-01(10.10.2.10) ↔ aws-dr(10.51.1.165) GTID<br/>• **Edge**: KT Edge(14.63.212.190, WAF 10s 캐싱)<br/>• **DR**: AWS Pilot-Light & 오케스트레이터 | 제어 노드(Controller)는 메모리 14GB 안정권이므로 신규 VM은 반드시 8GB 연산 노드로 스케줄링. DB 복제는 GTID 실시간 동기화 유지 | 👉 [https://figteam.ktci5.kr/#cfg/overview](https://figteam.ktci5.kr/#cfg/overview) |")
+        lines.append("## 2. 19대 핵심 공통 변수 실측값 및 설정 기준표\n")
+        lines.append("| 변수명 (Variable) | 실측값 (Value) | 설계 용도 및 주의사항 |")
+        lines.append("| :--- | :--- | :--- |")
+        vars_res = self.core.get_common_variables()
+        for v in vars_res:
+            lines.append(f"| **`{v['variable']}`** | `{v['value']}` | {v['usage']} *(변경 시: {v['check_on_change']})* |")
         lines.append("\n---\n")
 
-        lines.append("## 3. 서브시스템별 사실기반 해석 기초 및 해당 위치 등록 링크\n")
+        lines.append("## 3. 서브시스템별 상세 구조, 설정 파일, 점검 명령 및 웹 수정 링크\n")
 
-        lines.append("### (1) OpenStack IaaS 제어 및 연산 계층")
-        lines.append("- **해석 기초**: Controller(`192.168.120.160`)는 RAM 14GB로 증설되어 Keystone, Nova, Neutron, OVN, RabbitMQ, MariaDB 제어 부하를 안정적으로 수용합니다 (가용 8.3GB, 38%). Compute 1·3·4 노드는 각 8GB RAM으로 균등 증설되었습니다.")
-        lines.append("- **작업 방향성**: 신규 인스턴스 배포 및 네트워크 포트 추가는 Controller의 OVN 가상 라우터(`172.20.0.0/24`)에 바인딩하십시오.")
-        lines.append("👉 **명령 추가 위치 (웹 콘솔)**: [https://figteam.ktci5.kr/#cfg/inst/inst-controller/svc](https://figteam.ktci5.kr/#cfg/inst/inst-controller/svc) (연산: [inst-compute1](https://figteam.ktci5.kr/#cfg/inst/inst-compute1/compute))\n")
+        # 1. OpenStack Controller
+        p_ctl = self.core.pages.get("inst-controller", {})
+        lines.append("### [1] OpenStack Controller (`inst-controller`) — IaaS 제어 플레인")
+        lines.append("- **IP / 상태**: `192.168.120.160` | `live` (클라우드: `openstack`)")
+        lines.append("- **실측 하드웨어**: **RAM 14GB 증설 완료** (기존 10GB 99% 고갈 해소), 4GB 스왑파일 확보 (가용 8.3GB, 38% 안정권)")
+        lines.append("- **상주 제어 서비스**: Keystone(인증), Nova(컴퓨트), Glance(이미지), Cinder(볼륨), Neutron/OVN(가상 네트워크), RabbitMQ, MariaDB")
+        lines.append("- **가상 네트워크**: 외부망 vmnet8(`192.168.120.0/24`), 내부 앱망 app-net(`172.20.0.0/24`), 데이터망 data-net(`10.10.2.0/24`)")
+        lines.append("- **연산 노드 현황**: `compute1(161)`, `compute3(163)`, `compute4(164)` 전 노드 **8GB RAM** 균등 증설 (162 compute2 삭제)")
+        lines.append("- **주요 점검 명령어**:\n"
+                     "  ```bash\n"
+                     "  openstack hypervisor list && openstack compute service list\n"
+                     "  openstack network list && openstack router list\n"
+                     "  free -h && sudo rabbitmqctl status\n"
+                     "  ```")
+        lines.append("- **주요 트러블슈팅**: Nova compute down 시 하이퍼바이저 재시작 / RabbitMQ 연결 타임아웃 점검")
+        lines.append("👉 **사용자 직접 웹 수정 및 터미널 실행 URL**:\n"
+                     "  • 코어 서비스 제어: [https://figteam.ktci5.kr/#cfg/inst/inst-controller/svc](https://figteam.ktci5.kr/#cfg/inst/inst-controller/svc)\n"
+                     "  • 가상 라우터/네트워크: [https://figteam.ktci5.kr/#cfg/inst/inst-controller/net](https://figteam.ktci5.kr/#cfg/inst/inst-controller/net)\n"
+                     "  • 보안그룹(Security Group): [https://figteam.ktci5.kr/#cfg/inst/inst-controller/sg](https://figteam.ktci5.kr/#cfg/inst/inst-controller/sg)\n"
+                     "  • Compute 연산 노드: [https://figteam.ktci5.kr/#cfg/inst/inst-compute1/compute](https://figteam.ktci5.kr/#cfg/inst/inst-compute1/compute)\n")
 
-        lines.append("### (2) Kubernetes (k3s) PaaS 컨테이너 계층")
-        lines.append("- **해석 기초**: Control Plane cp1(`172.20.0.86`, FIP `192.168.120.226`, VIP `10.10.1.100:80`), Worker w1(`172.20.0.180`, Calico CNI).")
-        lines.append("- **작업 방향성**: 외부 인입 트래픽은 VIP 10.10.1.100:80 ➔ DNAT 192.168.120.226:30080(NodePort)으로 연결되므로 서비스 노출 시 NodePort 30080 규칙을 준수하십시오.")
-        lines.append("👉 **명령 추가 위치 (웹 콘솔)**: [https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s](https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s) (워커: [inst-w1](https://figteam.ktci5.kr/#cfg/inst/inst-w1/agent))\n")
+        # 2. Kubernetes cp1 / w1
+        lines.append("### [2] Kubernetes (k3s) PaaS 컨테이너 클러스터 (`inst-cp1`, `inst-w1`)")
+        lines.append("- **Control Plane (cp1)**: `172.20.0.86` (FIP: `192.168.120.226`, k3s Server)")
+        lines.append("- **Worker Node (w1)**: `172.20.0.180` (Calico CNI, Pod CIDR: `10.244.0.0/16`)")
+        lines.append("- **서비스 노출 구조**: `minwon-app-svc` (NodePort 30080), 파드 2중화 및 HPA 오토스케일링 적용")
+        lines.append("- **핵심 설정 파일**:\n"
+                     "  ```yaml\n"
+                     "  # /etc/rancher/k3s/config.yaml (cp1)\n"
+                     "  write-kubeconfig-mode: \"0644\"\n"
+                     "  tls-san:\n"
+                     "    - \"192.168.120.226\"\n"
+                     "    - \"172.20.0.86\"\n"
+                     "  cluster-cidr: \"10.244.0.0/16\"\n"
+                     "  ```")
+        lines.append("- **주요 점검 명령어**:\n"
+                     "  ```bash\n"
+                     "  kubectl get nodes -o wide\n"
+                     "  kubectl get pods -A -o wide\n"
+                     "  kubectl get svc,endpoints -n default\n"
+                     "  ```")
+        lines.append("- **주요 트러블슈팅**: Node NotReady 시 Calico 파드 로그 점검 / 6443 포트 통신 거부 시 FIP 바인딩 확인")
+        lines.append("👉 **사용자 직접 웹 수정 및 터미널 실행 URL**:\n"
+                     "  • k3s 마스터 설정: [https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s](https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s)\n"
+                     "  • 앱 배포 및 Service: [https://figteam.ktci5.kr/#cfg/inst/inst-cp1/app](https://figteam.ktci5.kr/#cfg/inst/inst-cp1/app)\n"
+                     "  • Worker 에이전트: [https://figteam.ktci5.kr/#cfg/inst/inst-w1/agent](https://figteam.ktci5.kr/#cfg/inst/inst-w1/agent)\n"
+                     "  • ArgoCD GitOps: [https://figteam.ktci5.kr/#cfg/inst/inst-cp1/argocd](https://figteam.ktci5.kr/#cfg/inst/inst-cp1/argocd)\n")
 
-        lines.append("### (3) MySQL 8.4 데이터 및 복제 계층")
-        lines.append("- **해석 기초**: Primary DB(`10.10.2.10:3306`, MySQL 8.4 LTS, GTID ON, ROW binlog) ↔ AWS DR(`10.51.1.165:3306`, Replica Pilot-Light).")
-        lines.append("- **작업 방향성**: 스키마 변경 시 GTID consistency를 준수해야 하며, 사용자 계정 추가 시 `172.20.0.%`(앱 대역) 권한을 명시하십시오.")
-        lines.append("👉 **명령 추가 위치 (웹 콘솔)**: [https://figteam.ktci5.kr/#cfg/inst/inst-db01/mysql](https://figteam.ktci5.kr/#cfg/inst/inst-db01/mysql) (DR복제: [inst-awsdr](https://figteam.ktci5.kr/#cfg/inst/inst-awsdr/mysql))\n")
+        # 3. MySQL Database
+        lines.append("### [3] MySQL 8.4 데이터베이스 (`inst-db01`) — Primary DB")
+        lines.append("- **IP / 포트**: `10.10.2.10:3306` (data-net 격리 대역, FIP 없음, 오직 앱망·s1·AWS dr만 sg-db로 인입 허용)")
+        lines.append("- **스토리지**: Cinder 볼륨 `vdb 10G` ➔ `/var/lib/mysql` 마운트")
+        lines.append("- **복제 구성**: `gtid_mode=ON`, `enforce_gtid_consistency=ON`, `binlog_format=ROW` ➔ AWS DR(10.51.1.165)과 실시간 복제")
+        lines.append("- **핵심 my.cnf 설정 파일**:\n"
+                     "  ```ini\n"
+                     "  [mysqld]\n"
+                     "  server-id = 1\n"
+                     "  bind-address = 10.10.2.10\n"
+                     "  gtid_mode = ON\n"
+                     "  enforce_gtid_consistency = ON\n"
+                     "  binlog_format = ROW\n"
+                     "  binlog_expire_logs_seconds = 604800\n"
+                     "  ```")
+        lines.append("- **주요 점검 명령어**:\n"
+                     "  ```bash\n"
+                     "  sudo mysql -e \"SHOW MASTER STATUS\\G\"\n"
+                     "  sudo mysql -e \"SHOW REPLICAS;\"\n"
+                     "  sudo mysql -e \"SELECT @@GLOBAL.gtid_executed;\"\n"
+                     "  ```")
+        lines.append("- **주요 트러블슈팅**: 복제 단절 시 WireGuard 터널(10.200.0.4) ping 및 GTID 격차 점검")
+        lines.append("👉 **사용자 직접 웹 수정 및 터미널 실행 URL**:\n"
+                     "  • MySQL 설정 및 계정: [https://figteam.ktci5.kr/#cfg/inst/inst-db01/mysql](https://figteam.ktci5.kr/#cfg/inst/inst-db01/mysql)\n"
+                     "  • 백업 및 덤프 절차: [https://figteam.ktci5.kr/#cfg/inst/inst-db01/backup](https://figteam.ktci5.kr/#cfg/inst/inst-db01/backup)\n")
 
-        lines.append("### (4) KT Cloud Edge & 인입 WAF 계층")
-        lines.append("- **해석 기초**: 공인 IP `14.63.212.190`, Nginx WAF 10초 마이크로캐싱, 3사 메시 WireGuard 허브(`10.200.0.1:51820`).")
-        lines.append("- **작업 방향성**: WAF 룰 변경 및 업스트림 헬스체크는 Nginx 설정 블록에서 직접 수행하십시오.")
-        lines.append("👉 **명령 추가 위치 (웹 콘솔)**: [https://figteam.ktci5.kr/#cfg/inst/inst-ktedge/nginx](https://figteam.ktci5.kr/#cfg/inst/inst-ktedge/nginx)\n")
+        # 4. KT Cloud Edge
+        lines.append("### [4] KT Cloud Edge (`inst-ktedge`) — WAF 및 WireGuard 허브")
+        lines.append("- **공인 IP / 포트**: `14.63.212.190` (내부 사설: `172.27.0.160` / WG: `10.200.0.1:51820`)")
+        lines.append("- **역할**: 사용자 진입 관문, Nginx 리버스 프록시 + 10초 마이크로캐싱 + ModSecurity WAF(20r/s)")
+        lines.append("- **WireGuard 허브**: 온프렘 s1(`10.200.0.2`), KT워커(`10.200.0.5`), AWS DR(`10.200.0.4`), AWS Ctl(`10.200.0.3`) 연결 중계")
+        lines.append("- **핵심 nginx.conf 설정**:\n"
+                     "  ```nginx\n"
+                     "  upstream minwon_backend {\n"
+                     "      server 10.10.1.100:80 max_fails=3 fail_timeout=10s;\n"
+                     "      keepalive 32;\n"
+                     "  }\n"
+                     "  proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=STATIC:10m inactive=24h max_size=1g;\n"
+                     "  ```")
+        lines.append("- **주요 점검 명령어**:\n"
+                     "  ```bash\n"
+                     "  sudo wg show wg0\n"
+                     "  sudo nginx -t && sudo systemctl status nginx\n"
+                     "  curl -I http://127.0.0.1:80\n"
+                     "  ```")
+        lines.append("👉 **사용자 직접 웹 수정 및 터미널 실행 URL**:\n"
+                     "  • Nginx WAF 및 프록시: [https://figteam.ktci5.kr/#cfg/inst/inst-ktedge/nginx](https://figteam.ktci5.kr/#cfg/inst/inst-ktedge/nginx)\n"
+                     "  • WireGuard 허브(wg0): [https://figteam.ktci5.kr/#cfg/inst/inst-ktedge/wg](https://figteam.ktci5.kr/#cfg/inst/inst-ktedge/wg)\n"
+                     "  • KT 워커 조인 설계: [https://figteam.ktci5.kr/#cfg/inst/inst-ktw1/join](https://figteam.ktci5.kr/#cfg/inst/inst-ktw1/join)\n")
 
-        lines.append("### (5) AWS DR Pilot-Light 및 복구 오케스트레이터 계층")
-        lines.append("- **해석 기초**: 복구 오케스트레이터 `aws-ctl (10.50.1.85:8080)`가 3사 상태를 모니터링하며 자동 승격을 준비합니다.")
-        lines.append("- **작업 방향성**: DR 모의훈련 및 수동 페일오버 테스트는 오케스트레이터 API 화면에서 진행하십시오.")
-        lines.append("👉 **명령 추가 위치 (웹 콘솔)**: [https://figteam.ktci5.kr/#cfg/inst/inst-awsctl/api](https://figteam.ktci5.kr/#cfg/inst/inst-awsctl/api)\n")
+        # 5. AWS DR Pilot-Light
+        lines.append("### [5] AWS DR Pilot-Light (`inst-awsdr`, `inst-awsctl`) — 재해 복구")
+        lines.append("- **DB Replica (`aws-dr`)**: 사설 `10.51.1.165:3306` (WG: `10.200.0.4`), MySQL 8.4 (`read_only=1`, 채널 `ch_dr`)")
+        lines.append("- **복구 오케스트레이터 (`aws-ctl`)**: 사설 `10.50.1.85:8080` (WG: `10.200.0.3`), 온프렘 다운 시 1초 내 승격 트리거")
+        lines.append("- **복제 채널 설정 파일**:\n"
+                     "  ```sql\n"
+                     "  CHANGE REPLICATION SOURCE TO\n"
+                     "    SOURCE_HOST='10.10.2.10',\n"
+                     "    SOURCE_USER='repl',\n"
+                     "    SOURCE_AUTO_POSITION=1\n"
+                     "    FOR CHANNEL 'ch_dr';\n"
+                     "  START REPLICA FOR CHANNEL 'ch_dr';\n"
+                     "  ```")
+        lines.append("- **주요 점검 명령어**:\n"
+                     "  ```bash\n"
+                     "  sudo mysql -e \"SHOW REPLICA STATUS FOR CHANNEL 'ch_dr'\\G\"\n"
+                     "  curl -s http://127.0.0.1:8080/healthz\n"
+                     "  ```")
+        lines.append("👉 **사용자 직접 웹 수정 및 터미널 실행 URL**:\n"
+                     "  • AWS DR 복제 설정: [https://figteam.ktci5.kr/#cfg/inst/inst-awsdr/mysql](https://figteam.ktci5.kr/#cfg/inst/inst-awsdr/mysql)\n"
+                     "  • 복구 오케스트레이터 API: [https://figteam.ktci5.kr/#cfg/inst/inst-awsctl/api](https://figteam.ktci5.kr/#cfg/inst/inst-awsctl/api)\n")
         lines.append("---\n")
 
-        lines.append("## 4. 직결 마크다운 URL 일람\n")
-        lines.append("- **해석 기초 및 등록 가이드 총람**: `https://figteam.ktci5.kr/md/v1`")
-        lines.append("- **[블록 ①] s1 단독 명세**: `https://figteam.ktci5.kr/md/v1/s1`")
-        lines.append("- **[블록 ②] 클러스터 통합 명세**: `https://figteam.ktci5.kr/md/v1/cluster`")
+        lines.append("## 4. 백엔드 호스트 s1 안내 (물리 게이트웨이 · 웹 직접 접근 제외)\n")
+        lines.append("> 🔒 **보안 안내**: `s1 (10.10.10.8)` 호스트는 온프렘 하이퍼바이저 및 내부 vmnet8 NAT 라우팅 게이트웨이입니다. 보안 및 안정성을 위해 **웹 콘솔을 통한 직접 설정 및 조작이 원천 제한(제외)**된 보호 영역입니다. 모든 작업은 위 오픈스택, KT, AWS 영역을 통해 수행하십시오.\n")
 
         return "\n".join(lines)
 

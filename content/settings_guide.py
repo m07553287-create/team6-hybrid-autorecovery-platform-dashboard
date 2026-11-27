@@ -44,11 +44,11 @@ VARIABLES = [
 # 선행 순서 — 아래 순서를 지켜야 다음 단계의 명령이 오류 없이 돈다.
 # ---------------------------------------------------------------------------
 STEPS = [
-    {"no": "S0", "title": "접속 경로 확보", "where": "맥", "page": "inst-s1", "area": "access",
-     "why": "모든 작업은 s1(10.10.10.8)을 거친다. OpenStack·k8s·db·AWS 노드에 공인 SSH 가 없다.",
-     "gate": "ssh user@10.10.10.8 hostname   # t1-vm2\nssh root@14.63.212.190 hostname # kt-edge-dr-01"},
-    {"no": "S1", "title": "s1 호스트 기반 (VMware·vmnet8·NAT)", "where": "s1", "page": "inst-s1", "area": "vmnet",
-     "why": "OpenStack VM 4대가 vmnet8(192.168.120.0/24) 위에 있다. 게이트웨이 .2 와 MASQUERADE 가 없으면 VM 이 인터넷·DNS 를 못 쓴다.",
+    {"no": "S0", "title": "접속 경로 확보", "where": "맥 → Controller", "page": "inst-controller", "area": "access",
+     "why": "모든 작업은 점프 호스트(s1)를 거쳐 OpenStack·K8s·DB로 연결된다. s1은 물리 보호 구역이므로 OpenStack Controller 접속부터 검증한다.",
+     "gate": "ssh -J s1 root@192.168.120.160 hostname   # os-controller\nssh root@14.63.212.190 hostname # kt-edge-dr-01"},
+    {"no": "S1", "title": "호스트 기반 및 가상 네트워크 점검", "where": "s1 (보호 구역)", "page": "overview", "area": "main",
+     "why": "OpenStack VM 4대가 vmnet8(192.168.120.0/24) 위에 있다. 게이트웨이 .2 와 MASQUERADE 가 없으면 VM 이 인터넷·DNS 를 못 쓴다. (s1은 물리 전용 보호 구역으로 웹 직접 설정 제외)",
      "gate": "ip -br a show vmnet8 | grep 192.168.120.2\nsysctl net.ipv4.ip_forward   # = 1"},
     {"no": "S2", "title": "OpenStack 노드 기동·서비스 확인", "where": "s1 → controller", "page": "inst-controller", "area": "svc",
      "why": "nova-compute·OVN 에이전트가 up 이어야 서버 생성·FIP 가 동작한다.",
@@ -56,9 +56,9 @@ STEPS = [
     {"no": "S3", "title": "OpenStack 네트워크·라우터·SG·Flavor·이미지", "where": "controller", "page": "inst-controller", "area": "net",
      "why": "라우터 외부 IP(.202/.220)가 정해져야 s1 정적 라우트를 걸 수 있다.",
      "gate": "openstack router list\nopenstack router show rt-edge -c external_gateway_info"},
-    {"no": "S4", "title": "s1 정적 라우트·VIP DNAT", "where": "s1", "page": "inst-s1", "area": "vmnet",
-     "why": "s1 이 172.20.0.0/24·10.10.2.0/24 로 가는 길을 알아야 WG 너머(KT·AWS)에서 온프렘에 닿는다.",
-     "gate": "ip r | grep -E '172.20.0.0|10.10.2.0'\ncurl -sI http://10.10.1.100/healthz"},
+    {"no": "S4", "title": "정적 라우트·VIP DNAT 및 OVN 연결", "where": "s1 → controller", "page": "inst-controller", "area": "net",
+     "why": "172.20.0.0/24·10.10.2.0/24 로 가는 길을 알아야 WG 너머(KT·AWS)에서 온프렘에 닿는다.",
+     "gate": "openstack router list\ncurl -sI http://10.10.1.100/healthz"},
     {"no": "S5", "title": "WireGuard 허브-스포크 (KT 허브 ↔ s1 ↔ AWS)", "where": "KT·s1·AWS", "page": "inst-ktedge", "area": "wg",
      "why": "KT 허브 10.200.0.1 이 모든 피어를 잇는다. 허브 AllowedIPs 에 온프렘 대역이 있어야 AWS·KT 가 온프렘으로 간다.",
      "gate": "wg show   # 모든 peer latest handshake < 2분"},
@@ -77,9 +77,9 @@ STEPS = [
     {"no": "S10", "title": "AWS dr k3s · MySQL 복제 · 역터널 / ctl Orchestrator", "where": "AWS", "page": "inst-awsdr", "area": "mysql",
      "why": "평시 복제 지연 0 을 유지해야 L3 승격 시 RPO 가 0 에 가깝다.",
      "gate": "Replica_IO_Running: Yes / Replica_SQL_Running: Yes / Seconds_Behind_Source: 0"},
-    {"no": "S11", "title": "Cloudflare Tunnel 라우트 (s1)", "where": "s1", "page": "inst-s1", "area": "cfd",
-     "why": "figteam·horizon·kt-edge·aws-ctl 콘솔은 인바운드 포트 없이 터널로만 공개한다.",
-     "gate": "cloudflared tunnel ingress rule https://figteam.ktci5.kr --config /etc/cloudflared/config.yml"},
+    {"no": "S11", "title": "외부 진입 및 터널 경로 검증", "where": "ktedge", "page": "inst-ktedge", "area": "nginx",
+     "why": "figteam·horizon·kt-edge·aws-ctl 콘솔 및 공개 서비스 진입 경로를 검증한다.",
+     "gate": "curl -sI https://figteam.ktci5.kr/mcp/healthz\ncurl -sI https://minwon.ktci5.kr"},
     {"no": "S12", "title": "KT 워커 kt-w1 조인 (HA) → HPA 확장 → 버스팅", "where": "KT·controller·cp1", "page": "inst-ktw1", "area": "pre",
      "why": "S1~S11 이 모두 정상이어야 조인 단계에서 막히지 않는다. 제약 12개를 먼저 제거한다.",
      "gate": "bash /root/kt-w1-preflight.sh   # 모든 항목 OK 일 때만 조인"},
@@ -144,262 +144,32 @@ PAGES["steps"] = {
 PAGES["inst-s1"] = {
     "kind": "instance",
     "cloud": "onprem",
-    "title": "s1 온프렘 호스트",
+    "title": "s1 온프렘 호스트 (물리 베이스 · 웹 조작 제외)",
     "tag": "t1-vm2 · 10.10.10.8",
-    "status": "live",
-    "steps": "S0 · S1 · S4 · S5 · S11",
-    "desc": "GPU 노트북의 Ubuntu. VMware Workstation 으로 OpenStack 노드 4대를 띄우고, vmnet8 게이트웨이·NAT·정적 라우트·WireGuard·Cloudflare Tunnel 을 맡는다. 온프렘의 모든 외부 연결이 이 호스트 하나를 지난다(단일 장애점).",
+    "status": "protected",
+    "steps": "S0 (물리 베이스)",
+    "desc": "GPU 노트북 물리 머신(Ubuntu 26.04)이자 내부 백엔드 라우팅 전용 게이트웨이입니다. 인프라 보안 및 안정성을 위해 웹 콘솔을 통한 직접 설정 및 원격 명령어 실행이 엄격히 제한된 보호 영역입니다. 모든 IaaS/PaaS, 컨테이너, 데이터베이스 작업은 OpenStack Controller, Compute, K8s cp1, DB db-01 웹 설정 화면을 통해 진행하십시오.",
     "specs": [
-        ["OS / 커널", "Ubuntu 26.04.1 LTS / 7.0.0-44"], ["CPU / RAM", "20 vCPU / 30 GiB (스왑 8GB NVMe 활성화)"],
-        ["디스크", "/ 466G (사용 53%)"], ["업링크", "wlp0s20f3 192.168.100.151 (Wi-Fi, DHCP)"],
-        ["vmnet8", "192.168.120.2/24 · 172.16.180.1/24"], ["WG", "wg-kt 10.200.0.2/24 · wg0 10.10.10.8/32"],
+        ["OS / 커널", "Ubuntu 26.04.1 LTS / 7.0.0-44"],
+        ["CPU / RAM", "20 vCPU / 30 GiB (스왑 8GB NVMe 활성화)"],
+        ["역할", "내부 백엔드 라우팅 게이트웨이 · 웹 직접 조작 제외 (보호 구역)"],
+        ["관리망 IP", "10.10.10.8 (점프 전용 · 공인 포트 차단)"],
+        ["내부 NAT", "192.168.120.2/24 (vmnet8 NAT GW)"],
+        ["WireGuard", "10.200.0.2/24 (wg-kt 스포크)"]
     ],
     "areas": [
         {
-            "id": "access", "name": "접속 경로", "status": "live",
+            "id": "info",
+            "name": "보호 구역 안내",
+            "status": "protected",
+            "domains": ["ops", "security"],
             "design": [
-                "맥 → s1 은 WG wg0(10.10.10.0/24, 집 공유기 51820)로 들어온다.",
-                "s1 → OpenStack 노드는 root 키 접속. `~/bin/osx <끝자리> \"<명령>\"` 래퍼로 통일한다.",
-                "AWS 노드는 공인 22 가 보안그룹(admin_cidrs)으로 막혀 있어 s1(WG 10.200.0.2) 경유 ProxyJump 만 된다.",
-                "단일 장애점(SPOF): s1 이 온프렘의 모든 외부 트래픽을 중계하므로 openstack-vmnet.service 와 vmware 서비스를 systemd 로 관리한다.",
-            ],
-            "config": [
-                {"label": "~/.ssh/config (맥)", "code": r"""# 1. 온프레미스 물리 점프 호스트
-Host s1
-    HostName 10.10.10.8
-    User user
-    IdentityFile ~/.ssh/id_ed25519
-    StrictHostKeyChecking accept-new
-
-# 2. OpenStack K3s 마스터 (FIP 경유 ProxyJump)
-Host cp1
-    HostName 192.168.120.226
-    User ubuntu
-    ProxyJump s1
-    StrictHostKeyChecking accept-new
-
-# 3. OpenStack K3s 워커 노드
-Host w1
-    HostName 172.20.0.180
-    User ubuntu
-    ProxyJump s1
-    StrictHostKeyChecking accept-new
-
-# 4. OpenStack MySQL Primary DB
-Host db-01
-    HostName 10.10.2.10
-    User ubuntu
-    ProxyJump s1
-    StrictHostKeyChecking accept-new
-
-# 5. AWS DR 노드 (Pilot-Light)
-Host dr
-    HostName 10.200.0.4
-    User rocky
-    IdentityFile ~/.ssh/minwon-key.pem
-    IdentitiesOnly yes
-    ProxyJump s1
-    StrictHostKeyChecking accept-new
-
-# 6. KT Cloud Edge-GW (WAF & Hub)
-Host kt-edge
-    HostName 14.63.212.190
-    User root
-    StrictHostKeyChecking accept-new
-
-# 7. OpenStack Controller 노드
-Host fig-ctrl
-    HostName 192.168.120.160
-    User root
-    ProxyJump s1
-    StrictHostKeyChecking accept-new"""},
-                {"label": "s1 ~/bin/osx (OpenStack 노드 root 실행 래퍼)", "code": r"""#!/bin/sh
-# osx <last-octet> "<cmd>"
-h=$1; shift
-exec ssh -n -q -o BatchMode=yes -o ConnectTimeout=8 \
-  -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR root@192.168.120.$h "$@" """},
-                {"label": "전체 접속 키 및 인증 종합 매트릭스", "code": r"""[1. SSH & Nova Keypair 체계]
-• s1 물리 점프호스트: user / 팀원 ~/.ssh/id_ed25519 (sudo 권한)
-• OpenStack Controller/Compute 4대: root / s1 /root/.ssh/id_rsa (무암호)
-• k8s-cp1: ubuntu / controller:/root/figteam-key.pem (FIP 192.168.120.226)
-• k8s-w1: ubuntu / controller:/root/figteam-key.pem (사설 172.20.0.180)
-• db-01: ubuntu / s1 등록 키페어 s1-ktci5 (사설 10.10.2.10)
-• aws-dr: rocky / ~/.ssh/minwon-key.pem (사설 10.51.1.165, s1 ProxyJump)
-• aws-ctl: rocky / ~/.ssh/minwon-key.pem 또는 AWS SSM (사설 10.50.1.85)
-• KT Edge-GW: root / 공인 14.63.212.190 직접 SSH
-• CirrOS 테스트 VM: cirros (PW: gocubsgo)
-
-[2. OpenStack 계정 및 RC 자격증명] (도메인: Default 고정)
-• admin: /root/keystonerc_admin (클러스터 최고 권한)
-• figteam-admin: /root/keystonerc_figteam (프로덕션 figteam 프로젝트)
-• simhwa-user: /root/keystonerc_simhwa (심화프로젝트 실습 테넌트)
-
-[3. 데이터베이스 (MySQL / MariaDB)]
-• Controller MariaDB :3306 (root / keystonerc_admin 내 DB PW)
-• db-01 MySQL 8.4 :3306 (root sudo 무암호, minwon 앱 계정 / minwon-db-secret)
-
-[4. WireGuard VPN 대칭망]
-• wg-kt: 10.200.0.0/24 (.1 KT허브, .2 s1, .3 aws-ctl, .4 aws-dr)
-• wg0: 10.10.10.0/24 (.7 개발자 Mac, .8 s1 호스트)
-
-[5. 웹 서비스 콘솔]
-• 통합 관제 포털: https://figteam.ktci5.kr (fig / figteam)
-• OpenStack Horizon: https://horizon.ktci5.kr (admin 또는 figteam-admin)
-• Argo CD: https://argocd.ktci5.kr (admin)
-• Grafana: https://grafana.ktci5.kr (admin)"""},
-            ],
-            "commands": [
-                {"cat": "조회", "label": "노드별 1초 접속 확인", "code": r"""ssh s1 hostname                         # t1-vm2
-ssh s1 '~/bin/osx 160 hostname'         # controller
-ssh cp1 hostname; ssh w1 hostname; ssh db-01 hostname
-ssh dr hostname                         # ip-10-51-1-165...
-ssh kt-edge hostname                    # kt-edge-dr-01"""},
-                {"cat": "검증", "label": "배치 루프 자동 점검 (전 노드)", "code": r"""for h in s1 cp1 w1 db-01 dr kt-edge; do 
-  printf '%-8s ' $h
-  ssh -o ConnectTimeout=8 $h hostname 2>&1 | tail -1
-done"""},
-            ],
-            "verify": [
-                {"label": "전 구간 한 번에", "code": r"""for h in s1 cp1 w1 db-01 dr kt-edge; do printf '%-8s ' $h; ssh -o ConnectTimeout=8 $h hostname 2>&1 | tail -1; done""", "expect": "6줄 모두 호스트명 출력"},
-            ],
-            "trouble": [
-                ["ssh s1 타임아웃", "맥 WG wg0 / 집 공인 IP", "맥: `sudo wg show` 핸드셰이크 · s1: `sudo wg show wg0`", "공유기 51820 포워딩, s1 Endpoint(175.196.197.51) 확인"],
-                ["cp1/w1 Permission denied", "Nova keypair 불일치", "controller: `openstack server show k8s-cp1 -c key_name`", "cp1 은 figteam-key·s1-ktci5, w1 은 figteam-key(/root/figteam-key.pem on controller)만 붙어 있음 → cp1 경유 ProxyJump"],
-                ["aws-ctl Permission denied (실측)", "ctl 키페어 / 공인 IP 변경", "KT 허브 `wg show` 의 ctl Endpoint(13.124.253.30)와 노션 기록(13.125.163.58) 비교", "ctl 재생성 여부·키페어 이름 확인 후 SSM Session Manager 로 접속(무-SSH 설계)"],
-                ["DNS 해석 실패 (VM 내부)", "vmnet8 DNS DNAT(53→8.8.8.8) 룰 유실", "`sudo iptables -t nat -L PREROUTING -n -v | grep 53`", "`sudo systemctl restart openstack-vmnet` 또는 `~/bin/openstack-vm.sh net` 복구"],
-            ],
-        },
-        {
-            "id": "vmnet", "name": "VMware·vmnet8·NAT·라우팅", "status": "live",
-            "design": [
-                "VMware vmnet8(NAT) 위에 별칭 192.168.120.2/24 를 얹어 OpenStack ext-net(flat, physnet extnet) 게이트웨이로 쓴다.",
-                "VM 의 인터넷은 s1 MASQUERADE(-s 192.168.120.0/24 -o 업링크), DNS 는 192.168.120.2:53 → 8.8.8.8 DNAT.",
-                "OpenStack 내부망 2개는 라우터 외부 IP 로 정적 라우트: 172.20.0.0/24 → .202(rt-edge), 10.10.2.0/24 → .220(rt-data).",
-                "KT Edge 가 보는 앱 주소는 VIP 10.10.1.100(lo). PREROUTING/OUTPUT DNAT 로 cp1 FIP:30080 에 넘긴다.",
-                "맥(10.10.10.0/24)으로 가는 응답은 정책 라우팅 table 120 으로 공유기에 보낸다.",
-                "모두 `openstack-vm.service`(start)와 `openstack-vmnet.service`(net, 라우트 drop-in)가 부팅 때 다시 건다.",
-            ],
-            "config": [
-                {"label": "/etc/systemd/system/openstack-vmnet.service.d/datanet-route.conf", "code": r"""[Service]
-# OpenStack data-net(db-01) → rt-data ext IP
-ExecStartPost=/usr/sbin/ip route replace 10.10.2.0/24 via 192.168.120.220 dev vmnet8
-# OpenStack figteam-net(k8s-cp1, k8s-w1) → rt-edge ext IP
-ExecStartPost=/usr/sbin/ip route replace 172.20.0.0/24 via 192.168.120.202 dev vmnet8"""},
-                {"label": "~/bin/openstack-vm.sh net (핵심부)", "code": r"""ip addr add 192.168.120.2/24 dev vmnet8                 # ext-net 게이트웨이
-ip addr add 10.10.1.100/32 dev lo                        # KT Edge 용 VIP
-iptables -t nat -A PREROUTING -d 10.10.1.100 -p tcp --dport 80 -j DNAT --to-destination 192.168.120.226:30080
-iptables -t nat -A OUTPUT     -d 10.10.1.100 -p tcp --dport 80 -j DNAT --to-destination 192.168.120.226:30080
-ip route replace 10.10.10.0/24 via 192.168.100.1 dev wlp0s20f3 table 120
-ip rule add from 192.168.120.0/24 to 10.10.10.0/24 lookup 120 priority 1200
-iptables -t nat -A POSTROUTING -s 192.168.120.0/24 -o $MAIN_DEV -j MASQUERADE
-iptables -t nat -A PREROUTING -d 192.168.120.2 -p udp --dport 53 -j DNAT --to-destination 8.8.8.8:53"""},
-            ],
-            "commands": [
-                {"cat": "적용", "label": "네트워크 재적용 / VM 기동·정지", "code": r"""sudo systemctl restart openstack-vmnet      # 별칭·NAT·라우트 재적용
-~/bin/openstack-vm.sh start                 # controller → compute1·3·4 순서 기동
-~/bin/openstack-vm.sh status                # VM·VIP 상태
-~/bin/openstack-vm.sh stop                  # soft → hard"""},
-                {"cat": "조회", "label": "현재 상태", "code": r"""vmrun list
-ip -br a; ip r
-sudo iptables -t nat -S | grep -vE '^-N|KUBE|CNI|FLANNEL|DOCKER'
-ip rule show | grep 1200
-grep -E '^(memsize|numvcpus)' ~/vmware/*/*.vmx"""},
-            ],
-            "verify": [
-                {"label": "VIP → 앱", "code": "curl -sI http://10.10.1.100/healthz | head -1", "expect": "HTTP/1.1 200"},
-                {"label": "내부망 도달", "code": "ping -c2 172.20.0.86; ping -c2 10.10.2.10", "expect": "응답 (db-01 ICMP 는 sg-db 가 192.168.120.2 에 22/3306 만 허용 → ping 실패는 정상일 수 있음)"},
-            ],
-            "trouble": [
-                ["VM 이 인터넷/apt 불가", "S1_UPLINK (Wi-Fi 재연결로 장치·IP 변경)", "`ip route show default` · `sudo iptables -t nat -S POSTROUTING`", "`sudo systemctl restart openstack-vmnet` (MAIN_DEV 재감지)"],
-                ["KT/AWS → 172.20.x 불통", "RT_EDGE_EXT / RT_DATA_EXT", "`ip r | grep 172.20` · controller: `openstack router show rt-edge -c external_gateway_info`", "라우터를 다시 만들어 외부 IP 가 바뀌었으면 datanet-route.conf 수정 → daemon-reload → restart"],
-                ["VIP 10.10.1.100 502/timeout", "FIP_CP1 / NodePort", "`curl -sI http://192.168.120.226:30080/healthz` · `kubectl -n minwon-sample get svc`", "FIP 가 바뀌었으면 openstack-vm.sh 34~38행·KT 6443 DNAT·cloudflared 동시 수정"],
-                ["nat 규칙이 2벌씩 보임 (실측)", "수동 실행 + 서비스 실행 중복", "`sudo iptables -t nat -S | sort | uniq -d`", "동작엔 영향 없음. 정리 시 `-D` 로 한 벌만 삭제(서비스 재시작 때 -C 검사로 다시 늘지 않음)"],
-                ["VM 기동 실패 / vmnet 권한", "/dev/vmnet8 권한", "`ls -l /dev/vmnet8`", "drop-in 의 `chgrp user /dev/vmnet8 && chmod g+rw` 확인 → `sudo systemctl restart vmware`"],
-            ],
-        },
-        {
-            "id": "wg", "name": "WireGuard (wg-kt · wg0)", "status": "live",
-            "design": [
-                "wg-kt: KT 허브 하나만 peer. AllowedIPs 10.200.0.0/24 + KT·AWS VPC(172.27/16, 10.50/16, 10.30/16) → 3사 대역이 전부 허브로 간다.",
-                "s1 은 NAT 뒤(집 회선)라 Endpoint 를 쓰지 않고 PersistentKeepalive 25 로 먼저 붙는다. 집 공인 IP 가 바뀌어도 허브가 따라온다.",
-                "wg0: 맥 관리용(10.10.10.0/24). 서비스 트래픽과 분리.",
-                "MTU 1420(기본). OVN 1442 위를 지나는 VXLAN 이 이 구간에서 단편화될 수 있다 → KT 워커 조인 시 C6 참고.",
-            ],
-            "config": [
-                {"label": "/etc/wireguard/wg-kt.conf", "code": r"""[Interface]
-Address = 10.200.0.2/24
-PrivateKey = <s1 개인키 - 파일에만 둔다>
-
-[Peer]
-# KT Cloud Edge-GW Hub (kt-edge-dr-01)
-PublicKey = <KT 허브 공개키: KT 에서 `wg show wg0 public-key`>
-Endpoint = 14.63.212.190:51820
-AllowedIPs = 10.200.0.0/24, 10.30.0.0/16, 10.50.0.0/16, 172.27.0.0/16
-PersistentKeepalive = 25"""},
-            ],
-            "commands": [
-                {"cat": "조회", "label": "터널 상태", "code": r"""sudo wg show wg-kt | grep -E 'endpoint|allowed|handshake|transfer'
-systemctl is-enabled wg-quick@wg-kt wg-quick@wg0"""},
-                {"cat": "적용", "label": "설정 변경 후 안전 재시작 (3분 자동 되돌리기)", "code": r"""sudo cp /etc/wireguard/wg-kt.conf /root/wg-kt.conf.bak
-# 먼저 되돌리기 타이머를 건다 — 터널이 끊겨도 3분 뒤 원복
-sudo systemd-run --on-active=180 --unit=wg-rollback /bin/sh -c \
-  'cp /root/wg-kt.conf.bak /etc/wireguard/wg-kt.conf && systemctl restart wg-quick@wg-kt'
-sudo systemctl restart wg-quick@wg-kt
-ping -c3 10.200.0.1 && sudo systemctl stop wg-rollback.timer   # 정상이면 취소"""},
-            ],
-            "verify": [
-                {"label": "허브·AWS 도달", "code": "ping -c2 10.200.0.1; ping -c2 10.200.0.4", "expect": "응답, handshake < 2분"},
-            ],
-            "trouble": [
-                ["handshake 가 2분 이상 멈춤", "KT 포트포워딩 UDP 51820 / 허브 peer 키", "KT: `wg show wg0` 에서 s1 peer 의 endpoint·handshake", "KT 콘솔 포트포워딩·방화벽, 허브 peer 공개키 일치 확인"],
-                ["`wg syncconf` 후 터널 멈춤", "운영 금지 명령", "`journalctl -u wg-quick@wg-kt -n 50`", "syncconf 대신 위 '안전 재시작' 절차만 쓴다 (11-19 ctl 20분 단절 사례)"],
-                ["특정 대역만 불통", "AllowedIPs 누락/중복", "`ip r | grep wg-kt` · 허브 쪽 AllowedIPs", "대역은 한 peer 에만. 허브 s1-peer 에 온프렘 대역 3개(192.168.120/24·172.20.0/24·10.10.2/24)가 있어야 함"],
-            ],
-        },
-        {
-            "id": "cfd", "name": "Cloudflare Tunnel", "status": "live",
-            "design": [
-                "인바운드 포트 없이 s1 의 cloudflared 가 Cloudflare 로 아웃바운드 연결. 공개 진입(minwon)은 KT 하나만 둔다(앱 직통 openstack/app 호스트는 11-18 제거).",
-                "figteam.ktci5.kr 은 GitHub Pages 를 오리진으로 프록시(httpHostHeader 고정).",
-            ],
-            "config": [
-                {"label": "/etc/cloudflared/config.yml (ingress 부분)", "code": r"""tunnel: <터널 UUID>
-ingress:
-  - hostname: figteam-api.ktci5.kr
-    service: http://127.0.0.1:18088
-  - hostname: figteam.ktci5.kr
-    service: https://m07553287-create.github.io
-    originRequest:
-      httpHostHeader: figteam.ktci5.kr
-  - hostname: argocd.ktci5.kr
-    service: http://192.168.120.226:30800
-  - hostname: grafana.ktci5.kr
-    service: http://192.168.120.226:30300
-  - hostname: horizon.ktci5.kr
-    service: http://192.168.120.160:80
-  - hostname: kt-edge.ktci5.kr
-    service: http://10.200.0.1:8088
-  - hostname: aws-ctl.ktci5.kr
-    service: http://10.200.0.3:8080
-  - service: http_status:404"""},
-            ],
-            "commands": [
-                {"cat": "조회", "label": "라우트 검사", "code": r"""sudo cloudflared tunnel ingress validate --config /etc/cloudflared/config.yml
-sudo cloudflared tunnel ingress rule https://aws-ctl.ktci5.kr --config /etc/cloudflared/config.yml
-systemctl status cloudflared --no-pager | head -5"""},
-                {"cat": "적용", "label": "변경 반영", "code": "sudo systemctl restart cloudflared"},
-            ],
-            "verify": [
-                {"label": "오리진 응답", "code": r"""curl -s -o /dev/null -w '%{http_code}\n' http://10.200.0.1:8088/
-curl -s http://10.200.0.3:8080/healthz""", "expect": "200 / Orchestrator 응답"},
-            ],
-            "trouble": [
-                ["argocd/grafana 502 (실측)", "백엔드 없음", "cp1: `kubectl -n argocd get deploy argocd-server` (0/0) · `kubectl get svc -A | grep -E '30800|30300'`", "argocd-server 를 1로 올리고 NodePort 30800 서비스 생성, 또는 라우트 삭제"],
-                ["figteam.ktci5.kr 옛 화면", "Cloudflare·Pages 캐시(max-age=600)", "`curl -sI https://figteam.ktci5.kr | grep -E 'age|last-modified'`", "Actions 배포 완료 확인 후 10분 대기 또는 Cloudflare 캐시 퍼지"],
-                ["DNS 레코드가 엉뚱한 존에 생김", "cert.pem 존 = ktci5.kr", "`cloudflared tunnel route dns` 사용 존 확인", "ktci5.kr 외 존은 API 토큰으로 DNS 수정"],
-            ],
-        },
-    ],
+                "s1 호스트는 온프렘 물리 베이스 머신으로서 웹 콘솔을 통한 직접 설정 및 조작이 제한됩니다.",
+                "OpenStack IaaS/PaaS 및 컨테이너, 데이터베이스 계층의 조작은 OpenStack Controller, Compute, K8s 마스터(cp1), DB(db-01) 설정 화면을 이용하십시오.",
+                "물리 호스트의 하드웨어 및 내부 라우팅 점검은 웹 콘솔이 아닌 지정된 로컬 관리자 점프 키를 통해서만 수행됩니다."
+            ]
+        }
+    ]
 }
 
 # ===================== OpenStack: controller =====================
@@ -1433,8 +1203,7 @@ DOMAINS = [
 ]
 
 AREA_DOMAINS = {
-    "inst-s1.access": ["ops", "security"], "inst-s1.vmnet": ["network"],
-    "inst-s1.wg": ["network", "security"], "inst-s1.cfd": ["web", "security"],
+    "inst-s1.info": ["ops", "security"],
     "inst-controller.svc": ["compute"], "inst-controller.net": ["network"],
     "inst-controller.sg": ["security", "network"], "inst-controller.image": ["compute"],
     "inst-controller.server": ["compute"],

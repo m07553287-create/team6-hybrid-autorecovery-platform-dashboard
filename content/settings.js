@@ -2,7 +2,7 @@
     // 원본: content/settings_guide.py (데이터) · content/settings.js (이 파일) — tools/build_settings.py 가 주입
     const CFG = { data: null, lens: null, major: null, minor: null, codes: [] };
     const CLOUD_NAME = { onprem: '온프렘', openstack: 'OpenStack', kt: 'KT Cloud', aws: 'AWS' };
-    const STATUS_NAME = { live: '실측', design: '설계 · 미적용', nolook: '미실측' };
+    const STATUS_NAME = { live: '실측', design: '설계 · 미적용', nolook: '미실측', protected: '보호 구역 · 웹 조작 제외' };
     const CAT_ORDER = ['설치', '적용', '조회', '검증'];
     const LENSES = [
       { id: 'inst', name: '클라우드 기준', hint: '클라우드(AWS·KT·OpenStack)를 펼쳐 그 안 인스턴스의 영역을 봅니다' },
@@ -385,7 +385,15 @@
       const p = cfgPage(pid);
       const a = cfgAreaOf(pid, aid);
       const st = a.status || p.status;
-      let html = '<div class="cfg-head">' + (typeof wikiActions === 'function' ? wikiActions('area', a.docId) : '') +
+      let html = '';
+      if (p.status === 'protected' || pid === 'inst-s1') {
+        html += '<div style="background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); border-radius:8px; padding:14px 18px; margin-bottom:18px; color:#fca5a5; font-size:13px; line-height:1.6;">' +
+          '<div style="font-weight:700; font-size:14px; margin-bottom:4px; color:#ef4444;">🛡️ 물리 게이트웨이 보호 영역 안내 (웹 직접 조작 제외)</div>' +
+          's1 호스트는 내부 백엔드 라우팅 및 물리 베이스 전용 머신입니다. 인프라 안정성과 보안을 위해 웹 콘솔을 통한 직접 설정 및 원격 명령어 실행이 엄격히 제외된 보호 구역입니다.<br>' +
+          '모든 인프라 제어 및 설정 변경은 <b>OpenStack Controller / Compute, K8s cp1, DB db-01</b> 및 <b>KT Cloud, AWS</b> 설정 화면에서 진행하십시오.' +
+          '</div>';
+      }
+      html += '<div class="cfg-head">' + (typeof wikiActions === 'function' ? wikiActions('area', a.docId) : '') +
         '<div class="cfg-head-line">' + '<span class="cfg-cloud cfg-c-' + p.cloud + '">' + cfgEsc(CLOUD_NAME[p.cloud]) + '</span>' +
           '<span class="cfg-head-inst">' + cfgEsc(p.title) + '</span><span class="manual-tag">' + cfgEsc(p.tag) + '</span></div>' +
         '<h2 class="cfg-head-title">' + cfgEsc(a.name) + ' ' + cfgBadge(st) + '</h2>' +
