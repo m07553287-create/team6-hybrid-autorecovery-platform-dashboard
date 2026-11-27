@@ -365,12 +365,7 @@
       const minor = (cfgMinors(CFG.lens, CFG.major).find(m => m.id === CFG.minor) || {});
       const parts = [lens, major];
       if (minor.name) parts.push(CFG.lens === 'svc' ? minor.name + ' / ' + minor.sub : minor.name);
-      return '<div class="cfg-crumb-bar"><nav class="cfg-crumb" aria-label="현재 위치">' +
-        parts.filter(Boolean).map(cfgEsc).join('<span class="cfg-crumb-sep">›</span>') + '</nav>' +
-        '<div class="cfg-crumb-actions">' +
-          '<a href="/md/download" class="cfg-crumb-btn cfg-crumb-btn-dl" download="figteam-infrastructure.md" title="스마트폰 Gemini·ChatGPT 첨부용 전체 인프라 마크다운 다운로드">📥 AI 파일 다운로드 (.md)</a>' +
-          '<a href="/md/v1" target="_blank" class="cfg-crumb-btn" title="AI 실측 지식 마크다운 웹보기">🤖 AI 마크다운 웹보기</a>' +
-        '</div></div>';
+      return '<nav class="cfg-crumb" aria-label="현재 위치">' + parts.filter(Boolean).map(cfgEsc).join('<span class="cfg-crumb-sep">›</span>') + '</nav>';
     }
 
     function cfgRenderBody() {
