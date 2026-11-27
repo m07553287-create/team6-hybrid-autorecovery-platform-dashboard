@@ -3220,17 +3220,31 @@
       if (chip) chip.textContent = CS.owner;
       return CS.owner;
     }
-    // 이 이름으로 아직 살아 있는 세션을 받아, 열린 터미널이 없으면 자동 재접속한다
+    // 새로고침·재진입 시, 이 이름으로 살아 있는 세션을 "쓰던 분할 배치 그대로" 다시 붙인다(로그=스크롤백 재생).
     async function csResume() {
       if (CS.solo || CS.slots.some(s => s.t)) return;
-      let n = '';
-      try { n = localStorage.getItem('fig.term.user') || ''; } catch (e) {}
+      const n = csOwnerName();
       if (!n) return;                      // 이름을 아직 안 넣었으면 조용히 건너뜀
       let rows = [];
       try { rows = await csApi('GET', '/console/api/sessions?u=' + encodeURIComponent(n)); } catch (e) { return; }
-      if (!rows.length) return;
+      const alive = new Set(rows.map(r => r.target));
+      const usable = tid => alive.has(tid) && CS.targets.some(t => t.id === tid && !t.disabled);
       CS.owner = n;
-      rows.slice(0, csPaneCount()).forEach((r, i) => { if (CS.targets.some(t => t.id === r.target && !t.disabled)) csConnectSlot(i, r.target); });
+      let snap = null;
+      try { snap = JSON.parse(localStorage.getItem('fig.term.layout') || 'null'); } catch (e) {}
+      const snapHas = snap && ((snap.slots || []).some(usable) || (snap.floats || []).some(f => usable(f.target)));
+      if (snapHas) {
+        CS.layout = snap.layout || '1';
+        CS.sizes = snap.sizes || CS.sizes;
+        CS.active = Math.max(0, snap.active || 0);
+        csRender();                        // 저장된 분할로 빈 칸을 만든 뒤
+        (snap.slots || []).forEach((tid, i) => { if (usable(tid) && CS.slots[i]) csConnectSlot(i, tid); });
+        (snap.floats || []).forEach(f => { if (usable(f.target)) { const t = csNewTerm(f.target); CS.floats.push(t); csPlaceFloat(t, f.pos); csStart(t); } });
+        csApplySizes(); csTabs();
+        return;
+      }
+      if (!rows.length) return;            // 배치 기록이 없으면 살아 있는 세션을 순서대로
+      rows.slice(0, csPaneCount()).forEach((r, i) => { if (usable(r.target)) csConnectSlot(i, r.target); });
     }
 
     // ---------- 열기 · 닫기 · 잠금 ----------
@@ -3357,7 +3371,7 @@
         CS.sizes[axis] = Math.max(15, Math.min(85, Math.round(v * 100)));
         csApplySizes();
       };
-      const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); document.body.classList.remove('cs-dragging'); };
+      const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); document.body.classList.remove('cs-dragging'); csSaveLayout(); };
       document.body.classList.add('cs-dragging');
       document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
     }
@@ -3628,6 +3642,18 @@
       nav.innerHTML = items.length ? items.map(x =>
         '<button type="button" class="cs-tab" onclick="csTabGo(' + x.t.uid + ')"><span class="cs-dot cs-dot-' + (x.t.stKind || 'wait') + '"></span>' +
         cfgEsc(csT(x.t.target).name) + '<small>' + x.label + '</small></button>').join('') : '<span class="cs-hint">칸을 누른 뒤 왼쪽에서 인스턴스를 고르세요. 경계를 끌면 크기가 바뀝니다.</span>';
+      csSaveLayout();
+    }
+    // 현재 배치(분할·각 칸 대상·띄운 창)를 저장해, 새로고침 때 그대로 복원한다
+    function csSaveLayout() {
+      if (CS.solo) return;   // 솔로(새 창)는 자체 ?solo= 로 복원
+      try {
+        localStorage.setItem('fig.term.layout', JSON.stringify({
+          layout: CS.layout, sizes: CS.sizes, active: CS.active,
+          slots: CS.slots.map(s => (s.t ? s.t.target : null)),
+          floats: CS.floats.map(t => ({ target: t.target, pos: t.el ? { left: t.el.style.left, top: t.el.style.top, w: t.el.style.width, h: t.el.style.height } : null }))
+        }));
+      } catch (e) {}
     }
     function csTabGo(uid) {
       const f = csFind(uid); if (!f) return;
