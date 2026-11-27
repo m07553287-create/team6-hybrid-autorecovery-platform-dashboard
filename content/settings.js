@@ -5,11 +5,17 @@
     const STATUS_NAME = { live: '실측', design: '설계 · 미적용', nolook: '미실측' };
     const CAT_ORDER = ['설치', '적용', '조회', '검증'];
     const LENSES = [
-      { id: 'inst', name: '인스턴스 기준', hint: '서버 하나를 골라 그 안의 서비스 영역을 봅니다' },
+      { id: 'inst', name: '클라우드 기준', hint: '클라우드(AWS·KT·OpenStack)를 펼쳐 그 안 인스턴스의 영역을 봅니다' },
       { id: 'svc', name: '서비스 기준', hint: '보안·웹 같은 영역을 골라 맡은 인스턴스를 봅니다' },
       { id: 'step', name: '진행 순서', hint: '처음 구성할 때 지켜야 하는 순서와 통과 조건' },
       { id: 'ref', name: '참고', hint: '변수표·설계·오류 색인 같은 팀 참고 문서' }
     ];
+    // 클라우드 대분류 순서: AWS → KT Cloud → OpenStack → 온프렘
+    const CLOUD_ORDER = { aws: 0, kt: 1, openstack: 2, onprem: 3 };
+    function cfgInstOrder() {
+      return (CFG.data.instances || []).slice().sort((a, b) =>
+        ((CLOUD_ORDER[cfgPage(a).cloud] ?? 9) - (CLOUD_ORDER[cfgPage(b).cloud] ?? 9)));
+    }
 
     // ---------- 공통 조각 ----------
     function cfgEsc(t) {
@@ -141,7 +147,7 @@
     // ---------- 목록 만들기 ----------
     function cfgMajors(lens) {
       const d = CFG.data;
-      if (lens === 'inst') return d.instances.map(pid => {
+      if (lens === 'inst') return cfgInstOrder().map(pid => {
         const p = cfgPage(pid);
         return { id: pid, name: p.title.split(' (')[0], sub: p.tag, cloud: p.cloud, status: p.status, group: p.cloudName, groupId: p.cloudId };
       });
@@ -156,9 +162,9 @@
         const p = cfgPage(major);
         return p ? p.areas.map(a => ({ id: a.id, name: a.name, sub: a.domains.map(x => cfgDomain(x).name).join(', '), status: a.status !== p.status ? a.status : '' })) : [];
       }
-      if (lens === 'svc') {
+      if (lens === "svc") {
         const out = [];
-        d.instances.forEach(pid => {
+        cfgInstOrder().forEach(pid => {
           const p = cfgPage(pid);
           p.areas.forEach(a => {
             if (a.domains.indexOf(major) >= 0) out.push({ id: pid + '.' + a.id, name: p.short, sub: a.name, cloud: p.cloud, status: a.status === 'live' ? '' : a.status });
@@ -275,7 +281,7 @@
       const cur = cfgCurrentArea();
       let html = '<div class="cfg-matrix" aria-label="인스턴스와 서비스 영역 지도"><div class="cfg-mx-row cfg-mx-headrow"><span class="cfg-mx-label"></span>' +
         d.domains.map(dm => '<span class="cfg-mx-col' + (CFG.lens === 'svc' && CFG.major === dm.id ? ' on' : '') + '" title="' + cfgEsc(dm.name) + '">' + cfgEsc(dm.short) + '</span>').join('') + '</div>';
-      d.instances.forEach(pid => {
+      cfgInstOrder().forEach(pid => {
         const p = cfgPage(pid);
         const rowOn = CFG.lens === 'inst' && CFG.major === pid;
         html += '<div class="cfg-mx-row' + (rowOn ? ' on' : '') + '"><span class="cfg-mx-label">' + cfgEsc(p.short) + '</span>';
