@@ -11,27 +11,28 @@
   nolook : 실측하지 못함(접속 불가 등) — 문서·외부 응답 기준
 """
 
-MEASURED = "2026-11-26"
+MEASURED = "2026-11-27"
 
 # ---------------------------------------------------------------------------
 # 공통 변수표 — 명령어 안의 값이 여기서 나온다. 값이 바뀌면 '바뀌면 확인' 열을 본다.
 # ---------------------------------------------------------------------------
 VARIABLES = [
     # 변수, 값, 사용처, 바뀌면 확인할 곳
+    ["S1_HOST", "10.10.10.8 (t1-vm2, Ubuntu 26.04.1 LTS, 20 vCPU / 30G RAM, NVMe swap 8GB 활성화)", "온프레미스 단일 물리 호스트 · 점프 호스트", "모든 내부 VM 및 3사 클라우드 중계 게이트웨이"],
     ["S1_UPLINK", "192.168.100.151 (wlp0s20f3, DHCP)", "s1 인터넷 출구 · MASQUERADE 출구 장치", "openstack-vm.sh 의 MAIN_DEV 자동 감지 → `sudo systemctl restart openstack-vmnet`"],
     ["HOME_PUBLIC_IP", "175.196.197.51 (집·강의장 회선, 바뀜)", "KT 허브가 보는 s1 WG 출발지", "s1이 keepalive 로 먼저 붙으므로 KT 쪽 수정 불필요. 핸드셰이크만 확인"],
     ["S1_VMNET8_GW", "192.168.120.2/24", "ext-net 게이트웨이 · VM DNS(53→8.8.8.8 DNAT)", "ext-subnet gateway_ip, openstack-vm.sh GW_IP_NEW"],
-    ["OS_CONTROLLER", "192.168.120.160", "Keystone·Nova·Neutron(OVN)·Horizon", "s1 osx 래퍼, cloudflared horizon 라우트"],
-    ["OS_COMPUTE", "161 compute1 · 163 compute3 · 164 compute4 (162 compute2 = down/삭제)", "하이퍼바이저", "`openstack hypervisor list`, ssh_known_hosts(마이그레이션)"],
+    ["OS_CONTROLLER", "192.168.120.160 (RAM 14GB 증설·Swap 4GB, 가용 8.3GB 38%)", "Keystone·Nova·Glance·Neutron(OVN)·Horizon·MariaDB·RabbitMQ", "s1 osx 래퍼, cloudflared horizon 라우트"],
+    ["OS_COMPUTE", "161 compute1(8GB) · 163 compute3(8GB) · 164 compute4(8GB) (전 노드 8GB RAM 균등 증설, 162 compute2 = down/삭제)", "하이퍼바이저 3노드", "`openstack hypervisor list`, ssh_known_hosts(마이그레이션)"],
     ["RT_EDGE_EXT", "192.168.120.202 (SNAT ON)", "s1 → 172.20.0.0/24 정적 라우트 next-hop", "datanet-route.conf 의 `ip route replace 172.20.0.0/24 via …`"],
     ["RT_DATA_EXT", "192.168.120.220 (SNAT OFF)", "s1 → 10.10.2.0/24 정적 라우트 next-hop", "datanet-route.conf 의 `ip route replace 10.10.2.0/24 via …`"],
-    ["FIP_CP1", "192.168.120.226 → 172.20.0.86", "VIP DNAT 대상 · cloudflared argocd/grafana · KT 6443 DNAT", "openstack-vm.sh 34~38행, KT `iptables -t nat` 6443, cloudflared config"],
+    ["FIP_CP1", "192.168.120.226 → 172.20.0.86 (k8s-cp1, K3s Server, ArgoCD, Prometheus)", "VIP DNAT 대상 · cloudflared argocd/grafana · KT 6443 DNAT", "openstack-vm.sh 34~38행, KT `iptables -t nat` 6443, cloudflared config"],
     ["FIP_FREE", "192.168.120.201 · .216 (미할당)", "w1 등 추가 노드 외부 IP 후보", "-"],
-    ["CP1 / W1 / DB", "172.20.0.86 / 172.20.0.180 / 10.10.2.10", "k3s 서버 / k3s 에이전트 / MySQL Primary", "앱 env DB_HOST, sg-db, MySQL 계정 host"],
-    ["VIP_APP", "10.10.1.100 (s1 lo) :80 → 192.168.120.226:30080", "KT Edge upstream minwon_backend", "KT `/etc/nginx/conf.d/upstream.conf`(switch_edge.yml 관리)"],
-    ["WG_NET", "10.200.0.0/24 · .1 KT허브 · .2 s1 · .3 aws-ctl · .4 aws-dr · .5 kt-w1(예약)", "3사 간 East-West", "각 노드 wg 설정 AllowedIPs"],
-    ["KT_EDGE", "공인 14.63.212.190 · 사설 172.27.0.160/16", "인입·WAF·WG 허브", "KT 콘솔 포트포워딩(TCP 22·80·443·30080 / UDP 51820)"],
-    ["AWS_DR", "사설 10.51.1.165 · 공인 54.116.129.147 · t3.small", "DR k3s + MySQL 복제본", "KT 허브 peer Endpoint"],
+    ["CP1 / W1 / DB", "172.20.0.86 (cp1) / 172.20.0.180 (w1) / 10.10.2.10 (db-01 MySQL 8.4, Cinder 10G)", "k3s 서버 / k3s 에이전트 / MySQL Primary", "앱 env DB_HOST, sg-db, MySQL 계정 host"],
+    ["VIP_APP", "10.10.1.100 (s1 lo) :80 → 192.168.120.226:30080 (minwon-app-svc NodePort)", "KT Edge upstream minwon_backend", "KT `/etc/nginx/conf.d/upstream.conf`(switch_edge.yml 관리)"],
+    ["WG_NET", "10.200.0.0/24 · .1 KT허브 · .2 s1 · .3 aws-ctl · .4 aws-dr · .5 kt-w1(예약)", "3사 간 East-West 하이브리드 메시", "각 노드 wg 설정 AllowedIPs"],
+    ["KT_EDGE", "공인 14.63.212.190 · 사설 172.27.0.160/16", "인입·WAF(10s 캐싱)·WG 허브", "KT 콘솔 포트포워딩(TCP 22·80·443·30080 / UDP 51820)"],
+    ["AWS_DR", "사설 10.51.1.165 · 공인 54.116.129.147 · t3.small", "DR k3s + MySQL 복제본 (GTID ON)", "KT 허브 peer Endpoint"],
     ["AWS_CTL", "사설 10.50.1.85 · 공인: 노션 13.125.163.58 / 허브 실측 13.124.253.30", "Recovery Orchestrator :8080", "공인 IP가 바뀐 흔적 → EIP·키페어 확인"],
     ["K3S_VERSION", "v1.37.2+k3s1 (온프렘·AWS 동일)", "에이전트 조인 버전 고정", "INSTALL_K3S_VERSION"],
     ["POD / SVC CIDR", "10.42.0.0/16 / 10.43.0.0/16 (k3s 기본)", "flannel VXLAN · ClusterIP", "다른 사이트 대역과 겹치면 안 됨"],
@@ -94,7 +95,7 @@ PAGES["overview"] = {
     "kind": "doc",
     "title": "전체 구성과 변수표",
     "tag": "실측 " + MEASURED,
-    "desc": "온프렘(s1 노트북 위 VMware → OpenStack) · KT Cloud · AWS 를 WireGuard 허브(KT)로 묶은 구성이다. 아래 경로도와 변수표가 모든 페이지 명령어의 기준값이다.",
+    "desc": "온프렘(s1 노트북 위 VMware → OpenStack) · KT Cloud · AWS 를 WireGuard 허브(KT)로 묶은 구성이다. 2026-11-27 기준 Controller RAM 14GB 증설 및 Compute1·3·4 전 노드 8GB 균등 증설, s1 NVMe Swap 8GB 활성화 등 최신 인프라 실측 사양이 전면 반영되었습니다. 아래 경로도와 변수표가 모든 페이지 명령어의 기준값이다.",
     "blocks": [
         {"type": "h", "text": "트래픽 경로 (실측)"},
         {"type": "code", "label": "외부 요청 → 앱 → DB", "code": r"""사용자
@@ -149,7 +150,7 @@ PAGES["inst-s1"] = {
     "steps": "S0 · S1 · S4 · S5 · S11",
     "desc": "GPU 노트북의 Ubuntu. VMware Workstation 으로 OpenStack 노드 4대를 띄우고, vmnet8 게이트웨이·NAT·정적 라우트·WireGuard·Cloudflare Tunnel 을 맡는다. 온프렘의 모든 외부 연결이 이 호스트 하나를 지난다(단일 장애점).",
     "specs": [
-        ["OS / 커널", "Ubuntu 26.04.1 LTS / 7.0.0-44"], ["CPU / RAM", "20 vCPU / 30 GiB"],
+        ["OS / 커널", "Ubuntu 26.04.1 LTS / 7.0.0-44"], ["CPU / RAM", "20 vCPU / 30 GiB (스왑 8GB NVMe 활성화)"],
         ["디스크", "/ 466G (사용 53%)"], ["업링크", "wlp0s20f3 192.168.100.151 (Wi-Fi, DHCP)"],
         ["vmnet8", "192.168.120.2/24 · 172.16.180.1/24"], ["WG", "wg-kt 10.200.0.2/24 · wg0 10.10.10.8/32"],
     ],
@@ -159,53 +160,113 @@ PAGES["inst-s1"] = {
             "design": [
                 "맥 → s1 은 WG wg0(10.10.10.0/24, 집 공유기 51820)로 들어온다.",
                 "s1 → OpenStack 노드는 root 키 접속. `~/bin/osx <끝자리> \"<명령>\"` 래퍼로 통일한다.",
-                "AWS 노드는 공인 22 가 보안그룹(admin_cidrs)으로 막혀 있어 s1(WG 10.200.0.2) 경유만 된다.",
+                "AWS 노드는 공인 22 가 보안그룹(admin_cidrs)으로 막혀 있어 s1(WG 10.200.0.2) 경유 ProxyJump 만 된다.",
+                "단일 장애점(SPOF): s1 이 온프렘의 모든 외부 트래픽을 중계하므로 openstack-vmnet.service 와 vmware 서비스를 systemd 로 관리한다.",
             ],
             "config": [
-                {"label": "~/.ssh/config (맥)", "code": r"""Host s1
+                {"label": "~/.ssh/config (맥)", "code": r"""# 1. 온프레미스 물리 점프 호스트
+Host s1
     HostName 10.10.10.8
     User user
+    IdentityFile ~/.ssh/id_ed25519
+    StrictHostKeyChecking accept-new
+
+# 2. OpenStack K3s 마스터 (FIP 경유 ProxyJump)
 Host cp1
     HostName 192.168.120.226
     User ubuntu
     ProxyJump s1
+    StrictHostKeyChecking accept-new
+
+# 3. OpenStack K3s 워커 노드
 Host w1
     HostName 172.20.0.180
     User ubuntu
     ProxyJump s1
+    StrictHostKeyChecking accept-new
+
+# 4. OpenStack MySQL Primary DB
 Host db-01
     HostName 10.10.2.10
     User ubuntu
     ProxyJump s1
+    StrictHostKeyChecking accept-new
+
+# 5. AWS DR 노드 (Pilot-Light)
 Host dr
     HostName 10.200.0.4
     User rocky
     IdentityFile ~/.ssh/minwon-key.pem
     IdentitiesOnly yes
     ProxyJump s1
+    StrictHostKeyChecking accept-new
+
+# 6. KT Cloud Edge-GW (WAF & Hub)
 Host kt-edge
     HostName 14.63.212.190
-    User root"""},
+    User root
+    StrictHostKeyChecking accept-new
+
+# 7. OpenStack Controller 노드
+Host fig-ctrl
+    HostName 192.168.120.160
+    User root
+    ProxyJump s1
+    StrictHostKeyChecking accept-new"""},
                 {"label": "s1 ~/bin/osx (OpenStack 노드 root 실행 래퍼)", "code": r"""#!/bin/sh
 # osx <last-octet> "<cmd>"
 h=$1; shift
 exec ssh -n -q -o BatchMode=yes -o ConnectTimeout=8 \
   -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR root@192.168.120.$h "$@" """},
+                {"label": "전체 접속 키 및 인증 종합 매트릭스", "code": r"""[1. SSH & Nova Keypair 체계]
+• s1 물리 점프호스트: user / 팀원 ~/.ssh/id_ed25519 (sudo 권한)
+• OpenStack Controller/Compute 4대: root / s1 /root/.ssh/id_rsa (무암호)
+• k8s-cp1: ubuntu / controller:/root/figteam-key.pem (FIP 192.168.120.226)
+• k8s-w1: ubuntu / controller:/root/figteam-key.pem (사설 172.20.0.180)
+• db-01: ubuntu / s1 등록 키페어 s1-ktci5 (사설 10.10.2.10)
+• aws-dr: rocky / ~/.ssh/minwon-key.pem (사설 10.51.1.165, s1 ProxyJump)
+• aws-ctl: rocky / ~/.ssh/minwon-key.pem 또는 AWS SSM (사설 10.50.1.85)
+• KT Edge-GW: root / 공인 14.63.212.190 직접 SSH
+• CirrOS 테스트 VM: cirros (PW: gocubsgo)
+
+[2. OpenStack 계정 및 RC 자격증명] (도메인: Default 고정)
+• admin: /root/keystonerc_admin (클러스터 최고 권한)
+• figteam-admin: /root/keystonerc_figteam (프로덕션 figteam 프로젝트)
+• simhwa-user: /root/keystonerc_simhwa (심화프로젝트 실습 테넌트)
+
+[3. 데이터베이스 (MySQL / MariaDB)]
+• Controller MariaDB :3306 (root / keystonerc_admin 내 DB PW)
+• db-01 MySQL 8.4 :3306 (root sudo 무암호, minwon 앱 계정 / minwon-db-secret)
+
+[4. WireGuard VPN 대칭망]
+• wg-kt: 10.200.0.0/24 (.1 KT허브, .2 s1, .3 aws-ctl, .4 aws-dr)
+• wg0: 10.10.10.0/24 (.7 개발자 Mac, .8 s1 호스트)
+
+[5. 웹 서비스 콘솔]
+• 통합 관제 포털: https://figteam.ktci5.kr (fig / figteam)
+• OpenStack Horizon: https://horizon.ktci5.kr (admin 또는 figteam-admin)
+• Argo CD: https://argocd.ktci5.kr (admin)
+• Grafana: https://grafana.ktci5.kr (admin)"""},
             ],
             "commands": [
-                {"cat": "조회", "label": "노드별 접속 확인", "code": r"""ssh s1 hostname                         # t1-vm2
+                {"cat": "조회", "label": "노드별 1초 접속 확인", "code": r"""ssh s1 hostname                         # t1-vm2
 ssh s1 '~/bin/osx 160 hostname'         # controller
 ssh cp1 hostname; ssh w1 hostname; ssh db-01 hostname
 ssh dr hostname                         # ip-10-51-1-165...
 ssh kt-edge hostname                    # kt-edge-dr-01"""},
+                {"cat": "검증", "label": "배치 루프 자동 점검 (전 노드)", "code": r"""for h in s1 cp1 w1 db-01 dr kt-edge; do 
+  printf '%-8s ' $h
+  ssh -o ConnectTimeout=8 $h hostname 2>&1 | tail -1
+done"""},
             ],
             "verify": [
                 {"label": "전 구간 한 번에", "code": r"""for h in s1 cp1 w1 db-01 dr kt-edge; do printf '%-8s ' $h; ssh -o ConnectTimeout=8 $h hostname 2>&1 | tail -1; done""", "expect": "6줄 모두 호스트명 출력"},
             ],
             "trouble": [
                 ["ssh s1 타임아웃", "맥 WG wg0 / 집 공인 IP", "맥: `sudo wg show` 핸드셰이크 · s1: `sudo wg show wg0`", "공유기 51820 포워딩, s1 Endpoint(175.196.197.51) 확인"],
-                ["cp1/w1 Permission denied", "Nova keypair", "controller: `openstack server show k8s-cp1 -c key_name`", "cp1 은 figteam-key·s1-ktci5, w1 은 figteam-key(/root/figteam-key.pem on controller)만 붙어 있음 → cp1 경유 ProxyJump"],
+                ["cp1/w1 Permission denied", "Nova keypair 불일치", "controller: `openstack server show k8s-cp1 -c key_name`", "cp1 은 figteam-key·s1-ktci5, w1 은 figteam-key(/root/figteam-key.pem on controller)만 붙어 있음 → cp1 경유 ProxyJump"],
                 ["aws-ctl Permission denied (실측)", "ctl 키페어 / 공인 IP 변경", "KT 허브 `wg show` 의 ctl Endpoint(13.124.253.30)와 노션 기록(13.125.163.58) 비교", "ctl 재생성 여부·키페어 이름 확인 후 SSM Session Manager 로 접속(무-SSH 설계)"],
+                ["DNS 해석 실패 (VM 내부)", "vmnet8 DNS DNAT(53→8.8.8.8) 룰 유실", "`sudo iptables -t nat -L PREROUTING -n -v | grep 53`", "`sudo systemctl restart openstack-vmnet` 또는 `~/bin/openstack-vm.sh net` 복구"],
             ],
         },
         {
@@ -349,11 +410,11 @@ PAGES["inst-controller"] = {
     "tag": "192.168.120.160",
     "status": "live",
     "steps": "S2 · S3 · S6",
-    "desc": "Packstack/RDO 단일 컨트롤러. Neutron 은 OVN. 인스턴스는 올리지 않고 compute1·3·4 에 배치한다. admin rc 로 전체를, figteam rc 로 프로젝트 자원을 다룬다.",
+    "desc": "Packstack/RDO 단일 컨트롤러. 2026-11-27 Controller RAM 14GB 증설 및 Compute 1, 3, 4 전 노드 8GB 균등 증설 완료. Neutron 은 OVN. 인스턴스는 올리지 않고 compute1·3·4 에 배치한다. admin rc 로 전체를, figteam rc 로 프로젝트 자원을 다룬다.",
     "specs": [
-        ["OS", "CentOS Stream 9"], ["VM 크기", "4 vCPU / 10 GB (s1 VMware)"],
+        ["OS", "CentOS Stream 9"], ["VM 크기", "4 vCPU / 14 GB (s1 VMware, Swap 4GB 신규 등록, 가용 8.3GB 38%)"],
         ["CLI", "openstack 6.6.1"], ["Neutron", "OVN (Geneve, MTU 1442)"],
-        ["compute", "1 (4G·k8s-w1) · 3 (6G·k8s-cp1) · 4 (6G·db-01) · 2 down"], ["rc 파일", "/root/keystonerc_admin · keystonerc_figteam"],
+        ["compute", "1 (8G·k8s-w1) · 3 (8G·k8s-cp1) · 4 (8G·db-01) (전 노드 8GB RAM 균등 증설, 2 down)"], ["rc 파일", "/root/keystonerc_admin · keystonerc_figteam"],
     ],
     "areas": [
         {
@@ -381,6 +442,7 @@ nova-manage cell_v2 discover_hosts --verbose"""},
             "trouble": [
                 ["서버 생성 ERROR No valid host", "compute RAM 부족 / service down", "`openstack hypervisor stats show` · `openstack compute service list`", "compute 여유 RAM 확인(실측 여유 1G 안팎), flavor 낮추기"],
                 ["FIP 연결 안 됨", "OVN Gateway 에이전트", "`openstack network agent list` Alive", "해당 compute `systemctl restart ovn-controller`"],
+                ["컨트롤러 메모리 고갈 (10GB 99% 위험)", "Keystone·Nova·Glance·Neutron·MariaDB·RabbitMQ 집중", "free -h · swapon --show", "RAM 14GB 증설 및 /swapfile(4GB) 영구 등록 조치 완료 (가용 8.3GB 38% 안정화)"],
             ],
         },
         {
@@ -522,7 +584,7 @@ PAGES["inst-cp1"] = {
     "specs": [
         ["OS", "Ubuntu 22.04.5 / 5.15.0-204"], ["크기", "m1.medium 2 vCPU / 3.8 GiB"],
         ["k3s", "v1.37.2+k3s1 (containerd 2.3.7)"], ["CIDR", "Pod 10.42.0.0/16 · Svc 10.43.0.0/16"],
-        ["MTU", "ens3 1442 · flannel.1 1392"], ["호스트", "compute3"],
+        ["MTU", "ens3 1442 · flannel.1 1392"], ["호스트", "compute3 (RAM 8GB 증설 완료)"],
     ],
     "areas": [
         {
@@ -698,7 +760,7 @@ PAGES["inst-w1"] = {
     "desc": "온프렘 워커. 현재 앱 파드 2개와 ArgoCD controller·repo-server 가 이 노드에 몰려 있다. FIP 가 없어 외부로 나갈 때는 rt-edge SNAT(192.168.120.202)로 보인다.",
     "specs": [
         ["OS", "Ubuntu 22.04.5"], ["크기", "m1.worker 2 vCPU / 2.4 GiB"],
-        ["k3s", "v1.37.2+k3s1 agent"], ["호스트", "compute1"],
+        ["k3s", "v1.37.2+k3s1 agent"], ["호스트", "compute1 (RAM 8GB 증설 완료)"],
         ["접속", "figteam-key 만 (cp1 경유)"], ["외부 출발지", "192.168.120.202 (SNAT)"],
     ],
     "areas": [
@@ -745,7 +807,7 @@ PAGES["inst-db01"] = {
     "specs": [
         ["OS", "Ubuntu 22.04.5"], ["크기", "m1.medium 2 vCPU / 3.8 GiB"],
         ["MySQL", "8.4.13 · server_id 1 · read_only 0"], ["데이터", "vdb 10G → /var/lib/mysql (Cinder db-01-data)"],
-        ["복제", "GTID ON · binlog ROW · 7일 보관"], ["호스트", "compute4"],
+        ["복제", "GTID ON · binlog ROW · 7일 보관"], ["호스트", "compute4 (RAM 8GB 증설 완료)"],
     ],
     "areas": [
         {
