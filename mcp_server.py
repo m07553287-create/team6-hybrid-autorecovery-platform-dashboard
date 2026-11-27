@@ -635,6 +635,15 @@ class McpHttpHandler(BaseHTTPRequestHandler):
             if k in q and q[k] and q[k][0]:
                 return q[k][0].strip()
 
+        # 4. 브라우저 세션 쿠키 (figteam_auth=... 바이패스)
+        cookie_header = self.headers.get("Cookie", "")
+        if cookie_header:
+            for item in cookie_header.split(";"):
+                if "=" in item:
+                    ck, cv = item.strip().split("=", 1)
+                    if ck in ("figteam_auth", "auth", "token", "key") and cv:
+                        return cv.strip()
+
         return ""
 
     def is_authorized(self, parsed: urllib.parse.ParseResult) -> bool:
@@ -864,6 +873,8 @@ class McpHttpHandler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Access-Control-Allow-Origin", "*")
+                if auth_token:
+                    self.send_header("Set-Cookie", f"figteam_auth={auth_token}; Path=/; Max-Age=2592000; SameSite=Lax")
                 self.end_headers()
                 dl_link = f"/md/v1?key={urllib.parse.quote(auth_token)}&download=1" if auth_token else "#"
                 html_resp = f"""<!DOCTYPE html>
@@ -975,6 +986,8 @@ class McpHttpHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "text/markdown; charset=utf-8")
             self.send_header("Access-Control-Allow-Origin", "*")
+            if auth_token:
+                self.send_header("Set-Cookie", f"figteam_auth={auth_token}; Path=/; Max-Age=2592000; SameSite=Lax")
             self.end_headers()
             self.wfile.write(md_content.encode("utf-8"))
             return
