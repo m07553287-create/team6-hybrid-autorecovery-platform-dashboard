@@ -626,6 +626,11 @@ class McpHttpHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "text/markdown; charset=utf-8")
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
+        elif p == "/robots.txt":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
         else:
             self.send_response(200)
             self.send_header("Access-Control-Allow-Origin", "*")
@@ -634,6 +639,27 @@ class McpHttpHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
+
+        # 0. robots.txt (AI 에이전트 및 크롤러 접근 허용)
+        if path == "/robots.txt":
+            robots_txt = (
+                "User-agent: *\nAllow: /\n\n"
+                "User-agent: ChatGPT-User\nAllow: /\n\n"
+                "User-agent: GPTBot\nAllow: /\n\n"
+                "User-agent: Claude-User\nAllow: /\n\n"
+                "User-agent: ClaudeBot\nAllow: /\n\n"
+                "User-agent: PerplexityBot\nAllow: /\n\n"
+                "User-agent: Perplexity-User\nAllow: /\n\n"
+                "User-agent: Google-Agent\nAllow: /\n"
+            )
+            data = robots_txt.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(data)
+            return
 
         # 1. 헬스체크 및 개요
         if path in ("/healthz", "/mcp/healthz", "/console/mcp/healthz", "/mcp", "/mcp/"):
@@ -668,24 +694,44 @@ class McpHttpHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(resp, ensure_ascii=False, indent=2).encode("utf-8"))
             return
 
-        # 1-1. 웹 현황 구조 및 설계 총람 마크다운 서빙 (/md, /md/v1, /md/inst/*)
-        if path in ("/md", "/md/", "/md/v1", "/md/v1/") or path.startswith("/md/v1/inst/") or path.startswith("/md/inst/") or (path.startswith("/md/") and not path.startswith("/md/v1/chat") and not path.startswith("/md/v1/models")):
+        # 1-1. 웹 현황 구조 및 설계 총람 마크다운 서빙 (/md, /md/v1, /md/download, /md/v1.md 등)
+        is_download = (
+            path in ("/md/download", "/md/v1.md", "/md/v1.txt", "/download.md", "/v1.md")
+            or "download=true" in parsed.query
+            or "download=1" in parsed.query
+        )
+
+        if is_download or path in ("/md", "/md/", "/md/v1", "/md/v1/") or path.startswith("/md/v1/inst/") or path.startswith("/md/inst/") or (path.startswith("/md/") and not path.startswith("/md/v1/chat") and not path.startswith("/md/v1/models")):
             # 특정 인스턴스 지정 여부 파악
             target_inst = ""
             for prefix in ("/md/v1/inst/", "/md/inst/", "/md/v1/", "/md/"):
                 if path.startswith(prefix) and path != prefix:
                     candidate = path[len(prefix):].strip("/").lower()
-                    if candidate and candidate not in ("v1", "chat", "models", "context.md"):
+                    if candidate and candidate not in ("v1", "chat", "models", "context.md", "download", "v1.md", "v1.txt"):
                         target_inst = candidate
                         break
 
             if target_inst:
                 md_content = self.build_instance_markdown(target_inst)
+                file_name = f"figteam-{target_inst}.md"
             else:
                 md_content = self.build_web_structure_markdown()
+                file_name = "figteam-infrastructure.md"
+
+            # 강제 다운로드 요청일 경우 Content-Disposition 헤더로 파일 즉시 전송
+            if is_download:
+                data = md_content.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/markdown; charset=utf-8")
+                self.send_header("Content-Disposition", f'attachment; filename="{file_name}"')
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(data)
+                return
 
             accept_header = self.headers.get("Accept", "")
-            # 브라우저 직접 방문 시 깔끔한 다크모드 HTML 뷰어로 서빙
+            # 브라우저 직접 방문 시 깔끔한 다크모드 HTML 뷰어로 서빙 (원클릭 다운로드 및 복사 버튼 탑재)
             if "text/html" in accept_header and "curl" not in self.headers.get("User-Agent", "").lower():
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -703,7 +749,7 @@ class McpHttpHandler(BaseHTTPRequestHandler):
       background: #0d1117;
       color: #c9d1d9;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      padding: 30px 15px;
+      padding: 20px 12px;
       margin: 0;
     }}
     .container {{
@@ -712,31 +758,85 @@ class McpHttpHandler(BaseHTTPRequestHandler):
       background: #161b22;
       border: 1px solid #30363d;
       border-radius: 8px;
-      padding: 32px;
+      padding: 24px;
     }}
     pre {{ background: #0d1117 !important; border: 1px solid #30363d; border-radius: 6px; padding: 14px; overflow-x: auto; }}
     code {{ color: #79c0ff; }}
     a {{ color: #58a6ff; text-decoration: none; }}
     a:hover {{ text-decoration: underline; }}
-    .web-btn {{
-      display: inline-block;
+    .action-bar {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+      padding: 14px 16px;
+      background: #1f2937;
+      border-left: 4px solid #38bdf8;
+      border-radius: 6px;
+      align-items: center;
+    }}
+    .btn {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none !important;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+    }}
+    .btn-download {{
       background: #238636;
-      color: #fff !important;
-      padding: 4px 10px;
-      border-radius: 4px;
+      color: #ffffff !important;
+      border-color: #2ea043;
+    }}
+    .btn-download:hover {{ background: #2ea043; }}
+    .btn-copy {{
+      background: #30363d;
+      color: #f0f6fc !important;
+      border-color: #8b949e;
+    }}
+    .btn-copy:hover {{ background: #3c444d; }}
+    .toast {{
+      display: none;
+      color: #3fb950;
       font-size: 13px;
       font-weight: bold;
-      margin-left: 6px;
     }}
   </style>
 </head>
 <body class="markdown-body">
   <div class="container">
-    <div style="margin-bottom: 20px; padding: 12px 16px; background: #1f2937; border-left: 4px solid #38bdf8; border-radius: 4px;">
-      <strong>💡 안내:</strong> 본 문서는 <a href="https://figteam.ktci5.kr/#cfg/" target="_blank">https://figteam.ktci5.kr/#cfg/</a> 웹의 실측 현황과 설계 내용을 기반으로 생성된 마크다운 지식 소스입니다. AI는 이를 읽고 사실 기반 조언을 제공하며, 실제 입력·설정 변경은 아래 각 웹 화면에 직접 접속하여 수행합니다.
+    <div class="action-bar">
+      <div style="flex: 1 1 100%; margin-bottom: 6px;">
+        <strong style="color: #58a6ff; font-size: 15px;">🤖 모바일 AI(Gemini·ChatGPT) 연동 가이드</strong>
+        <p style="margin: 4px 0 0; font-size: 13px; color: #8b949e; line-height: 1.5;">
+          외부 AI 봇의 사설 도메인 크롤링 제한이 있을 경우, 아래 <strong>[파일 다운로드]</strong> 후 Gemini 앱의 <code>+</code> 버튼으로 첨부하거나 <strong>[전체 복사]</strong>하여 대화창에 직접 붙여넣으십시오.
+        </p>
+      </div>
+      <a href="/md/download" class="btn btn-download">📥 Gemini 첨부용 파일 다운로드 (.md)</a>
+      <button onclick="copyAllMarkdown()" class="btn btn-copy">📋 마크다운 전체 복사</button>
+      <span id="copyToast" class="toast">✓ 클립보드에 복사되었습니다!</span>
     </div>
-    <pre style="white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; line-height: 1.6;">{md_content}</pre>
+
+    <pre id="mdText" style="white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; line-height: 1.6;">{md_content}</pre>
   </div>
+
+  <script>
+    function copyAllMarkdown() {{
+      const text = document.getElementById("mdText").innerText;
+      navigator.clipboard.writeText(text).then(() => {{
+        const toast = document.getElementById("copyToast");
+        toast.style.display = "inline";
+        setTimeout(() => {{ toast.style.display = "none"; }}, 2500);
+      }}).catch(err => {{
+        alert("복사 실패. 브라우저 설정을 확인해주세요.");
+      }});
+    }}
+  </script>
 </body>
 </html>"""
                 self.wfile.write(html_resp.encode("utf-8"))

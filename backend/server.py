@@ -1300,8 +1300,27 @@ LANDING_HTML = """<!DOCTYPE html>
     .cfg-st-protected { color: #f87171; border-color: #991b1b; background: rgba(239,68,68,.12); }
 
     /* 설명 */
+    .cfg-crumb-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
     .cfg-crumb { font-size: 12px; color: var(--text-muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
     .cfg-crumb-sep { color: #475569; }
+    .cfg-crumb-actions { display: flex; align-items: center; gap: 6px; }
+    .cfg-crumb-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 5px;
+      text-decoration: none;
+      background: #1e293b;
+      color: #94a3b8;
+      border: 1px solid #334155;
+      transition: all 0.15s ease;
+    }
+    .cfg-crumb-btn:hover { background: #334155; color: #fff; }
+    .cfg-crumb-btn-dl { background: rgba(35, 134, 54, 0.2); color: #4ade80; border-color: rgba(35, 134, 54, 0.4); }
+    .cfg-crumb-btn-dl:hover { background: #238636; color: #fff; }
     .cfg-head { border-bottom: 1px solid var(--surface-border); padding-bottom: 14px; display: flex; flex-direction: column; gap: 8px; }
     .cfg-head-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     .cfg-head-inst { font-size: 13px; color: #cbd5e1; font-weight: 600; }
@@ -3262,7 +3281,12 @@ LANDING_HTML = """<!DOCTYPE html>
       const minor = (cfgMinors(CFG.lens, CFG.major).find(m => m.id === CFG.minor) || {});
       const parts = [lens, major];
       if (minor.name) parts.push(CFG.lens === 'svc' ? minor.name + ' / ' + minor.sub : minor.name);
-      return '<nav class="cfg-crumb" aria-label="현재 위치">' + parts.filter(Boolean).map(cfgEsc).join('<span class="cfg-crumb-sep">›</span>') + '</nav>';
+      return '<div class="cfg-crumb-bar"><nav class="cfg-crumb" aria-label="현재 위치">' +
+        parts.filter(Boolean).map(cfgEsc).join('<span class="cfg-crumb-sep">›</span>') + '</nav>' +
+        '<div class="cfg-crumb-actions">' +
+          '<a href="/md/download" class="cfg-crumb-btn cfg-crumb-btn-dl" download="figteam-infrastructure.md" title="스마트폰 Gemini·ChatGPT 첨부용 전체 인프라 마크다운 다운로드">📥 AI 파일 다운로드 (.md)</a>' +
+          '<a href="/md/v1" target="_blank" class="cfg-crumb-btn" title="AI 실측 지식 마크다운 웹보기">🤖 AI 마크다운 웹보기</a>' +
+        '</div></div>';
     }
 
     function cfgRenderBody() {

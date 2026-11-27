@@ -33,3 +33,36 @@ else:
 
 # CNAME 파일 작성 (GitHub Pages 및 Cloudflare Pages용)
 (pub / 'CNAME').write_text('figteam.ktci5.kr\n', encoding='utf-8')
+
+# robots.txt 작성: AI 에이전트(ChatGPT-User, Claude-User 등)의 접근을 전면 허용
+robots_content = """User-agent: *
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Google-Agent
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+"""
+(pub / 'robots.txt').write_text(robots_content, encoding='utf-8')
