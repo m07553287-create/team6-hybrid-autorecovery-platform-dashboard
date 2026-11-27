@@ -25,7 +25,15 @@ fi
 """
 
 
-def build_script(units, pods_cmd):
+_VMS = r"""
+for d in $(LANG=C virsh list --all --name 2>/dev/null); do
+  n=$(LANG=C virsh dumpxml "$d" 2>/dev/null | sed -n 's/.*<nova:name>\(.*\)<\/nova:name>.*/\1/p' | head -1)
+  echo "vm ${n:-$d} $(LANG=C virsh domstate "$d" 2>/dev/null | head -1 | tr -d ' ')"
+done
+"""
+
+
+def build_script(units, pods_cmd, vms=False):
     for u in units:
         if not UNIT_RE.match(u):
             raise ValueError("허용되지 않은 유닛 이름: " + u)
@@ -36,6 +44,8 @@ def build_script(units, pods_cmd):
               '$(systemctl show -p ActiveEnterTimestampMonotonic --value $u 2>/dev/null)"; done\n')
     if pods_cmd:
         s += "(" + pods_cmd + ") 2>/dev/null | awk '{print \"pod\",$1,$2,$3,$4}'\n"
+    if vms:
+        s += _VMS
     return s
 
 
@@ -48,7 +58,7 @@ def _num(v, cast=int):
 
 def parse(text):
     d = {"nproc": None, "load1": None, "cpu_pct": None, "mem_total": None, "mem_used": None,
-         "disk_total": None, "disk_used": None, "uptime_s": None, "units": [], "pods": []}
+         "disk_total": None, "disk_used": None, "uptime_s": None, "units": [], "pods": [], "vms": []}
     for line in text.splitlines():
         f = line.split()
         if not f:
@@ -71,6 +81,8 @@ def parse(text):
         elif k == "unit" and len(f) > 2:
             mono = _num(f[3]) if len(f) > 3 else None
             d["units"].append({"unit": f[1], "state": f[2], "mono_us": mono})
+        elif k == "vm" and len(f) > 2:
+            d["vms"].append({"name": f[1], "state": f[2]})
         elif k == "pod" and len(f) > 3:
             d["pods"].append({"ns": f[1], "name": f[2], "phase": f[3], "start": f[4] if len(f) > 4 else None})
     up = d["uptime_s"]
@@ -89,7 +101,7 @@ def probe_argv(argv):
 async def probe(target, raw=False):
     """대상 하나를 조사한다. raw=True 면 argv 를 그대로 실행(시험용)."""
     units = [u[0] for u in target.get("units", [])]
-    script = build_script(units, target.get("pods"))
+    script = build_script(units, target.get("pods"), bool(target.get("vms")))
     argv = target["argv"] if raw else probe_argv(target["argv"])
     t0 = time.time()
     try:
@@ -129,7 +141,7 @@ class Collector:
         self.snapshot = {"collected_at": None, "instances": []}
 
     def _meta(self, t):
-        return {k: t[k] for k in ("id", "area", "name", "desc", "host", "disabled", "parent") if k in t} | {
+        return {k: t[k] for k in ("id", "area", "name", "desc", "host", "disabled", "parent", "role") if k in t} | {
             "unit_meta": {u[0]: {"type": u[1], "desc": u[2]} for u in t.get("units", [])}}
 
     async def run_once(self):
@@ -142,9 +154,22 @@ class Collector:
             else:
                 r = await probe(t)
             return self._meta(t) | r
-        items = await asyncio.gather(*(one(i) for i in self.order))
+        items = list(await asyncio.gather(*(one(i) for i in self.order)))
+        self.place(items)
         self.snapshot = {"collected_at": int(time.time()), "instances": list(items)}
         return self.snapshot
+
+    @staticmethod
+    def place(items):
+        """호스트에서 실제로 돌고 있는 VM(nova 이름) 기준으로 VM 의 parent 를 바꾼다.
+        찾지 못한 VM 은 targets.json 의 정적 parent 를 그대로 둔다."""
+        where = {}
+        for h in items:
+            for v in h.get("vms") or []:
+                where[v["name"]] = (h["id"], v["state"])
+        for i in items:
+            if i["id"] in where:
+                i["parent"], i["vm_state"] = where[i["id"]]
 
     async def loop(self):
         while True:

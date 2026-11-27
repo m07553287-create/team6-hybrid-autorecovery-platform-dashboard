@@ -1535,6 +1535,13 @@
     .cs-tog { width: 18px; height: 18px; background: transparent; border: 0; color: var(--text-sub); cursor: pointer; font-size: 11px; flex-shrink: 0; }
     .cs-tog:hover { color: #fff; }
     .cs-tog-sp { width: 18px; flex-shrink: 0; }
+    .cs-role { font-style: normal; font-family: var(--font-sans, inherit); font-size: 10px; font-weight: 600; margin-left: 6px; padding: 1px 6px; border-radius: 9px; vertical-align: 1px; }
+    .cs-role-host { background: #1e3a5f; color: #bfdbfe; }
+    .cs-role-vm { background: #14532d; color: #bbf7d0; }
+    .cs-role-none { background: #334155; color: #cbd5e1; }
+    .cs-svc-head { background: transparent; border: 0; color: var(--text-sub); font-size: 11px; cursor: pointer; padding: 3px 4px; font-family: inherit; }
+    .cs-svc-head:hover { color: #fff; }
+    .cs-svc-head b { color: #fca5a5; font-weight: 600; }
     .cs-svcs { display: flex; flex-direction: column; gap: 1px; padding: 2px 0 6px calc(var(--d, 1) * 14px + 22px); }
     .cs-svc { display: flex; align-items: center; gap: 6px; background: transparent; border: 0; border-radius: 4px; padding: 3px 6px; color: #cbd5e1; cursor: pointer; text-align: left; font-family: inherit; }
     .cs-svc:hover { background: var(--surface-card); color: #fff; }
@@ -3077,7 +3084,7 @@
     // 서버: s1 figteam-console (/console/api/*, /console/ws/<대상>) · 콘솔 비밀번호로 잠금
     // 예전 통합 터미널 기능: 대상별 「확인」·「⚠ 복구」 버튼, 탭, ⧉ 화면 위 창(끌기·크기·최소화·최대화·되돌리기), ↗ 새 창
     const CS = { open: false, solo: null, targets: null, layout: '1', slots: [], floats: [], active: 0, loaded: false,
-      sizes: { col: 50, row: 50 }, seq: 0, z: 900, pending: null, page: false, status: null, expanded: {}, stTimer: null, presets: {} };
+      sizes: { col: 50, row: 50 }, seq: 0, z: 900, pending: null, page: false, status: null, expanded: {}, openNow: {}, stTimer: null, presets: {} };
     const CS_TERM_URL = '/term/';
     // 대시보드에서: 통합 터미널 페이지로 이동 (원클릭 — 대상이 있으면 바로 접속)
     function csGo(id) { location.href = CS_TERM_URL + (id ? '?t=' + encodeURIComponent(id) : ''); }
@@ -3126,13 +3133,16 @@
       const tree = document.getElementById('cs-tree');
       if (tree) tree.innerHTML = csTreeHtml();
     }
+    // 부모: 상태 수집이 호스트 virsh 로 실측한 배치가 우선, 없으면 targets.json 의 정적 parent
     function csStat(id) { return ((CS.status && CS.status.instances) || []).find(i => i.id === id); }
+    function csParent(t) { const st = csStat(t.id); return (st && st.parent) || t.parent; }
     function csTreeHtml() {
       if (!CS.targets) return '';
       return CS_GROUPS.map(g => {
         const mine = CS.targets.filter(t => g[2].indexOf(t.area) >= 0);
         const ids = mine.map(t => t.id);
-        const roots = mine.filter(t => !t.parent || ids.indexOf(t.parent) < 0);
+        // 진입점(컨트롤러·컴퓨트) 먼저, 이름만 있는 기반 호스트(s1)는 맨 아래
+        const roots = mine.filter(t => ids.indexOf(csParent(t)) < 0).sort((a, b) => (a.area === 'onprem') - (b.area === 'onprem'));
         return '<div class="cs-area"><div class="cfg-group-head"><span class="cfg-dot cfg-c-' + g[0] + '"></span>' + g[1] + '</div>' +
           roots.map(t => csNodeHtml(t, mine, 0)).join('') +
           '<div class="cs-weblinks">' + g[3].map(l => '<a href="' + l[1] + '" target="_blank" rel="noopener">' + cfgEsc(l[0]) + ' ↗</a>').join('') + '</div></div>';
@@ -3140,26 +3150,35 @@
     }
     function csNodeHtml(t, mine, depth) {
       const st = csStat(t.id) || {};
-      const kids = mine.filter(x => x.parent === t.id);
+      const kids = mine.filter(x => csParent(x) === t.id);
       const svcs = (st.units || []).map(u => ({ kind: 'unit', name: u.unit, ok: u.state === 'active', state: u.state, desc: ((st.unit_meta || {})[u.unit] || {}).desc || '' }))
         .concat((st.pods || []).filter(p => p.phase !== 'Succeeded').map(p => ({ kind: 'pod', name: p.name, ns: p.ns, ok: p.phase === 'Running', state: p.phase, desc: p.ns })));
-      const open = !!CS.expanded[t.id], has = kids.length || svcs.length;
+      const open = CS.expanded[t.id] === undefined ? kids.length > 0 : CS.expanded[t.id];   // 하위 VM 이 있으면 처음부터 펼침(계단식)
+      const svcOpen = !!CS.expanded[t.id + ':svc'], has = kids.length || svcs.length;
+      CS.openNow[t.id] = open; CS.openNow[t.id + ':svc'] = svcOpen;
       const bad = svcs.filter(x => !x.ok).length;
-      const dot = st.alive === true ? (bad ? 'wait' : 'ok') : st.alive === false ? 'off' : '';
+      const vmOff = st.vm_state && st.vm_state !== 'running';
+      const dot = vmOff ? 'off' : st.alive === true ? (bad ? 'wait' : 'ok') : st.alive === false ? 'off' : '';
+      const sub = t.disabled || ((vmOff ? 'VM ' + st.vm_state + ' · ' : '') + (t.desc || ''));
+      const role = t.role ? '<em class="cs-role cs-role-' + (t.disabled ? 'none' : kids.length ? 'host' : 'vm') + '">' + cfgEsc(t.role) + '</em>' : '';
       let h = '<div class="cs-node" style="--d:' + depth + '"><div class="cs-node-row">' +
         (has ? '<button type="button" class="cs-tog" aria-expanded="' + open + '" title="펼치기" onclick="csToggle(\'' + cfgEsc(t.id) + '\')">' + (open ? '▾' : '▸') + '</button>' : '<span class="cs-tog-sp"></span>') +
         '<span class="cs-dot cs-dot-' + dot + '"></span>' +
         '<button type="button" class="cs-target"' + (t.disabled ? ' disabled title="' + cfgEsc(t.disabled) + '"' : ' title="누르면 바로 접속"') +
-        ' onclick="csPick(\'' + cfgEsc(t.id) + '\')"><b>' + cfgEsc(t.name) + '</b><span>' + cfgEsc(t.disabled || t.desc || '') + '</span></button></div>';
+        ' onclick="csPick(\'' + cfgEsc(t.id) + '\')"><b>' + cfgEsc(t.name) + role + '</b><span>' + cfgEsc(sub) + '</span></button></div>';
       if (open) {
-        if (svcs.length) h += '<div class="cs-svcs" style="--d:' + (depth + 1) + '">' + svcs.map(x =>
-          '<button type="button" class="cs-svc" data-id="' + cfgEsc(t.id) + '" data-kind="' + x.kind + '" data-name="' + cfgEsc(x.name) + '" data-ns="' + cfgEsc(x.ns || '') + '" onclick="csSvcBtn(this)" title="' + cfgEsc(x.desc) + ' — 누르면 상태 확인">' +
-          '<span class="cs-dot cs-dot-' + (x.ok ? 'ok' : 'off') + '"></span><span class="cs-svc-n">' + cfgEsc(x.name) + '</span><small>' + (x.kind === 'pod' ? '파드' : '서비스') + '</small></button>').join('') + '</div>';
-        h += kids.map(k => csNodeHtml(k, mine, depth + 1)).join('');   // 호스트 자신의 서비스 다음에 그 위의 VM
+        h += kids.map(k => csNodeHtml(k, mine, depth + 1)).join('');   // 하위 VM(마스터·워커·DB) 먼저
+        if (svcs.length) {
+          h += '<div class="cs-node" style="--d:' + (depth + 1) + '"><div class="cs-node-row"><button type="button" class="cs-tog" aria-expanded="' + svcOpen + '" onclick="csToggle(\'' + cfgEsc(t.id) + ':svc\')">' + (svcOpen ? '▾' : '▸') + '</button>' +
+            '<button type="button" class="cs-svc-head" onclick="csToggle(\'' + cfgEsc(t.id) + ':svc\')">서비스 ' + svcs.length + (bad ? ' · <b>이상 ' + bad + '</b>' : '') + '</button></div></div>';
+          if (svcOpen) h += '<div class="cs-svcs" style="--d:' + (depth + 1) + '">' + svcs.map(x =>
+            '<button type="button" class="cs-svc" data-id="' + cfgEsc(t.id) + '" data-kind="' + x.kind + '" data-name="' + cfgEsc(x.name) + '" data-ns="' + cfgEsc(x.ns || '') + '" onclick="csSvcBtn(this)" title="' + cfgEsc(x.desc) + ' — 누르면 상태 확인">' +
+            '<span class="cs-dot cs-dot-' + (x.ok ? 'ok' : 'off') + '"></span><span class="cs-svc-n">' + cfgEsc(x.name) + '</span><small>' + (x.kind === 'pod' ? '파드' : '서비스') + '</small></button>').join('') + '</div>';
+        }
       }
       return h + '</div>';
     }
-    function csToggle(id) { CS.expanded[id] = !CS.expanded[id]; const tree = document.getElementById('cs-tree'); if (tree) tree.innerHTML = csTreeHtml(); }
+    function csToggle(id) { CS.expanded[id] = !(CS.openNow[id] !== undefined ? CS.openNow[id] : CS.expanded[id]); const tree = document.getElementById('cs-tree'); if (tree) tree.innerHTML = csTreeHtml(); }
     // 서비스 클릭: 그 인스턴스 터미널에서 상태(또는 파드 로그) 명령을 바로 실행
     function csSvcBtn(btn) {
       const d = btn.dataset, tg = csT(d.id);
@@ -3660,8 +3679,10 @@
       return list;
     }
 
+    // 이름만 있는 대상(정책상 접속·수집 없음, 예: s1)은 카드·집계에서 뺀다
+    function dashNameOnly(i) { return !!i.disabled && i.alive == null; }
     function dashInstances() {
-      const items = (DASH.snap && DASH.snap.instances) || [];
+      const items = ((DASH.snap && DASH.snap.instances) || []).filter(i => !dashNameOnly(i));
       return items.slice().sort((a, b) => DASH_ORDER.indexOf(a.area) - DASH_ORDER.indexOf(b.area));
     }
 
@@ -3756,7 +3777,7 @@
       if (!DASH.snap) { box.innerHTML = '<div class="infra-badge-item"><span class="infra-badge-name">실측</span><span class="infra-badge-state ' + (DASH.err ? 'state-red' : '') + '">' + (DASH.err ? '연결 실패' : '수집 중') + '</span></div>'; return; }
       const groups = [['kt', 'KT Cloud', ['kt']], ['os', '온프렘·OpenStack', ['onprem', 'openstack']], ['aws', 'AWS', ['aws']]];
       box.innerHTML = groups.map(g => {
-        const xs = DASH.snap.instances.filter(i => g[2].indexOf(i.area) >= 0);
+        const xs = DASH.snap.instances.filter(i => g[2].indexOf(i.area) >= 0 && !dashNameOnly(i));
         const up = xs.filter(i => i.alive === true).length;
         const bad = xs.some(i => i.alive === true && (i.units || []).some(u => u.state !== 'active'));
         return '<div class="infra-badge-item"><span class="infra-badge-name">' + g[1] + '</span><span class="infra-badge-state ' +

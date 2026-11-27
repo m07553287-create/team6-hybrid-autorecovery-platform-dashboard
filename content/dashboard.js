@@ -59,8 +59,10 @@
       return list;
     }
 
+    // 이름만 있는 대상(정책상 접속·수집 없음, 예: s1)은 카드·집계에서 뺀다
+    function dashNameOnly(i) { return !!i.disabled && i.alive == null; }
     function dashInstances() {
-      const items = (DASH.snap && DASH.snap.instances) || [];
+      const items = ((DASH.snap && DASH.snap.instances) || []).filter(i => !dashNameOnly(i));
       return items.slice().sort((a, b) => DASH_ORDER.indexOf(a.area) - DASH_ORDER.indexOf(b.area));
     }
 
@@ -155,7 +157,7 @@
       if (!DASH.snap) { box.innerHTML = '<div class="infra-badge-item"><span class="infra-badge-name">실측</span><span class="infra-badge-state ' + (DASH.err ? 'state-red' : '') + '">' + (DASH.err ? '연결 실패' : '수집 중') + '</span></div>'; return; }
       const groups = [['kt', 'KT Cloud', ['kt']], ['os', '온프렘·OpenStack', ['onprem', 'openstack']], ['aws', 'AWS', ['aws']]];
       box.innerHTML = groups.map(g => {
-        const xs = DASH.snap.instances.filter(i => g[2].indexOf(i.area) >= 0);
+        const xs = DASH.snap.instances.filter(i => g[2].indexOf(i.area) >= 0 && !dashNameOnly(i));
         const up = xs.filter(i => i.alive === true).length;
         const bad = xs.some(i => i.alive === true && (i.units || []).some(u => u.state !== 'active'));
         return '<div class="infra-badge-item"><span class="infra-badge-name">' + g[1] + '</span><span class="infra-badge-state ' +
