@@ -2898,7 +2898,7 @@ LANDING_HTML = """<!DOCTYPE html>
     const LENSES = [
       { id: 'inst', name: '클라우드 기준', hint: '클라우드(AWS·KT·OpenStack)를 펼쳐 그 안 인스턴스의 영역을 봅니다' },
       { id: 'svc', name: '서비스 기준', hint: '보안·웹 같은 영역을 골라 맡은 인스턴스를 봅니다' },
-      { id: 'zoom', name: '시점(입장)', hint: 'AWS·KT·OpenStack·온프렘 각 입장에 서서 전체 시스템이 어떻게 보이는지 봅니다' },
+      { id: 'zoom', name: '기준점', hint: 'AWS·KT·OpenStack·온프렘 각 클라우드 기준 전체 시스템이 어떻게 구성되는지 봅니다' },
       { id: 'step', name: '진행 순서', hint: '처음 구성할 때 지켜야 하는 순서와 통과 조건' },
       { id: 'ref', name: '참고', hint: '변수표·설계·오류 색인 같은 팀 참고 문서' }
     ];
@@ -3086,7 +3086,7 @@ LANDING_HTML = """<!DOCTYPE html>
         return { id: pid, name: p.title.split(' (')[0], sub: p.tag, cloud: p.cloud, status: p.status, group: p.cloudName, groupId: p.cloudId };
       });
       if (lens === 'svc') return d.domains.map(dm => ({ id: dm.id, name: dm.name, sub: dm.desc, count: cfgMinors('svc', dm.id).length }));
-      if (lens === 'zoom') return [VIEW_FOREST].concat(cfgClouds().map(c => ({ id: c, name: CLOUD_NAME[c] + ' 입장', sub: cfgInstOrder().filter(pid => cfgPage(pid).cloud === c).length + '대 · 연결·의존·멈추면', cloud: c })));
+      if (lens === 'zoom') return [VIEW_FOREST].concat(cfgClouds().map(c => ({ id: c, name: CLOUD_NAME[c], sub: cfgInstOrder().filter(pid => cfgPage(pid).cloud === c).length + '대 · 연결·의존·멈추면', cloud: c })));
       if (lens === 'step') return [{ id: 'all', name: '처음부터 끝까지', sub: d.steps.length ? d.steps.length + '단계' : '아직 단계가 없습니다' }];
       return d.reference.filter(r => !/^시점 · /.test(r[1] || '')).map(r => ({ id: r[0], name: r[1], sub: cfgPage(r[0]).tag }))
         .concat(typeof wikiChangesView === 'function' ? [{ id: '__changes', name: '최근 변경', sub: '팀 전체 변경 기록' }] : []);
@@ -3111,7 +3111,7 @@ LANDING_HTML = """<!DOCTYPE html>
       if (lens === 'zoom') {
         if (major === 'forest') return [{ id: 'all', name: '전체 토폴로지', sub: '진입 · 터널 · 서비스 · 복구 흐름' }];
         if (!CLOUD_NAME[major]) return [];
-        return [{ id: 'view', name: CLOUD_NAME[major] + ' 입장에서 본 설계', sub: '연결 · 기대는 것 · 멈추면', cloud: major }]
+        return [{ id: 'view', name: CLOUD_NAME[major] + ' 설계 기준', sub: '연결 · 의존 · 멈추면', cloud: major }]
           .concat(cfgInstOrder().filter(pid => cfgPage(pid).cloud === major).map(pid => { const p = cfgPage(pid); return { id: pid, name: p.short, sub: '서버 작업 · ' + p.tag, cloud: p.cloud }; }));
       }
       return [];
@@ -3378,8 +3378,8 @@ LANDING_HTML = """<!DOCTYPE html>
       return id ? '<button type="button" class="wk-btn cfg-term-btn" onclick="cfgOpenConsole(&quot;' + cfgEsc(id) + '&quot;)">이 서버 터미널 열기</button>' : '';
     }
     function cfgZoomBar() {
-      const tabs = [VIEW_FOREST].concat(cfgClouds().map(c => ({ id: c, name: CLOUD_NAME[c] + ' 입장', cloud: c })));
-      return '<nav class="cfg-zoombar" aria-label="입장 고르기">' + tabs.map(t =>
+      const tabs = [VIEW_FOREST].concat(cfgClouds().map(c => ({ id: c, name: CLOUD_NAME[c], cloud: c })));
+      return '<nav class="cfg-zoombar" aria-label="기준점 고르기">' + tabs.map(t =>
         '<button type="button" class="cfg-zoom-step' + (t.id === CFG.major ? ' on' : '') + '"' + (t.id === CFG.major ? ' aria-current="page"' : '') +
         ' onclick="' + cfgGo('zoom', t.id, t.id === 'forest' ? 'all' : 'view') + '">' +
         '<span class="cfg-zoom-t">' + (t.cloud ? '<span class="cfg-dot cfg-c-' + t.cloud + '"></span> ' : '') + cfgEsc(t.name) + '</span></button>').join('') + '</nav>';
@@ -3391,7 +3391,7 @@ LANDING_HTML = """<!DOCTYPE html>
     // 숲: 클라우드별 서버 지도 + 실측 토폴로지 문서(위키)
     function cfgZoomForest() {
       let html = '<div class="cfg-head"><h2 class="cfg-head-title">숲 · 전체 구성</h2><p class="manual-desc">세 클라우드와 그 안 서버가 한 화면에 보입니다. ' +
-        '클라우드 이름을 누르면 그 클라우드 입장에서 본 설계로, 서버를 누르면 그 서버의 실제 작업으로 갑니다.</p></div>';
+        '클라우드 이름을 누르면 해당 클라우드 기준 설계로, 서버를 누르면 그 서버의 실제 작업으로 갑니다.</p></div>';
       html += '<div class="cfg-forest">' + cfgClouds().map(c => {
         const list = cfgInstOrder().filter(pid => cfgPage(pid).cloud === c);
         return '<section class="cfg-forest-cloud"><button type="button" class="cfg-forest-name" onclick="' + cfgGo('zoom', c, 'view') + '">' +
