@@ -839,6 +839,29 @@
     .wk-act-delete { background: rgba(239, 68, 68, 0.16); border-color: #ef4444; color: #fca5a5; }
     .wk-act-restore { background: rgba(16, 185, 129, 0.16); border-color: #059669; color: #6ee7b7; }
     .wk-ip-muted { color: #64748b; font-size: 11.5px; }
+    .wk-kpi-strip { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    .wk-kpi-card {
+      flex: 1 1 130px; background: #0f172a; border: 1px solid #1e293b; border-radius: 8px;
+      padding: 10px 12px; display: flex; flex-direction: column; gap: 3px;
+    }
+    .wk-kpi-card span { font-size: 11.5px; color: #94a3b8; }
+    .wk-kpi-card b { font-size: 18px; color: #f8fafc; font-weight: 700; }
+    .wk-filter-pills { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+    .wk-fpill {
+      padding: 4px 11px; border-radius: 999px; border: 1px solid #334155; background: #0f172a;
+      color: #94a3b8; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .wk-fpill:hover { color: #fff; border-color: #60a5fa; }
+    .wk-fpill.active { background: #1e3a8a; border-color: #3b82f6; color: #fff; }
+    .wk-vstate {
+      display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;
+      border: 1px solid #334155; background: #1e293b; color: #cbd5e1; white-space: nowrap;
+    }
+    .wk-vs-authenticated { background: rgba(16, 185, 129, 0.15); border-color: #059669; color: #6ee7b7; }
+    .wk-vs-visitor { background: rgba(56, 189, 248, 0.14); border-color: #0284c7; color: #7dd3fc; }
+    .wk-vs-expired { background: rgba(245, 158, 11, 0.16); border-color: #d97706; color: #fde68a; }
+    .wk-vs-login_fail { background: rgba(239, 68, 68, 0.16); border-color: #ef4444; color: #fca5a5; }
+    .wk-vs-logout { background: rgba(148, 163, 184, 0.14); border-color: #475569; color: #cbd5e1; }
     /* ===== 통합 콘솔 (content/console.css) ===== */
     .cs-rail { position: fixed; left: 0; top: 50%; transform: translateY(-50%); z-index: 700; writing-mode: vertical-rl; letter-spacing: .12em;
       background: var(--primary); color: #fff; border: 0; border-radius: 0 8px 8px 0; padding: 16px 7px; font-size: 13px; font-weight: 700;
@@ -1166,6 +1189,66 @@
         keyEl.value = curKey;
       }
     }
+    const CS_SITE_VISITS_KEY = 'fig.access.site_visits_v1';
+
+    function figReadUaSummary() {
+      try {
+        const raw = (navigator && navigator.userAgent) || '';
+        const br = raw.indexOf('Edg/') >= 0 ? 'Edge'
+          : raw.indexOf('Chrome/') >= 0 ? 'Chrome'
+          : raw.indexOf('Firefox/') >= 0 ? 'Firefox'
+          : raw.indexOf('Safari/') >= 0 ? 'Safari' : 'Browser';
+        const os = /iPhone|iPad/.test(raw) ? 'iOS'
+          : raw.indexOf('Android') >= 0 ? 'Android'
+          : /Mac OS X|Macintosh/.test(raw) ? 'macOS'
+          : raw.indexOf('Windows') >= 0 ? 'Windows'
+          : raw.indexOf('Linux') >= 0 ? 'Linux' : '';
+        return os ? (br + ' · ' + os) : br;
+      } catch (e) { return ''; }
+    }
+    function figRecordSiteVisit(authState, view, detail) {
+      const state = authState || 'visitor';
+      const path = (typeof location !== 'undefined' ? (location.pathname + (location.hash || '')) : '/') || '/';
+      const v = view || (CS.page ? 'term' : 'dashboard');
+      const sig = state + '|' + v + '|' + path;
+      const nowMs = Date.now();
+      if (CS._lastVisitSig === sig && CS._lastVisitTs && (nowMs - CS._lastVisitTs) < 2000) return;
+      CS._lastVisitSig = sig;
+      CS._lastVisitTs = nowMs;
+      const stored = figReadStoredAccessKey();
+      const entry = {
+        ts: Math.floor(nowMs / 1000),
+        path: path.slice(0, 120),
+        view: String(v).slice(0, 32),
+        auth_state: state,
+        member: stored ? stored.member : '',
+        access_key: stored ? stored.access_key : '',
+        ua: figReadUaSummary(),
+        ip: '현재 브라우저',
+        detail: String(detail || '').slice(0, 120)
+      };
+      try {
+        const list = csReadJson(CS_SITE_VISITS_KEY, []) || [];
+        list.unshift(entry);
+        localStorage.setItem(CS_SITE_VISITS_KEY, JSON.stringify(list.slice(0, 300)));
+      } catch (e) {}
+      try {
+        fetch('/api/visit', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            path: entry.path,
+            view: entry.view,
+            auth_state: entry.auth_state,
+            member: entry.member,
+            access_key: entry.access_key,
+            detail: entry.detail
+          })
+        }).catch(() => {});
+      } catch (e) {}
+    }
+
     async function figExpireKeylessSessions() {
       try { sessionStorage.removeItem(figAuthStorageKey()); } catch (e) {}
       try { sessionStorage.removeItem(CS_ENTRY_SKIP_KEY); } catch (e) {}
@@ -1414,6 +1497,7 @@
       }
       if (!figReadStoredAccessKey()) {
         figExpireKeylessSessions();
+        figRecordSiteVisit('expired', CS.page ? 'term' : 'console', '키 없는 콘솔 접속 차단');
         const root = csRoot();
         root.hidden = false;
         root.classList.toggle('cs-solo', !!soloId);
@@ -1422,6 +1506,7 @@
         CS.open = true; CS.solo = soloId || null;
         return csShowUnlock('접속 키가 없는 이전 세션이 만료되었습니다. 이름·접속 키와 비밀번호를 입력해 다시 로그인해 주세요.');
       }
+      figRecordSiteVisit('authenticated', CS.page ? 'term' : 'console', '통합 콘솔 접속');
       const root = csRoot();
       if (CS.targets && root.querySelector('.cs-wrap') && !soloId) {   // 다른 화면에 갔다 와도 열린 터미널은 그대로
         root.hidden = false; document.body.classList.add('cs-on'); CS.open = true;
@@ -1527,10 +1612,12 @@
         });
         csWriteProfile(member, ak);
         try { sessionStorage.setItem(figAuthStorageKey(), 'valid'); } catch (e) {}
+        figRecordSiteVisit('authenticated', CS.page ? 'term' : 'console', '콘솔 로그인 성공');
         csSyncProfileToServer(member, ak, true).catch(() => {});
         csRoot().innerHTML = '';
         csOpen(CS.solo);
       } catch (e) {
+        figRecordSiteVisit('login_fail', CS.page ? 'term' : 'console', '콘솔 로그인 실패 (' + (e.status || 0) + ')');
         err.textContent = e.status === 401 ? '비밀번호가 맞지 않습니다' : e.status === 429 ? '시도가 많습니다. 10분 뒤 다시 시도하세요' : (e.error || '잠금을 풀지 못했습니다');
         err.hidden = false;
       }
@@ -1917,7 +2004,10 @@
         } catch (e) {}
         if (hadLocalAuth || hadServerSession) {
           await figExpireKeylessSessions();
+          figRecordSiteVisit('expired', 'login', '접속 키 없는 이전 세션 만료');
           figShowLoginNotice('접속 키가 없는 이전 세션이 만료되었습니다. 이름·접속 키와 비밀번호로 다시 로그인해 주세요.');
+        } else {
+          figRecordSiteVisit('visitor', 'login', '사이트 첫 방문 (미로그인)');
         }
         checkAuth();
         return;
@@ -1931,11 +2021,15 @@
         const d = await r.json();
         if (d.unlocked && !d.key_expired) {
           sessionStorage.setItem(authKey, 'valid');
+          figRecordSiteVisit('authenticated', localStorage.getItem('fig.view') || 'dashboard', '사이트 접속 (로그인 유지)');
         } else {
           sessionStorage.removeItem(authKey);
           if (d && d.key_expired) {
             await figExpireKeylessSessions();
+            figRecordSiteVisit('expired', 'login', '서버 세션 키 누락 만료');
             figShowLoginNotice('서버 세션에 접속 키가 없어 만료되었습니다. 다시 로그인해 주세요.');
+          } else {
+            figRecordSiteVisit('visitor', 'login', '사이트 방문 (미로그인)');
           }
         }
       } catch (e) {

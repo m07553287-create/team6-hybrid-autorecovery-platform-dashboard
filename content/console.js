@@ -189,6 +189,66 @@
         keyEl.value = curKey;
       }
     }
+    const CS_SITE_VISITS_KEY = 'fig.access.site_visits_v1';
+
+    function figReadUaSummary() {
+      try {
+        const raw = (navigator && navigator.userAgent) || '';
+        const br = raw.indexOf('Edg/') >= 0 ? 'Edge'
+          : raw.indexOf('Chrome/') >= 0 ? 'Chrome'
+          : raw.indexOf('Firefox/') >= 0 ? 'Firefox'
+          : raw.indexOf('Safari/') >= 0 ? 'Safari' : 'Browser';
+        const os = /iPhone|iPad/.test(raw) ? 'iOS'
+          : raw.indexOf('Android') >= 0 ? 'Android'
+          : /Mac OS X|Macintosh/.test(raw) ? 'macOS'
+          : raw.indexOf('Windows') >= 0 ? 'Windows'
+          : raw.indexOf('Linux') >= 0 ? 'Linux' : '';
+        return os ? (br + ' · ' + os) : br;
+      } catch (e) { return ''; }
+    }
+    function figRecordSiteVisit(authState, view, detail) {
+      const state = authState || 'visitor';
+      const path = (typeof location !== 'undefined' ? (location.pathname + (location.hash || '')) : '/') || '/';
+      const v = view || (CS.page ? 'term' : 'dashboard');
+      const sig = state + '|' + v + '|' + path;
+      const nowMs = Date.now();
+      if (CS._lastVisitSig === sig && CS._lastVisitTs && (nowMs - CS._lastVisitTs) < 2000) return;
+      CS._lastVisitSig = sig;
+      CS._lastVisitTs = nowMs;
+      const stored = figReadStoredAccessKey();
+      const entry = {
+        ts: Math.floor(nowMs / 1000),
+        path: path.slice(0, 120),
+        view: String(v).slice(0, 32),
+        auth_state: state,
+        member: stored ? stored.member : '',
+        access_key: stored ? stored.access_key : '',
+        ua: figReadUaSummary(),
+        ip: '현재 브라우저',
+        detail: String(detail || '').slice(0, 120)
+      };
+      try {
+        const list = csReadJson(CS_SITE_VISITS_KEY, []) || [];
+        list.unshift(entry);
+        localStorage.setItem(CS_SITE_VISITS_KEY, JSON.stringify(list.slice(0, 300)));
+      } catch (e) {}
+      try {
+        fetch('/api/visit', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            path: entry.path,
+            view: entry.view,
+            auth_state: entry.auth_state,
+            member: entry.member,
+            access_key: entry.access_key,
+            detail: entry.detail
+          })
+        }).catch(() => {});
+      } catch (e) {}
+    }
+
     async function figExpireKeylessSessions() {
       try { sessionStorage.removeItem(figAuthStorageKey()); } catch (e) {}
       try { sessionStorage.removeItem(CS_ENTRY_SKIP_KEY); } catch (e) {}
@@ -437,6 +497,7 @@
       }
       if (!figReadStoredAccessKey()) {
         figExpireKeylessSessions();
+        figRecordSiteVisit('expired', CS.page ? 'term' : 'console', '키 없는 콘솔 접속 차단');
         const root = csRoot();
         root.hidden = false;
         root.classList.toggle('cs-solo', !!soloId);
@@ -445,6 +506,7 @@
         CS.open = true; CS.solo = soloId || null;
         return csShowUnlock('접속 키가 없는 이전 세션이 만료되었습니다. 이름·접속 키와 비밀번호를 입력해 다시 로그인해 주세요.');
       }
+      figRecordSiteVisit('authenticated', CS.page ? 'term' : 'console', '통합 콘솔 접속');
       const root = csRoot();
       if (CS.targets && root.querySelector('.cs-wrap') && !soloId) {   // 다른 화면에 갔다 와도 열린 터미널은 그대로
         root.hidden = false; document.body.classList.add('cs-on'); CS.open = true;
@@ -550,10 +612,12 @@
         });
         csWriteProfile(member, ak);
         try { sessionStorage.setItem(figAuthStorageKey(), 'valid'); } catch (e) {}
+        figRecordSiteVisit('authenticated', CS.page ? 'term' : 'console', '콘솔 로그인 성공');
         csSyncProfileToServer(member, ak, true).catch(() => {});
         csRoot().innerHTML = '';
         csOpen(CS.solo);
       } catch (e) {
+        figRecordSiteVisit('login_fail', CS.page ? 'term' : 'console', '콘솔 로그인 실패 (' + (e.status || 0) + ')');
         err.textContent = e.status === 401 ? '비밀번호가 맞지 않습니다' : e.status === 429 ? '시도가 많습니다. 10분 뒤 다시 시도하세요' : (e.error || '잠금을 풀지 못했습니다');
         err.hidden = false;
       }
@@ -940,7 +1004,10 @@
         } catch (e) {}
         if (hadLocalAuth || hadServerSession) {
           await figExpireKeylessSessions();
+          figRecordSiteVisit('expired', 'login', '접속 키 없는 이전 세션 만료');
           figShowLoginNotice('접속 키가 없는 이전 세션이 만료되었습니다. 이름·접속 키와 비밀번호로 다시 로그인해 주세요.');
+        } else {
+          figRecordSiteVisit('visitor', 'login', '사이트 첫 방문 (미로그인)');
         }
         checkAuth();
         return;
@@ -954,11 +1021,15 @@
         const d = await r.json();
         if (d.unlocked && !d.key_expired) {
           sessionStorage.setItem(authKey, 'valid');
+          figRecordSiteVisit('authenticated', localStorage.getItem('fig.view') || 'dashboard', '사이트 접속 (로그인 유지)');
         } else {
           sessionStorage.removeItem(authKey);
           if (d && d.key_expired) {
             await figExpireKeylessSessions();
+            figRecordSiteVisit('expired', 'login', '서버 세션 키 누락 만료');
             figShowLoginNotice('서버 세션에 접속 키가 없어 만료되었습니다. 다시 로그인해 주세요.');
+          } else {
+            figRecordSiteVisit('visitor', 'login', '사이트 방문 (미로그인)');
           }
         }
       } catch (e) {

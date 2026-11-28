@@ -142,3 +142,14 @@ def test_me_locked_then_unlocked(client):
 def test_unlock_ttl_12h(client):
     r = client.post("/console/api/unlock", json={"password": PW, "access_key": "KEY123"})
     assert "Max-Age=43200" in r.headers["set-cookie"]
+
+
+def test_visitors_records_anonymous_fail_and_authenticated(client):
+    assert client.get("/console/api/visitors").status_code == 401
+    client.get("/console/api/me")
+    client.post("/console/api/unlock", json={"password": "wrong", "access_key": "KEY123", "member": "김방문"})
+    client.post("/console/api/unlock", json={"password": PW, "access_key": "KEY123", "member": "김방문"})
+    res = client.get("/console/api/visitors")
+    assert res.status_code == 200
+    states = [v["auth_state"] for v in res.json()["visitors"]]
+    assert "visitor" in states and "login_fail" in states and "authenticated" in states

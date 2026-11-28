@@ -1144,12 +1144,23 @@
     const WK_ACTION_LABEL = {
       visit: '포털 접속',
       login: '로그인',
+      first_entry: '최초 이름 등록',
+      console: '콘솔 접속',
+      logout: '로그아웃',
       create_team: '팀 생성',
       rename: '키·이름 변경',
       create: '문서 생성',
       edit: '문서 수정',
       delete: '문서 삭제',
       restore: '판 되돌리기'
+    };
+
+    const WK_VISIT_STATE_LABEL = {
+      authenticated: '로그인 접속',
+      visitor: '미로그인 방문',
+      expired: '세션 만료',
+      login_fail: '로그인 실패',
+      logout: '로그아웃'
     };
 
     function wkFilterByKey(ak) {
@@ -1169,9 +1180,21 @@
     }
 
     function wkChangesFilter(val) {
-      WIKI.changesView = WIKI.changesView || { tab: 'changes', query: '', filterKey: '', list: [], logs: [], serverKeybook: {} };
+      WIKI.changesView = WIKI.changesView || { tab: 'changes', query: '', filterKey: '', vstate: 'all', mineOnly: false, list: [], logs: [], wikiVisitors: [], consoleVisitors: [], serverKeybook: {} };
       WIKI.changesView.query = String(val || '').trim();
       WIKI.changesView.filterKey = '';
+      wkRenderChangesTab();
+    }
+
+    function wkVisitorsSetState(vstate) {
+      WIKI.changesView = WIKI.changesView || { tab: 'visitors', query: '', filterKey: '', vstate: 'all', mineOnly: false, list: [], logs: [], wikiVisitors: [], consoleVisitors: [], serverKeybook: {} };
+      WIKI.changesView.vstate = vstate || 'all';
+      wkRenderChangesTab();
+    }
+
+    function wkAccessToggleMine() {
+      WIKI.changesView = WIKI.changesView || { tab: 'access', query: '', filterKey: '', vstate: 'all', mineOnly: false, list: [], logs: [], wikiVisitors: [], consoleVisitors: [], serverKeybook: {} };
+      WIKI.changesView.mineOnly = !WIKI.changesView.mineOnly;
       wkRenderChangesTab();
     }
 
@@ -1241,12 +1264,72 @@
       return out;
     }
 
+    function wkBuildSiteVisitors(wikiVisitors, consoleVisitors, localVisits, keybook) {
+      const seen = {};
+      const out = [];
+      const addRow = row => {
+        if (!row) return;
+        const ts = Number(row.ts || 0);
+        const state = String(row.auth_state || 'visitor');
+        const p = wkParseAuthor(row.member, row.access_key, keybook);
+        const view = String(row.view || '');
+        const path = String(row.path || '/');
+        const bucket = Math.floor(ts / 3);
+        const sig = bucket + '|' + state + '|' + p.accessKey + '|' + view + '|' + path;
+        if (seen[sig]) return;
+        seen[sig] = true;
+        const rawMatched = String(row.matched_user || '').trim();
+        let matchedUser = '방문자';
+        if (p.registered || p.hasRealName) matchedUser = p.matchedUser;
+        else if (rawMatched && rawMatched !== '게스트') matchedUser = rawMatched;
+        else if (p.accessKey) matchedUser = '게스트';
+        out.push({
+          ts: ts,
+          authState: state,
+          path: path,
+          view: view,
+          accessKey: p.accessKey,
+          matchedUser: matchedUser,
+          registered: p.registered,
+          hasRealName: p.hasRealName,
+          ip: String(row.ip || ''),
+          ua: String(row.ua || ''),
+          detail: String(row.detail || '')
+        });
+      };
+      (wikiVisitors || []).forEach(addRow);
+      (consoleVisitors || []).forEach(addRow);
+      (localVisits || []).forEach(addRow);
+      out.sort((a, b) => b.ts - a.ts);
+      return out;
+    }
+
+    function wkSummarizeVisitors(rows) {
+      let authenticated = 0, anonymous = 0, expiredOrFail = 0;
+      const ips = {};
+      (rows || []).forEach(r => {
+        const st = r.authState || r.auth_state || 'visitor';
+        if (st === 'authenticated') authenticated++;
+        else if (st === 'expired' || st === 'login_fail') expiredOrFail++;
+        else anonymous++;
+        if (r.ip) ips[r.ip] = true;
+      });
+      return {
+        total: (rows || []).length,
+        authenticated: authenticated,
+        anonymous: anonymous,
+        expiredOrFail: expiredOrFail,
+        uniqueIps: Object.keys(ips).length
+      };
+    }
+
     function wkRenderChangesTab() {
       const box = document.getElementById('wk-ch-panel');
       if (!box) return;
-      const st = WIKI.changesView || { tab: 'changes', query: '', filterKey: '', list: [], logs: [], serverKeybook: {} };
+      const st = WIKI.changesView || { tab: 'changes', query: '', filterKey: '', vstate: 'all', mineOnly: false, list: [], logs: [], wikiVisitors: [], consoleVisitors: [], serverKeybook: {} };
       const q = (st.query || '').toLowerCase();
       const kb = wkMergedKeybook(st.serverKeybook, st.list);
+      const prof = wkGetAccessProfile();
 
       if (st.tab === 'changes') {
         const filtered = (st.list || []).filter(c => {
@@ -1275,14 +1358,30 @@
           more.onclick = () => wikiChangesView(st.list[st.list.length - 1].created_at);
         }
       } else if (st.tab === 'access') {
-        const combined = wkBuildCombinedLogs(st.logs, st.list, kb).filter(row => {
+        const allAuthRows = wkBuildCombinedLogs(st.logs, st.list, kb);
+        const uniqUsers = {}, uniqKeys = {};
+        allAuthRows.forEach(r => {
+          if (r.matchedUser && r.matchedUser !== '게스트') uniqUsers[r.matchedUser] = true;
+          if (r.accessKey) uniqKeys[r.accessKey] = true;
+        });
+        const combined = allAuthRows.filter(row => {
+          if (st.mineOnly && row.accessKey !== prof.access_key && row.matchedUser !== prof.member) return false;
           if (!q) return true;
           const hay = [row.accessKey, row.matchedUser, WK_ACTION_LABEL[row.action] || row.action, row.detail, row.ip].join(' ').toLowerCase();
           return hay.indexOf(q) >= 0;
         });
         box.innerHTML =
+          '<div class="wk-kpi-strip">' +
+            '<div class="wk-kpi-card"><span>로그인 사용자 활동</span><b>' + allAuthRows.length + '건</b></div>' +
+            '<div class="wk-kpi-card"><span>고유 로그인 사용자</span><b>' + Object.keys(uniqUsers).length + '명</b></div>' +
+            '<div class="wk-kpi-card"><span>고유 접속 키값</span><b>' + Object.keys(uniqKeys).length + '개</b></div>' +
+          '</div>' +
+          '<div class="wk-filter-pills">' +
+            '<button type="button" class="wk-fpill' + (st.mineOnly ? ' active' : '') + '" onclick="wkAccessToggleMine()">내 기록만 보기 (' + cfgEsc(prof.member) + ')</button>' +
+            '<span class="wk-ip-muted">인증된 사용자의 포털·콘솔·문서 작업 이력</span>' +
+          '</div>' +
           '<div class="cfg-table-wrap"><table class="cfg-table wk-changes">' +
-          '<thead><tr><th>접속 시각</th><th>접속 키값</th><th>사용자 (매칭)</th><th>활동</th><th>대상 / 메모 · IP</th></tr></thead>' +
+          '<thead><tr><th>접속 시각</th><th>접속 키값</th><th>로그인 사용자 (매칭)</th><th>활동</th><th>대상 / 메모 · IP</th></tr></thead>' +
           '<tbody>' +
           (combined.length ? combined.map(row => {
             const auth = wkAuthorCellHtml(row.matchedUser, row.accessKey, kb, { allowQuickMatch: true });
@@ -1292,7 +1391,58 @@
               '<td>' + auth.userHtml + '</td>' +
               '<td><span class="wk-act-badge wk-act-' + cfgEsc(row.action) + '">' + cfgEsc(WK_ACTION_LABEL[row.action] || row.action) + '</span></td>' +
               '<td>' + cfgEsc(row.detail || '-') + (row.ip ? ' <span class="wk-ip-muted">(' + cfgEsc(row.ip) + ')</span>' : '') + '</td></tr>';
-          }).join('') : '<tr><td colspan="5">표시할 사용자 접속 기록이 없습니다.</td></tr>') +
+          }).join('') : '<tr><td colspan="5">표시할 로그인 사용자 접속 기록이 없습니다.</td></tr>') +
+          '</tbody></table></div>';
+      } else if (st.tab === 'visitors') {
+        const localVisits = wkReadLocalJson('fig.access.site_visits_v1', []) || [];
+        const allVisitors = wkBuildSiteVisitors(st.wikiVisitors, st.consoleVisitors, localVisits, kb);
+        const sum = wkSummarizeVisitors(allVisitors);
+        const vFilter = st.vstate || 'all';
+        const filtered = allVisitors.filter(row => {
+          if (vFilter === 'authenticated' && row.authState !== 'authenticated') return false;
+          if (vFilter === 'visitor' && row.authState !== 'visitor' && row.authState !== 'logout') return false;
+          if (vFilter === 'expired_or_fail' && row.authState !== 'expired' && row.authState !== 'login_fail') return false;
+          if (!q) return true;
+          const hay = [row.accessKey, row.matchedUser, WK_VISIT_STATE_LABEL[row.authState] || row.authState, row.path, row.view, row.ip, row.ua, row.detail].join(' ').toLowerCase();
+          return hay.indexOf(q) >= 0;
+        });
+        box.innerHTML =
+          '<div class="wk-kpi-strip">' +
+            '<div class="wk-kpi-card"><span>전체 사이트 접속</span><b>' + sum.total + '건</b></div>' +
+            '<div class="wk-kpi-card"><span>로그인 접속</span><b>' + sum.authenticated + '건</b></div>' +
+            '<div class="wk-kpi-card"><span>미로그인 방문</span><b>' + sum.anonymous + '건</b></div>' +
+            '<div class="wk-kpi-card"><span>만료 · 실패</span><b>' + sum.expiredOrFail + '건</b></div>' +
+            '<div class="wk-kpi-card"><span>고유 IP</span><b>' + sum.uniqueIps + '개</b></div>' +
+          '</div>' +
+          '<div class="wk-filter-pills">' +
+            '<button type="button" class="wk-fpill' + (vFilter === 'all' ? ' active' : '') + '" onclick="wkVisitorsSetState(\'all\')">전체</button>' +
+            '<button type="button" class="wk-fpill' + (vFilter === 'authenticated' ? ' active' : '') + '" onclick="wkVisitorsSetState(\'authenticated\')">로그인 접속</button>' +
+            '<button type="button" class="wk-fpill' + (vFilter === 'visitor' ? ' active' : '') + '" onclick="wkVisitorsSetState(\'visitor\')">미로그인 방문</button>' +
+            '<button type="button" class="wk-fpill' + (vFilter === 'expired_or_fail' ? ' active' : '') + '" onclick="wkVisitorsSetState(\'expired_or_fail\')">세션 만료·로그인 실패</button>' +
+          '</div>' +
+          '<div class="cfg-table-wrap"><table class="cfg-table wk-changes">' +
+          '<thead><tr><th>접속 시각</th><th>상태</th><th>접속 키값</th><th>사용자 (매칭)</th><th>경로 · 화면</th><th>IP · 환경 / 상세</th></tr></thead>' +
+          '<tbody>' +
+          (filtered.length ? filtered.map(row => {
+            let keyHtml = '<span class="wk-key-pill wk-key-none">키없음</span>';
+            let userHtml = '<span class="wk-user-pill">' + cfgEsc(row.matchedUser || '미로그인 방문자') + '</span>';
+            if (row.accessKey || row.hasRealName) {
+              const auth = wkAuthorCellHtml(row.matchedUser, row.accessKey, kb, { allowQuickMatch: true });
+              keyHtml = auth.keyHtml;
+              userHtml = auth.userHtml;
+            }
+            const stateLabel = WK_VISIT_STATE_LABEL[row.authState] || row.authState;
+            const pathStr = cfgEsc(row.path || '/') + (row.view ? ' <span class="wk-ip-muted">[' + cfgEsc(row.view) + ']</span>' : '');
+            const metaParts = [row.ip, row.ua, row.detail].filter(Boolean).map(cfgEsc);
+            return '<tr>' +
+              '<td>' + wkTime(row.ts) + '</td>' +
+              '<td><span class="wk-vstate wk-vs-' + cfgEsc(row.authState) + '">' + cfgEsc(stateLabel) + '</span></td>' +
+              '<td>' + keyHtml + '</td>' +
+              '<td>' + userHtml + '</td>' +
+              '<td style="font-family:var(--font-mono);font-size:12px;">' + pathStr + '</td>' +
+              '<td>' + (metaParts.length ? metaParts.join(' · ') : '-') + '</td>' +
+            '</tr>';
+          }).join('') : '<tr><td colspan="6">표시할 사이트 전체 접속 기록이 없습니다.</td></tr>') +
           '</tbody></table></div>';
       } else {
         // keybook tab: 접속 키값 <-> 사용자 매칭표
@@ -1337,21 +1487,23 @@
 
     async function wikiChangesView(before) {
       const bodyEl = document.getElementById('manual-body-content');
-      const st = WIKI.changesView = WIKI.changesView || { tab: 'changes', query: '', filterKey: '', list: [], logs: [], serverKeybook: {}, hasMore: false };
+      const st = WIKI.changesView = WIKI.changesView || { tab: 'changes', query: '', filterKey: '', vstate: 'all', mineOnly: false, list: [], logs: [], wikiVisitors: [], consoleVisitors: [], serverKeybook: {}, hasMore: false };
       if (!before) {
         st.list = [];
         const prof = wkGetAccessProfile();
         bodyEl.innerHTML = cfgCrumb() +
           '<div class="cfg-head"><h2 class="cfg-head-title">최근 변경 · 접속 기록</h2>' +
-          '<p class="manual-desc">모든 문서 변경 이력과 사용자 접속 기록을 <b>접속 키값 + 사용자</b> 기준으로 매칭해 조회합니다.</p></div>' +
+          '<p class="manual-desc">로그인 사용자 접속 이력과 미로그인 방문자를 포함한 <b>사이트 전체 접속 기록</b>을 분리해 조회합니다.</p></div>' +
           '<div class="wk-id-bar">' +
             '<span>내 접속 정보: <span class="wk-key-pill">' + cfgEsc(prof.access_key) + '</span> <b style="color:#fff;">' + cfgEsc(prof.member) + '</b></span>' +
             '<button type="button" class="wk-mini" onclick="wkOpenIdentityModal()">내 키·이름 변경</button>' +
-            '<input type="search" id="wk-ch-q" class="cfg-search wk-filter-input" value="' + cfgEsc(st.query || '') + '" placeholder="접속 키값, 사용자, 문서명, 메모 검색" oninput="wkChangesFilter(this.value)">' +
+            '<button type="button" class="wk-mini" onclick="wikiChangesView()">↻ 새로고침</button>' +
+            '<input type="search" id="wk-ch-q" class="cfg-search wk-filter-input" value="' + cfgEsc(st.query || '') + '" placeholder="접속 키값, 사용자, 경로, IP, 메모 검색" oninput="wkChangesFilter(this.value)">' +
           '</div>' +
           '<div class="wk-subtabs" role="tablist">' +
             '<button type="button" class="wk-subtab' + (st.tab === 'changes' ? ' active' : '') + '" data-tab="changes" onclick="wkChangesSetTab(\'changes\')">최근 변경자료 (키값·수정자)</button>' +
-            '<button type="button" class="wk-subtab' + (st.tab === 'access' ? ' active' : '') + '" data-tab="access" onclick="wkChangesSetTab(\'access\')">사용자 접속 기록</button>' +
+            '<button type="button" class="wk-subtab' + (st.tab === 'access' ? ' active' : '') + '" data-tab="access" onclick="wkChangesSetTab(\'access\')">로그인 사용자 접속 기록</button>' +
+            '<button type="button" class="wk-subtab' + (st.tab === 'visitors' ? ' active' : '') + '" data-tab="visitors" onclick="wkChangesSetTab(\'visitors\')">사이트 전체 접속 기록</button>' +
             '<button type="button" class="wk-subtab' + (st.tab === 'keybook' ? ' active' : '') + '" data-tab="keybook" onclick="wkChangesSetTab(\'keybook\')">접속 키값 ↔ 사용자 매칭표</button>' +
           '</div>' +
           '<div id="wk-ch-panel"><p class="cfg-empty">접속·변경 기록을 불러오는 중…</p></div>';
@@ -1363,17 +1515,21 @@
       st.hasMore = list.length === 50;
 
       if (!before) {
-        try {
-          const acc = await api('GET', '/api/access/logs?limit=150');
-          if (acc) {
-            st.logs = acc.logs || [];
-            st.serverKeybook = acc.keybook || {};
+        await Promise.all([
+          api('GET', '/api/access/logs?limit=150').then(acc => {
+            st.logs = (acc && acc.logs) || [];
+            st.serverKeybook = (acc && acc.keybook) || {};
             WIKI.keybook = st.serverKeybook;
-          }
-        } catch (e) {
-          st.logs = [];
-          st.serverKeybook = {};
-        }
+          }).catch(() => { st.logs = []; st.serverKeybook = {}; }),
+          api('GET', '/api/access/visitors?limit=200').then(vis => {
+            st.wikiVisitors = (vis && vis.visits) || [];
+            if (vis && vis.keybook) st.serverKeybook = Object.assign({}, st.serverKeybook || {}, vis.keybook);
+          }).catch(() => { st.wikiVisitors = []; }),
+          fetch('/console/api/visitors?limit=200', { credentials: 'same-origin', cache: 'no-store' })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { st.consoleVisitors = (d && d.visitors) || []; })
+            .catch(() => { st.consoleVisitors = []; })
+        ]);
       }
       wkRenderChangesTab();
     }
@@ -1393,6 +1549,8 @@
         wkParseAuthor: wkParseAuthor,
         wkIsRealName: wkIsRealName,
         wkResolveEntryName: wkResolveEntryName,
-        wkHasValidAccessKey: wkHasValidAccessKey
+        wkHasValidAccessKey: wkHasValidAccessKey,
+        wkBuildSiteVisitors: wkBuildSiteVisitors,
+        wkSummarizeVisitors: wkSummarizeVisitors
       };
     }

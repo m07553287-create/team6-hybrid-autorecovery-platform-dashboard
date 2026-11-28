@@ -17,6 +17,8 @@ ACCESS_KEY_RE = re.compile(r"^[A-Za-z0-9_-]{2,16}$")
 AUTHOR_KEY_HASH_RE = re.compile(r"^(.*?)#([A-Za-z0-9_-]{2,16})$")
 AUTHOR_KEY_PAREN_RE = re.compile(r"^(.*?)\s*\(([A-Za-z0-9_-]{2,16})\)$")
 ACCESS_LOG_LIMIT = 500
+SITE_VISIT_LIMIT = 1000
+VISIT_STATES = {"visitor", "authenticated", "expired", "login_fail", "logout"}
 WINDOW, MAX_FAILS = 600, 10
 _DUMMY_SALT = "00" * 16
 
@@ -164,6 +166,110 @@ def get_access_logs(r, team_id, limit=100):
     return {"logs": logs, "keybook": get_keybook(r, team_id)}
 
 
+def summarize_ua(ua):
+    raw = str(ua or "").strip()
+    if not raw:
+        return ""
+    if "curl/" in raw:
+        browser = "curl"
+    elif "Edg/" in raw:
+        browser = "Edge"
+    elif "Chrome/" in raw:
+        browser = "Chrome"
+    elif "Firefox/" in raw:
+        browser = "Firefox"
+    elif "Safari/" in raw:
+        browser = "Safari"
+    elif "bot" in raw.lower() or "spider" in raw.lower():
+        browser = "Bot"
+    else:
+        browser = raw.split(" ", 1)[0][:24]
+    os_name = ""
+    if "iPhone" in raw or "iPad" in raw:
+        os_name = "iOS"
+    elif "Android" in raw:
+        os_name = "Android"
+    elif "Mac OS X" in raw or "Macintosh" in raw:
+        os_name = "macOS"
+    elif "Windows" in raw:
+        os_name = "Windows"
+    elif "Linux" in raw:
+        os_name = "Linux"
+    return (f"{browser} · {os_name}" if os_name else browser)[:64]
+
+
+def record_site_visit(r, path="/", view="", auth_state="visitor", member="", access_key="", client_ip="", ua="", detail=""):
+    state = auth_state if auth_state in VISIT_STATES else "visitor"
+    parsed_name, parsed_key = parse_author_key(member)
+    raw_ak = access_key or parsed_key or ""
+    ak = ""
+    if raw_ak:
+        try:
+            ak = check_access_key(raw_ak)
+        except ApiError:
+            ak = ""
+    clean_name = (parsed_name or str(member or "")).strip()[:20]
+    entry = {
+        "ts": int(time.time()),
+        "path": str(path or "/")[:120],
+        "view": str(view or "")[:32],
+        "auth_state": state,
+        "member": clean_name,
+        "access_key": ak,
+        "ip": str(client_ip or "")[:64],
+        "ua": summarize_ua(ua),
+        "detail": str(detail or "")[:120],
+    }
+    key = "fw:site:visits"
+    p = r.pipeline()
+    p.lpush(key, json.dumps(entry, ensure_ascii=False))
+    p.ltrim(key, 0, SITE_VISIT_LIMIT - 1)
+    p.execute()
+    return entry
+
+
+def get_site_visits(r, team_id, limit=200):
+    limit = max(1, min(int(limit or 200), SITE_VISIT_LIMIT))
+    kb = get_keybook(r, team_id)
+    visits = []
+    ips = set()
+    auth_cnt = 0
+    anon_cnt = 0
+    exp_fail_cnt = 0
+    for raw in r.lrange("fw:site:visits", 0, limit - 1):
+        try:
+            item = json.loads(raw)
+        except ValueError:
+            continue
+        ak = str(item.get("access_key") or "").upper()
+        kb_entry = kb.get(ak) if ak else None
+        kb_name = (kb_entry or {}).get("member") or ""
+        matched = kb_name if (kb_name and kb_name != "게스트") else (item.get("member") or "방문자")
+        item["matched_user"] = matched
+        visits.append(item)
+        ip = item.get("ip") or ""
+        if ip:
+            ips.add(ip)
+        st = item.get("auth_state") or "visitor"
+        if st == "authenticated":
+            auth_cnt += 1
+        elif st in ("expired", "login_fail"):
+            exp_fail_cnt += 1
+        else:
+            anon_cnt += 1
+    return {
+        "visits": visits,
+        "keybook": kb,
+        "summary": {
+            "total": len(visits),
+            "authenticated": auth_cnt,
+            "anonymous": anon_cnt,
+            "expired_or_fail": exp_fail_cnt,
+            "unique_ips": len(ips),
+        },
+    }
+
+
 def create_team(r, data, create_code, client_key):
     slug = data.get("slug")
     if not isinstance(slug, str) or not SLUG_RE.match(slug):
@@ -213,11 +319,15 @@ def login(r, data, client_key, require_key=False):
     ok = verify_password(pw, t.get("pw_hash", ""), t.get("pw_salt", _DUMMY_SALT)) and bool(t)
     if not ok:
         rate_fail(r, key)
+        record_site_visit(r, path="/api/login", view="settings", auth_state="login_fail", member=member,
+                          access_key=ak, client_ip=client_key, detail=f"팀 위키 로그인 실패 ({slug})")
         raise ApiError(401, "팀 주소나 비밀번호가 맞지 않습니다")
     r.delete("fw:rl:" + key)
     team_id = int(t["id"])
     if ak:
         record_access(r, team_id, member, ak, "login", client_key)
+    record_site_visit(r, path="/api/login", view="settings", auth_state="authenticated", member=member,
+                      access_key=ak, client_ip=client_key, detail="팀 위키 로그인")
     return new_session(r, team_id, member, access_key=ak)
 
 

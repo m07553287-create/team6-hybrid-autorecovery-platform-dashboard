@@ -823,3 +823,26 @@
     .wk-act-delete { background: rgba(239, 68, 68, 0.16); border-color: #ef4444; color: #fca5a5; }
     .wk-act-restore { background: rgba(16, 185, 129, 0.16); border-color: #059669; color: #6ee7b7; }
     .wk-ip-muted { color: #64748b; font-size: 11.5px; }
+    .wk-kpi-strip { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    .wk-kpi-card {
+      flex: 1 1 130px; background: #0f172a; border: 1px solid #1e293b; border-radius: 8px;
+      padding: 10px 12px; display: flex; flex-direction: column; gap: 3px;
+    }
+    .wk-kpi-card span { font-size: 11.5px; color: #94a3b8; }
+    .wk-kpi-card b { font-size: 18px; color: #f8fafc; font-weight: 700; }
+    .wk-filter-pills { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+    .wk-fpill {
+      padding: 4px 11px; border-radius: 999px; border: 1px solid #334155; background: #0f172a;
+      color: #94a3b8; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .wk-fpill:hover { color: #fff; border-color: #60a5fa; }
+    .wk-fpill.active { background: #1e3a8a; border-color: #3b82f6; color: #fff; }
+    .wk-vstate {
+      display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;
+      border: 1px solid #334155; background: #1e293b; color: #cbd5e1; white-space: nowrap;
+    }
+    .wk-vs-authenticated { background: rgba(16, 185, 129, 0.15); border-color: #059669; color: #6ee7b7; }
+    .wk-vs-visitor { background: rgba(56, 189, 248, 0.14); border-color: #0284c7; color: #7dd3fc; }
+    .wk-vs-expired { background: rgba(245, 158, 11, 0.16); border-color: #d97706; color: #fde68a; }
+    .wk-vs-login_fail { background: rgba(239, 68, 68, 0.16); border-color: #ef4444; color: #fca5a5; }
+    .wk-vs-logout { background: rgba(148, 163, 184, 0.14); border-color: #475569; color: #cbd5e1; }

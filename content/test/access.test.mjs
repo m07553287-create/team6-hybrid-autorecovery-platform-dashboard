@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { wkGenAccessKey, wkNormalizeAccessKey, wkFormatAuthor, wkParseAuthor, wkIsRealName, wkResolveEntryName, wkHasValidAccessKey } = require('../wiki.js');
+const { wkGenAccessKey, wkNormalizeAccessKey, wkFormatAuthor, wkParseAuthor, wkIsRealName, wkResolveEntryName, wkHasValidAccessKey, wkBuildSiteVisitors, wkSummarizeVisitors } = require('../wiki.js');
 
 test('wkGenAccessKey produces 6 unambiguous uppercase alphanumeric characters', () => {
   const key = wkGenAccessKey();
@@ -71,4 +71,30 @@ test('wkHasValidAccessKey detects previous keyless sessions that must re-login',
   assert.equal(wkHasValidAccessKey({ member: '게스트', access_key: 'K7M3P9' }), false);
   assert.equal(wkHasValidAccessKey({ member: 'guest', access_key: 'K7M3P9' }), false);
   assert.equal(wkHasValidAccessKey({ member: '홍길동', access_key: 'K7M3P9' }), true);
+});
+
+test('wkBuildSiteVisitors merges wiki/console/local visits, deduplicates bucket, and summarizes KPIs', () => {
+  const keybook = { K7M3P9: { access_key: 'K7M3P9', member: '다운' } };
+  const wikiVis = [
+    { ts: 1000, auth_state: 'visitor', path: '/', view: 'login', ip: '1.2.3.4', detail: '첫 방문' },
+    { ts: 1010, auth_state: 'login_fail', path: '/', view: 'login', ip: '1.2.3.4', detail: '비번 오류' }
+  ];
+  const consoleVis = [
+    { ts: 1020, auth_state: 'authenticated', path: '/term/', view: 'console', access_key: 'K7M3P9', ip: '5.6.7.8', detail: '콘솔 로그인' }
+  ];
+  // 동일 3초 버킷 내 로컬 중복 방문은 제거되고 새 expired 이벤트는 보존
+  const localVis = [
+    { ts: 1021, auth_state: 'authenticated', path: '/term/', view: 'console', access_key: 'K7M3P9', ip: '현재 브라우저' },
+    { ts: 1030, auth_state: 'expired', path: '/', view: 'login', ip: '현재 브라우저', detail: '키 만료' }
+  ];
+
+  const rows = wkBuildSiteVisitors(wikiVis, consoleVis, localVis, keybook);
+  assert.equal(rows.length, 4);
+  assert.equal(rows[0].authState, 'expired');
+  const authRow = rows.find(r => r.authState === 'authenticated');
+  assert.equal(authRow.matchedUser, '다운');
+  assert.equal(authRow.ip, '5.6.7.8');
+
+  const sum = wkSummarizeVisitors(rows);
+  assert.deepEqual(sum, { total: 4, authenticated: 1, anonymous: 1, expiredOrFail: 2, uniqueIps: 3 });
 });

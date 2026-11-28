@@ -84,6 +84,9 @@ def create_app(redis_client=None):
     def me(request: Request, response: Response):
         status, s = auth.get_session_detail(r, request.cookies.get(auth.COOKIE), require_key=require_key)
         if status == "no_key":
+            auth.record_site_visit(r, path="/api/me", view="settings", auth_state="expired",
+                                   client_ip=client_key(request), ua=request.headers.get("user-agent", ""),
+                                   detail="키 없는 위키 세션 만료")
             raise ApiError(401, "접속 키가 없는 이전 세션이 만료되었습니다. 다시 로그인해 주세요.", {"key_expired": True})
         if not s and os.environ.get("AUTO_LOGIN_TEAM"):
             hdr_key = auth.check_access_key(request.headers.get("x-fig-access-key") or "")
@@ -119,6 +122,27 @@ def create_app(redis_client=None):
     def access_logs(request: Request, limit: int = 100):
         s = session_of(request)
         return auth.get_access_logs(r, s.team_id, limit)
+
+    @app.post("/api/visit")
+    async def record_visit(request: Request):
+        data = await body_of(request)
+        entry = auth.record_site_visit(
+            r,
+            path=data.get("path") or "/",
+            view=data.get("view") or "",
+            auth_state=data.get("auth_state") or "visitor",
+            member=data.get("member") or "",
+            access_key=data.get("access_key") or "",
+            client_ip=client_key(request),
+            ua=request.headers.get("user-agent", ""),
+            detail=data.get("detail") or "",
+        )
+        return {"ok": True, "visit": entry}
+
+    @app.get("/api/access/visitors")
+    def site_visitors(request: Request, limit: int = 200):
+        s = session_of(request)
+        return auth.get_site_visits(r, s.team_id, limit)
 
     @app.post("/api/access/keybook")
     async def access_keybook(request: Request):

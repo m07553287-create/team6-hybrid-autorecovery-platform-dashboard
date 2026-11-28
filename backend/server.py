@@ -2064,6 +2064,29 @@ LANDING_HTML = """<!DOCTYPE html>
     .wk-act-delete { background: rgba(239, 68, 68, 0.16); border-color: #ef4444; color: #fca5a5; }
     .wk-act-restore { background: rgba(16, 185, 129, 0.16); border-color: #059669; color: #6ee7b7; }
     .wk-ip-muted { color: #64748b; font-size: 11.5px; }
+    .wk-kpi-strip { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    .wk-kpi-card {
+      flex: 1 1 130px; background: #0f172a; border: 1px solid #1e293b; border-radius: 8px;
+      padding: 10px 12px; display: flex; flex-direction: column; gap: 3px;
+    }
+    .wk-kpi-card span { font-size: 11.5px; color: #94a3b8; }
+    .wk-kpi-card b { font-size: 18px; color: #f8fafc; font-weight: 700; }
+    .wk-filter-pills { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+    .wk-fpill {
+      padding: 4px 11px; border-radius: 999px; border: 1px solid #334155; background: #0f172a;
+      color: #94a3b8; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .wk-fpill:hover { color: #fff; border-color: #60a5fa; }
+    .wk-fpill.active { background: #1e3a8a; border-color: #3b82f6; color: #fff; }
+    .wk-vstate {
+      display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;
+      border: 1px solid #334155; background: #1e293b; color: #cbd5e1; white-space: nowrap;
+    }
+    .wk-vs-authenticated { background: rgba(16, 185, 129, 0.15); border-color: #059669; color: #6ee7b7; }
+    .wk-vs-visitor { background: rgba(56, 189, 248, 0.14); border-color: #0284c7; color: #7dd3fc; }
+    .wk-vs-expired { background: rgba(245, 158, 11, 0.16); border-color: #d97706; color: #fde68a; }
+    .wk-vs-login_fail { background: rgba(239, 68, 68, 0.16); border-color: #ef4444; color: #fca5a5; }
+    .wk-vs-logout { background: rgba(148, 163, 184, 0.14); border-color: #475569; color: #cbd5e1; }
     /* ===== 통합 콘솔 (content/console.css) ===== */
     .cs-rail { position: fixed; left: 0; top: 50%; transform: translateY(-50%); z-index: 700; writing-mode: vertical-rl; letter-spacing: .12em;
       background: var(--primary); color: #fff; border: 0; border-radius: 0 8px 8px 0; padding: 16px 7px; font-size: 13px; font-weight: 700;
@@ -2419,12 +2442,14 @@ LANDING_HTML = """<!DOCTYPE html>
           sessionStorage.setItem(AUTH_KEY, 'valid');
           errorBox.style.display = 'none';
           if (typeof figShowLoginNotice === 'function') figShowLoginNotice('');
+          if (typeof figRecordSiteVisit === 'function') figRecordSiteVisit('authenticated', 'login', '사이트 로그인 성공');
           if (typeof csSyncProfileToServer === 'function') csSyncProfileToServer(member, ak, true).catch(() => {});
           checkAuth();
           return;
         }
         let d = null;
         try { d = await r.json(); } catch (ex) {}
+        if (typeof figRecordSiteVisit === 'function') figRecordSiteVisit('login_fail', 'login', '로그인 실패 (' + r.status + ')');
         errorBox.textContent = r.status === 429 ? '시도가 많습니다. 10분 뒤 다시 시도하세요.' : (r.status === 422 && d && d.error ? d.error : '비밀번호가 올바르지 않습니다.');
       } catch (err) { errorBox.textContent = '서버에 연결하지 못했습니다. 잠시 뒤 다시 시도하세요.'; }
       errorBox.style.display = 'block';
@@ -2432,6 +2457,7 @@ LANDING_HTML = """<!DOCTYPE html>
     }
 
     function logout() {
+      if (typeof figRecordSiteVisit === 'function') figRecordSiteVisit('logout', 'login', '로그아웃');
       if (typeof figExpireKeylessSessions === 'function') {
         figExpireKeylessSessions().finally(() => {
           if (typeof csClose === 'function') csClose();
@@ -2448,6 +2474,9 @@ LANDING_HTML = """<!DOCTYPE html>
 
     function switchView(viewName) {
       try { localStorage.setItem('fig.view', viewName); } catch (e) {}
+      if (sessionStorage.getItem(AUTH_KEY) === 'valid' && typeof figRecordSiteVisit === 'function') {
+        figRecordSiteVisit('authenticated', viewName, '화면 이동: ' + viewName);
+      }
       if (typeof csView === 'function' && csView(viewName)) return;
       const vDashboard = document.getElementById('view-dashboard');
       const vSettings = document.getElementById('view-settings');
@@ -3759,12 +3788,23 @@ LANDING_HTML = """<!DOCTYPE html>
     const WK_ACTION_LABEL = {
       visit: '포털 접속',
       login: '로그인',
+      first_entry: '최초 이름 등록',
+      console: '콘솔 접속',
+      logout: '로그아웃',
       create_team: '팀 생성',
       rename: '키·이름 변경',
       create: '문서 생성',
       edit: '문서 수정',
       delete: '문서 삭제',
       restore: '판 되돌리기'
+    };
+
+    const WK_VISIT_STATE_LABEL = {
+      authenticated: '로그인 접속',
+      visitor: '미로그인 방문',
+      expired: '세션 만료',
+      login_fail: '로그인 실패',
+      logout: '로그아웃'
     };
 
     function wkFilterByKey(ak) {
@@ -3784,9 +3824,21 @@ LANDING_HTML = """<!DOCTYPE html>
     }
 
     function wkChangesFilter(val) {
-      WIKI.changesView = WIKI.changesView || { tab: 'changes', query: '', filterKey: '', list: [], logs: [], serverKeybook: {} };
+      WIKI.changesView = WIKI.changesView || { tab: 'changes', query: '', filterKey: '', vstate: 'all', mineOnly: false, list: [], logs: [], wikiVisitors: [], consoleVisitors: [], serverKeybook: {} };
       WIKI.changesView.query = String(val || '').trim();
       WIKI.changesView.filterKey = '';
+      wkRenderChangesTab();
+    }
+
+    function wkVisitorsSetState(vstate) {
+      WIKI.changesView = WIKI.changesView || { tab: 'visitors', query: '', filterKey: '', vstate: 'all', mineOnly: false, list: [], logs: [], wikiVisitors: [], consoleVisitors: [], serverKeybook: {} };
+      WIKI.changesView.vstate = vstate || 'all';
+      wkRenderChangesTab();
+    }
+
+    function wkAccessToggleMine() {
+      WIKI.changesView = WIKI.changesView || { tab: 'access', query: '', filterKey: '', vstate: 'all', mineOnly: false, list: [], logs: [], wikiVisitors: [], consoleVisitors: [], serverKeybook: {} };
+      WIKI.changesView.mineOnly = !WIKI.changesView.mineOnly;
       wkRenderChangesTab();
     }
 
@@ -3856,12 +3908,72 @@ LANDING_HTML = """<!DOCTYPE html>
       return out;
     }
 
+    function wkBuildSiteVisitors(wikiVisitors, consoleVisitors, localVisits, keybook) {
+      const seen = {};
+      const out = [];
+      const addRow = row => {
+        if (!row) return;
+        const ts = Number(row.ts || 0);
+        const state = String(row.auth_state || 'visitor');
+        const p = wkParseAuthor(row.member, row.access_key, keybook);
+        const view = String(row.view || '');
+        const path = String(row.path || '/');
+        const bucket = Math.floor(ts / 3);
+        const sig = bucket + '|' + state + '|' + p.accessKey + '|' + view + '|' + path;
+        if (seen[sig]) return;
+        seen[sig] = true;
+        const rawMatched = String(row.matched_user || '').trim();
+        let matchedUser = '방문자';
+        if (p.registered || p.hasRealName) matchedUser = p.matchedUser;
+        else if (rawMatched && rawMatched !== '게스트') matchedUser = rawMatched;
+        else if (p.accessKey) matchedUser = '게스트';
+        out.push({
+          ts: ts,
+          authState: state,
+          path: path,
+          view: view,
+          accessKey: p.accessKey,
+          matchedUser: matchedUser,
+          registered: p.registered,
+          hasRealName: p.hasRealName,
+          ip: String(row.ip || ''),
+          ua: String(row.ua || ''),
+          detail: String(row.detail || '')
+        });
+      };
+      (wikiVisitors || []).forEach(addRow);
+      (consoleVisitors || []).forEach(addRow);
+      (localVisits || []).forEach(addRow);
+      out.sort((a, b) => b.ts - a.ts);
+      return out;
+    }
+
+    function wkSummarizeVisitors(rows) {
+      let authenticated = 0, anonymous = 0, expiredOrFail = 0;
+      const ips = {};
+      (rows || []).forEach(r => {
+        const st = r.authState || r.auth_state || 'visitor';
+        if (st === 'authenticated') authenticated++;
+        else if (st === 'expired' || st === 'login_fail') expiredOrFail++;
+        else anonymous++;
+        if (r.ip) ips[r.ip] = true;
+      });
+      return {
+        total: (rows || []).length,
+        authenticated: authenticated,
+        anonymous: anonymous,
+        expiredOrFail: expiredOrFail,
+        uniqueIps: Object.keys(ips).length
+      };
+    }
+
     function wkRenderChangesTab() {
       const box = document.getElementById('wk-ch-panel');
       if (!box) return;
-      const st = WIKI.changesView || { tab: 'changes', query: '', filterKey: '', list: [], logs: [], serverKeybook: {} };
+      const st = WIKI.changesView || { tab: 'changes', query: '', filterKey: '', vstate: 'all', mineOnly: false, list: [], logs: [], wikiVisitors: [], consoleVisitors: [], serverKeybook: {} };
       const q = (st.query || '').toLowerCase();
       const kb = wkMergedKeybook(st.serverKeybook, st.list);
+      const prof = wkGetAccessProfile();
 
       if (st.tab === 'changes') {
         const filtered = (st.list || []).filter(c => {
@@ -3890,14 +4002,30 @@ LANDING_HTML = """<!DOCTYPE html>
           more.onclick = () => wikiChangesView(st.list[st.list.length - 1].created_at);
         }
       } else if (st.tab === 'access') {
-        const combined = wkBuildCombinedLogs(st.logs, st.list, kb).filter(row => {
+        const allAuthRows = wkBuildCombinedLogs(st.logs, st.list, kb);
+        const uniqUsers = {}, uniqKeys = {};
+        allAuthRows.forEach(r => {
+          if (r.matchedUser && r.matchedUser !== '게스트') uniqUsers[r.matchedUser] = true;
+          if (r.accessKey) uniqKeys[r.accessKey] = true;
+        });
+        const combined = allAuthRows.filter(row => {
+          if (st.mineOnly && row.accessKey !== prof.access_key && row.matchedUser !== prof.member) return false;
           if (!q) return true;
           const hay = [row.accessKey, row.matchedUser, WK_ACTION_LABEL[row.action] || row.action, row.detail, row.ip].join(' ').toLowerCase();
           return hay.indexOf(q) >= 0;
         });
         box.innerHTML =
+          '<div class="wk-kpi-strip">' +
+            '<div class="wk-kpi-card"><span>로그인 사용자 활동</span><b>' + allAuthRows.length + '건</b></div>' +
+            '<div class="wk-kpi-card"><span>고유 로그인 사용자</span><b>' + Object.keys(uniqUsers).length + '명</b></div>' +
+            '<div class="wk-kpi-card"><span>고유 접속 키값</span><b>' + Object.keys(uniqKeys).length + '개</b></div>' +
+          '</div>' +
+          '<div class="wk-filter-pills">' +
+            '<button type="button" class="wk-fpill' + (st.mineOnly ? ' active' : '') + '" onclick="wkAccessToggleMine()">내 기록만 보기 (' + cfgEsc(prof.member) + ')</button>' +
+            '<span class="wk-ip-muted">인증된 사용자의 포털·콘솔·문서 작업 이력</span>' +
+          '</div>' +
           '<div class="cfg-table-wrap"><table class="cfg-table wk-changes">' +
-          '<thead><tr><th>접속 시각</th><th>접속 키값</th><th>사용자 (매칭)</th><th>활동</th><th>대상 / 메모 · IP</th></tr></thead>' +
+          '<thead><tr><th>접속 시각</th><th>접속 키값</th><th>로그인 사용자 (매칭)</th><th>활동</th><th>대상 / 메모 · IP</th></tr></thead>' +
           '<tbody>' +
           (combined.length ? combined.map(row => {
             const auth = wkAuthorCellHtml(row.matchedUser, row.accessKey, kb, { allowQuickMatch: true });
@@ -3907,7 +4035,58 @@ LANDING_HTML = """<!DOCTYPE html>
               '<td>' + auth.userHtml + '</td>' +
               '<td><span class="wk-act-badge wk-act-' + cfgEsc(row.action) + '">' + cfgEsc(WK_ACTION_LABEL[row.action] || row.action) + '</span></td>' +
               '<td>' + cfgEsc(row.detail || '-') + (row.ip ? ' <span class="wk-ip-muted">(' + cfgEsc(row.ip) + ')</span>' : '') + '</td></tr>';
-          }).join('') : '<tr><td colspan="5">표시할 사용자 접속 기록이 없습니다.</td></tr>') +
+          }).join('') : '<tr><td colspan="5">표시할 로그인 사용자 접속 기록이 없습니다.</td></tr>') +
+          '</tbody></table></div>';
+      } else if (st.tab === 'visitors') {
+        const localVisits = wkReadLocalJson('fig.access.site_visits_v1', []) || [];
+        const allVisitors = wkBuildSiteVisitors(st.wikiVisitors, st.consoleVisitors, localVisits, kb);
+        const sum = wkSummarizeVisitors(allVisitors);
+        const vFilter = st.vstate || 'all';
+        const filtered = allVisitors.filter(row => {
+          if (vFilter === 'authenticated' && row.authState !== 'authenticated') return false;
+          if (vFilter === 'visitor' && row.authState !== 'visitor' && row.authState !== 'logout') return false;
+          if (vFilter === 'expired_or_fail' && row.authState !== 'expired' && row.authState !== 'login_fail') return false;
+          if (!q) return true;
+          const hay = [row.accessKey, row.matchedUser, WK_VISIT_STATE_LABEL[row.authState] || row.authState, row.path, row.view, row.ip, row.ua, row.detail].join(' ').toLowerCase();
+          return hay.indexOf(q) >= 0;
+        });
+        box.innerHTML =
+          '<div class="wk-kpi-strip">' +
+            '<div class="wk-kpi-card"><span>전체 사이트 접속</span><b>' + sum.total + '건</b></div>' +
+            '<div class="wk-kpi-card"><span>로그인 접속</span><b>' + sum.authenticated + '건</b></div>' +
+            '<div class="wk-kpi-card"><span>미로그인 방문</span><b>' + sum.anonymous + '건</b></div>' +
+            '<div class="wk-kpi-card"><span>만료 · 실패</span><b>' + sum.expiredOrFail + '건</b></div>' +
+            '<div class="wk-kpi-card"><span>고유 IP</span><b>' + sum.uniqueIps + '개</b></div>' +
+          '</div>' +
+          '<div class="wk-filter-pills">' +
+            '<button type="button" class="wk-fpill' + (vFilter === 'all' ? ' active' : '') + '" onclick="wkVisitorsSetState(\\'all\\')">전체</button>' +
+            '<button type="button" class="wk-fpill' + (vFilter === 'authenticated' ? ' active' : '') + '" onclick="wkVisitorsSetState(\\'authenticated\\')">로그인 접속</button>' +
+            '<button type="button" class="wk-fpill' + (vFilter === 'visitor' ? ' active' : '') + '" onclick="wkVisitorsSetState(\\'visitor\\')">미로그인 방문</button>' +
+            '<button type="button" class="wk-fpill' + (vFilter === 'expired_or_fail' ? ' active' : '') + '" onclick="wkVisitorsSetState(\\'expired_or_fail\\')">세션 만료·로그인 실패</button>' +
+          '</div>' +
+          '<div class="cfg-table-wrap"><table class="cfg-table wk-changes">' +
+          '<thead><tr><th>접속 시각</th><th>상태</th><th>접속 키값</th><th>사용자 (매칭)</th><th>경로 · 화면</th><th>IP · 환경 / 상세</th></tr></thead>' +
+          '<tbody>' +
+          (filtered.length ? filtered.map(row => {
+            let keyHtml = '<span class="wk-key-pill wk-key-none">키없음</span>';
+            let userHtml = '<span class="wk-user-pill">' + cfgEsc(row.matchedUser || '미로그인 방문자') + '</span>';
+            if (row.accessKey || row.hasRealName) {
+              const auth = wkAuthorCellHtml(row.matchedUser, row.accessKey, kb, { allowQuickMatch: true });
+              keyHtml = auth.keyHtml;
+              userHtml = auth.userHtml;
+            }
+            const stateLabel = WK_VISIT_STATE_LABEL[row.authState] || row.authState;
+            const pathStr = cfgEsc(row.path || '/') + (row.view ? ' <span class="wk-ip-muted">[' + cfgEsc(row.view) + ']</span>' : '');
+            const metaParts = [row.ip, row.ua, row.detail].filter(Boolean).map(cfgEsc);
+            return '<tr>' +
+              '<td>' + wkTime(row.ts) + '</td>' +
+              '<td><span class="wk-vstate wk-vs-' + cfgEsc(row.authState) + '">' + cfgEsc(stateLabel) + '</span></td>' +
+              '<td>' + keyHtml + '</td>' +
+              '<td>' + userHtml + '</td>' +
+              '<td style="font-family:var(--font-mono);font-size:12px;">' + pathStr + '</td>' +
+              '<td>' + (metaParts.length ? metaParts.join(' · ') : '-') + '</td>' +
+            '</tr>';
+          }).join('') : '<tr><td colspan="6">표시할 사이트 전체 접속 기록이 없습니다.</td></tr>') +
           '</tbody></table></div>';
       } else {
         // keybook tab: 접속 키값 <-> 사용자 매칭표
@@ -3952,21 +4131,23 @@ LANDING_HTML = """<!DOCTYPE html>
 
     async function wikiChangesView(before) {
       const bodyEl = document.getElementById('manual-body-content');
-      const st = WIKI.changesView = WIKI.changesView || { tab: 'changes', query: '', filterKey: '', list: [], logs: [], serverKeybook: {}, hasMore: false };
+      const st = WIKI.changesView = WIKI.changesView || { tab: 'changes', query: '', filterKey: '', vstate: 'all', mineOnly: false, list: [], logs: [], wikiVisitors: [], consoleVisitors: [], serverKeybook: {}, hasMore: false };
       if (!before) {
         st.list = [];
         const prof = wkGetAccessProfile();
         bodyEl.innerHTML = cfgCrumb() +
           '<div class="cfg-head"><h2 class="cfg-head-title">최근 변경 · 접속 기록</h2>' +
-          '<p class="manual-desc">모든 문서 변경 이력과 사용자 접속 기록을 <b>접속 키값 + 사용자</b> 기준으로 매칭해 조회합니다.</p></div>' +
+          '<p class="manual-desc">로그인 사용자 접속 이력과 미로그인 방문자를 포함한 <b>사이트 전체 접속 기록</b>을 분리해 조회합니다.</p></div>' +
           '<div class="wk-id-bar">' +
             '<span>내 접속 정보: <span class="wk-key-pill">' + cfgEsc(prof.access_key) + '</span> <b style="color:#fff;">' + cfgEsc(prof.member) + '</b></span>' +
             '<button type="button" class="wk-mini" onclick="wkOpenIdentityModal()">내 키·이름 변경</button>' +
-            '<input type="search" id="wk-ch-q" class="cfg-search wk-filter-input" value="' + cfgEsc(st.query || '') + '" placeholder="접속 키값, 사용자, 문서명, 메모 검색" oninput="wkChangesFilter(this.value)">' +
+            '<button type="button" class="wk-mini" onclick="wikiChangesView()">↻ 새로고침</button>' +
+            '<input type="search" id="wk-ch-q" class="cfg-search wk-filter-input" value="' + cfgEsc(st.query || '') + '" placeholder="접속 키값, 사용자, 경로, IP, 메모 검색" oninput="wkChangesFilter(this.value)">' +
           '</div>' +
           '<div class="wk-subtabs" role="tablist">' +
             '<button type="button" class="wk-subtab' + (st.tab === 'changes' ? ' active' : '') + '" data-tab="changes" onclick="wkChangesSetTab(\\'changes\\')">최근 변경자료 (키값·수정자)</button>' +
-            '<button type="button" class="wk-subtab' + (st.tab === 'access' ? ' active' : '') + '" data-tab="access" onclick="wkChangesSetTab(\\'access\\')">사용자 접속 기록</button>' +
+            '<button type="button" class="wk-subtab' + (st.tab === 'access' ? ' active' : '') + '" data-tab="access" onclick="wkChangesSetTab(\\'access\\')">로그인 사용자 접속 기록</button>' +
+            '<button type="button" class="wk-subtab' + (st.tab === 'visitors' ? ' active' : '') + '" data-tab="visitors" onclick="wkChangesSetTab(\\'visitors\\')">사이트 전체 접속 기록</button>' +
             '<button type="button" class="wk-subtab' + (st.tab === 'keybook' ? ' active' : '') + '" data-tab="keybook" onclick="wkChangesSetTab(\\'keybook\\')">접속 키값 ↔ 사용자 매칭표</button>' +
           '</div>' +
           '<div id="wk-ch-panel"><p class="cfg-empty">접속·변경 기록을 불러오는 중…</p></div>';
@@ -3978,17 +4159,21 @@ LANDING_HTML = """<!DOCTYPE html>
       st.hasMore = list.length === 50;
 
       if (!before) {
-        try {
-          const acc = await api('GET', '/api/access/logs?limit=150');
-          if (acc) {
-            st.logs = acc.logs || [];
-            st.serverKeybook = acc.keybook || {};
+        await Promise.all([
+          api('GET', '/api/access/logs?limit=150').then(acc => {
+            st.logs = (acc && acc.logs) || [];
+            st.serverKeybook = (acc && acc.keybook) || {};
             WIKI.keybook = st.serverKeybook;
-          }
-        } catch (e) {
-          st.logs = [];
-          st.serverKeybook = {};
-        }
+          }).catch(() => { st.logs = []; st.serverKeybook = {}; }),
+          api('GET', '/api/access/visitors?limit=200').then(vis => {
+            st.wikiVisitors = (vis && vis.visits) || [];
+            if (vis && vis.keybook) st.serverKeybook = Object.assign({}, st.serverKeybook || {}, vis.keybook);
+          }).catch(() => { st.wikiVisitors = []; }),
+          fetch('/console/api/visitors?limit=200', { credentials: 'same-origin', cache: 'no-store' })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { st.consoleVisitors = (d && d.visitors) || []; })
+            .catch(() => { st.consoleVisitors = []; })
+        ]);
       }
       wkRenderChangesTab();
     }
@@ -4008,7 +4193,9 @@ LANDING_HTML = """<!DOCTYPE html>
         wkParseAuthor: wkParseAuthor,
         wkIsRealName: wkIsRealName,
         wkResolveEntryName: wkResolveEntryName,
-        wkHasValidAccessKey: wkHasValidAccessKey
+        wkHasValidAccessKey: wkHasValidAccessKey,
+        wkBuildSiteVisitors: wkBuildSiteVisitors,
+        wkSummarizeVisitors: wkSummarizeVisitors
       };
     }
     // ===== 지침 기반 등록·수정·순서 편집 스튜디오 (content/guide.js) =====
@@ -7850,6 +8037,66 @@ LANDING_HTML = """<!DOCTYPE html>
         keyEl.value = curKey;
       }
     }
+    const CS_SITE_VISITS_KEY = 'fig.access.site_visits_v1';
+
+    function figReadUaSummary() {
+      try {
+        const raw = (navigator && navigator.userAgent) || '';
+        const br = raw.indexOf('Edg/') >= 0 ? 'Edge'
+          : raw.indexOf('Chrome/') >= 0 ? 'Chrome'
+          : raw.indexOf('Firefox/') >= 0 ? 'Firefox'
+          : raw.indexOf('Safari/') >= 0 ? 'Safari' : 'Browser';
+        const os = /iPhone|iPad/.test(raw) ? 'iOS'
+          : raw.indexOf('Android') >= 0 ? 'Android'
+          : /Mac OS X|Macintosh/.test(raw) ? 'macOS'
+          : raw.indexOf('Windows') >= 0 ? 'Windows'
+          : raw.indexOf('Linux') >= 0 ? 'Linux' : '';
+        return os ? (br + ' · ' + os) : br;
+      } catch (e) { return ''; }
+    }
+    function figRecordSiteVisit(authState, view, detail) {
+      const state = authState || 'visitor';
+      const path = (typeof location !== 'undefined' ? (location.pathname + (location.hash || '')) : '/') || '/';
+      const v = view || (CS.page ? 'term' : 'dashboard');
+      const sig = state + '|' + v + '|' + path;
+      const nowMs = Date.now();
+      if (CS._lastVisitSig === sig && CS._lastVisitTs && (nowMs - CS._lastVisitTs) < 2000) return;
+      CS._lastVisitSig = sig;
+      CS._lastVisitTs = nowMs;
+      const stored = figReadStoredAccessKey();
+      const entry = {
+        ts: Math.floor(nowMs / 1000),
+        path: path.slice(0, 120),
+        view: String(v).slice(0, 32),
+        auth_state: state,
+        member: stored ? stored.member : '',
+        access_key: stored ? stored.access_key : '',
+        ua: figReadUaSummary(),
+        ip: '현재 브라우저',
+        detail: String(detail || '').slice(0, 120)
+      };
+      try {
+        const list = csReadJson(CS_SITE_VISITS_KEY, []) || [];
+        list.unshift(entry);
+        localStorage.setItem(CS_SITE_VISITS_KEY, JSON.stringify(list.slice(0, 300)));
+      } catch (e) {}
+      try {
+        fetch('/api/visit', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            path: entry.path,
+            view: entry.view,
+            auth_state: entry.auth_state,
+            member: entry.member,
+            access_key: entry.access_key,
+            detail: entry.detail
+          })
+        }).catch(() => {});
+      } catch (e) {}
+    }
+
     async function figExpireKeylessSessions() {
       try { sessionStorage.removeItem(figAuthStorageKey()); } catch (e) {}
       try { sessionStorage.removeItem(CS_ENTRY_SKIP_KEY); } catch (e) {}
@@ -8098,6 +8345,7 @@ LANDING_HTML = """<!DOCTYPE html>
       }
       if (!figReadStoredAccessKey()) {
         figExpireKeylessSessions();
+        figRecordSiteVisit('expired', CS.page ? 'term' : 'console', '키 없는 콘솔 접속 차단');
         const root = csRoot();
         root.hidden = false;
         root.classList.toggle('cs-solo', !!soloId);
@@ -8106,6 +8354,7 @@ LANDING_HTML = """<!DOCTYPE html>
         CS.open = true; CS.solo = soloId || null;
         return csShowUnlock('접속 키가 없는 이전 세션이 만료되었습니다. 이름·접속 키와 비밀번호를 입력해 다시 로그인해 주세요.');
       }
+      figRecordSiteVisit('authenticated', CS.page ? 'term' : 'console', '통합 콘솔 접속');
       const root = csRoot();
       if (CS.targets && root.querySelector('.cs-wrap') && !soloId) {   // 다른 화면에 갔다 와도 열린 터미널은 그대로
         root.hidden = false; document.body.classList.add('cs-on'); CS.open = true;
@@ -8211,10 +8460,12 @@ LANDING_HTML = """<!DOCTYPE html>
         });
         csWriteProfile(member, ak);
         try { sessionStorage.setItem(figAuthStorageKey(), 'valid'); } catch (e) {}
+        figRecordSiteVisit('authenticated', CS.page ? 'term' : 'console', '콘솔 로그인 성공');
         csSyncProfileToServer(member, ak, true).catch(() => {});
         csRoot().innerHTML = '';
         csOpen(CS.solo);
       } catch (e) {
+        figRecordSiteVisit('login_fail', CS.page ? 'term' : 'console', '콘솔 로그인 실패 (' + (e.status || 0) + ')');
         err.textContent = e.status === 401 ? '비밀번호가 맞지 않습니다' : e.status === 429 ? '시도가 많습니다. 10분 뒤 다시 시도하세요' : (e.error || '잠금을 풀지 못했습니다');
         err.hidden = false;
       }
@@ -8601,7 +8852,10 @@ LANDING_HTML = """<!DOCTYPE html>
         } catch (e) {}
         if (hadLocalAuth || hadServerSession) {
           await figExpireKeylessSessions();
+          figRecordSiteVisit('expired', 'login', '접속 키 없는 이전 세션 만료');
           figShowLoginNotice('접속 키가 없는 이전 세션이 만료되었습니다. 이름·접속 키와 비밀번호로 다시 로그인해 주세요.');
+        } else {
+          figRecordSiteVisit('visitor', 'login', '사이트 첫 방문 (미로그인)');
         }
         checkAuth();
         return;
@@ -8615,11 +8869,15 @@ LANDING_HTML = """<!DOCTYPE html>
         const d = await r.json();
         if (d.unlocked && !d.key_expired) {
           sessionStorage.setItem(authKey, 'valid');
+          figRecordSiteVisit('authenticated', localStorage.getItem('fig.view') || 'dashboard', '사이트 접속 (로그인 유지)');
         } else {
           sessionStorage.removeItem(authKey);
           if (d && d.key_expired) {
             await figExpireKeylessSessions();
+            figRecordSiteVisit('expired', 'login', '서버 세션 키 누락 만료');
             figShowLoginNotice('서버 세션에 접속 키가 없어 만료되었습니다. 다시 로그인해 주세요.');
+          } else {
+            figRecordSiteVisit('visitor', 'login', '사이트 방문 (미로그인)');
           }
         }
       } catch (e) {
