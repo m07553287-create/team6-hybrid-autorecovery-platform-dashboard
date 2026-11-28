@@ -63,6 +63,8 @@ LANDING_HTML = """<!DOCTYPE html>
 
     /* TOP HEADER BAR (FHD FIXED) */
     header {
+      position: relative;
+      z-index: 1000;
       height: 52px;
       border-bottom: 1px solid var(--surface-border);
       background: rgba(15, 23, 42, 0.96);
@@ -2127,19 +2129,65 @@ LANDING_HTML = """<!DOCTYPE html>
     .wk-dc-share { border-left-color: #38bdf8; }
     .wk-dc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
     /* ===== 통합 콘솔 (content/console.css) ===== */
+    /* TOP HEADER BAR (FHD FIXED / CONSOLE & WARROOM COMPATIBLE) */
+    header {
+      position: relative;
+      z-index: 1000;
+      height: 52px;
+      border-bottom: 1px solid var(--surface-border, #1e293b);
+      background: rgba(15, 23, 42, 0.96);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      flex-shrink: 0;
+      gap: 12px;
+    }
+    .header-left { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .brand-title { font-size: 14px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .brand-tag { font-size: 10.5px; font-weight: 600; background: #1e293b; color: #38bdf8; border: 1px solid #0284c7; padding: 1px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; }
+    .header-clock-timer { display: flex; align-items: center; gap: 10px; font-size: 11.5px; font-family: 'JetBrains Mono', monospace; color: var(--text-sub); background: #090d16; border: 1px solid var(--surface-border, #1e293b); padding: 3px 10px; border-radius: 4px; white-space: nowrap; }
+    .pulse-dot { width: 6px; height: 6px; border-radius: 50%; background: #38bdf8; box-shadow: 0 0 6px #38bdf8; }
+    .header-infra-status { display: flex; align-items: center; gap: 6px; overflow-x: auto; flex: 1; justify-content: center; }
+    .infra-badge-item { display: inline-flex; align-items: center; gap: 5px; background: #141e33; border: 1px solid var(--border-color, #334155); border-radius: 4px; padding: 2px 7px; font-size: 11px; white-space: nowrap; }
+    .infra-badge-name { font-weight: 600; color: #cbd5e1; }
+    .infra-badge-state { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; font-weight: 700; padding: 1px 4px; border-radius: 3px; }
+    .state-green { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .state-amber { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+    .header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .nav-btn { background: #1e293b; border: 1px solid var(--surface-border, #1e293b); color: var(--text-sub); padding: 5px 12px; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s ease; font-family: inherit; text-decoration: none; display: inline-flex; align-items: center; }
+    .nav-btn:hover { background: #334155; color: #fff; }
+    .nav-btn.active { background: var(--primary, #2563eb); color: #fff; border-color: #3b82f6; }
+    .logout-btn { background: transparent; border: 1px solid var(--surface-border, #1e293b); color: var(--text-sub); padding: 5px 10px; border-radius: 4px; font-size: 11.5px; cursor: pointer; transition: all 0.15s ease; font-family: inherit; }
+    .logout-btn:hover { background: #1f2937; color: #fff; border-color: #4b5563; }
+    .fs-ctl { display: inline-flex; gap: 2px; margin-right: 6px; border: 1px solid var(--surface-border, #1e293b); border-radius: 5px; overflow: hidden; }
+    .fs-btn { background: transparent; border: 0; color: var(--text-sub); padding: 4px 8px; font-size: 12px; cursor: pointer; font-family: inherit; }
+    .fs-btn:hover { background: #1f2937; color: #fff; }
+    .fs-btn + .fs-btn { border-left: 1px solid var(--surface-border, #1e293b); }
+    .g-user-badge { display: flex; align-items: center; gap: 6px; background: #090d16; border: 1px solid var(--surface-border, #1e293b); border-radius: 4px; padding: 4px 10px; font-size: 11.5px; }
+    .g-user-dot { width: 6px; height: 6px; border-radius: 50%; background: #10b981; box-shadow: 0 0 6px #10b981; }
+    .g-user-dot.warn { background: #f59e0b; box-shadow: none; }
+    .g-user-name { font-weight: 600; color: #f8fafc; }
+    .g-user-key { font-family: 'JetBrains Mono', monospace; color: #38bdf8; font-size: 11px; }
+
     .cs-rail { position: fixed; left: 0; top: 50%; transform: translateY(-50%); z-index: 700; writing-mode: vertical-rl; letter-spacing: .12em;
       background: var(--primary); color: #fff; border: 0; border-radius: 0 8px 8px 0; padding: 16px 7px; font-size: 13px; font-weight: 700;
       font-family: inherit; cursor: pointer; box-shadow: 2px 0 12px rgba(2, 6, 15, .5); }
     .cs-rail:hover { background: var(--primary-hover); padding-left: 10px; }
     .cs-rail:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
     #cs-root { position: fixed; top: 52px; left: 0; right: 0; bottom: 0; z-index: 800; background: #070b14; }
-    #cs-root.cs-solo, #cs-root.cs-page { top: 0; }
+    #cs-root.cs-solo { top: 0; }
+    #cs-root.cs-page { top: 52px; }
     body.cs-on .cs-rail { display: none; }
     body.cs-dragging, body.cs-dragging * { cursor: grabbing !important; user-select: none; }
     .cs-wait { padding: 40px; color: var(--text-sub); text-align: center; }
     .cs-unlock { display: flex; justify-content: center; padding-top: 8vh; }
     .cs-unlock .wk-card { width: min(440px, 92vw); }
-    .cs-wrap { display: grid; grid-template-columns: 240px minmax(0, 1fr); height: 100vh; max-height: 100vh; overflow: hidden; width: 100%; }
+    .cs-wrap { display: grid; grid-template-columns: 240px minmax(0, 1fr); height: calc(100vh - 52px); max-height: calc(100vh - 52px); overflow: hidden; width: 100%; }
+    #cs-root.cs-solo .cs-wrap { height: 100vh; max-height: 100vh; }
+    .cs-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: calc(100vh - 52px); max-height: calc(100vh - 52px); overflow: hidden; position: relative; width: 100%; }
+    #cs-root.cs-solo .cs-main { height: 100vh; max-height: 100vh; }
     #cs-root.cs-solo .cs-wrap, .cs-wrap.cs-warroom-wrap { grid-template-columns: minmax(0, 1fr) !important; width: 100% !important; }
     .cs-drawer { background: #0c1322; border-right: 1px solid var(--surface-border); overflow-y: auto; padding: 10px 8px; display: flex; flex-direction: column; gap: 4px; }
     .cs-drawer-head { padding: 2px 6px 8px; border-bottom: 1px solid var(--surface-border); margin-bottom: 4px; }
@@ -2154,7 +2202,6 @@ LANDING_HTML = """<!DOCTYPE html>
     .cs-target:disabled { opacity: .45; cursor: not-allowed; }
     .cs-target:focus-visible { outline: 2px solid #93c5fd; }
     .cs-drawer-foot { margin-top: auto; display: flex; gap: 6px; padding-top: 10px; border-top: 1px solid var(--surface-border); }
-    .cs-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100vh; max-height: 100vh; overflow: hidden; position: relative; width: 100%; }
     .cs-bar { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-bottom: 1px solid var(--surface-border); flex-shrink: 0; }
     .cs-layouts { display: flex; gap: 4px; }
     .cs-on-btn { background: var(--primary); border-color: var(--primary); color: #fff; }
@@ -2662,6 +2709,8 @@ LANDING_HTML = """<!DOCTYPE html>
 
     /* =========================================================================
        FHD(1920x1080) 데스크탑 고정 뷰: 노 스크롤(No Scroll) 전체 한 화면 자동 노출
+       - 상단 탑헤더 네비게이션 바(52px) 상시 고정 유지
+       - 콘솔 및 워룸 컨테이너는 헤더 아래(top: 52px)부터 바닥까지 꽉 채움
        ========================================================================= */
     @media (min-width: 1200px) {
       html, body {
@@ -2672,20 +2721,33 @@ LANDING_HTML = """<!DOCTYPE html>
         padding: 0 !important;
       }
       #cs-root {
-        height: 100vh !important;
-        max-height: 100vh !important;
+        top: 52px !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        height: calc(100vh - 52px) !important;
+        max-height: calc(100vh - 52px) !important;
         overflow: hidden !important;
         position: fixed !important;
-        inset: 0 !important;
+        z-index: 800 !important;
+      }
+      #cs-root.cs-solo {
+        top: 0 !important;
+        height: 100vh !important;
+        max-height: 100vh !important;
       }
       .cs-wrap {
-        height: 100vh !important;
-        max-height: 100vh !important;
+        height: calc(100vh - 52px) !important;
+        max-height: calc(100vh - 52px) !important;
         overflow: hidden !important;
       }
-      .cs-main {
+      #cs-root.cs-solo .cs-wrap {
         height: 100vh !important;
         max-height: 100vh !important;
+      }
+      .cs-main {
+        height: 100% !important;
+        max-height: 100% !important;
         overflow: hidden !important;
         display: flex !important;
         flex-direction: column !important;
