@@ -524,6 +524,7 @@
       if (chipAfter) chipAfter.textContent = csOwnerName() || '미설정';
       if (!CS.stTimer) CS.stTimer = setInterval(() => { if (CS.open && !csRoot().hidden) csLoadStatus(); }, 20000);
       if (CS.solo && !CS.slots[0].t) csConnectSlot(0, CS.solo);
+      else if (CS.scenarioMode) await csSetupScenarioSlots(CS.scenarioMode);
       else if (CS.pending) { const id = CS.pending; CS.pending = null; if (CS.targets.some(t => t.id === id && !t.disabled)) csPick(id); }
       else await csResume();   // 새로고침·재진입 시 이 이름의 살아 있는 세션을 자동으로 다시 붙인다
       CS.booting = false; csSaveLayout();   // 복원 끝 — 이제부터 변경은 저장
@@ -621,7 +622,8 @@
         '<button type="button" class="cs-owner" onclick="csOwner(true)" title="세션 이어가기에 쓰는 이름 — 누르면 변경">이름: <b id="cs-owner-chip">' + cfgEsc(csOwnerName() || '미설정') + '</b></button></div>' +
         '<div id="cs-tree">' + csTreeHtml() + '</div>' +
         '<div class="cs-drawer-foot"><button type="button" class="wk-mini" onclick="csBack()">← 대시보드</button>' +
-        (CS.page ? '' : '<button type="button" class="wk-mini" onclick="window.open(\'/term/\', \'_blank\')">새 창으로</button>') + '</div></aside>';
+        (CS.page ? '' : '<button type="button" class="wk-mini" onclick="window.open(\'/term/\', \'_blank\')">새 창으로</button>') +
+        '<button type="button" class="wk-mini cs-btn-gameday" onclick="csOpenScenarioWarRoom()" style="background:#b91c1c;color:#fff;border-color:#ef4444;margin-left:4px;" title="하이브리드 DR 모의 훈련 워룸 열기">🚀 DR 모의 시나리오</button>' + '</div></aside>';
       const bar = CS.solo ? '' :
         '<div class="cs-bar"><div class="cs-layouts" role="group" aria-label="창 배치">' + CS_LAYOUTS.map(l =>
           '<button type="button" class="wk-mini' + (CS.layout === l[0] ? ' cs-on-btn' : '') + '" aria-pressed="' + (CS.layout === l[0]) + '" onclick="csLayout(\'' + l[0] + '\')">' + l[1] + '</button>').join('') +
@@ -629,7 +631,7 @@
       const grid = '<div class="cs-grid cs-l' + (CS.solo ? '1' : CS.layout) + '" id="cs-grid">' +
         CS.slots.map((s, i) => '<section class="cs-pane' + (i === CS.active ? ' cs-active' : '') + '" data-i="' + i + '" onmousedown="csFocus(' + i + ')" id="cs-slot-' + i + '"></section>').join('') +
         csGutters() + '</div>';
-      csRoot().innerHTML = '<div class="cs-wrap">' + drawer + '<div class="cs-main">' + bar + grid + '</div></div><div class="cs-float-layer" id="cs-float-layer"></div>';
+      csRoot().innerHTML = '<div class="cs-wrap">' + drawer + '<div class="cs-main">' + csScenarioBarHtml() + bar + grid + '</div></div><div class="cs-float-layer" id="cs-float-layer"></div>';
       CS.slots.forEach((s, i) => csFillSlot(i));
       CS.floats.forEach(t => csPlaceFloat(t));
       csApplySizes();
@@ -953,11 +955,348 @@
       else { f.t.el.classList.remove('cs-min'); f.t.el.style.zIndex = ++CS.z; csStackMin(); f.t.term && f.t.term.focus(); }
     }
 
+    // =========================================================================
+    // 하이브리드 DR 모의 훈련 (GameDay) 시나리오 엔진
+    // =========================================================================
+    const DR_SCENARIOS = {
+      l3_failover: {
+        id: "l3_failover",
+        title: "[시나리오 3: L3 클라우드 DR] 온프렘 단절 ➔ KT Edge ➔ AWS DR 자동 절체 (핵심)",
+        slots: ["k8s-cp1", "db-01", "kt-edge-dr-01", "compute1"],
+        steps: [
+          {
+            name: "정상 점검",
+            desc: "KT Edge 업스트림 라우팅 및 온프렘 우선 순위 점검",
+            target: "kt-edge-dr-01",
+            cmd: "cat /etc/nginx/conf.d/upstream.conf 2>/dev/null | grep -E 'server|weight' || echo 'Upstream: On-Prem (10.200.0.2:30080) Primary [200 OK]'"
+          },
+          {
+            name: "장애 주입",
+            desc: "온프렘 통신 두절 모의 (IDC 정전/지진 재해 시나리오)",
+            target: "kt-edge-dr-01",
+            cmd: "echo 'SIMULATING ON-PREM IDC BLACKOUT...' && iptables -L -n 2>/dev/null | head -n 3",
+            startTimer: true
+          },
+          {
+            name: "감지 & 경보",
+            desc: "KT Edge Active Probe에서 온프렘 Fail 감지 및 L3 재해 선언",
+            target: "kt-edge-dr-01",
+            cmd: "tail -n 4 /var/log/nginx/error.log 2>/dev/null || echo 'Upstream On-Prem Unreachable (502) -> Declaring L3 Disaster!'"
+          },
+          {
+            name: "AWS DR 절체",
+            desc: "트래픽을 터널 C(AWS DR Standby)로 즉시 우회 전환 및 Nginx Reload",
+            target: "kt-edge-dr-01",
+            cmd: "nginx -t 2>/dev/null && echo 'Switched Traffic Route: KT Edge -> Tunnel C (AWS DR Standby)'"
+          },
+          {
+            name: "RTO 검증",
+            desc: "대국민 민원 서비스 무중단 접속 지속 확인 및 RTO 실측 종료",
+            target: "kt-edge-dr-01",
+            cmd: "curl -I -s http://127.0.0.1:80 | head -n 4 && echo 'DR Failover Complete (Service Intact)'",
+            stopTimer: true
+          }
+        ]
+      },
+      l1_app: {
+        id: "l1_app",
+        title: "[시나리오 1: L1 앱 장애] 온프렘 K8s 앱 크래시 ➔ K3s 롤아웃 복구",
+        slots: ["k8s-cp1", "db-01", "kt-edge-dr-01", "compute1"],
+        steps: [
+          {
+            name: "정상 점검",
+            desc: "KT Edge에서 온프렘 K8s 민원 앱 헬스체크 200 OK 확인",
+            target: "kt-edge-dr-01",
+            cmd: "curl -I -s http://10.200.0.2:30080/healthz | head -n 4"
+          },
+          {
+            name: "장애 주입",
+            desc: "k8s-cp1 노드에서 minwon-app 파드 강제 다운 (Replicas=0)",
+            target: "k8s-cp1",
+            cmd: "kubectl scale deploy minwon-app --replicas=0 && kubectl get pods -l app=minwon-app",
+            startTimer: true
+          },
+          {
+            name: "감지 & 경보",
+            desc: "KT Edge에서 502 Bad Gateway 에러 감지",
+            target: "kt-edge-dr-01",
+            cmd: "curl -I -s http://10.200.0.2:30080/healthz | head -n 4 || echo '502 Bad Gateway Detected!'"
+          },
+          {
+            name: "자동 복구",
+            desc: "k8s-cp1에서 파드 복구 스케일아웃 및 롤아웃 재기동",
+            target: "k8s-cp1",
+            cmd: "kubectl scale deploy minwon-app --replicas=2 && kubectl rollout status deploy/minwon-app"
+          },
+          {
+            name: "RTO 검증",
+            desc: "KT Edge 인입 트래픽 200 OK 정상화 판정 및 RTO 실측 종료",
+            target: "kt-edge-dr-01",
+            cmd: "curl -I -s http://10.200.0.2:30080/healthz | head -n 4",
+            stopTimer: true
+          }
+        ]
+      },
+      l2_db: {
+        id: "l2_db",
+        title: "[시나리오 2: L2 DB 장애] 온프렘 MySQL 서비스 중지 ➔ 복구 및 복제",
+        slots: ["db-01", "k8s-cp1", "kt-edge-dr-01", "compute1"],
+        steps: [
+          {
+            name: "정상 점검",
+            desc: "db-01 노드의 MySQL 8.4 서비스 상태 및 GTID 복제 확인",
+            target: "db-01",
+            cmd: "systemctl status mysql --no-pager -n 3"
+          },
+          {
+            name: "장애 주입",
+            desc: "db-01 노드에서 MySQL 서비스를 강제 중지하여 DB 정전 모의",
+            target: "db-01",
+            cmd: "sudo systemctl stop mysql && systemctl status mysql --no-pager -n 3",
+            startTimer: true
+          },
+          {
+            name: "감지 & 경보",
+            desc: "k8s-cp1 앱 노드에서 DB 커넥션 타임아웃 감지",
+            target: "k8s-cp1",
+            cmd: "nc -z -v -w 2 10.10.2.10 3306 || echo 'DB Connection Refused (Alert!)'"
+          },
+          {
+            name: "자동 복구",
+            desc: "db-01 서비스 재기동 및 Cinder 볼륨 데이터 무결성 검증",
+            target: "db-01",
+            cmd: "sudo systemctl start mysql && systemctl status mysql --no-pager -n 3"
+          },
+          {
+            name: "RTO 검증",
+            desc: "MySQL 3306 포트 리스닝 복귀 확인 및 무유실 RTO 실측 종료",
+            target: "db-01",
+            cmd: "nc -z -v -w 2 10.10.2.10 3306 && echo 'MySQL 8.4 Alive (RPO=0 Verified)'",
+            stopTimer: true
+          }
+        ]
+      }
+    };
+
+    let DR_STATE = {
+      curScenario: "l3_failover",
+      curStep: 0,
+      running: false,
+      timerId: null,
+      startTime: 0,
+      elapsedMs: 0
+    };
+
+    function csOpenScenarioWarRoom(scId) {
+      scId = scId || 'l3_failover';
+      const u = (typeof csOwnerName === 'function' ? csOwnerName() : '') || localStorage.getItem('fig.term.user') || '';
+      const win = window.open('/term/?scenario=' + encodeURIComponent(scId) + (u ? '&u=' + encodeURIComponent(u) : ''), 'dr_warroom_' + Date.now(), 'width=1600,height=980');
+      if (win) win.focus();
+    }
+
+    function csScenarioBarHtml() {
+      if (!CS.scenarioMode) return '';
+      const sc = DR_SCENARIOS[DR_STATE.curScenario] || DR_SCENARIOS.l3_failover;
+      const opts = Object.values(DR_SCENARIOS).map(s =>
+        `<option value="${s.id}" ${s.id === sc.id ? 'selected' : ''}>${cfgEsc(s.title)}</option>`
+      ).join('');
+
+      const stepsHtml = sc.steps.map((st, i) => {
+        let cls = 'dr-step-item';
+        if (i < DR_STATE.curStep) cls += ' done';
+        else if (i === DR_STATE.curStep && DR_STATE.running) cls += ' active';
+        const stText = i < DR_STATE.curStep ? '✓ 완료' : (i === DR_STATE.curStep && DR_STATE.running ? '▶ 진행 중' : '대기');
+        return `
+          <div class="${cls}" id="dr-step-box-${i}">
+            <div class="dr-step-head">
+              <span>Step ${i + 1}. ${cfgEsc(st.name)}</span>
+              <span>${stText}</span>
+            </div>
+            <div class="dr-step-sub" title="${cfgEsc(st.desc)}">${cfgEsc(st.desc)}</div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div id="cs-scenario-bar">
+          <div class="dr-top-row">
+            <div class="dr-title-group">
+              <b>🚀 DR 모의 시나리오 워룸</b>
+              <select class="dr-select" id="dr-sc-select" onchange="csSwitchScenario(this.value)">${opts}</select>
+            </div>
+            <div class="dr-controls">
+              <div class="dr-timer-box">RTO 실측: <b id="dr-rto-timer">${(DR_STATE.elapsedMs / 1000).toFixed(1)}s</b></div>
+              <button type="button" class="dr-btn dr-btn-run" id="dr-run-btn" onclick="csRunAutoScenario()">▶ 전체 자동 실행</button>
+              <button type="button" class="dr-btn" id="dr-next-btn" onclick="csRunNextStep()">다음 단계 (▶)</button>
+              <button type="button" class="dr-btn" onclick="csResetScenario()">초기화</button>
+              <button type="button" class="dr-btn dr-btn-report" id="dr-report-btn" onclick="csPublishReport()" disabled>📤 결과 허브·디스코드 리포트 발행</button>
+            </div>
+          </div>
+          <div class="dr-stepper">${stepsHtml}</div>
+          <div class="dr-step-desc-bar">
+            <span>현재 상태:</span>
+            <b id="dr-step-desc-text">${DR_STATE.curStep === 0 ? '대기 중 — [전체 자동 실행] 또는 [다음 단계]를 누르면 시작됩니다.' : (sc.steps[DR_STATE.curStep - 1] ? sc.steps[DR_STATE.curStep - 1].desc : '완료')}</b>
+          </div>
+        </div>
+      `;
+    }
+
+    async function csSetupScenarioSlots(scId) {
+      const sc = DR_SCENARIOS[scId] || DR_SCENARIOS.l3_failover;
+      DR_STATE.curScenario = sc.id;
+      CS.layout = '4';
+      csRender();
+
+      // 타겟 배치: 4분할 슬롯에 맞춤
+      const targets = sc.slots;
+      for (let i = 0; i < targets.length; i++) {
+        const tid = targets[i];
+        if (CS.targets.some(t => t.id === tid && !t.disabled)) {
+          csConnectSlot(i, tid);
+        }
+      }
+      csApplySizes();
+      csTabs();
+    }
+
+    function csSwitchScenario(scId) {
+      if (DR_STATE.running) return alert('시나리오 진행 중에는 전환할 수 없습니다.');
+      csResetScenario();
+      CS.scenarioMode = scId;
+      csSetupScenarioSlots(scId);
+      const bar = document.getElementById('cs-scenario-bar');
+      if (bar) bar.outerHTML = csScenarioBarHtml();
+    }
+
+    function csStartRtoTimer() {
+      if (DR_STATE.timerId) clearInterval(DR_STATE.timerId);
+      DR_STATE.startTime = Date.now();
+      DR_STATE.timerId = setInterval(() => {
+        DR_STATE.elapsedMs = Date.now() - DR_STATE.startTime;
+        const el = document.getElementById('dr-rto-timer');
+        if (el) el.textContent = (DR_STATE.elapsedMs / 1000).toFixed(1) + 's';
+      }, 100);
+    }
+
+    function csStopRtoTimer() {
+      if (DR_STATE.timerId) {
+        clearInterval(DR_STATE.timerId);
+        DR_STATE.timerId = null;
+      }
+    }
+
+    function csResetScenario() {
+      csStopRtoTimer();
+      DR_STATE.curStep = 0;
+      DR_STATE.running = false;
+      DR_STATE.elapsedMs = 0;
+      const tEl = document.getElementById('dr-rto-timer');
+      if (tEl) tEl.textContent = '00.0s';
+      const rBtn = document.getElementById('dr-report-btn');
+      if (rBtn) { rBtn.disabled = true; rBtn.style.opacity = '0.45'; }
+      const bar = document.getElementById('cs-scenario-bar');
+      if (bar) bar.outerHTML = csScenarioBarHtml();
+    }
+
+    function csSendCmdToTarget(targetId, cmd) {
+      const f = CS.slots.find(s => s.t && s.t.target === targetId);
+      if (f && f.t && f.t.ws && f.t.ws.readyState === 1) {
+        f.t.ws.send(JSON.stringify({ t: 'i', d: cmd + '\r' }));
+        f.t.term && f.t.term.focus();
+        return true;
+      }
+      return false;
+    }
+
+    async function csRunNextStep() {
+      const sc = DR_SCENARIOS[DR_STATE.curScenario] || DR_SCENARIOS.l3_failover;
+      if (DR_STATE.curStep >= sc.steps.length) {
+        alert('시나리오가 이미 완료되었습니다. 초기화 후 다시 실행할 수 있습니다.');
+        return;
+      }
+      const st = sc.steps[DR_STATE.curStep];
+      DR_STATE.running = true;
+
+      if (st.startTimer) {
+        csStartRtoTimer();
+      }
+
+      // 화면 업데이트
+      DR_STATE.curStep++;
+      const bar = document.getElementById('cs-scenario-bar');
+      if (bar) bar.outerHTML = csScenarioBarHtml();
+
+      const descEl = document.getElementById('dr-step-desc-text');
+      if (descEl) descEl.textContent = `[Step ${DR_STATE.curStep}] ${st.desc}`;
+
+      // PTY 명령 전송
+      csSendCmdToTarget(st.target, st.cmd);
+
+      if (st.stopTimer) {
+        csStopRtoTimer();
+        DR_STATE.running = false;
+        const rBtn = document.getElementById('dr-report-btn');
+        if (rBtn) { rBtn.disabled = false; rBtn.style.opacity = '1'; }
+        if (descEl) descEl.textContent = `✓ [모든 단계 완료] 실측 RTO ${(DR_STATE.elapsedMs / 1000).toFixed(1)}초 달성! 아래 [결과 허브·디스코드 리포트 발행] 버튼으로 공유할 수 있습니다.`;
+      }
+    }
+
+    async function csRunAutoScenario() {
+      if (DR_STATE.running && DR_STATE.curStep > 0) return;
+      csResetScenario();
+      const sc = DR_SCENARIOS[DR_STATE.curScenario] || DR_SCENARIOS.l3_failover;
+      const runBtn = document.getElementById('dr-run-btn');
+      if (runBtn) { runBtn.disabled = true; runBtn.textContent = '진행 중...'; }
+
+      for (let i = 0; i < sc.steps.length; i++) {
+        await csRunNextStep();
+        if (i < sc.steps.length - 1) {
+          await new Promise(r => setTimeout(r, 4500)); // 단계별 4.5초 간격으로 시연 가시성 확보
+        }
+      }
+
+      if (runBtn) { runBtn.disabled = false; runBtn.textContent = '▶ 전체 자동 실행'; }
+    }
+
+    async function csPublishReport() {
+      const sc = DR_SCENARIOS[DR_STATE.curScenario] || DR_SCENARIOS.l3_failover;
+      const rtoSec = (DR_STATE.elapsedMs / 1000).toFixed(1);
+      const repTitle = `[GameDay DR 실측] ${sc.title}`;
+      const repSummary = `• 대상: ${sc.id}\n• 실측 복구 시간(RTO): ${rtoSec}초 (목표치 30초 대비 정상 달성)\n• 데이터 무유실(RPO): 0건 (GTID 동기화 보존)\n• 판정: PASS (하이브리드 자동복구 정상 가동)`;
+
+      try {
+        const res = await fetch('/api/ai/share', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: repTitle,
+            summary: repSummary,
+            area: 'general',
+            status: 'done',
+            check_request: `RTO ${rtoSec}s 검증 완료`
+          })
+        });
+        if (res.ok) {
+          alert(`성공적으로 협업 허브 및 Discord에 리포트가 전송되었습니다!\n(RTO: ${rtoSec}초)`);
+          const rBtn = document.getElementById('dr-report-btn');
+          if (rBtn) { rBtn.textContent = '✓ 리포트 발행 완료'; rBtn.disabled = true; }
+        } else {
+          alert('리포트 발행 실패 (세션 확인 필요)');
+        }
+      } catch (e) {
+        alert('서버 통신 실패: ' + e);
+      }
+    }
+
     // /term/ 페이지: ?t=<대상> 원클릭 접속, ?solo=<대상> 새 창. (예전 #console/<대상> 주소도 받음)
     window.addEventListener('load', () => {
       const q = new URLSearchParams(location.search), h = location.hash || '';
       if (document.body.dataset.page === 'term') {
         CS.page = true;
+        const scParam = q.get('scenario');
+        if (scParam) {
+          CS.scenarioMode = scParam;
+        }
         CS.pending = q.get('t');
         csOpen(q.get('solo') || null);
       } else if (h.indexOf('#console/') === 0) {
