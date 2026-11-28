@@ -2581,6 +2581,49 @@
       flex: 1;
     }
 
+    /* 화면 초기화 (개별 지우기 & 전체 화면 초기화) 버튼 스타일 */
+    .cs-act-clear {
+      background: rgba(148, 163, 184, 0.15) !important;
+      border: 1px solid #475569 !important;
+      color: #cbd5e1 !important;
+      padding: 1px 7px !important;
+      font-size: 11px !important;
+      border-radius: 4px !important;
+      font-weight: 600 !important;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .cs-act-clear:hover {
+      background: #334155 !important;
+      color: #38bdf8 !important;
+      border-color: #38bdf8 !important;
+      box-shadow: 0 0 6px rgba(56, 189, 248, 0.3);
+    }
+    .cs-bar-clear-all {
+      font-weight: 600 !important;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .cs-bar-clear-all:hover {
+      background: #334155 !important;
+      border-color: #38bdf8 !important;
+      color: #38bdf8 !important;
+    }
+    .dr-btn-clear-all {
+      background: #1e293b !important;
+      border: 1px solid #475569 !important;
+      color: #e2e8f0 !important;
+      font-weight: 700 !important;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .dr-btn-clear-all:hover {
+      background: #334155 !important;
+      border-color: #38bdf8 !important;
+      color: #38bdf8 !important;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+    }
+
     /* ===== 메인 대시보드 실측 (content/dashboard.css) ===== */
     #matrix-5col-grid.dash-live { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); overflow-y: auto; align-content: start; padding-right: 4px; }
     #matrix-5col-grid.dash-live .inst-grid-card { height: 470px; }
@@ -9141,6 +9184,7 @@
       const bar = CS.solo ? '' :
         '<div class="cs-bar"><div class="cs-layouts" role="group" aria-label="창 배치">' + CS_LAYOUTS.map(l =>
           '<button type="button" class="wk-mini' + (CS.layout === l[0] ? ' cs-on-btn' : '') + '" aria-pressed="' + (CS.layout === l[0]) + '" onclick="csLayout(\'' + l[0] + '\')">' + l[1] + '</button>').join('') +
+          '<button type="button" class="wk-mini cs-bar-clear-all" onclick="csClearAllTerms()" title="열려있는 모든 터미널 화면 일괄 초기화" style="margin-left:8px;background:#1e293b;border-color:#475569;color:#e2e8f0;">🧹 전체 화면 초기화</button>' +
         '</div><nav class="cs-tabs" id="cs-tabs" aria-label="열린 터미널"></nav></div>';
       const grid = '<div class="cs-grid cs-l' + (CS.solo ? '1' : CS.layout) + '" id="cs-grid">' +
         CS.slots.map((s, i) => '<section class="cs-pane' + (i === CS.active ? ' cs-active' : '') + '" data-i="' + i + '" onmousedown="csFocus(' + i + ')" id="cs-slot-' + i + '"></section>').join('') +
@@ -9181,6 +9225,34 @@
     }
     function csAllTerms() { return CS.slots.map(s => s.t).filter(Boolean).concat(CS.floats); }
 
+    // 화면 초기화 (개별 터미널 화면 버퍼 및 셸 지우기)
+    function csClearTerm(uid) {
+      const t = csAllTerms().find(x => x.uid === uid);
+      if (!t) return;
+      if (t.term) {
+        try { t.term.clear(); } catch (e) {}
+      }
+      if (t.ws && t.ws.readyState === 1) {
+        try { t.ws.send(JSON.stringify({ t: 'i', d: 'clear\r' })); } catch (e) {}
+      }
+      try { t.term && t.term.focus(); } catch (e) {}
+    }
+
+    // 전체 화면 초기화 (열린 모든 터미널 화면 일괄 지우기)
+    function csClearAllTerms() {
+      const terms = csAllTerms();
+      if (!terms || !terms.length) return;
+      terms.forEach(t => {
+        if (t.term) {
+          try { t.term.clear(); } catch (e) {}
+        }
+        if (t.ws && t.ws.readyState === 1) {
+          try { t.ws.send(JSON.stringify({ t: 'i', d: 'clear\r' })); } catch (e) {}
+        }
+      });
+      if (typeof wikiToast === 'function') wikiToast('열려있는 모든 터미널 화면을 초기화했습니다.');
+    }
+
     // ---------- 터미널 한 개 (칸·띄운 창이 함께 쓰는 단위) ----------
     async function csLoadPresets() { try { CS.presets = await csApi('GET', '/console/api/presets'); } catch (e) { CS.presets = CS.presets || {}; } }
     function csPresetItems(id) { return ((CS.presets || {})[id] || {}).items || []; }
@@ -9195,6 +9267,7 @@
           (inFloat ? '<button type="button" class="wk-mini" title="최소화" onclick="csFloatMin(' + t.uid + ')">▁</button><button type="button" class="wk-mini" title="최대화" onclick="csFloatMax(' + t.uid + ')">▢</button>' +
             (CS.solo ? '' : '<button type="button" class="wk-mini" title="칸으로 되돌리기" onclick="csDock(' + t.uid + ')">⇲</button>')
             : (CS.solo ? '' : '<button type="button" class="wk-mini" title="화면 위에 띄우기" onclick="csFloat(' + t.uid + ')">⧉</button>')) +
+          '<button type="button" class="wk-mini cs-act-clear" title="이 터미널 화면 초기화 (Clear)" onclick="csClearTerm(' + t.uid + ')">🧹 지우기</button>' +
           '<button type="button" class="wk-mini" title="다시 연결" onclick="csReconnect(' + t.uid + ')">⟳</button>' +
           (CS.solo ? '' : '<button type="button" class="wk-mini" title="새 창으로" onclick="csPopout(' + t.uid + ')">↗</button>') +
           '<button type="button" class="wk-mini" title="닫기" onclick="csCloseTerm(' + t.uid + ')">✕</button></span></header>' +
@@ -10325,7 +10398,8 @@
               <button type="button" class="dr-btn dr-btn-run" id="dr-run-btn" onclick="csRunAutoScenario()">▶ 전체 자동 실행</button>
               <button type="button" class="dr-btn" id="dr-pause-btn" onclick="csTogglePause()" ${DR_STATE.running ? '' : 'disabled'}>⏸ 일시정지</button>
               <button type="button" class="dr-btn" id="dr-next-btn" onclick="csRunNextStep()">다음 단계 (▶)</button>
-              <button type="button" class="dr-btn" onclick="csResetScenario()">초기화</button>
+              <button type="button" class="dr-btn" onclick="csResetScenario()" title="시나리오 진행 상태를 처음으로 리셋">시나리오 초기화</button>
+              <button type="button" class="dr-btn dr-btn-clear-all" onclick="csClearAllTerms()" title="4분할 모든 터미널 화면 버퍼 및 셸 일괄 지우기">🧹 전체 화면 초기화</button>
               <button type="button" class="dr-btn dr-btn-report" id="dr-report-btn" onclick="csPublishReport()" disabled>📤 결과 허브·디스코드 리포트 발행</button>
             </div>
           </div>

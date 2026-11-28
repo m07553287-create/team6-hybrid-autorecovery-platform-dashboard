@@ -479,3 +479,46 @@
       flex: 1;
     }
 
+    /* 화면 초기화 (개별 지우기 & 전체 화면 초기화) 버튼 스타일 */
+    .cs-act-clear {
+      background: rgba(148, 163, 184, 0.15) !important;
+      border: 1px solid #475569 !important;
+      color: #cbd5e1 !important;
+      padding: 1px 7px !important;
+      font-size: 11px !important;
+      border-radius: 4px !important;
+      font-weight: 600 !important;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .cs-act-clear:hover {
+      background: #334155 !important;
+      color: #38bdf8 !important;
+      border-color: #38bdf8 !important;
+      box-shadow: 0 0 6px rgba(56, 189, 248, 0.3);
+    }
+    .cs-bar-clear-all {
+      font-weight: 600 !important;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .cs-bar-clear-all:hover {
+      background: #334155 !important;
+      border-color: #38bdf8 !important;
+      color: #38bdf8 !important;
+    }
+    .dr-btn-clear-all {
+      background: #1e293b !important;
+      border: 1px solid #475569 !important;
+      color: #e2e8f0 !important;
+      font-weight: 700 !important;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .dr-btn-clear-all:hover {
+      background: #334155 !important;
+      border-color: #38bdf8 !important;
+      color: #38bdf8 !important;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+    }
+
