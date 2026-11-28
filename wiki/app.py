@@ -34,7 +34,7 @@ def create_app(redis_client=None):
             p = request.url.path
             if p == "/api/ai/oauth/token":
                 return await call_next(request)
-            if p == "/api/ai/share" and (request.headers.get("authorization") or "").startswith("Bearer "):
+            if p in ("/api/ai/share", "/api/ai/goals") and (request.headers.get("authorization") or "").startswith("Bearer "):
                 return await call_next(request)
             if request.headers.get("origin") != allowed_origin:
                 return JSONResponse({"error": "허용되지 않은 출처입니다"}, status_code=403)
@@ -403,6 +403,79 @@ def create_app(redis_client=None):
         source = "ai_connector" if (request.headers.get("authorization") or "").startswith("Bearer ") else "web"
         return collab.create_share(r, s, data, source=source)
 
+    @app.get("/api/ai/goals")
+    def ai_goals_get(request: Request, limit: int = 50):
+        s = ai_session_of(request)
+        goals = collab.list_goals(r, s.team_id, limit=limit)
+        return {"goals": goals, "summary": collab.summarize_goals(goals)}
+
+    @app.post("/api/ai/goals")
+    async def ai_goals_post(request: Request):
+        s = ai_session_of(request)
+        return collab.upsert_goal(r, s, await body_of(request))
+
+    @app.get("/api/ai/prompt")
+    def ai_prompt_get(request: Request, goal_id: int = 0):
+        s = ai_session_of(request)
+        goals = collab.list_goals(r, s.team_id, limit=50)
+        shares = collab.list_shares(r, s.team_id, limit=15)
+        changes = docs.list_changes(r, s, limit=8)
+        full_p, short_p = collab.build_ai_launch_prompt(
+            s.slug, s.member, s.access_key, goals, shares, changes, focus_goal_id=goal_id or None
+        )
+        return {
+            "prompt": full_p,
+            "short_prompt": short_p,
+            "goal_summary": collab.summarize_goals(goals),
+        }
+
+    def _hub_render(s, prefill, error="", notice="", default_slug="figteam", status_code=200):
+        dc_ok = bool(os.environ.get("FIGTEAM_DISCORD_WEBHOOK_URL", "").strip())
+        if s:
+            goals = collab.list_goals(r, s.team_id, limit=50)
+            shares = collab.list_shares(r, s.team_id, limit=15)
+            changes = docs.list_changes(r, s, limit=5)
+            fg = collab._parse_optional_int(prefill.get("goal_id"))
+            prompts = collab.build_ai_launch_prompt(
+                s.slug, s.member, s.access_key, goals, shares, changes, focus_goal_id=fg
+            )
+        else:
+            goals, shares, prompts = [], [], ("", "")
+        return HTMLResponse(
+            collab.render_collab_hub_html(
+                s,
+                prefill,
+                shares,
+                dc_ok,
+                goals=goals,
+                ai_prompts=prompts,
+                error=error,
+                notice=notice,
+                default_slug=default_slug,
+            ),
+            status_code=status_code,
+        )
+
+    def _hub_session_or_login(request: Request, form: dict):
+        s = optional_session_of(request)
+        if s:
+            return s, None
+        slug = str(form.get("slug") or os.environ.get("DEFAULT_TEAM_SLUG", "figteam")).strip() or "figteam"
+        tok = auth.login(
+            r,
+            {
+                "slug": slug,
+                "member": form.get("member") or "",
+                "access_key": form.get("access_key") or "",
+                "password": form.get("password") or "",
+            },
+            client_key(request),
+            require_key=require_key,
+        )
+        _, s = auth.get_session_detail(r, tok, require_key=require_key)
+        return s, tok
+
+    @app.get("/api/ai/hub")
     @app.get("/api/ai/share-ui")
     def ai_share_ui_get(
         request: Request,
@@ -412,9 +485,10 @@ def create_app(redis_client=None):
         summary: str = "",
         check: str = "",
         cfg_url: str = "",
+        goal_id: str = "",
+        goal_status: str = "",
     ):
         s = optional_session_of(request)
-        shares = collab.list_shares(r, s.team_id, limit=15) if s else []
         prefill = {
             "area": area,
             "status": status,
@@ -422,16 +496,12 @@ def create_app(redis_client=None):
             "summary": summary,
             "check_request": check,
             "cfg_url": cfg_url,
+            "goal_id": goal_id,
+            "goal_status": goal_status,
         }
-        return HTMLResponse(
-            collab.render_share_ui_html(
-                s,
-                prefill,
-                shares,
-                discord_configured=bool(os.environ.get("FIGTEAM_DISCORD_WEBHOOK_URL", "").strip()),
-            )
-        )
+        return _hub_render(s, prefill)
 
+    @app.post("/api/ai/hub")
     @app.post("/api/ai/share-ui")
     async def ai_share_ui_post(request: Request):
         form = await form_or_json(request)
@@ -442,60 +512,73 @@ def create_app(redis_client=None):
             "summary": str(form.get("summary") or ""),
             "check_request": str(form.get("check_request") or ""),
             "cfg_url": str(form.get("cfg_url") or ""),
+            "goal_id": str(form.get("goal_id") or ""),
+            "goal_status": str(form.get("goal_status") or ""),
         }
-        dc_ok = bool(os.environ.get("FIGTEAM_DISCORD_WEBHOOK_URL", "").strip())
-
-        s = optional_session_of(request)
-        new_cookie_tok = None
-        if not s:
-            slug = str(form.get("slug") or os.environ.get("DEFAULT_TEAM_SLUG", "figteam")).strip() or "figteam"
-            try:
-                new_cookie_tok = auth.login(
-                    r,
-                    {
-                        "slug": slug,
-                        "member": form.get("member") or "",
-                        "access_key": form.get("access_key") or "",
-                        "password": form.get("password") or "",
-                    },
-                    client_key(request),
-                    require_key=require_key,
-                )
-                _, s = auth.get_session_detail(r, new_cookie_tok, require_key=require_key)
-            except ApiError as exc:
-                return HTMLResponse(
-                    collab.render_share_ui_html(None, prefill, [], dc_ok, error=exc.message, default_slug=slug),
-                    status_code=exc.status,
-                )
+        slug = str(form.get("slug") or os.environ.get("DEFAULT_TEAM_SLUG", "figteam")).strip() or "figteam"
+        try:
+            s, new_cookie_tok = _hub_session_or_login(request, form)
+        except ApiError as exc:
+            return _hub_render(None, prefill, error=exc.message, default_slug=slug, status_code=exc.status)
 
         try:
             res = collab.create_share(r, s, prefill, source="web_bridge")
         except ApiError as exc:
-            shares = collab.list_shares(r, s.team_id, limit=15)
-            resp = HTMLResponse(
-                collab.render_share_ui_html(s, prefill, shares, dc_ok, error=exc.message),
-                status_code=exc.status,
-            )
+            resp = _hub_render(s, prefill, error=exc.message, status_code=exc.status)
             if new_cookie_tok:
                 set_cookie(resp, new_cookie_tok)
             return resp
 
-        shares = collab.list_shares(r, s.team_id, limit=15)
         dc_msg = "Discord 채널 전송 완료" if res["discord"].get("sent") else f"팀 피드 저장 완료 (Discord: {res['discord'].get('reason', '미전송')})"
         hints = res.get("crosscheck_hints") or []
         hint_msg = f" · 교차확인 힌트 {len(hints)}건" if hints else ""
-        resp = HTMLResponse(
-            collab.render_share_ui_html(
-                s,
-                {"area": prefill["area"], "status": "info", "title": "", "summary": "", "check_request": "", "cfg_url": prefill["cfg_url"]},
-                shares,
-                dc_ok,
-                notice=f"공유 #{res['share']['id']} 등록됨 — {dc_msg}{hint_msg}",
-            )
+        resp = _hub_render(
+            s,
+            {"area": prefill["area"], "status": "info", "title": "", "summary": "", "check_request": "", "cfg_url": prefill["cfg_url"], "goal_id": prefill["goal_id"]},
+            notice=f"공유 #{res['share']['id']} 등록됨 — {dc_msg}{hint_msg}",
         )
         if new_cookie_tok:
             set_cookie(resp, new_cookie_tok)
         return resp
+
+    @app.post("/api/ai/hub/goal")
+    async def ai_hub_goal_post(request: Request):
+        form = await form_or_json(request)
+        slug = str(form.get("slug") or os.environ.get("DEFAULT_TEAM_SLUG", "figteam")).strip() or "figteam"
+        try:
+            s, new_cookie_tok = _hub_session_or_login(request, form)
+        except ApiError as exc:
+            return _hub_render(None, {"area": "general"}, error=exc.message, default_slug=slug, status_code=exc.status)
+
+        try:
+            res = collab.upsert_goal(r, s, form)
+        except ApiError as exc:
+            resp = _hub_render(s, {"area": "general"}, error=exc.message, status_code=exc.status)
+            if new_cookie_tok:
+                set_cookie(resp, new_cookie_tok)
+            return resp
+
+        g_obj = res["goal"]
+        resp = _hub_render(
+            s,
+            {"area": g_obj.get("area") or "general", "goal_id": str(g_obj["id"])},
+            notice=f"공동 목표 #{g_obj['id']} [{g_obj['status_label']}] 저장됨 (전체 달성 {res['summary']['done']}/{res['summary']['total']})",
+        )
+        if new_cookie_tok:
+            set_cookie(resp, new_cookie_tok)
+        return resp
+
+    @app.post("/api/ai/hub/goal-status")
+    async def ai_hub_goal_status_post(request: Request):
+        form = await form_or_json(request)
+        s = session_of(request)
+        res = collab.upsert_goal(r, s, {"goal_id": form.get("goal_id"), "status": form.get("status")})
+        g_obj = res["goal"]
+        return _hub_render(
+            s,
+            {"area": g_obj.get("area") or "general", "goal_id": str(g_obj["id"])},
+            notice=f"공동 목표 #{g_obj['id']} → [{g_obj['status_label']}] 변경됨 (달성 {res['summary']['done']}/{res['summary']['total']})",
+        )
 
     static_dir = os.environ.get("SERVE_STATIC")
     if static_dir:  # 로컬 개발 전용: 화면(public/)도 같은 출처로 제공
