@@ -748,6 +748,7 @@ def summarize_discord_inbox(items: list[dict[str, Any]]) -> dict[str, int]:
     tasks_in_progress = 0
     tasks_done = 0
     shares = 0
+    shares_unread = 0
     for it in items:
         if it.get("category") == "task":
             st = it.get("task_status") or "open"
@@ -759,6 +760,10 @@ def summarize_discord_inbox(items: list[dict[str, Any]]) -> dict[str, int]:
                 tasks_open += 1
         else:
             shares += 1
+            st = it.get("task_status") or "open"
+            if st != "read" and st != "done":
+                shares_unread += 1
+    remaining = tasks_open + tasks_in_progress + shares_unread
     return {
         "total": total,
         "tasks_open": tasks_open,
@@ -766,7 +771,81 @@ def summarize_discord_inbox(items: list[dict[str, Any]]) -> dict[str, int]:
         "tasks_done": tasks_done,
         "tasks_total": tasks_open + tasks_in_progress + tasks_done,
         "shares": shares,
+        "shares_unread": shares_unread,
+        "remaining": remaining,
     }
+
+
+def summarize_shares(shares: list[dict[str, Any]]) -> dict[str, int]:
+    total = len(shares)
+    open_cnt = 0
+    done_cnt = 0
+    for it in shares:
+        st = it.get("status") or "info"
+        if st == "done":
+            done_cnt += 1
+        else:
+            open_cnt += 1
+    return {
+        "total": total,
+        "open": open_cnt,
+        "done": done_cnt,
+        "remaining": open_cnt,
+    }
+
+
+def update_share_status(
+    r,
+    s: auth.Session,
+    share_id: int,
+    new_status: str,
+    notify_discord: bool = True,
+) -> dict[str, Any]:
+    new_st = str(new_status or "done").strip().lower()
+    if new_st not in STATUS_META:
+        new_st = "done"
+
+    shares_key = f"fw:shares:{s.team_id}"
+    raw_list = r.lrange(shares_key, 0, -1)
+    target_idx = -1
+    target_item: dict[str, Any] | None = None
+    for idx, raw in enumerate(raw_list):
+        try:
+            it = json.loads(raw)
+            if it.get("id") == share_id:
+                target_idx = idx
+                target_item = it
+                break
+        except ValueError:
+            continue
+
+    if target_idx == -1 or not target_item:
+        raise ApiError(404, f"공유 내역 #{share_id}를 찾을 수 없습니다")
+
+    prev_st = target_item.get("status") or "info"
+    target_item["status"] = new_st
+    target_item["status_label"] = STATUS_META[new_st][0]
+    target_item["updated_at"] = int(time.time())
+    target_item["handled_by"] = f"{s.member} ({s.access_key})" if s.access_key else s.member
+
+    r.lset(shares_key, target_idx, json.dumps(target_item, ensure_ascii=False))
+
+    discord_res: dict[str, Any] = {"sent": False, "reason": "skipped"}
+    if notify_discord and new_st != prev_st:
+        try:
+            st_text = "조치/확인 완료" if new_st == "done" else target_item["status_label"]
+            embed = {
+                "title": f"[{st_text}] {target_item.get('title') or '공유'}",
+                "description": f"작업자 **{s.member}**님이 상태를 **{target_item['status_label']}**(으)로 변경했습니다.",
+                "color": STATUS_META[new_st][1],
+                "footer": {"text": f"FIGTEAM 협업 공유 #{share_id}"},
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }
+            discord_res = send_discord_webhook(embed)
+        except Exception:
+            pass
+
+    return {"ok": True, "share": target_item, "discord": discord_res}
 
 
 def update_discord_inbox_item(
@@ -1519,6 +1598,12 @@ def render_collab_hub_html(
     esc = html.escape
     goals_list = goals or []
     gs = summarize_goals(goals_list)
+    sh_sum = summarize_shares(shares)
+    dc_list = discord_items or []
+    dc_sum = summarize_discord_inbox(dc_list)
+    total_remaining = dc_sum["remaining"] + sh_sum["remaining"]
+    total_all = dc_sum["total"] + sh_sum["total"]
+
     err_html = f'<div class="alert alert-err">{esc(error)}</div>' if error else ""
     notice_html = f'<div class="alert alert-ok">{esc(notice)}</div>' if notice else ""
     dc_status_label = "Discord 연동됨" if discord_configured else "Discord 미연동"
@@ -1644,10 +1729,28 @@ def render_collab_hub_html(
                 f'</div></form>'
             )
 
+        st_btn_html = ""
+        if session:
+            if item.get("status") == "done":
+                st_btn_html = (
+                    f'<form method="post" action="/api/ai/hub/share-state" style="display:inline;margin-left:8px;">'
+                    f'<input type="hidden" name="share_id" value="{item["id"]}">'
+                    f'<input type="hidden" name="status" value="in_progress">'
+                    f'<button type="submit" class="act-btn" style="padding:2px 8px;font-size:11px;">재확인/진행</button></form>'
+                )
+            else:
+                st_btn_html = (
+                    f'<form method="post" action="/api/ai/hub/share-state" style="display:inline;margin-left:8px;">'
+                    f'<input type="hidden" name="share_id" value="{item["id"]}">'
+                    f'<input type="hidden" name="status" value="done">'
+                    f'<button type="submit" class="act-btn btn-done" style="padding:2px 8px;font-size:11px;">확인 완료</button></form>'
+                )
+
+        st_tag_cls = "tag tag-ok" if item.get("status") == "done" else "tag tag-share"
         feed_rows.append(
-            '<div class="work-card border-share">'
+            f'<div class="work-card border-share{" border-done" if item.get("status") == "done" else ""}">'
             f'<div class="card-head">'
-            f'<div><span class="tag tag-share">{esc(item.get("status_label") or "공유")}</span> <span class="tag tag-area">{esc(item.get("area") or "general")}</span>{g_badge}</div>'
+            f'<div><span class="{st_tag_cls}">{esc(item.get("status_label") or "공유")}</span> <span class="tag tag-area">{esc(item.get("area") or "general")}</span>{g_badge}{st_btn_html}</div>'
             f'<div class="card-meta">{esc(item.get("author") or "게스트")}{ak_txt} · {_fmt_ts(item.get("ts", 0))}{dc_txt}</div>'
             f'</div>'
             f'<div class="card-title">{esc(item.get("title") or "")}</div>'
@@ -1658,8 +1761,6 @@ def render_collab_hub_html(
         )
     feed_html = "".join(feed_rows) if feed_rows else '<div class="empty-box">등록된 팀 공유 내역이 없습니다.</div>'
 
-    dc_list = discord_items or []
-    dc_sum = summarize_discord_inbox(dc_list)
     dc_filter = str(prefill.get("dc_filter") or "all").strip().lower()
     dc_cards: list[str] = []
     for d_it in dc_list[:30]:
@@ -2433,19 +2534,19 @@ def render_collab_hub_html(
             <span class="tree-arrow">▼</span>
             <span>전체 사서함</span>
           </div>
-          <span class="badge-count">{dc_sum['total'] + len(shares)}</span>
+          <span class="badge-count{' badge-warn' if total_remaining > 0 else ''}" title="남은 건수 / 전체 사서함">{total_remaining}/{total_all}</span>
         </div>
         <div class="tree-children" id="tree-mail-children">
-          <!-- 수신함 (괄호 생략 및 계단식 하위 메뉴) -->
+          <!-- 수신함 (계단식 하위 메뉴) -->
           <div class="tree-node">
             <button type="button" class="tree-node-head" id="side-node-inbox" data-pane="inbox" onclick="navTo('inbox', 'list')">
               <span>수신함</span>
-              <span class="badge-count badge-warn">{dc_sum['tasks_open']}</span>
+              <span class="badge-count{' badge-warn' if dc_sum['remaining'] > 0 else ''}" title="미처리·미확인 / 전체 접수">{dc_sum['remaining']}/{dc_sum['total']}</span>
             </button>
             <div class="tree-sub-children">
               <button type="button" class="tree-leaf" id="leaf-inbox-list" data-pane="inbox-list" onclick="navTo('inbox', 'list')">
                 <span>과제 목록</span>
-                <span style="font-size:10.5px;color:#64748b;">{dc_sum['total']}</span>
+                <span style="font-size:10.5px;color:#94a3b8;">{dc_sum['remaining']}/{dc_sum['total']}</span>
               </button>
               <button type="button" class="tree-leaf" id="leaf-inbox-create" data-pane="inbox-create" onclick="navTo('inbox', 'create')">
                 <span>신규 접수</span>
@@ -2453,11 +2554,11 @@ def render_collab_hub_html(
             </div>
           </div>
 
-          <!-- 발신함 (괄호 생략 및 계단식 하위 메뉴) -->
+          <!-- 발신함 (계단식 하위 메뉴) -->
           <div class="tree-node">
             <button type="button" class="tree-node-head" id="side-node-dispatch" data-pane="dispatch" onclick="navTo('dispatch', 'form')">
               <span>발신함</span>
-              <span class="badge-count">{len(shares)}</span>
+              <span class="badge-count{' badge-warn' if sh_sum['remaining'] > 0 else ''}" title="미완료·확인필요 / 전체 공유">{sh_sum['remaining']}/{sh_sum['total']}</span>
             </button>
             <div class="tree-sub-children">
               <button type="button" class="tree-leaf" id="leaf-dispatch-form" data-pane="dispatch-form" onclick="navTo('dispatch', 'form')">
@@ -2465,7 +2566,7 @@ def render_collab_hub_html(
               </button>
               <button type="button" class="tree-leaf" id="leaf-dispatch-feed" data-pane="dispatch-feed" onclick="navTo('dispatch', 'feed')">
                 <span>공유 내역</span>
-                <span style="font-size:10.5px;color:#64748b;">{len(shares)}</span>
+                <span style="font-size:10.5px;color:#94a3b8;">{sh_sum['remaining']}/{sh_sum['total']}</span>
               </button>
             </div>
           </div>
@@ -2523,7 +2624,7 @@ def render_collab_hub_html(
 
         <!-- 바디 작업 메뉴 1: 수신 과제 목록 / 신규 과제 접수 -->
         <div class="task-nav-bar" id="inbox-task-nav">
-          <button type="button" class="task-tab-btn active" data-task="list" onclick="switchTaskView('inbox', 'list')">수신 과제 목록 ({dc_sum['total']})</button>
+          <button type="button" class="task-tab-btn active" data-task="list" onclick="switchTaskView('inbox', 'list')">수신 과제 목록 (남은 {dc_sum['remaining']} / 총 {dc_sum['total']})</button>
           <button type="button" class="task-tab-btn" data-task="create" onclick="switchTaskView('inbox', 'create')">신규 과제 수동 접수</button>
         </div>
 
@@ -2578,7 +2679,7 @@ def render_collab_hub_html(
         <!-- 바디 작업 메뉴 2: 상황 공유 작성 / 최근 공유 내역 -->
         <div class="task-nav-bar" id="dispatch-task-nav">
           <button type="button" class="task-tab-btn active" data-task="form" onclick="switchTaskView('dispatch', 'form')">상황 공유 작성 및 발신</button>
-          <button type="button" class="task-tab-btn" data-task="feed" onclick="switchTaskView('dispatch', 'feed')">최근 팀 공유 내역 ({len(shares)})</button>
+          <button type="button" class="task-tab-btn" data-task="feed" onclick="switchTaskView('dispatch', 'feed')">최근 팀 공유 내역 (남은 {sh_sum['remaining']} / 총 {sh_sum['total']})</button>
         </div>
 
         <!-- 작업 2-A: 상황 공유 작성 -->
@@ -2632,6 +2733,11 @@ def render_collab_hub_html(
 
         <!-- 작업 2-B: 최근 공유 내역 -->
         <div class="task-view" id="dispatch-view-feed">
+          <div class="kpi-row" style="margin-bottom:14px;">
+            <div class="kpi-box"><div class="kpi-title">전체 공유</div><div class="kpi-val">{sh_sum['total']}건</div></div>
+            <div class="kpi-box" style="border-left:3px solid #f59e0b;"><div class="kpi-title" style="color:#fde68a;">미완료·확인필요</div><div class="kpi-val" style="color:#fde68a;">{sh_sum['remaining']}건</div></div>
+            <div class="kpi-box" style="border-left:3px solid #10b981;"><div class="kpi-title">조치·확인완료</div><div class="kpi-val">{sh_sum['done']}건</div></div>
+          </div>
           <div style="margin-bottom:12px;font-size:13.5px;font-weight:700;color:#fff;">최근 팀 공유 내역</div>
           {feed_html}
         </div>
