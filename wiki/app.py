@@ -16,10 +16,14 @@ def create_app(redis_client=None):
     app = FastAPI(title="figteam-wiki", docs_url=None, redoc_url=None, openapi_url=None)
     r = redis_client or store.connect()
     allowed_origin = os.environ.get("ALLOWED_ORIGIN", "https://figteam.ktci5.kr")
+    require_key = os.environ.get("WIKI_REQUIRE_ACCESS_KEY", "1") != "0"
 
     @app.exception_handler(ApiError)
     async def _api_error(request: Request, exc: ApiError):
-        return JSONResponse({"error": exc.message, **exc.extra}, status_code=exc.status)
+        resp = JSONResponse({"error": exc.message, **exc.extra}, status_code=exc.status)
+        if exc.extra.get("key_expired"):
+            resp.delete_cookie(auth.COOKIE, path="/api")
+        return resp
 
     @app.middleware("http")
     async def _guard(request: Request, call_next):
@@ -47,7 +51,9 @@ def create_app(redis_client=None):
                         samesite="lax", path="/api")
 
     def session_of(request):
-        s = auth.get_session(r, request.cookies.get(auth.COOKIE))
+        status, s = auth.get_session_detail(r, request.cookies.get(auth.COOKIE), require_key=require_key)
+        if status == "no_key":
+            raise ApiError(401, "접속 키가 없는 이전 세션이 만료되었습니다. 다시 로그인해 주세요.", {"key_expired": True})
         if not s:
             raise ApiError(401, "로그인이 필요합니다")
         return s
@@ -65,7 +71,7 @@ def create_app(redis_client=None):
     @app.post("/api/login")
     async def login(request: Request, response: Response):
         data = await body_of(request)
-        set_cookie(response, auth.login(r, data, client_key(request)))
+        set_cookie(response, auth.login(r, data, client_key(request), require_key=require_key))
         return {"ok": True}
 
     @app.post("/api/logout")
@@ -76,9 +82,14 @@ def create_app(redis_client=None):
 
     @app.get("/api/me")
     def me(request: Request, response: Response):
-        s = auth.get_session(r, request.cookies.get(auth.COOKIE))
+        status, s = auth.get_session_detail(r, request.cookies.get(auth.COOKIE), require_key=require_key)
+        if status == "no_key":
+            raise ApiError(401, "접속 키가 없는 이전 세션이 만료되었습니다. 다시 로그인해 주세요.", {"key_expired": True})
         if not s and os.environ.get("AUTO_LOGIN_TEAM"):
-            token, s = auth.auto_session(r, os.environ["AUTO_LOGIN_TEAM"])
+            hdr_key = auth.check_access_key(request.headers.get("x-fig-access-key") or "")
+            if require_key and not hdr_key:
+                raise ApiError(401, "접속 키가 필요합니다. 다시 로그인해 주세요.", {"key_expired": True})
+            token, s = auth.auto_session(r, os.environ["AUTO_LOGIN_TEAM"], access_key=hdr_key)
             if token:
                 set_cookie(response, token)
         if not s:

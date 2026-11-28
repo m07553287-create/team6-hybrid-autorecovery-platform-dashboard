@@ -199,10 +199,12 @@ def add_team(r, slug, name, password):
     return team_id
 
 
-def login(r, data, client_key):
+def login(r, data, client_key, require_key=False):
     slug = data.get("slug") if isinstance(data.get("slug"), str) else ""
     member = check_member(data.get("member"))
     ak = check_access_key(data.get("access_key")) or parse_author_key(member)[1]
+    if require_key and not ak:
+        raise ApiError(422, "접속 키값을 입력하세요", {"field": "access_key"})
     key = slug + "|" + client_key
     rate_check(r, key)
     t = r.hgetall(f"fw:team:{slug}") if SLUG_RE.match(slug) else {}
@@ -219,26 +221,57 @@ def login(r, data, client_key):
     return new_session(r, team_id, member, access_key=ak)
 
 
-def get_session(r, token):
+def get_session_detail(r, token, require_key=False):
     if not token:
-        return None
-    s = r.hgetall(_skey(token))
+        return "missing", None
+    k = _skey(token)
+    s = r.hgetall(k)
     if not s:
-        return None
+        return "missing", None
+    ak = check_access_key(s.get("access_key", "")) or parse_author_key(s.get("member", ""))[1]
+    if require_key and not ak:
+        p = r.pipeline()
+        p.delete(k)
+        p.srem(f"fw:sesslist:{s['team_id']}", k)
+        p.execute()
+        return "no_key", None
     slug = r.get(f"fw:teamid:{s['team_id']}")
     t = r.hgetall(f"fw:team:{slug}") if slug else {}
     if not t:
-        return None
-    return Session(int(s["team_id"]), slug, t["name"], s["member"], s.get("auto") == "1", s.get("access_key", ""))
+        return "missing", None
+    return "ok", Session(int(s["team_id"]), slug, t["name"], s["member"], s.get("auto") == "1", ak)
 
 
-def auto_session(r, slug):
+def get_session(r, token, require_key=False):
+    return get_session_detail(r, token, require_key=require_key)[1]
+
+
+def auto_session(r, slug, access_key=""):
     """AUTO_LOGIN_TEAM 용: 비밀번호 없이 그 팀 세션(작성자 '게스트')을 만든다. 팀이 없으면 None."""
     t = r.hgetall(f"fw:team:{slug}") if slug and SLUG_RE.match(slug) else {}
     if not t:
         return None, None
-    token = new_session(r, int(t["id"]), "게스트", auto=True)
-    return token, Session(int(t["id"]), slug, t["name"], "게스트", True)
+    ak = check_access_key(access_key) if access_key else ""
+    token = new_session(r, int(t["id"]), "게스트", auto=True, access_key=ak)
+    return token, Session(int(t["id"]), slug, t["name"], "게스트", True, ak)
+
+
+def expire_keyless_sessions(r, team_id):
+    """접속 키가 없는 이전 세션을 모두 만료하고 삭제된 수를 반환한다."""
+    slist = f"fw:sesslist:{team_id}"
+    keys = list(r.smembers(slist) or [])
+    removed = 0
+    for k in keys:
+        s = r.hgetall(k)
+        if not s:
+            r.srem(slist, k)
+            continue
+        ak = check_access_key(s.get("access_key", "")) or parse_author_key(s.get("member", ""))[1]
+        if not ak:
+            r.delete(k)
+            r.srem(slist, k)
+            removed += 1
+    return removed
 
 
 def rename(r, token, member, access_key=None, client_ip=""):

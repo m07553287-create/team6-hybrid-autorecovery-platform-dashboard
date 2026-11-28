@@ -83,3 +83,59 @@ def test_access_keybook_isolation_and_validation(client):
     other_logs = client.get("/api/access/logs").json()
     assert "TEAM1KEY" not in other_logs["keybook"]
     assert other_logs["logs"] == []
+
+
+def test_keyless_previous_session_is_expired_when_required(r, monkeypatch):
+    from wiki import auth
+    from wiki.tests.conftest import make_client
+
+    team_id = auth.add_team(r, "t01", "1팀", "pw-123456")
+    # 접속 키 없이 생성된 이전 세션과, 접속 키가 있는 정상 세션 생성
+    old_tok = auth.new_session(r, team_id, "게스트", access_key="")
+    key_tok = auth.new_session(r, team_id, "다운#K7M3P9", access_key="K7M3P9")
+
+    monkeypatch.setenv("WIKI_REQUIRE_ACCESS_KEY", "1")
+    with make_client(r) as c:
+        # 키 없는 이전 세션으로는 /api/me 및 /api/tree 즉시 만료 (401 + key_expired + 쿠키 삭제)
+        c.cookies.set(auth.COOKIE, old_tok)
+        r_me = c.get("/api/me")
+        assert r_me.status_code == 401
+        assert r_me.json().get("key_expired") is True
+        assert auth.get_session(r, old_tok) is None
+
+        c.cookies.set(auth.COOKIE, key_tok)
+        assert c.get("/api/me").status_code == 200
+        assert c.get("/api/tree").status_code == 200
+
+        # 키 없는 로그인 거부 (422), 키 포함 로그인 허용 (200)
+        c.cookies.clear()
+        bad_login = c.post("/api/login", json={"slug": "t01", "password": "pw-123456", "member": "혜빈"})
+        assert bad_login.status_code == 422
+        ok_login = c.post("/api/login", json={"slug": "t01", "password": "pw-123456", "member": "혜빈", "access_key": "R4X8N2"})
+        assert ok_login.status_code == 200
+        me = c.get("/api/me")
+        assert me.status_code == 200 and me.json()["access_key"] == "R4X8N2"
+
+
+def test_auto_login_requires_access_key_header_and_bulk_expire(r, monkeypatch):
+    from wiki import auth
+    from wiki.tests.conftest import make_client
+
+    team_id = auth.add_team(r, "t01", "1팀", "pw-123456")
+    tok_nokey = auth.new_session(r, team_id, "게스트", access_key="")
+    tok_withkey = auth.new_session(r, team_id, "다운", access_key="VALID9")
+
+    assert auth.expire_keyless_sessions(r, team_id) == 1
+    assert auth.get_session(r, tok_nokey) is None
+    assert auth.get_session(r, tok_withkey) is not None
+
+    monkeypatch.setenv("WIKI_REQUIRE_ACCESS_KEY", "1")
+    monkeypatch.setenv("AUTO_LOGIN_TEAM", "t01")
+    with make_client(r) as c:
+        # 헤더에 키가 없으면 AUTO_LOGIN_TEAM이라도 401(key_expired)
+        r_nohdr = c.get("/api/me")
+        assert r_nohdr.status_code == 401 and r_nohdr.json().get("key_expired") is True
+
+        # 유효한 X-Fig-Access-Key 헤더가 있으면 키 바인딩된 자동 세션 발급
+        r_hdr = c.get("/api/me", headers={"X-Fig-Access-Key": "AUTO99"})
+        assert r_hdr.status_code == 200 and r_hdr.json()["access_key"] == "AUTO99"

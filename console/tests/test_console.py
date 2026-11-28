@@ -19,9 +19,15 @@ def test_unlock_wrong_then_rate_limit(client):
 
 
 def test_unlock_cookie_flags(client):
-    r = client.post("/console/api/unlock", json={"password": PW})
+    r = client.post("/console/api/unlock", json={"password": PW, "access_key": "KEY123", "member": "테스터"})
     sc = r.headers["set-cookie"]
     assert r.status_code == 200 and "fc_s=" in sc and "HttpOnly" in sc and "Path=/console" in sc and "strict" in sc.lower()
+
+
+def test_unlock_requires_access_key(client):
+    r = client.post("/console/api/unlock", json={"password": PW})
+    assert r.status_code == 422
+    assert client.get("/console/api/me").json() == {"unlocked": False}
 
 
 def test_targets_requires_unlock(client):
@@ -128,11 +134,11 @@ def test_lock(unlocked):
 
 def test_me_locked_then_unlocked(client):
     assert client.get("/console/api/me").json() == {"unlocked": False}
-    client.post("/console/api/unlock", json={"password": PW})
+    client.post("/console/api/unlock", json={"password": PW, "access_key": "KEY123", "member": "테스터"})
     d = client.get("/console/api/me").json()
-    assert d["unlocked"] is True and d["ttl"] == 43200
+    assert d["unlocked"] is True and d["ttl"] == 43200 and d["access_key"] == "KEY123"
 
 
 def test_unlock_ttl_12h(client):
-    r = client.post("/console/api/unlock", json={"password": PW})
+    r = client.post("/console/api/unlock", json={"password": PW, "access_key": "KEY123"})
     assert "Max-Age=43200" in r.headers["set-cookie"]

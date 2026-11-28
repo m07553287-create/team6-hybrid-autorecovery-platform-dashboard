@@ -123,6 +123,9 @@
     // ---------- 사용자 이름(세션 이어가기 열쇠 · 설계/설정과 공유) ----------
     const CS_ENTRY_SKIP_KEY = 'fig.entry_name_skipped_v1';
 
+    function figAuthStorageKey() {
+      return typeof AUTH_KEY !== 'undefined' ? AUTH_KEY : 'figteam_auth_token';
+    }
     function csIsRealName(name) {
       const s = String(name == null ? '' : name).trim();
       if (!s) return false;
@@ -145,6 +148,52 @@
       const s = String(raw == null ? '' : raw).trim();
       const m = s.match(/^(.*?)#([A-Za-z0-9_-]{2,16})$/);
       return (m ? m[1] : s).trim();
+    }
+    // 읽기 전용 키 검증: 자동 생성 없이 실제 이름+접속 키가 등록된 경우만 반환 (키 없는 이전 세션 판별용)
+    function figReadStoredAccessKey() {
+      const prof = csReadJson('fig.access.profile_v1', null);
+      if (!prof || typeof prof !== 'object') return null;
+      const ak = csNormKey(prof.access_key);
+      const cleanName = csParseBaseName(prof.member);
+      if (ak.length < 2 || !csIsRealName(cleanName)) return null;
+      return { member: cleanName, access_key: ak };
+    }
+    function figShowLoginNotice(msg) {
+      const el = typeof document !== 'undefined' ? document.getElementById('login-notice') : null;
+      if (!el) return;
+      if (msg) {
+        el.textContent = msg;
+        el.style.display = 'block';
+      } else {
+        el.textContent = '';
+        el.style.display = 'none';
+      }
+    }
+    function figPrepareLoginForm() {
+      const memEl = typeof document !== 'undefined' ? document.getElementById('auth-member') : null;
+      const keyEl = typeof document !== 'undefined' ? document.getElementById('auth-access-key') : null;
+      if (!memEl && !keyEl) return;
+      const prof = csReadJson('fig.access.profile_v1', null) || {};
+      const last = csReadJson('fw_last', null) || {};
+      let termUser = '';
+      try { termUser = localStorage.getItem('fig.term.user') || ''; } catch (e) {}
+      const candidates = [prof.member, termUser, last.member];
+      let foundName = '';
+      for (let i = 0; i < candidates.length; i++) {
+        const clean = csParseBaseName(candidates[i]);
+        if (csIsRealName(clean)) { foundName = clean; break; }
+      }
+      if (memEl && !memEl.value.trim() && foundName) memEl.value = foundName;
+      if (keyEl) {
+        const curKey = csNormKey(keyEl.value) || csNormKey(prof.access_key) || csNormKey(last.access_key) || csGenKey();
+        keyEl.value = curKey;
+      }
+    }
+    async function figExpireKeylessSessions() {
+      try { sessionStorage.removeItem(figAuthStorageKey()); } catch (e) {}
+      try { sessionStorage.removeItem(CS_ENTRY_SKIP_KEY); } catch (e) {}
+      const post = url => fetch(url, { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+      await Promise.all([post('/console/api/lock'), post('/api/logout')]);
     }
     function csReadProfile() {
       const prof = csReadJson('fig.access.profile_v1', null) || {};
@@ -386,6 +435,16 @@
           '</div>';
         return;
       }
+      if (!figReadStoredAccessKey()) {
+        figExpireKeylessSessions();
+        const root = csRoot();
+        root.hidden = false;
+        root.classList.toggle('cs-solo', !!soloId);
+        root.classList.toggle('cs-page', CS.page);
+        document.body.classList.add('cs-on');
+        CS.open = true; CS.solo = soloId || null;
+        return csShowUnlock('접속 키가 없는 이전 세션이 만료되었습니다. 이름·접속 키와 비밀번호를 입력해 다시 로그인해 주세요.');
+      }
       const root = csRoot();
       if (CS.targets && root.querySelector('.cs-wrap') && !soloId) {   // 다른 화면에 갔다 와도 열린 터미널은 그대로
         root.hidden = false; document.body.classList.add('cs-on'); CS.open = true;
@@ -446,20 +505,55 @@
     }
     function csShowUnlock(msg) {
       CS.slots.forEach(s => csDispose(s.t)); CS.floats.forEach(csDispose); CS.slots = []; CS.floats = [];
+      const prof = csReadProfile();
+      const preName = csIsRealName(prof.member) ? prof.member : '';
+      const preKey = prof.access_key || csGenKey();
       csRoot().innerHTML =
-        '<div class="cs-unlock"><form class="wk-card" onsubmit="csUnlock(event)"><h3>통합 콘솔 잠금 해제</h3>' +
-        '<p class="manual-desc">로그인이 만료되었습니다(12시간). 사이트 비밀번호를 다시 넣으면 이어서 접속합니다. 모든 입력과 출력은 기록됩니다.</p>' +
+        '<div class="cs-unlock"><form class="wk-card" onsubmit="csUnlock(event)"><h3>통합 콘솔 로그인 (접속 키 인증)</h3>' +
+        '<p class="manual-desc">세션이 만료되었거나 접속 키가 없습니다. 이름·접속 키와 사이트 비밀번호를 넣으면 다시 로그인됩니다. 모든 입력과 출력은 기록됩니다.</p>' +
+        '<label>사용자 이름 <span>(필수)</span><input name="member" required maxlength="20" autocomplete="nickname" value="' + cfgEsc(preName) + '" placeholder="예: 홍길동"></label>' +
+        '<label>접속 키값 <span>(자동 발급 · 변경 가능)</span><div style="display:flex;gap:6px;">' +
+        '<input name="access_key" required maxlength="16" autocomplete="off" value="' + cfgEsc(preKey) + '" style="flex:1;font-family:var(--font-mono);text-transform:uppercase;">' +
+        '<button type="button" class="cfg-copy" onclick="this.previousElementSibling.value=csGenKey()">재발급</button></div></label>' +
         '<label>사이트 비밀번호<input name="password" type="password" required autocomplete="current-password"></label>' +
         '<p class="wk-error" id="cs-unlock-err" role="alert"' + (msg ? '' : ' hidden') + '>' + cfgEsc(msg || '') + '</p>' +
-        '<div class="wk-bar wk-bar-inline"><button type="submit" class="wk-btn wk-primary">잠금 해제</button>' +
+        '<div class="wk-bar wk-bar-inline"><button type="submit" class="wk-btn wk-primary">로그인 및 잠금 해제</button>' +
         (CS.solo ? '' : '<button type="button" class="wk-btn" onclick="csBack()">대시보드로</button>') + '</div></form></div>';
-      const f = csRoot().querySelector('input'); if (f) f.focus();
+      const memEl = csRoot().querySelector('input[name=member]');
+      const pwdEl = csRoot().querySelector('input[name=password]');
+      if (memEl && !memEl.value.trim()) memEl.focus();
+      else if (pwdEl) pwdEl.focus();
     }
     async function csUnlock(ev) {
       ev.preventDefault();
       const err = document.getElementById('cs-unlock-err');
-      try { await csApi('POST', '/console/api/unlock', { password: ev.target.password.value }); csRoot().innerHTML = ''; csOpen(CS.solo); }
-      catch (e) {
+      const form = ev.target;
+      const member = (form.member ? form.member.value : '').trim();
+      const ak = csNormKey(form.access_key ? form.access_key.value : '');
+      if (!csIsRealName(member)) {
+        err.textContent = '사용자 이름을 입력하세요. (게스트/seed 제외)';
+        err.hidden = false;
+        if (form.member) form.member.focus();
+        return;
+      }
+      if (ak.length < 2) {
+        err.textContent = '접속 키값은 2자 이상 영문·숫자로 입력하세요.';
+        err.hidden = false;
+        if (form.access_key) form.access_key.focus();
+        return;
+      }
+      try {
+        await csApi('POST', '/console/api/unlock', {
+          password: form.password.value,
+          access_key: ak,
+          member: member
+        });
+        csWriteProfile(member, ak);
+        try { sessionStorage.setItem(figAuthStorageKey(), 'valid'); } catch (e) {}
+        csSyncProfileToServer(member, ak, true).catch(() => {});
+        csRoot().innerHTML = '';
+        csOpen(CS.solo);
+      } catch (e) {
         err.textContent = e.status === 401 ? '비밀번호가 맞지 않습니다' : e.status === 429 ? '시도가 많습니다. 10분 뒤 다시 시도하세요' : (e.error || '잠금을 풀지 못했습니다');
         err.hidden = false;
       }
@@ -828,15 +922,48 @@
       }
     });
 
-    // ===== 사이트 입장 로그인: s1 서버가 확인 (12시간). 로그인하면 콘솔은 비밀번호를 다시 묻지 않는다 =====
+    // ===== 사이트 입장 로그인: s1 서버가 확인 (12시간). 접속 키가 없는 이전 세션은 즉시 만료한다 =====
     async function siteAuthBoot() {
-      // 이미 이 세션에서 인증됐으면 서버 확인 전에 먼저 복원 → 로그인 화면 깜빡임 방지
-      if (sessionStorage.getItem(AUTH_KEY) === 'valid') checkAuth();
+      const authKey = figAuthStorageKey();
+      const storedKey = figReadStoredAccessKey();
+      if (!storedKey) {
+        let hadLocalAuth = false;
+        try {
+          hadLocalAuth = sessionStorage.getItem(authKey) === 'valid';
+          sessionStorage.removeItem(authKey);
+        } catch (e) {}
+        let hadServerSession = false;
+        try {
+          const r = await fetch('/console/api/me', { credentials: 'same-origin', cache: 'no-store' });
+          const d = await r.json();
+          hadServerSession = Boolean(d && d.unlocked);
+        } catch (e) {}
+        if (hadLocalAuth || hadServerSession) {
+          await figExpireKeylessSessions();
+          figShowLoginNotice('접속 키가 없는 이전 세션이 만료되었습니다. 이름·접속 키와 비밀번호로 다시 로그인해 주세요.');
+        }
+        checkAuth();
+        return;
+      }
+      // 이미 이 세션에서 인증됐고 접속 키가 있으면 서버 확인 전에 먼저 복원 → 로그인 화면 깜빡임 방지
+      try {
+        if (sessionStorage.getItem(authKey) === 'valid') checkAuth();
+      } catch (e) {}
       try {
         const r = await fetch('/console/api/me', { credentials: 'same-origin', cache: 'no-store' });
         const d = await r.json();
-        if (d.unlocked) sessionStorage.setItem(AUTH_KEY, 'valid'); else sessionStorage.removeItem(AUTH_KEY);
-      } catch (e) { sessionStorage.removeItem(AUTH_KEY); }
+        if (d.unlocked && !d.key_expired) {
+          sessionStorage.setItem(authKey, 'valid');
+        } else {
+          sessionStorage.removeItem(authKey);
+          if (d && d.key_expired) {
+            await figExpireKeylessSessions();
+            figShowLoginNotice('서버 세션에 접속 키가 없어 만료되었습니다. 다시 로그인해 주세요.');
+          }
+        }
+      } catch (e) {
+        try { sessionStorage.removeItem(authKey); } catch (ex) {}
+      }
       checkAuth();
     }
 

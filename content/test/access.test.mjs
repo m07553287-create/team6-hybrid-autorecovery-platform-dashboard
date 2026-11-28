@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { wkGenAccessKey, wkNormalizeAccessKey, wkFormatAuthor, wkParseAuthor, wkIsRealName, wkResolveEntryName } = require('../wiki.js');
+const { wkGenAccessKey, wkNormalizeAccessKey, wkFormatAuthor, wkParseAuthor, wkIsRealName, wkResolveEntryName, wkHasValidAccessKey } = require('../wiki.js');
 
 test('wkGenAccessKey produces 6 unambiguous uppercase alphanumeric characters', () => {
   const key = wkGenAccessKey();
@@ -62,4 +62,13 @@ test('wkResolveEntryName shares real name across settings profile and console us
   assert.equal(wkResolveEntryName({ profileMember: '혜빈', termUser: '', lastMember: '', meMember: '' }), '혜빈');
   // fw_last에 name#KEY 형식으로 남은 경우
   assert.equal(wkResolveEntryName({ profileMember: '게스트', termUser: '', lastMember: '다운#K7M3P9', meMember: '' }), '다운');
+});
+
+test('wkHasValidAccessKey detects previous keyless sessions that must re-login', () => {
+  assert.equal(wkHasValidAccessKey(null), false);
+  assert.equal(wkHasValidAccessKey({}), false);
+  assert.equal(wkHasValidAccessKey({ member: '홍길동', access_key: '' }), false);
+  assert.equal(wkHasValidAccessKey({ member: '게스트', access_key: 'K7M3P9' }), false);
+  assert.equal(wkHasValidAccessKey({ member: 'guest', access_key: 'K7M3P9' }), false);
+  assert.equal(wkHasValidAccessKey({ member: '홍길동', access_key: 'K7M3P9' }), true);
 });
