@@ -1,0 +1,374 @@
+{
+  "01-overview-nav.png": [
+    {
+      "id": 1,
+      "selector": "#btn-tab-settings",
+      "found": true,
+      "box": {
+        "left": 85.28,
+        "top": 1.28,
+        "width": 4.96,
+        "height": 3.11
+      },
+      "pin": {
+        "x": 87.76,
+        "y": 2.83
+      }
+    },
+    {
+      "id": 2,
+      "selector": ".cfg-lens",
+      "found": true,
+      "box": {
+        "left": 0.69,
+        "top": 18.67,
+        "width": 20.76,
+        "height": 13.33
+      },
+      "pin": {
+        "x": 11.08,
+        "y": 25.33
+      }
+    },
+    {
+      "id": 3,
+      "selector": ".cfg-tree-nav",
+      "found": true,
+      "box": {
+        "left": 0.69,
+        "top": 68.48,
+        "width": 20.76,
+        "height": 31.52
+      },
+      "pin": {
+        "x": 11.08,
+        "y": 84.24
+      }
+    },
+    {
+      "id": 4,
+      "selector": ".cfg-crumb",
+      "found": true,
+      "box": {
+        "left": 26.11,
+        "top": 7.56,
+        "width": 71.39,
+        "height": 4.56
+      },
+      "pin": {
+        "x": 61.81,
+        "y": 9.83
+      }
+    }
+  ],
+  "02-area-builder.png": [
+    {
+      "id": 1,
+      "selector": "#cfg-sec-2 .cfg-btn-add",
+      "found": true,
+      "box": {
+        "left": 90.43,
+        "top": 11.97,
+        "width": 5.89,
+        "height": 2.56
+      },
+      "pin": {
+        "x": 93.37,
+        "y": 13.24
+      }
+    },
+    {
+      "id": 2,
+      "selector": "#cfg-sec-2 .cfg-card-bar",
+      "found": true,
+      "box": {
+        "left": 28.06,
+        "top": 18.85,
+        "width": 67.5,
+        "height": 2.56
+      },
+      "pin": {
+        "x": 61.81,
+        "y": 20.13
+      }
+    },
+    {
+      "id": 3,
+      "selector": "#cfg-sec-2 .cfg-code-actions",
+      "found": true,
+      "box": {
+        "left": 87.35,
+        "top": 22.85,
+        "width": 7.44,
+        "height": 2.44
+      },
+      "pin": {
+        "x": 91.07,
+        "y": 24.08
+      }
+    },
+    {
+      "id": 4,
+      "selector": ".cfg-crumb",
+      "found": true,
+      "box": {
+        "left": 26.11,
+        "top": 5.78,
+        "width": 71.39,
+        "height": 4.56
+      },
+      "pin": {
+        "x": 61.81,
+        "y": 8.06
+      }
+    }
+  ],
+  "03-terminal-safety.png": [
+    {
+      "id": 1,
+      "selector": "#cfg-confirm-modal .cfg-modal-head",
+      "found": true,
+      "box": {
+        "left": 30.63,
+        "top": 31.69,
+        "width": 38.75,
+        "height": 5.33
+      },
+      "pin": {
+        "x": 50,
+        "y": 34.36
+      }
+    },
+    {
+      "id": 2,
+      "selector": "#cfg-confirm-modal .cfg-modal-alert",
+      "found": true,
+      "box": {
+        "left": 31.74,
+        "top": 38.81,
+        "width": 36.53,
+        "height": 6.61
+      },
+      "pin": {
+        "x": 50,
+        "y": 42.11
+      }
+    },
+    {
+      "id": 3,
+      "selector": "#cfg-confirm-modal .cfg-modal-code",
+      "found": true,
+      "box": {
+        "left": 31.74,
+        "top": 50.08,
+        "width": 36.53,
+        "height": 10.44
+      },
+      "pin": {
+        "x": 50,
+        "y": 55.31
+      }
+    },
+    {
+      "id": 4,
+      "selector": "#cfg-confirm-modal .cfg-btn-confirm",
+      "found": true,
+      "box": {
+        "left": 59.92,
+        "top": 63.75,
+        "width": 8.34,
+        "height": 3.22
+      },
+      "pin": {
+        "x": 64.09,
+        "y": 65.36
+      }
+    }
+  ],
+  "04-guide-studio.png": [
+    {
+      "id": 1,
+      "selector": "#cfg-guide-modal .cfg-guide-toolbar",
+      "found": true,
+      "box": {
+        "left": 9.79,
+        "top": 14.44,
+        "width": 80.42,
+        "height": 5.89
+      },
+      "pin": {
+        "x": 50,
+        "y": 17.39
+      }
+    },
+    {
+      "id": 2,
+      "selector": "#cfg-guide-modal .cfg-guide-left-acts",
+      "found": true,
+      "box": {
+        "left": 10.9,
+        "top": 27.33,
+        "width": 37.92,
+        "height": 2.89
+      },
+      "pin": {
+        "x": 29.86,
+        "y": 28.78
+      }
+    },
+    {
+      "id": 3,
+      "selector": "#cfg-guide-input",
+      "found": true,
+      "box": {
+        "left": 51.11,
+        "top": 25.67,
+        "width": 37.99,
+        "height": 18.33
+      },
+      "pin": {
+        "x": 70.1,
+        "y": 34.83
+      }
+    },
+    {
+      "id": 4,
+      "selector": "#cfg-guide-apply",
+      "found": true,
+      "box": {
+        "left": 74.45,
+        "top": 88,
+        "width": 14.51,
+        "height": 4.56
+      },
+      "pin": {
+        "x": 81.7,
+        "y": 90.28
+      }
+    }
+  ],
+  "05-wiki-editor.png": [
+    {
+      "id": 1,
+      "selector": "#cfg-guide-inline > summary",
+      "found": true,
+      "box": {
+        "left": 27.15,
+        "top": 19.06,
+        "width": 69.31,
+        "height": 2.33
+      },
+      "pin": {
+        "x": 61.81,
+        "y": 20.22
+      }
+    },
+    {
+      "id": 2,
+      "selector": ".cfg-guide-inline-acts",
+      "found": true,
+      "box": {
+        "left": 27.15,
+        "top": 22.5,
+        "width": 69.31,
+        "height": 2.89
+      },
+      "pin": {
+        "x": 61.81,
+        "y": 23.94
+      }
+    },
+    {
+      "id": 3,
+      "selector": "#cfg-guide-inline-input",
+      "found": true,
+      "box": {
+        "left": 27.15,
+        "top": 26.5,
+        "width": 69.31,
+        "height": 12.22
+      },
+      "pin": {
+        "x": 61.81,
+        "y": 32.61
+      }
+    },
+    {
+      "id": 4,
+      "selector": ".cfg-guide-inline-foot",
+      "found": true,
+      "box": {
+        "left": 27.15,
+        "top": 39.83,
+        "width": 69.31,
+        "height": 4.56
+      },
+      "pin": {
+        "x": 61.81,
+        "y": 42.11
+      }
+    }
+  ],
+  "06-steps-and-zoom.png": [
+    {
+      "id": 1,
+      "selector": ".cfg-lens-btn.active",
+      "found": true,
+      "box": {
+        "left": 11.22,
+        "top": 23.44,
+        "width": 9.9,
+        "height": 3.78
+      },
+      "pin": {
+        "x": 16.16,
+        "y": 25.33
+      }
+    },
+    {
+      "id": 2,
+      "selector": ".cfg-tree-minor.active",
+      "found": true,
+      "box": {
+        "left": 2.71,
+        "top": 48.3,
+        "width": 18.75,
+        "height": 5.07
+      },
+      "pin": {
+        "x": 12.08,
+        "y": 50.83
+      }
+    },
+    {
+      "id": 3,
+      "selector": ".wk-acts",
+      "found": true,
+      "box": {
+        "left": 26.11,
+        "top": 14.11,
+        "width": 71.39,
+        "height": 2.67
+      },
+      "pin": {
+        "x": 61.81,
+        "y": 15.44
+      }
+    },
+    {
+      "id": 4,
+      "selector": ".cfg-code",
+      "found": true,
+      "box": {
+        "left": 26.11,
+        "top": 29.06,
+        "width": 71.39,
+        "height": 10.6
+      },
+      "pin": {
+        "x": 61.81,
+        "y": 34.35
+      }
+    }
+  ]
+}
