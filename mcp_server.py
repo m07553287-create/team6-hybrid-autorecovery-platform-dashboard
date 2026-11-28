@@ -1213,7 +1213,7 @@ class McpHttpHandler(BaseHTTPRequestHandler):
                      "  ▼\n"
                      "Kubernetes k3s 클러스터\n"
                      "  • Control Plane (k8s-cp1: 172.20.0.86, NodePort 30080)\n"
-                     "  • Worker Node (k8s-w1: 172.20.0.180, Calico CNI, Pods x2)\n"
+                     "  • Worker Node (k8s-w1: 172.20.0.180, flannel VXLAN, Pods x2)\n"
                      "  │ DB_HOST = 10.10.2.10 (호스트 라우트: 172.20.0.0/24 ➔ 10.10.2.0/24 via 172.20.0.125 rt-data)\n"
                      "  ▼\n"
                      "Database 데이터 계층\n"
@@ -1258,7 +1258,7 @@ class McpHttpHandler(BaseHTTPRequestHandler):
         # 2. Kubernetes cp1 / w1
         lines.append("### [2] Kubernetes (k3s) PaaS 컨테이너 클러스터 (`inst-cp1`, `inst-w1`)")
         lines.append("- **Control Plane (cp1)**: `172.20.0.86` (FIP: `192.168.120.226`, k3s Server)")
-        lines.append("- **Worker Node (w1)**: `172.20.0.180` (Calico CNI, Pod CIDR: `10.244.0.0/16`)")
+        lines.append("- **Worker Node (w1)**: `172.20.0.180` (flannel VXLAN, Pod CIDR: `10.42.0.0/16`, Service CIDR: `10.43.0.0/16`)")
         lines.append("- **서비스 노출 구조**: `minwon-app-svc` (NodePort 30080), 파드 2중화 및 HPA 오토스케일링 적용")
         lines.append("- **핵심 설정 파일**:\n"
                      "  ```yaml\n"
@@ -1267,7 +1267,8 @@ class McpHttpHandler(BaseHTTPRequestHandler):
                      "  tls-san:\n"
                      "    - \"192.168.120.226\"\n"
                      "    - \"172.20.0.86\"\n"
-                     "  cluster-cidr: \"10.244.0.0/16\"\n"
+                     "  cluster-cidr: \"10.42.0.0/16\"\n"
+                     "  service-cidr: \"10.43.0.0/16\"\n"
                      "  ```")
         lines.append("- **주요 점검 명령어**:\n"
                      "  ```bash\n"
@@ -1275,7 +1276,7 @@ class McpHttpHandler(BaseHTTPRequestHandler):
                      "  kubectl get pods -A -o wide\n"
                      "  kubectl get svc,endpoints -n default\n"
                      "  ```")
-        lines.append("- **주요 트러블슈팅**: Node NotReady 시 Calico 파드 로그 점검 / 6443 포트 통신 거부 시 FIP 바인딩 확인")
+        lines.append("- **주요 트러블슈팅**: Node NotReady 시 flannel.1 VXLAN(UDP 8472)·MTU(1392) 및 kube-system 파드 로그 점검 / 6443 포트 통신 거부 시 FIP 바인딩 확인")
         lines.append("👉 **사용자 직접 웹 수정 및 터미널 실행 URL**:\n"
                      "  • k3s 마스터 설정: [https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s](https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s)\n"
                      "  • 앱 배포 및 Service: [https://figteam.ktci5.kr/#cfg/inst/inst-cp1/app](https://figteam.ktci5.kr/#cfg/inst/inst-cp1/app)\n"
@@ -1363,7 +1364,7 @@ class McpHttpHandler(BaseHTTPRequestHandler):
             lines.append("---\n")
             lines.append(team_shares_md)
         else:
-            lines.append("> 💡 팀 진행·설정 공유 및 Discord 연동: https://figteam.ktci5.kr/api/ai/share-ui\n")
+            lines.append("> 💡 팀 공동 목표 · 3대 AI 협업 허브(GPT·Claude·Gemini) & Discord 연동: https://figteam.ktci5.kr/api/ai/hub\n")
 
         return "\n".join(lines)
 
@@ -1417,7 +1418,7 @@ class McpHttpHandler(BaseHTTPRequestHandler):
             {
                 "title": "Kubernetes (k3s) PaaS 컨테이너 오케스트레이션 계층",
                 "inst": "inst-cp1",
-                "summary": "Control Plane cp1(172.20.0.86, FIP 192.168.120.226, VIP 10.10.1.100), Worker w1(172.20.0.180, Calico)",
+                "summary": "Control Plane cp1(172.20.0.86, FIP 192.168.120.226, VIP 10.10.1.100), Worker w1(172.20.0.180, flannel VXLAN 10.42.0.0/16)",
                 "areas": [("k3s 서버 및 클러스터 설정", "k3s", "https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s"),
                           ("Pod 배포 및 Service(NodePort 30080)", "app", "https://figteam.ktci5.kr/#cfg/inst/inst-cp1/app"),
                           ("ArgoCD GitOps 배포 관리", "argocd", "https://figteam.ktci5.kr/#cfg/inst/inst-cp1/argocd"),
@@ -1661,7 +1662,7 @@ class McpHttpHandler(BaseHTTPRequestHandler):
             return (
                 "### 🔍 FIGTEAM Kubernetes (k8s) PaaS 실측 사양\n\n"
                 "* **Control Plane (cp1)**: `172.20.0.86` (FIP: `192.168.120.226`, VIP: `10.10.1.100:80`)\n"
-                "* **Worker Node (w1)**: `172.20.0.180` (Calico CNI, Pod CIDR `10.244.0.0/16`)\n"
+                "* **Worker Node (w1)**: `172.20.0.180` (flannel VXLAN, Pod CIDR `10.42.0.0/16`)\n"
                 "* **외부 노출 포트**: NodePort `30080` (VIP 10.10.1.100:80 ➔ DNAT 192.168.120.226:30080)\n\n"
                 "👉 **K8s 클러스터 설정 및 매니페스트 확인**:\n"
                 "🔗 **웹 콘솔 바로가기**: [https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s](https://figteam.ktci5.kr/#cfg/inst/inst-cp1/k8s)\n\n"

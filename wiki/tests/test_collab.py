@@ -1,4 +1,5 @@
 import json
+import pathlib
 import urllib.parse
 
 from fastapi.testclient import TestClient
@@ -15,6 +16,7 @@ TEAM = {
 }
 CB_URI = "https://chatgpt.com/aip/g-test/oauth/callback"
 MOCK_WEBHOOK = "https://discord.com/api/webhooks/100000000000000000/mock-token"
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 class _FakeResp:
@@ -39,6 +41,7 @@ def test_openapi_spec(client):
     assert "figteamOAuth" in spec["components"]["securitySchemes"]
     assert spec["paths"]["/api/ai/feed"]["get"]["operationId"] == "getTeamFeed"
     assert spec["paths"]["/api/ai/share"]["post"]["operationId"] == "shareTeamUpdate"
+    assert spec["paths"]["/api/ai/goals"]["post"]["operationId"] == "upsertTeamGoal"
 
 
 def test_oauth_rejects_bad_redirect(client):
@@ -49,7 +52,7 @@ def test_oauth_rejects_bad_redirect(client):
     assert res.status_code == 400
 
 
-def test_oauth_full_flow_and_bearer_api(client, r, monkeypatch):
+def test_oauth_full_flow_goals_and_bearer_api(client, r, monkeypatch):
     assert client.post("/api/teams", json=TEAM).status_code == 201
     client.post("/api/logout")
 
@@ -113,7 +116,7 @@ def test_oauth_full_flow_and_bearer_api(client, r, monkeypatch):
     assert reuse.status_code == 400
     assert reuse.json()["error"] == "invalid_grant"
 
-    # 4. Share via Bearer token + mocked Discord Webhook
+    # 4. Create goal & share via Bearer token + mocked Discord Webhook
     captured = []
 
     def fake_urlopen(req, timeout=5):
@@ -129,6 +132,23 @@ def test_oauth_full_flow_and_bearer_api(client, r, monkeypatch):
     monkeypatch.setenv("FIGTEAM_DISCORD_WEBHOOK_URL", MOCK_WEBHOOK)
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
+    goal_res = ext_client.post(
+        "/api/ai/goals",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={
+            "title": "k3s flannel 10.42.0.0/16 및 DB GTID 검증",
+            "area": "inst-cp1/k8s",
+            "status": "in_progress",
+            "note": "cp1/w1 Ready 및 ch_dr 지연 0초 목표",
+        },
+    )
+    assert goal_res.status_code == 200
+    goal_data = goal_res.json()
+    gid = goal_data["goal"]["id"]
+    assert goal_data["summary"]["in_progress"] == 1
+    assert len(captured) == 1
+    assert "목표 진행중" in captured[0]["body"]["embeds"][0]["title"]
+
     share_res = ext_client.post(
         "/api/ai/share",
         headers={"Authorization": f"Bearer {access_token}"},
@@ -139,17 +159,20 @@ def test_oauth_full_flow_and_bearer_api(client, r, monkeypatch):
             "summary": "db-01 MySQL binlog 및 GTID 복제 지연 0초 확인 완료",
             "check_request": "AWS DR 담당자 ch_dr 확인 부탁드립니다",
             "cfg_url": "https://figteam.ktci5.kr/#cfg/inst/inst-db01/mysql",
+            "goal_id": gid,
+            "goal_status": "done",
         },
     )
     assert share_res.status_code == 200
     body = share_res.json()
     assert body["ok"] is True
     assert body["discord"]["sent"] is True
+    assert body["goal"]["status"] == "done"
     assert any("GTID" in h for h in body["crosscheck_hints"])
-    assert len(captured) == 1
-    assert captured[0]["url"] == MOCK_WEBHOOK
-    assert captured[0]["ua"] == "figteam-collab/1.0"
-    assert "[완료] MySQL GTID 상태 확인" in captured[0]["body"]["embeds"][0]["title"]
+    assert len(captured) == 2
+    assert captured[1]["url"] == MOCK_WEBHOOK
+    assert captured[1]["ua"] == "figteam-collab/1.0"
+    assert "[완료] MySQL GTID 상태 확인" in captured[1]["body"]["embeds"][0]["title"]
 
     # 5. Feed read via Bearer token
     feed_res = ext_client.get(
@@ -160,6 +183,8 @@ def test_oauth_full_flow_and_bearer_api(client, r, monkeypatch):
     assert feed_res.status_code == 200
     feed = feed_res.json()
     assert len(feed["shares"]) == 1
+    assert feed["goal_summary"]["percent"] == 100
+    assert "10.42.0.0/16" in feed["ai_launch_prompt"]
     assert "MySQL GTID 상태 확인" in feed["markdown_brief"]
 
     # 6. Invalid Bearer rejected, and non-Bearer external Origin POST rejected (403)
@@ -180,18 +205,43 @@ def test_share_blocks_secrets(client, monkeypatch):
     assert r2.status_code == 422
 
 
-def test_share_ui_get_and_post(client, monkeypatch):
+def test_hub_launchers_goals_and_xss(client, monkeypatch):
     monkeypatch.setenv("FIGTEAM_DISCORD_WEBHOOK_URL", "")
     assert client.post("/api/teams", json=TEAM).status_code == 201
 
+    # Add goal via hub form
+    g_post = client.post(
+        "/api/ai/hub/goal",
+        data={"title": "3사 DR 리허설", "area": "inst-awsdr/mysql", "owner": "홍길동", "note": "ch_dr 확인"},
+    )
+    assert g_post.status_code == 200
+    assert "3사 DR 리허설" in g_post.text
+
+    # Change goal status via 1-click button endpoint
+    st_post = client.post("/api/ai/hub/goal-status", data={"goal_id": "1", "status": "done"})
+    assert st_post.status_code == 200
+    assert "달성 1/1 · 100%" in st_post.text
+
+    # Hub GET with XSS prefill + check GPT/Claude/Gemini launchers
     page = client.get(
-        "/api/ai/share-ui",
+        "/api/ai/hub",
         params={"area": "ktedge/nginx", "status": "check_needed", "summary": "<script>alert(1)</script>"},
     )
     assert page.status_code == 200
     assert "<script>alert(1)</script>" not in page.text
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in page.text
+    assert "ChatGPT로 열기" in page.text
+    assert "Claude로 열기" in page.text
+    assert "Gemini로 열기" in page.text
 
+    # Prompt API
+    p_res = client.get("/api/ai/prompt", params={"goal_id": 1})
+    assert p_res.status_code == 200
+    p_data = p_res.json()
+    assert "3사 DR 리허설" in p_data["prompt"]
+    assert "https://figteam.ktci5.kr/api/ai/hub" in p_data["prompt"]
+
+    # Share via /api/ai/share-ui backward compatibility
     posted = client.post(
         "/api/ai/share-ui",
         data={
@@ -213,6 +263,10 @@ def test_internal_feed_auth_and_markdown(client, monkeypatch):
     monkeypatch.setenv("FIGTEAM_DISCORD_WEBHOOK_URL", "")
     assert client.post("/api/teams", json=TEAM).status_code == 201
     assert client.post(
+        "/api/ai/goals",
+        json={"title": "flannel CIDR 통일", "area": "cp1/k8s", "status": "done"},
+    ).status_code == 200
+    assert client.post(
         "/api/ai/share",
         json={"area": "cp1/k8s", "status": "done", "title": "k3s 노드 정상", "summary": "cp1/w1 Ready"},
     ).status_code == 200
@@ -224,5 +278,15 @@ def test_internal_feed_auth_and_markdown(client, monkeypatch):
     assert ok.status_code == 200
     data = ok.json()
     assert len(data["shares"]) == 1
-    assert "## 5. 최신 팀 진행상황 및 설정 공유" in data["markdown_section"]
+    assert len(data["goals"]) == 1
+    assert "## 5. 최신 팀 공동 목표 · 진행상황 및 설정 공유" in data["markdown_section"]
+    assert "flannel CIDR 통일" in data["markdown_section"]
     assert "k3s 노드 정상" in data["markdown_section"]
+
+
+def test_mcp_server_uses_flannel_1042():
+    src = (ROOT / "mcp_server.py").read_text(encoding="utf-8")
+    assert "Calico" not in src
+    assert "10.244." not in src
+    assert "10.42.0.0/16" in src
+    assert "flannel VXLAN" in src

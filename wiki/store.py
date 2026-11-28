@@ -19,6 +19,9 @@
   fw:keybook:<team>     hash          접속 키값 → {access_key, member, updated_at, last_ip} 매칭표
   fw:seq:share          string        협업 공유 일련번호
   fw:shares:<team>      list          팀 진행·설정 공유 JSON(최대 200건)
+  fw:seq:goal           string        공동 목표 일련번호
+  fw:goals:<team>       hash          목표 id → 공동 목표 JSON
+  fw:goalorder:<team>   list          공동 목표 ID 목록(최신순, 최대 100건)
   fw:oauth:code:<sha>   string + TTL  OAuth 인가 코드 JSON(5분)
   fw:oauth:tok:<sha>    hash + TTL    OAuth Bearer 토큰(30일)
   fw:oauth:toklist:<t>  set           팀별 발급 Bearer 토큰 키 목록
