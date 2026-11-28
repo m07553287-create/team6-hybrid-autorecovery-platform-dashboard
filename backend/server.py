@@ -208,6 +208,20 @@ LANDING_HTML = """<!DOCTYPE html>
     .fs-btn { background: transparent; border: 0; color: var(--text-sub); padding: 4px 8px; font-size: 12px; cursor: pointer; font-family: inherit; }
     .fs-btn:hover { background: #1f2937; color: #fff; }
     .fs-btn + .fs-btn { border-left: 1px solid var(--surface-border); }
+    .g-user-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #090d16;
+      border: 1px solid var(--surface-border);
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 11.5px;
+    }
+    .g-user-dot { width: 6px; height: 6px; border-radius: 50%; background: #10b981; box-shadow: 0 0 6px #10b981; }
+    .g-user-dot.warn { background: #f59e0b; box-shadow: none; }
+    .g-user-name { font-weight: 600; color: #f8fafc; }
+    .g-user-key { font-family: var(--font-mono); color: #38bdf8; font-size: 11px; }
 
     /* LOGIN VIEW */
     .login-wrapper {
@@ -2308,7 +2322,12 @@ LANDING_HTML = """<!DOCTYPE html>
       <button type="button" class="nav-btn active" id="btn-tab-dashboard" onclick="switchView('dashboard')">대시보드</button>
       <button type="button" class="nav-btn" id="btn-tab-settings" onclick="switchView('settings')">설계/설정</button>
       <!--CONSOLES:BEGIN--><button type="button" class="nav-btn" id="btn-tab-console" onclick="switchView('console')">콘솔</button><!--CONSOLES:END-->
-      <a class="nav-btn" id="btn-tab-hub" href="/api/ai/hub" onclick="try{const u=localStorage.getItem('fig.term.user');if(u)this.href='/api/ai/hub?member='+encodeURIComponent(u);}catch(e){}" target="_blank" rel="noopener" style="text-decoration:none;" title="GPT·Claude·Gemini · Discord 협업 허브">협업 허브</a>
+      <a class="nav-btn" id="btn-tab-hub" href="/api/ai/hub" onclick="try{const u=localStorage.getItem('fig.term.user');if(u)this.href='/api/ai/hub?member='+encodeURIComponent(u);}catch(e){}" style="text-decoration:none;" title="협업 허브">협업 허브</a>
+      <div class="g-user-badge" id="portal-user-badge" style="display:none;">
+        <span class="g-user-dot"></span>
+        <span class="g-user-name" id="portal-user-name"></span>
+        <span class="g-user-key" id="portal-user-key"></span>
+      </div>
       <button type="button" class="logout-btn" id="logout-btn" onclick="logout()" style="display:none;">로그아웃</button>
     </div>
   </header>
@@ -2412,6 +2431,23 @@ LANDING_HTML = """<!DOCTYPE html>
       if (isAuth) {
         loginContainer.style.display = 'none';
         if (logoutBtn) logoutBtn.style.display = 'inline-block';
+        const pBadge = document.getElementById('portal-user-badge');
+        if (pBadge) {
+          let uName = '';
+          let uKey = '';
+          try {
+            const prof = typeof csReadProfile === 'function' ? csReadProfile() : {};
+            uName = prof.member || localStorage.getItem('fig.term.user') || '';
+            uKey = prof.access_key || (typeof figReadStoredAccessKey === 'function' ? figReadStoredAccessKey() : '') || '';
+          } catch (e) {}
+          if (uName) {
+            const nEl = document.getElementById('portal-user-name');
+            const kEl = document.getElementById('portal-user-key');
+            if (nEl) nEl.textContent = uName;
+            if (kEl) kEl.textContent = uKey;
+            pBadge.style.display = 'flex';
+          }
+        }
         initTelemetryEngine();
         cfgInit();
         // 새로고침 때 마지막으로 보던 화면을 복원한다(기본 대시보드). 설정에만 달라붙던 문제 해결.
@@ -2428,6 +2464,8 @@ LANDING_HTML = """<!DOCTYPE html>
         document.getElementById('view-settings').style.display = 'none';
         if (typeof csHide === 'function') csHide();
         if (logoutBtn) logoutBtn.style.display = 'none';
+        const pBadge = document.getElementById('portal-user-badge');
+        if (pBadge) pBadge.style.display = 'none';
         if (typeof figPrepareLoginForm === 'function') figPrepareLoginForm();
         const memInput = document.getElementById('auth-member');
         const pwdInput = document.getElementById('auth-pwd');
