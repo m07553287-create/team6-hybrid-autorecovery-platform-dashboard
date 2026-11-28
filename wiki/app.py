@@ -59,6 +59,12 @@ def create_app(redis_client=None):
         resp.set_cookie(auth.COOKIE, token, max_age=auth.SESSION_TTL, httponly=True, secure=True,
                         samesite="lax", path="/api")
 
+    def set_key_cookie(resp, ak):
+        clean_ak = auth.check_access_key(ak)
+        if clean_ak:
+            resp.set_cookie(auth.KEY_COOKIE, clean_ak, max_age=auth.KEY_COOKIE_TTL, httponly=True, secure=True,
+                            samesite="lax", path="/")
+
     def session_of(request):
         status, s = auth.get_session_detail(r, request.cookies.get(auth.COOKIE), require_key=require_key)
         if status == "no_key":
@@ -110,8 +116,14 @@ def create_app(redis_client=None):
     @app.post("/api/login")
     async def login(request: Request, response: Response):
         data = await body_of(request)
-        set_cookie(response, auth.login(r, data, client_key(request), require_key=require_key))
-        return {"ok": True}
+        cookie_ak = auth.check_access_key(request.cookies.get(auth.KEY_COOKIE) or "")
+        tok = auth.login(r, data, client_key(request), require_key=require_key, assigned_key=cookie_ak,
+                         ua=request.headers.get("user-agent", ""))
+        sess = auth.get_session(r, tok)
+        set_cookie(response, tok)
+        if sess and sess.access_key:
+            set_key_cookie(response, sess.access_key)
+        return {"ok": True, "access_key": sess.access_key if sess else ""}
 
     @app.post("/api/logout")
     def logout(request: Request, response: Response):
@@ -128,12 +140,15 @@ def create_app(redis_client=None):
                                    detail="키 없는 위키 세션 만료")
             raise ApiError(401, "접속 키가 없는 이전 세션이 만료되었습니다. 다시 로그인해 주세요.", {"key_expired": True})
         if not s and os.environ.get("AUTO_LOGIN_TEAM"):
-            hdr_key = auth.check_access_key(request.headers.get("x-fig-access-key") or "")
+            cookie_ak = auth.check_access_key(request.cookies.get(auth.KEY_COOKIE) or "")
+            hdr_key = cookie_ak or auth.check_access_key(request.headers.get("x-fig-access-key") or "")
             if require_key and not hdr_key:
                 raise ApiError(401, "접속 키가 필요합니다. 다시 로그인해 주세요.", {"key_expired": True})
             token, s = auth.auto_session(r, os.environ["AUTO_LOGIN_TEAM"], access_key=hdr_key)
             if token:
                 set_cookie(response, token)
+                if s and s.access_key:
+                    set_key_cookie(response, s.access_key)
         if not s:
             raise ApiError(401, "로그인이 필요합니다")
         out = {"slug": s.slug, "team_name": s.team_name, "member": s.member}
@@ -165,13 +180,14 @@ def create_app(redis_client=None):
     @app.post("/api/visit")
     async def record_visit(request: Request):
         data = await body_of(request)
+        cookie_ak = auth.check_access_key(request.cookies.get(auth.KEY_COOKIE) or "")
         entry = auth.record_site_visit(
             r,
             path=data.get("path") or "/",
             view=data.get("view") or "",
             auth_state=data.get("auth_state") or "visitor",
             member=data.get("member") or "",
-            access_key=data.get("access_key") or "",
+            access_key=cookie_ak or (data.get("access_key") or ""),
             client_ip=client_key(request),
             ua=request.headers.get("user-agent", ""),
             detail=data.get("detail") or "",
@@ -187,7 +203,8 @@ def create_app(redis_client=None):
     async def access_keybook(request: Request):
         data = await body_of(request)
         s = session_of(request)
-        kb = auth.upsert_keybook(r, s.team_id, data.get("access_key"), data.get("member"), client_key(request))
+        kb = auth.upsert_keybook(r, s.team_id, data.get("access_key"), data.get("member"), client_key(request),
+                                 ua=request.headers.get("user-agent", ""))
         return {"ok": True, "keybook": kb}
 
     @app.post("/api/team/password")
@@ -317,17 +334,19 @@ def create_app(redis_client=None):
         new_cookie_tok = None
         if not s:
             slug = str(form.get("slug") or os.environ.get("DEFAULT_TEAM_SLUG", "figteam")).strip() or "figteam"
+            cookie_ak = auth.check_access_key(request.cookies.get(auth.KEY_COOKIE) or "")
             try:
                 new_cookie_tok = auth.login(
                     r,
                     {
                         "slug": slug,
                         "member": form.get("member") or "",
-                        "access_key": form.get("access_key") or "",
                         "password": form.get("password") or "",
                     },
                     client_key(request),
                     require_key=require_key,
+                    assigned_key=cookie_ak,
+                    ua=request.headers.get("user-agent", ""),
                 )
                 _, s = auth.get_session_detail(r, new_cookie_tok, require_key=require_key)
             except ApiError as exc:
@@ -351,6 +370,8 @@ def create_app(redis_client=None):
         resp = RedirectResponse(loc, status_code=302)
         if new_cookie_tok:
             set_cookie(resp, new_cookie_tok)
+            if s and s.access_key:
+                set_key_cookie(resp, s.access_key)
         return resp
 
     @app.post("/api/ai/oauth/token")
@@ -461,16 +482,18 @@ def create_app(redis_client=None):
         if s:
             return s, None
         slug = str(form.get("slug") or os.environ.get("DEFAULT_TEAM_SLUG", "figteam")).strip() or "figteam"
+        cookie_ak = auth.check_access_key(request.cookies.get(auth.KEY_COOKIE) or "")
         tok = auth.login(
             r,
             {
                 "slug": slug,
                 "member": form.get("member") or "",
-                "access_key": form.get("access_key") or "",
                 "password": form.get("password") or "",
             },
             client_key(request),
             require_key=require_key,
+            assigned_key=cookie_ak,
+            ua=request.headers.get("user-agent", ""),
         )
         _, s = auth.get_session_detail(r, tok, require_key=require_key)
         return s, tok
@@ -539,6 +562,8 @@ def create_app(redis_client=None):
         )
         if new_cookie_tok:
             set_cookie(resp, new_cookie_tok)
+            if s and s.access_key:
+                set_key_cookie(resp, s.access_key)
         return resp
 
     @app.post("/api/ai/hub/goal")
@@ -556,6 +581,8 @@ def create_app(redis_client=None):
             resp = _hub_render(s, {"area": "general"}, error=exc.message, status_code=exc.status)
             if new_cookie_tok:
                 set_cookie(resp, new_cookie_tok)
+                if s and s.access_key:
+                    set_key_cookie(resp, s.access_key)
             return resp
 
         g_obj = res["goal"]
@@ -566,6 +593,8 @@ def create_app(redis_client=None):
         )
         if new_cookie_tok:
             set_cookie(resp, new_cookie_tok)
+            if s and s.access_key:
+                set_key_cookie(resp, s.access_key)
         return resp
 
     @app.post("/api/ai/hub/goal-status")

@@ -956,7 +956,7 @@ def render_oauth_authorize_html(
             '<div><label>사용자 이름</label><input type="text" name="member" placeholder="예: 홍길동" maxlength="20" required></div>'
             '</div>'
             '<div class="row">'
-            '<div><label>접속 키값 (영문·숫자 2~16자)</label><input type="text" name="access_key" placeholder="예: DEV01" maxlength="16" required></div>'
+            '<div><label>접속 키값</label><input type="text" value="서버 자동 할당 (변경 불가)" readonly style="color:#93c5fd;"></div>'
             '<div><label>팀 비밀번호</label><input type="password" name="password" placeholder="팀 비밀번호" required></div>'
             '</div>'
         )
@@ -1034,7 +1034,7 @@ def render_collab_hub_html(
             '<div><label>사용자 이름</label><input type="text" name="member" placeholder="예: 홍길동" maxlength="20" required></div>'
             '</div>'
             '<div class="row">'
-            '<div><label>접속 키값</label><input type="text" name="access_key" placeholder="예: DEV01" maxlength="16" required></div>'
+            '<div><label>접속 키값</label><input type="text" value="서버 자동 할당 (변경 불가)" readonly style="color:#93c5fd;"></div>'
             '<div><label>팀 비밀번호</label><input type="password" name="password" placeholder="팀 비밀번호" required></div>'
             '</div>'
         )

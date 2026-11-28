@@ -46,5 +46,5 @@ def client(app):
 
 @pytest.fixture
 def unlocked(client):
-    assert client.post("/console/api/unlock", json={"password": PW, "access_key": "KEY123", "member": "테스터"}).status_code == 200
+    assert client.post("/console/api/unlock", json={"password": PW, "member": "테스터"}).status_code == 200
     return client

@@ -107,14 +107,24 @@ def test_keyless_previous_session_is_expired_when_required(r, monkeypatch):
         assert c.get("/api/me").status_code == 200
         assert c.get("/api/tree").status_code == 200
 
-        # 키 없는 로그인 거부 (422), 키 포함 로그인 허용 (200)
+        # 서버가 접속 키를 자동 할당하고 클라이언트 임의 access_key는 무시하며, 이름 변경 시에도 키 불변 + 이력 추적
         c.cookies.clear()
-        bad_login = c.post("/api/login", json={"slug": "t01", "password": "pw-123456", "member": "혜빈"})
-        assert bad_login.status_code == 422
-        ok_login = c.post("/api/login", json={"slug": "t01", "password": "pw-123456", "member": "혜빈", "access_key": "R4X8N2"})
+        ok_login = c.post("/api/login", json={"slug": "t01", "password": "pw-123456", "member": "혜빈", "access_key": "HACK99"})
         assert ok_login.status_code == 200
+        assigned_ak = ok_login.json()["access_key"]
+        assert len(assigned_ak) == 8 and assigned_ak != "HACK99"
         me = c.get("/api/me")
-        assert me.status_code == 200 and me.json()["access_key"] == "R4X8N2"
+        assert me.status_code == 200 and me.json()["access_key"] == assigned_ak
+
+        # rename / register 로 다른 키를 보내도 기존 키 고정 및 이름·IP 이력 누적
+        c.post("/api/me/name", json={"member": "새이름#FAKE99", "access_key": "FAKE99"})
+        c.post("/api/access/register", json={"member": "새이름", "access_key": "FAKE99", "action": "visit"})
+        assert c.get("/api/me").json()["access_key"] == assigned_ak
+        logs_res = c.get("/api/access/logs").json()
+        kb_entry = logs_res["keybook"][assigned_ak]
+        assert "FAKE99" not in logs_res["keybook"]
+        assert "혜빈" in kb_entry["names"] and "새이름" in kb_entry["names"]
+        assert len(kb_entry["ips"]) >= 1 and kb_entry["first_seen"] <= kb_entry["updated_at"]
 
 
 def test_auto_login_requires_access_key_header_and_bulk_expire(r, monkeypatch):

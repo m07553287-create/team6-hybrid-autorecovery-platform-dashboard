@@ -11,6 +11,9 @@ from wiki.errors import ApiError
 
 ITERATIONS = 600_000
 SESSION_TTL = 7 * 24 * 3600
+KEY_COOKIE = "fc_k"
+KEY_COOKIE_TTL = 365 * 24 * 3600
+KEY_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 COOKIE = "fw_s"
 SLUG_RE = re.compile(r"^[a-z0-9-]{3,32}$")
 ACCESS_KEY_RE = re.compile(r"^[A-Za-z0-9_-]{2,16}$")
@@ -103,21 +106,43 @@ def new_session(r, team_id, member, auto=False, access_key=""):
     return token
 
 
-def upsert_keybook(r, team_id, access_key, member, client_ip="", preserve_real=False):
+def gen_access_key(length=8):
+    return "".join(secrets.choice(KEY_CHARS) for _ in range(length))
+
+
+def upsert_keybook(r, team_id, access_key, member, client_ip="", preserve_real=False, ua=""):
     ak = check_access_key(access_key, required=True)
     parsed_name, _ = parse_author_key(member)
     clean_name = check_member(parsed_name or member)
     key = f"fw:keybook:{team_id}"
-    if preserve_real and clean_name == "게스트":
-        prev_raw = r.hget(key, ak)
-        if prev_raw:
-            try:
-                prev = json.loads(prev_raw)
-                if prev.get("member") and prev["member"] != "게스트":
-                    clean_name = prev["member"]
-            except ValueError:
-                pass
-    entry = {"access_key": ak, "member": clean_name, "updated_at": int(time.time()), "last_ip": client_ip or ""}
+    prev = {}
+    prev_raw = r.hget(key, ak)
+    if prev_raw:
+        try:
+            prev = json.loads(prev_raw) or {}
+        except ValueError:
+            prev = {}
+    if preserve_real and clean_name == "게스트" and prev.get("member") and prev["member"] != "게스트":
+        clean_name = prev["member"]
+    names = list(prev.get("names") or [])
+    if clean_name != "게스트" and clean_name not in names:
+        names.append(clean_name)
+    ips = list(prev.get("ips") or [])
+    clean_ip = str(client_ip or "").strip()[:64]
+    if clean_ip and clean_ip not in ips:
+        ips.append(clean_ip)
+    now = int(time.time())
+    entry = {
+        "access_key": ak,
+        "member": clean_name,
+        "names": names[-20:],
+        "ips": ips[-20:],
+        "first_seen": int(prev.get("first_seen") or prev.get("updated_at") or now),
+        "updated_at": now,
+        "first_ip": prev.get("first_ip") or clean_ip,
+        "last_ip": clean_ip or prev.get("last_ip") or "",
+        "ua": summarize_ua(ua) if ua else (prev.get("ua") or ""),
+    }
     r.hset(key, ak, json.dumps(entry, ensure_ascii=False))
     return get_keybook(r, team_id)
 
@@ -305,12 +330,11 @@ def add_team(r, slug, name, password):
     return team_id
 
 
-def login(r, data, client_key, require_key=False):
+def login(r, data, client_key, require_key=False, assigned_key="", ua=""):
     slug = data.get("slug") if isinstance(data.get("slug"), str) else ""
     member = check_member(data.get("member"))
-    ak = check_access_key(data.get("access_key")) or parse_author_key(member)[1]
-    if require_key and not ak:
-        raise ApiError(422, "접속 키값을 입력하세요", {"field": "access_key"})
+    # 서버 할당 불변 키(fc_k 쿠키)가 있으면 유지, 없으면 신규 8자리 자동 할당 (클라이언트 키 변경 불가)
+    ak = check_access_key(assigned_key) or gen_access_key()
     key = slug + "|" + client_key
     rate_check(r, key)
     t = r.hgetall(f"fw:team:{slug}") if SLUG_RE.match(slug) else {}
@@ -320,14 +344,14 @@ def login(r, data, client_key, require_key=False):
     if not ok:
         rate_fail(r, key)
         record_site_visit(r, path="/api/login", view="settings", auth_state="login_fail", member=member,
-                          access_key=ak, client_ip=client_key, detail=f"팀 위키 로그인 실패 ({slug})")
+                          access_key=ak, client_ip=client_key, ua=ua, detail=f"팀 위키 로그인 실패 ({slug})")
         raise ApiError(401, "팀 주소나 비밀번호가 맞지 않습니다")
     r.delete("fw:rl:" + key)
     team_id = int(t["id"])
-    if ak:
-        record_access(r, team_id, member, ak, "login", client_key)
+    upsert_keybook(r, team_id, ak, member, client_key, preserve_real=True, ua=ua)
+    record_access(r, team_id, member, ak, "login", client_key)
     record_site_visit(r, path="/api/login", view="settings", auth_state="authenticated", member=member,
-                      access_key=ak, client_ip=client_key, detail="팀 위키 로그인")
+                      access_key=ak, client_ip=client_key, ua=ua, detail="팀 위키 로그인")
     return new_session(r, team_id, member, access_key=ak)
 
 
@@ -390,15 +414,22 @@ def rename(r, token, member, access_key=None, client_ip=""):
     s = r.hgetall(k) if token else {}
     if not token or not s:
         raise ApiError(401, "로그인이 필요합니다")
-    ak = check_access_key(access_key) if access_key not in (None, "") else (parse_author_key(member)[1] or s.get("access_key", ""))
-    r.hset(k, mapping={"member": member, "access_key": ak})
+    # 이미 세션에 할당된 접속 키가 있으면 절대 변경 불가 (이름 변경 이력만 기록)
+    existing_ak = check_access_key(s.get("access_key", "")) or parse_author_key(s.get("member", ""))[1]
+    ak = existing_ak or check_access_key(access_key) or parse_author_key(member)[1]
+    old_name = parse_author_key(s.get("member", ""))[0] or s.get("member", "")
+    new_name = parse_author_key(member)[0] or member
+    stored_member = f"{new_name[:max(1, 20 - 1 - len(ak))]}#{ak}" if ak and "#" in member else member
+    r.hset(k, mapping={"member": stored_member, "access_key": ak})
     if ak:
-        record_access(r, int(s["team_id"]), member, ak, "rename", client_ip)
-    return member
+        detail = f"{old_name} → {new_name}" if old_name and old_name != new_name else ""
+        record_access(r, int(s["team_id"]), new_name, ak, "rename", client_ip, detail=detail)
+    return stored_member
 
 
 def register_access(r, token, session, member, access_key, client_ip="", action="visit", detail=""):
-    ak = check_access_key(access_key, required=True)
+    # 세션 키가 이미 있으면 변경하지 않고 고정 사용
+    ak = check_access_key(session.access_key) or check_access_key(access_key) or gen_access_key()
     clean_member = check_member(member or parse_author_key(session.member)[0] or "게스트")
     k = _skey(token or "")
     if token and r.exists(k):

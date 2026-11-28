@@ -146,7 +146,7 @@
             '<div style="font-size:12px;color:#64748b;margin-top:-6px;margin-bottom:12px;">* 기본 팀(figteam)으로 설정된 팀만 해당됩니다.</div>' +
             '<label>팀 비밀번호<input name="password" type="password" required autocomplete="current-password"></label>' +
             '<label>내 이름 <span>(고친 기록·접속 기록에 남습니다)</span><input name="member" required maxlength="13" autocomplete="nickname"></label>' +
-            '<label>접속 키값 <span>(자동 발급 · 변경 가능)</span><input name="access_key" maxlength="16" autocomplete="off" style="font-family:var(--font-mono);text-transform:uppercase;"></label>' +
+            '<label>접속 키값 <span>(서버 자동 할당 · 변경 불가)</span><input type="text" id="wk-login-key-disp" class="wk-key-locked" value="로그인 시 서버 자동 할당 (변경 불가)" readonly disabled style="font-family:var(--font-mono);"></label>' +
             '<p class="wk-error" id="wk-login-err" role="alert" hidden></p>' +
             '<button type="submit" class="wk-btn wk-primary">들어가기</button>' +
           '</form>' +
@@ -155,7 +155,8 @@
       const f = document.getElementById('wk-login-form');
       if (f) {
         f.slug.value = 'figteam';
-        if (f.access_key) f.access_key.value = prof.access_key;
+        const kDisp = document.getElementById('wk-login-key-disp');
+        if (kDisp && prof.access_key) kDisp.value = prof.access_key + ' (서버 할당 · 변경 불가)';
         if (prof.member && prof.member !== '게스트') f.member.value = prof.member;
       }
       const last = localStorage.getItem('fw_last');
@@ -176,19 +177,18 @@
       const btn = form.querySelector('button[type=submit]');
       const err = document.getElementById(errId);
       const rawData = wikiFormData(form);
-      const ak = wkNormalizeAccessKey(rawData.access_key) || wkGenAccessKey();
       const rawName = (rawData.member || '게스트').trim() || '게스트';
-      const data = Object.assign({}, rawData, {
-        member: wkFormatAuthor(rawName, ak),
-        access_key: ak
-      });
+      const data = Object.assign({}, rawData, { member: rawName });
+      delete data.access_key;
       err.hidden = true; btn.disabled = true;
       try {
-        await api('POST', path, data);
+        const res = await api('POST', path, data);
+        WIKI.me = await api('GET', '/api/me');
+        const prof = wkGetAccessProfile();
+        const ak = wkNormalizeAccessKey((res && res.access_key) || (WIKI.me && WIKI.me.access_key) || prof.access_key) || wkGenAccessKey();
         wkSaveAccessProfile(rawName, ak);
         wkRecordLocalAccess('login', '팀 위키 로그인', rawName, ak);
         localStorage.setItem('fw_last', JSON.stringify({ slug: data.slug, member: rawName, access_key: ak }));
-        WIKI.me = await api('GET', '/api/me');
         await wkSyncIdentity('login');
         await wikiReload();
         if (typeof wikiAfterLogin === 'function') wikiAfterLogin();
@@ -369,31 +369,56 @@
       wkSaveAccessProfile(cleanName, ak);
     }
 
-    function wkMergedKeybook(extraServerKeybook, changesList) {
+    function wkMergedKeybook(extraServerKeybook, changesList, consoleKeys) {
       const out = {};
+      const mergeEntry = (rawKey, item) => {
+        const nk = wkNormalizeAccessKey(rawKey);
+        if (!nk || !item || typeof item !== 'object') return;
+        const prev = out[nk] || {};
+        const names = [];
+        const addName = n => { const s = String(n || '').trim(); if (s && s !== '게스트' && names.indexOf(s) < 0) names.push(s); };
+        (prev.names || []).forEach(addName);
+        if (prev.member) addName(prev.member);
+        (item.names || []).forEach(addName);
+        if (item.member) addName(item.member);
+        const ips = [];
+        const addIp = ip => { const s = String(ip || '').trim(); if (s && s !== '현재 브라우저' && s !== '문서 저장' && ips.indexOf(s) < 0) ips.push(s); };
+        (prev.ips || []).forEach(addIp);
+        if (prev.first_ip) addIp(prev.first_ip);
+        if (prev.last_ip) addIp(prev.last_ip);
+        (item.ips || []).forEach(addIp);
+        if (item.first_ip) addIp(item.first_ip);
+        if (item.last_ip) addIp(item.last_ip);
+        const fsPrev = Number(prev.first_seen || prev.updated_at || 0);
+        const fsItem = Number(item.first_seen || item.updated_at || item.last_seen || 0);
+        const firstSeen = (fsPrev && fsItem) ? Math.min(fsPrev, fsItem) : (fsPrev || fsItem || 0);
+        const updatedAt = Math.max(Number(prev.updated_at || prev.last_seen || 0), Number(item.updated_at || item.last_seen || 0));
+        const member = (item.member && item.member !== '게스트') ? item.member : (prev.member || item.member || '게스트');
+        out[nk] = Object.assign({}, prev, item, {
+          access_key: nk,
+          member: member,
+          names: names,
+          ips: ips,
+          first_seen: firstSeen,
+          updated_at: updatedAt,
+          first_ip: prev.first_ip || item.first_ip || (ips[0] || ''),
+          last_ip: item.last_ip || prev.last_ip || (ips[ips.length - 1] || '')
+        });
+      };
       const localKb = wkReadLocalJson(WK_ACCESS_STORAGE.keybook, {}) || {};
-      Object.keys(localKb).forEach(k => { out[wkNormalizeAccessKey(k)] = Object.assign({}, localKb[k]); });
-      if (WIKI.keybook) {
-        Object.keys(WIKI.keybook).forEach(k => {
-          const nk = wkNormalizeAccessKey(k);
-          out[nk] = Object.assign({}, out[nk] || {}, WIKI.keybook[k]);
-        });
-      }
-      if (extraServerKeybook) {
-        Object.keys(extraServerKeybook).forEach(k => {
-          const nk = wkNormalizeAccessKey(k);
-          out[nk] = Object.assign({}, out[nk] || {}, extraServerKeybook[k]);
-        });
-      }
+      Object.keys(localKb).forEach(k => mergeEntry(k, localKb[k]));
+      if (WIKI.consoleKeys) Object.keys(WIKI.consoleKeys).forEach(k => mergeEntry(k, WIKI.consoleKeys[k]));
+      if (consoleKeys) Object.keys(consoleKeys).forEach(k => mergeEntry(k, consoleKeys[k]));
+      if (WIKI.keybook) Object.keys(WIKI.keybook).forEach(k => mergeEntry(k, WIKI.keybook[k]));
+      if (extraServerKeybook) Object.keys(extraServerKeybook).forEach(k => mergeEntry(k, extraServerKeybook[k]));
       (changesList || []).forEach(c => {
         const p = wkParseAuthor(c.author, c.access_key, out);
-        if (p.accessKey && !out[p.accessKey]) {
-          out[p.accessKey] = {
+        if (p.accessKey) {
+          mergeEntry(p.accessKey, {
             access_key: p.accessKey,
             member: c.matched_user || p.name || '게스트',
-            updated_at: c.created_at || 0,
-            last_ip: ''
-          };
+            updated_at: c.created_at || 0
+          });
         }
       });
       return out;
@@ -455,7 +480,7 @@
         '<span class="wk-id-user">' + cfgEsc(dispName) + '</span></div>' +
         '<span class="wk-key-pill" title="현재 브라우저 접속 키값">' + cfgEsc(prof.access_key) + '</span></div>' +
         '<div class="wk-teambar-acts">' +
-        '<button type="button" class="wk-mini" onclick="wkOpenIdentityModal()">키·사용자 설정</button>' +
+        '<button type="button" class="wk-mini" onclick="wkOpenIdentityModal()">사용자 이름 설정</button>' +
         '<button type="button" class="wk-mini" onclick="cfgSelect(\'ref\',\'__changes\',\'\')">접속·변경 기록</button>' +
         '<button type="button" class="wk-mini" onclick="wkOpenShareBridge()">팀 목표 · AI · Discord</button>' +
         '<button type="button" class="wk-mini" onclick="wkCopyAiFeed(this)">AI 프롬프트 복사</button>' +
@@ -506,10 +531,10 @@
 
       const titleHtml = isFirst
         ? '<span>👤 처음 접속 안내 — 사용자 이름 입력</span>'
-        : '<span>🔑 접속 키값 &amp; 사용자 매칭 설정</span>';
+        : '<span>👤 사용자 이름 설정 (접속 키 불변 고정)</span>';
       const descHtml = isFirst
-        ? '<p class="manual-desc" style="margin:0;font-size:12.5px;line-height:1.55;">설계/설정 변경 이력과 통합 콘솔 세션 기록에 사용됩니다. <b>한 번 입력하면 두 화면에 자동 적용되며 이후 다시 묻지 않습니다.</b><br><span style="color:#94a3b8;font-size:11.5px;">나중에 좌측 [키·사용자 설정] 또는 콘솔 [이름]에서 언제든 변경할 수 있습니다.</span></p>'
-        : '<p class="manual-desc" style="margin:0;font-size:12.5px;">수정·등록 시 <b>접속 키값 + 사용자</b>가 최근 변경자료와 접속 기록에 함께 기록됩니다.</p>';
+        ? '<p class="manual-desc" style="margin:0;font-size:12.5px;line-height:1.55;">설계/설정 변경 이력과 통합 콘솔 세션 기록에 사용됩니다. <b>접속 키값은 서버가 자동 할당하며 어디에서도 변경할 수 없습니다.</b><br><span style="color:#94a3b8;font-size:11.5px;">나중에 좌측 [사용자 이름 설정] 또는 콘솔 [이름]에서 표시 이름만 변경할 수 있습니다.</span></p>'
+        : '<p class="manual-desc" style="margin:0;font-size:12.5px;">수정·등록 시 <b>불변 접속 키값 + 사용자 이름</b>이 최근 변경자료와 접속 기록에 함께 기록되며, 이름 변경 이력이 추적됩니다.</p>';
 
       const modal = document.createElement('div');
       modal.id = 'wk-identity-modal';
@@ -527,16 +552,14 @@
         '<input type="text" id="wk-id-name" class="cfg-builder-input" maxlength="20" value="' + cfgEsc(curName) + '" placeholder="예: 홍길동">' +
         '</div>' +
         '<div class="cfg-builder-field">' +
-        '<label class="cfg-builder-label">접속 키값 (영문·숫자 2~16자 · 자동 발급)</label>' +
-        '<div style="display:flex;gap:6px;">' +
-        '<input type="text" id="wk-id-key" class="cfg-builder-input" maxlength="16" value="' + cfgEsc(targetKey) + '" style="font-family:var(--font-mono);text-transform:uppercase;">' +
-        '<button type="button" class="cfg-copy" id="wk-id-regen" title="새 키값 발급">재발급</button>' +
-        '</div></div>' +
+        '<label class="cfg-builder-label">접속 키값 (서버 자동 할당 · 변경 불가)</label>' +
+        '<input type="text" id="wk-id-key" class="cfg-builder-input wk-key-locked" value="' + cfgEsc(targetKey) + '" readonly disabled style="font-family:var(--font-mono);text-transform:uppercase;">' +
+        '</div>' +
         '<p class="wk-error" id="wk-id-err" role="alert" hidden style="margin:0;"></p>' +
         '</div>' +
         '<div class="cfg-modal-foot">' +
         '<button type="button" class="cfg-btn-cancel" id="wk-id-cancel">' + (isFirst ? '이번 세션 건너뛰기' : '취소') + '</button>' +
-        '<button type="button" class="cfg-btn-confirm" id="wk-id-save" style="background:#2563eb;border-color:#3b82f6;">' + (isFirst ? '이름 저장 후 시작' : '저장 및 매칭 반영') + '</button>' +
+        '<button type="button" class="cfg-btn-confirm" id="wk-id-save" style="background:#2563eb;border-color:#3b82f6;">' + (isFirst ? '이름 저장 후 시작' : '이름 저장 및 반영') + '</button>' +
         '</div></div>';
       document.body.appendChild(modal);
 
@@ -560,29 +583,19 @@
         close({ skipped: true });
       };
       modal.onclick = e => { if (!isFirst && e.target === modal) close({ skipped: true }); };
-      modal.querySelector('#wk-id-regen').onclick = () => {
-        modal.querySelector('#wk-id-key').value = wkGenAccessKey();
-      };
 
       const errEl = modal.querySelector('#wk-id-err');
       const saveBtn = modal.querySelector('#wk-id-save');
       const nameInput = modal.querySelector('#wk-id-name');
-      const keyInput = modal.querySelector('#wk-id-key');
 
       const submit = async () => {
-        const ak = wkNormalizeAccessKey(keyInput.value);
+        const ak = targetKey;
         const nm = (nameInput.value || '').trim();
         errEl.hidden = true;
         if (!wkIsRealName(nm)) {
           errEl.textContent = '사용자 이름을 입력하세요. (게스트/seed 제외)';
           errEl.hidden = false;
           nameInput.focus();
-          return;
-        }
-        if (ak.length < 2) {
-          errEl.textContent = '접속 키값은 2자 이상 영문·숫자로 입력하세요.';
-          errEl.hidden = false;
-          keyInput.focus();
           return;
         }
         saveBtn.disabled = true;
@@ -592,11 +605,14 @@
             const actionName = isFirst ? 'first_entry' : 'rename';
             const detailText = isFirst
               ? (opts.source === 'console' ? '통합 콘솔 최초 접속 이름 등록' : '설계/설정 최초 접속 이름 등록')
-              : '키·사용자 매칭 설정';
+              : '사용자 이름 변경 (키 불변)';
             await wkSyncIdentity(actionName, detailText);
           } else {
             const kbLocal = wkReadLocalJson(WK_ACCESS_STORAGE.keybook, {}) || {};
-            kbLocal[ak] = { access_key: ak, member: nm, updated_at: Math.floor(Date.now() / 1000), last_ip: '수동 매칭' };
+            const prev = kbLocal[ak] || {};
+            const names = (prev.names || []).slice();
+            if (names.indexOf(nm) < 0) names.push(nm);
+            kbLocal[ak] = Object.assign({}, prev, { access_key: ak, member: nm, names: names, updated_at: Math.floor(Date.now() / 1000), last_ip: prev.last_ip || '수동 매칭' });
             wkWriteLocalJson(WK_ACCESS_STORAGE.keybook, kbLocal);
           }
           try {
@@ -606,7 +622,7 @@
             }
           } catch (e) {}
           close({ member: nm, access_key: ak, skipped: false });
-          if (typeof wikiToast === 'function') wikiToast((isFirst ? '사용자 등록됨: ' : '매칭 저장됨: ') + nm + ' (' + ak + ')');
+          if (typeof wikiToast === 'function') wikiToast((isFirst ? '사용자 등록됨: ' : '이름 반영됨: ') + nm + ' (' + ak + ')');
           if (typeof cfgRenderNav === 'function' && typeof WIKI !== 'undefined' && WIKI.ready) cfgRenderNav();
           if (typeof CFG !== 'undefined' && CFG.lens === 'ref' && CFG.major === '__changes' && typeof wikiChangesView === 'function') wikiChangesView();
         } finally {
@@ -615,10 +631,8 @@
       };
 
       saveBtn.onclick = submit;
-      [nameInput, keyInput].forEach(el => {
-        el.addEventListener('keydown', e => {
-          if (e.key === 'Enter') { e.preventDefault(); submit(); }
-        });
+      nameInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); submit(); }
       });
       nameInput.focus();
     }
@@ -1354,13 +1368,108 @@
       };
     }
 
+    function wkBuildKeyTrace(targetKey, keybook, changesList, accessLogs, siteVisitors) {
+      const ak = wkNormalizeAccessKey(targetKey);
+      if (!ak) return null;
+      const item = (keybook && keybook[ak]) ? keybook[ak] : {};
+      const names = [];
+      const ips = [];
+      const addName = n => { const s = String(n || '').trim(); if (s && s !== '게스트' && s !== '방문자' && names.indexOf(s) < 0) names.push(s); };
+      const addIp = ip => { const s = String(ip || '').trim(); if (s && s !== '현재 브라우저' && s !== '문서 저장' && s !== '수동 매칭' && s !== '매칭표 등록' && ips.indexOf(s) < 0) ips.push(s); };
+      (item.names || []).forEach(addName);
+      if (item.member) addName(item.member);
+      (item.ips || []).forEach(addIp);
+      if (item.first_ip) addIp(item.first_ip);
+      if (item.last_ip) addIp(item.last_ip);
+
+      let firstSeen = Number(item.first_seen || item.updated_at || 0);
+      let lastSeen = Number(item.updated_at || item.last_seen || 0);
+      const trackTs = t => {
+        const n = Number(t || 0);
+        if (!n) return;
+        firstSeen = firstSeen ? Math.min(firstSeen, n) : n;
+        lastSeen = Math.max(lastSeen, n);
+      };
+
+      const matchedChanges = [];
+      (changesList || []).forEach(c => {
+        const p = wkParseAuthor(c.author, c.access_key, keybook);
+        if (p.accessKey !== ak) return;
+        addName(p.name);
+        trackTs(c.created_at);
+        matchedChanges.push(c);
+      });
+
+      const matchedLogs = [];
+      (accessLogs || []).forEach(l => {
+        const p = wkParseAuthor(l.member, l.access_key, keybook);
+        if (p.accessKey !== ak) return;
+        addName(p.name);
+        addIp(l.ip);
+        trackTs(l.ts);
+        matchedLogs.push(l);
+      });
+
+      const matchedVisits = [];
+      (siteVisitors || []).forEach(v => {
+        const vak = wkNormalizeAccessKey(v.accessKey || v.access_key);
+        if (vak !== ak) return;
+        addName(v.matchedUser || v.member);
+        addIp(v.ip);
+        trackTs(v.ts);
+        matchedVisits.push(v);
+      });
+
+      return {
+        accessKey: ak,
+        currentMember: (item.member && item.member !== '게스트') ? item.member : (names[names.length - 1] || '게스트'),
+        names: names,
+        ips: ips,
+        firstSeen: firstSeen,
+        lastSeen: lastSeen,
+        changeCount: matchedChanges.length,
+        accessCount: matchedLogs.length,
+        visitCount: matchedVisits.length
+      };
+    }
+
+    function wkRenderTraceCardHtml(trace) {
+      if (!trace) return '';
+      const nameHtml = trace.names.length
+        ? trace.names.map(n => '<span class="wk-hist-chip">' + cfgEsc(n) + '</span>').join('')
+        : '<span class="wk-ip-muted">이름 미지정</span>';
+      const ipHtml = trace.ips.length
+        ? trace.ips.map(ip => '<span class="wk-hist-chip mono">' + cfgEsc(ip) + '</span>').join('')
+        : '<span class="wk-ip-muted">IP 기록 없음</span>';
+      return '<div class="wk-trace-card">' +
+        '<div class="wk-trace-head">' +
+          '<div><b>🔍 불변 접속 키 추적</b> <span class="wk-key-pill">' + cfgEsc(trace.accessKey) + '</span> ' +
+          '<span class="wk-user-pill named">' + cfgEsc(trace.currentMember) + '</span></div>' +
+          '<div style="display:flex;gap:6px;">' +
+            '<button type="button" class="wk-mini" onclick="wkOpenIdentityModal(\'' + cfgEsc(trace.accessKey) + '\')">이름 수정</button>' +
+            '<button type="button" class="wk-mini" onclick="wkFilterByKey(\'\')">추적 해제</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="wk-trace-grid">' +
+          '<div><span>사용 이름 이력</span><div>' + nameHtml + '</div></div>' +
+          '<div><span>접속 IP 이력</span><div>' + ipHtml + '</div></div>' +
+          '<div><span>최초 발급 · 최근 활동</span><div><b>' + (trace.firstSeen ? wkTime(trace.firstSeen) : '-') + '</b> ~ <b>' + (trace.lastSeen ? wkTime(trace.lastSeen) : '-') + '</b></div></div>' +
+          '<div><span>누적 활동량</span><div>문서 변경 <b>' + trace.changeCount + '건</b> · 로그인 활동 <b>' + trace.accessCount + '건</b> · 사이트 접속 <b>' + trace.visitCount + '건</b></div></div>' +
+        '</div>' +
+      '</div>';
+    }
+
     function wkRenderChangesTab() {
       const box = document.getElementById('wk-ch-panel');
       if (!box) return;
-      const st = WIKI.changesView || { tab: 'changes', query: '', filterKey: '', vstate: 'all', mineOnly: false, list: [], logs: [], wikiVisitors: [], consoleVisitors: [], serverKeybook: {} };
+      const st = WIKI.changesView || { tab: 'changes', query: '', filterKey: '', vstate: 'all', mineOnly: false, list: [], logs: [], wikiVisitors: [], consoleVisitors: [], consoleKeys: {}, serverKeybook: {} };
       const q = (st.query || '').toLowerCase();
-      const kb = wkMergedKeybook(st.serverKeybook, st.list);
+      const kb = wkMergedKeybook(st.serverKeybook, st.list, st.consoleKeys);
       const prof = wkGetAccessProfile();
+      const localVisits = wkReadLocalJson('fig.access.site_visits_v1', []) || [];
+      const allVisitors = wkBuildSiteVisitors(st.wikiVisitors, st.consoleVisitors, localVisits, kb);
+      const activeKey = wkNormalizeAccessKey(st.filterKey) || (q && kb[wkNormalizeAccessKey(st.query)] ? wkNormalizeAccessKey(st.query) : '');
+      const traceHtml = activeKey ? wkRenderTraceCardHtml(wkBuildKeyTrace(activeKey, kb, st.list, st.logs, allVisitors)) : '';
 
       if (st.tab === 'changes') {
         const filtered = (st.list || []).filter(c => {
@@ -1369,7 +1478,7 @@
           const hay = [p.accessKey, p.matchedUser, c.author, c.title, c.message, WK_KIND_NAME[c.kind]].join(' ').toLowerCase();
           return hay.indexOf(q) >= 0;
         });
-        box.innerHTML =
+        box.innerHTML = traceHtml +
           '<div class="cfg-table-wrap"><table class="cfg-table wk-changes">' +
           '<thead><tr><th>시각</th><th>접속 키값</th><th>수정자 (매칭)</th><th>문서</th><th>판</th><th>메모</th></tr></thead>' +
           '<tbody>' +
@@ -1401,7 +1510,7 @@
           const hay = [row.accessKey, row.matchedUser, WK_ACTION_LABEL[row.action] || row.action, row.detail, row.ip].join(' ').toLowerCase();
           return hay.indexOf(q) >= 0;
         });
-        box.innerHTML =
+        box.innerHTML = traceHtml +
           '<div class="wk-kpi-strip">' +
             '<div class="wk-kpi-card"><span>로그인 사용자 활동</span><b>' + allAuthRows.length + '건</b></div>' +
             '<div class="wk-kpi-card"><span>고유 로그인 사용자</span><b>' + Object.keys(uniqUsers).length + '명</b></div>' +
@@ -1425,8 +1534,6 @@
           }).join('') : '<tr><td colspan="5">표시할 로그인 사용자 접속 기록이 없습니다.</td></tr>') +
           '</tbody></table></div>';
       } else if (st.tab === 'visitors') {
-        const localVisits = wkReadLocalJson('fig.access.site_visits_v1', []) || [];
-        const allVisitors = wkBuildSiteVisitors(st.wikiVisitors, st.consoleVisitors, localVisits, kb);
         const sum = wkSummarizeVisitors(allVisitors);
         const vFilter = st.vstate || 'all';
         const filtered = allVisitors.filter(row => {
@@ -1437,7 +1544,7 @@
           const hay = [row.accessKey, row.matchedUser, WK_VISIT_STATE_LABEL[row.authState] || row.authState, row.path, row.view, row.ip, row.ua, row.detail].join(' ').toLowerCase();
           return hay.indexOf(q) >= 0;
         });
-        box.innerHTML =
+        box.innerHTML = traceHtml +
           '<div class="wk-kpi-strip">' +
             '<div class="wk-kpi-card"><span>전체 사이트 접속</span><b>' + sum.total + '건</b></div>' +
             '<div class="wk-kpi-card"><span>로그인 접속</span><b>' + sum.authenticated + '건</b></div>' +
@@ -1476,42 +1583,43 @@
           }).join('') : '<tr><td colspan="6">표시할 사이트 전체 접속 기록이 없습니다.</td></tr>') +
           '</tbody></table></div>';
       } else {
-        // keybook tab: 접속 키값 <-> 사용자 매칭표
-        const counts = {};
-        const lastTs = {};
-        (st.list || []).forEach(c => {
-          const p = wkParseAuthor(c.author, c.access_key, kb);
-          if (!p.accessKey) return;
-          counts[p.accessKey] = (counts[p.accessKey] || 0) + 1;
-          lastTs[p.accessKey] = Math.max(lastTs[p.accessKey] || 0, c.created_at || 0);
+        // keybook tab: 서버 자동 할당 불변 접속 키 추적 · 사용자 이름 매칭표
+        const keys = Object.keys(kb).filter(ak => {
+          if (!q) return true;
+          const item = kb[ak];
+          const hay = [ak, item.member, (item.names || []).join(' '), (item.ips || []).join(' ')].join(' ').toLowerCase();
+          return hay.indexOf(q) >= 0;
         });
-        (st.logs || []).forEach(l => {
-          const ak = wkNormalizeAccessKey(l.access_key);
-          if (!ak) return;
-          lastTs[ak] = Math.max(lastTs[ak] || 0, l.ts || 0);
-        });
-        const keys = Object.keys(kb).sort((a, b) => (lastTs[b] || kb[b].updated_at || 0) - (lastTs[a] || kb[a].updated_at || 0));
-        box.innerHTML =
-          '<form class="wk-keybook-form" onsubmit="wkQuickKeybookSave(event)">' +
-            '<input type="text" id="wk-kb-key" maxlength="16" placeholder="접속 키값 (예: K7M3P9)" style="font-family:var(--font-mono);text-transform:uppercase;">' +
-            '<input type="text" id="wk-kb-user" maxlength="20" placeholder="매칭할 사용자 이름 (예: 홍길동)">' +
-            '<button type="submit" class="wk-btn wk-primary">매칭 등록/수정</button>' +
-          '</form>' +
+        const traces = {};
+        keys.forEach(ak => { traces[ak] = wkBuildKeyTrace(ak, kb, st.list, st.logs, allVisitors); });
+        keys.sort((a, b) => (traces[b].lastSeen || 0) - (traces[a].lastSeen || 0));
+        box.innerHTML = traceHtml +
+          '<p class="manual-desc" style="margin:0 0 10px;">모든 접속 키는 서버에서 자동 할당되어 변경할 수 없으며, 키 클릭 시 <b>이름 변경 이력·접속 IP·전체 활동</b>을 추적합니다.</p>' +
           '<div class="cfg-table-wrap"><table class="cfg-table wk-changes">' +
-          '<thead><tr><th>접속 키값</th><th>매칭 사용자</th><th>문서 변경 건수</th><th>최근 활동 시각</th><th>관리</th></tr></thead>' +
+          '<thead><tr><th>접속 키값 (불변)</th><th>현재 이름 · 이름 이력</th><th>접속 IP 이력</th><th>변경 · 접속</th><th>최초 발급 / 최근 활동</th><th>추적 · 관리</th></tr></thead>' +
           '<tbody>' +
           (keys.length ? keys.map(ak => {
-            const item = kb[ak];
-            const isNamed = item.member && item.member !== '게스트';
+            const tr = traces[ak];
+            const isNamed = tr.currentMember && tr.currentMember !== '게스트';
+            const oldNames = (tr.names || []).filter(n => n !== tr.currentMember);
+            const nameHistHtml = oldNames.length
+              ? '<div style="margin-top:3px;">' + oldNames.map(n => '<span class="wk-hist-chip">이전: ' + cfgEsc(n) + '</span>').join('') + '</div>'
+              : '';
+            const ipHistHtml = tr.ips.length
+              ? tr.ips.map(ip => '<span class="wk-hist-chip mono">' + cfgEsc(ip) + '</span>').join('')
+              : '<span class="wk-ip-muted">-</span>';
             return '<tr>' +
-              '<td><button type="button" class="wk-key-pill" onclick="wkFilterByKey(\'' + cfgEsc(ak) + '\')">' + cfgEsc(ak) + '</button></td>' +
-              '<td><span class="wk-user-pill' + (isNamed ? ' named' : '') + '">' + cfgEsc(item.member || '게스트') + '</span> ' +
-                (isNamed ? '<span class="wk-matched-badge">매칭됨</span>' : '<span class="wk-unmatched-badge">이름 미지정</span>') + '</td>' +
-              '<td>' + (counts[ak] || 0) + '건</td>' +
-              '<td>' + (lastTs[ak] || item.updated_at ? wkTime(lastTs[ak] || item.updated_at) : '-') + '</td>' +
-              '<td><button type="button" class="wk-mini" onclick="wkOpenIdentityModal(\'' + cfgEsc(ak) + '\')">이름 수정</button></td>' +
+              '<td><button type="button" class="wk-key-pill" onclick="wkFilterByKey(\'' + cfgEsc(ak) + '\')" title="이 키 추적하기">' + cfgEsc(ak) + '</button></td>' +
+              '<td><span class="wk-user-pill' + (isNamed ? ' named' : '') + '">' + cfgEsc(tr.currentMember) + '</span> ' +
+                (isNamed ? '<span class="wk-matched-badge">매칭됨</span>' : '<span class="wk-unmatched-badge">이름 미지정</span>') + nameHistHtml + '</td>' +
+              '<td>' + ipHistHtml + '</td>' +
+              '<td>변경 ' + tr.changeCount + ' · 접속 ' + (tr.accessCount + tr.visitCount) + '</td>' +
+              '<td><div style="font-size:11.5px;">' + (tr.firstSeen ? wkTime(tr.firstSeen) : '-') + '</div>' +
+                '<div class="wk-ip-muted">최근: ' + (tr.lastSeen ? wkTime(tr.lastSeen) : '-') + '</div></td>' +
+              '<td style="white-space:nowrap;"><button type="button" class="wk-mini" onclick="wkFilterByKey(\'' + cfgEsc(ak) + '\')">추적</button> ' +
+                '<button type="button" class="wk-mini" onclick="wkOpenIdentityModal(\'' + cfgEsc(ak) + '\')">이름 수정</button></td>' +
             '</tr>';
-          }).join('') : '<tr><td colspan="5">등록된 접속 키값이 없습니다.</td></tr>') +
+          }).join('') : '<tr><td colspan="6">할당된 접속 키값이 없습니다.</td></tr>') +
           '</tbody></table></div>';
       }
     }
@@ -1526,8 +1634,8 @@
           '<div class="cfg-head"><h2 class="cfg-head-title">최근 변경 · 접속 기록</h2>' +
           '<p class="manual-desc">로그인 사용자 접속 이력과 미로그인 방문자를 포함한 <b>사이트 전체 접속 기록</b>을 분리해 조회합니다.</p></div>' +
           '<div class="wk-id-bar">' +
-            '<span>내 접속 정보: <span class="wk-key-pill">' + cfgEsc(prof.access_key) + '</span> <b style="color:#fff;">' + cfgEsc(prof.member) + '</b></span>' +
-            '<button type="button" class="wk-mini" onclick="wkOpenIdentityModal()">내 키·이름 변경</button>' +
+            '<span>내 접속 정보: <span class="wk-key-pill" onclick="wkFilterByKey(\'' + cfgEsc(prof.access_key) + '\')" title="내 키 추적하기">' + cfgEsc(prof.access_key) + '</span> <b style="color:#fff;">' + cfgEsc(prof.member) + '</b></span>' +
+            '<button type="button" class="wk-mini" onclick="wkOpenIdentityModal()">내 이름 변경</button>' +
             '<button type="button" class="wk-mini" onclick="wikiChangesView()">↻ 새로고침</button>' +
             '<input type="search" id="wk-ch-q" class="cfg-search wk-filter-input" value="' + cfgEsc(st.query || '') + '" placeholder="접속 키값, 사용자, 경로, IP, 메모 검색" oninput="wkChangesFilter(this.value)">' +
           '</div>' +
@@ -1559,7 +1667,11 @@
           fetch('/console/api/visitors?limit=200', { credentials: 'same-origin', cache: 'no-store' })
             .then(r => r.ok ? r.json() : null)
             .then(d => { st.consoleVisitors = (d && d.visitors) || []; })
-            .catch(() => { st.consoleVisitors = []; })
+            .catch(() => { st.consoleVisitors = []; }),
+          fetch('/console/api/keys', { credentials: 'same-origin', cache: 'no-store' })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { st.consoleKeys = (d && d.keys) || {}; WIKI.consoleKeys = st.consoleKeys; })
+            .catch(() => { st.consoleKeys = {}; })
         ]);
       }
       wkRenderChangesTab();
@@ -1582,6 +1694,7 @@
         wkResolveEntryName: wkResolveEntryName,
         wkHasValidAccessKey: wkHasValidAccessKey,
         wkBuildSiteVisitors: wkBuildSiteVisitors,
-        wkSummarizeVisitors: wkSummarizeVisitors
+        wkSummarizeVisitors: wkSummarizeVisitors,
+        wkBuildKeyTrace: wkBuildKeyTrace
       };
     }

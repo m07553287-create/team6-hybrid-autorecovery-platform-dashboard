@@ -171,8 +171,8 @@
     }
     function figPrepareLoginForm() {
       const memEl = typeof document !== 'undefined' ? document.getElementById('auth-member') : null;
-      const keyEl = typeof document !== 'undefined' ? document.getElementById('auth-access-key') : null;
-      if (!memEl && !keyEl) return;
+      const keyView = typeof document !== 'undefined' ? document.getElementById('auth-access-key-view') : null;
+      if (!memEl && !keyView) return;
       const prof = csReadJson('fig.access.profile_v1', null) || {};
       const last = csReadJson('fw_last', null) || {};
       let termUser = '';
@@ -184,9 +184,9 @@
         if (csIsRealName(clean)) { foundName = clean; break; }
       }
       if (memEl && !memEl.value.trim() && foundName) memEl.value = foundName;
-      if (keyEl) {
-        const curKey = csNormKey(keyEl.value) || csNormKey(prof.access_key) || csNormKey(last.access_key) || csGenKey();
-        keyEl.value = curKey;
+      if (keyView) {
+        const curKey = csNormKey(prof.access_key) || csNormKey(last.access_key);
+        keyView.textContent = curKey ? (curKey + ' (서버 할당 · 변경 불가)') : '로그인 시 서버에서 자동 할당 (변경 불가)';
       }
     }
     const CS_SITE_VISITS_KEY = 'fig.access.site_visits_v1';
@@ -340,11 +340,9 @@
         '<input type="text" id="cs-id-name" class="cfg-builder-input" maxlength="20" value="' + cfgEsc(curName) + '" placeholder="예: 홍길동">' +
         '</div>' +
         '<div class="cfg-builder-field">' +
-        '<label class="cfg-builder-label">접속 키값 (영문·숫자 2~16자 · 자동 발급)</label>' +
-        '<div style="display:flex;gap:6px;">' +
-        '<input type="text" id="cs-id-key" class="cfg-builder-input" maxlength="16" value="' + cfgEsc(prof.access_key) + '" style="font-family:var(--font-mono);text-transform:uppercase;">' +
-        '<button type="button" class="cfg-copy" id="cs-id-regen" title="새 키값 발급">재발급</button>' +
-        '</div></div>' +
+        '<label class="cfg-builder-label">접속 키값 (서버 자동 할당 · 변경 불가)</label>' +
+        '<input type="text" id="cs-id-key" class="cfg-builder-input wk-key-locked" value="' + cfgEsc(prof.access_key || '서버 자동 할당') + '" readonly disabled style="font-family:var(--font-mono);text-transform:uppercase;">' +
+        '</div>' +
         '<p class="wk-error" id="cs-id-err" role="alert" hidden style="margin:0;"></p>' +
         '</div>' +
         '<div class="cfg-modal-foot">' +
@@ -373,27 +371,19 @@
         close({ skipped: true });
       };
       modal.onclick = e => { if (!isFirst && e.target === modal) close({ skipped: true }); };
-      modal.querySelector('#cs-id-regen').onclick = () => { modal.querySelector('#cs-id-key').value = csGenKey(); };
 
       const errEl = modal.querySelector('#cs-id-err');
       const saveBtn = modal.querySelector('#cs-id-save');
       const nameInput = modal.querySelector('#cs-id-name');
-      const keyInput = modal.querySelector('#cs-id-key');
 
       const submit = async () => {
         const nm = (nameInput.value || '').trim();
-        const ak = csNormKey(keyInput.value);
+        const ak = csNormKey(prof.access_key) || csGenKey();
         errEl.hidden = true;
         if (!csIsRealName(nm)) {
           errEl.textContent = '사용자 이름을 입력하세요. (게스트/seed 제외)';
           errEl.hidden = false;
           nameInput.focus();
-          return;
-        }
-        if (ak.length < 2) {
-          errEl.textContent = '접속 키값은 2자 이상 영문·숫자로 입력하세요.';
-          errEl.hidden = false;
-          keyInput.focus();
           return;
         }
         saveBtn.disabled = true;
@@ -408,10 +398,8 @@
       };
 
       saveBtn.onclick = submit;
-      [nameInput, keyInput].forEach(el => {
-        el.addEventListener('keydown', e => {
-          if (e.key === 'Enter') { e.preventDefault(); submit(); }
-        });
+      nameInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); submit(); }
       });
       nameInput.focus();
     }
@@ -567,16 +555,14 @@
     }
     function csShowUnlock(msg) {
       CS.slots.forEach(s => csDispose(s.t)); CS.floats.forEach(csDispose); CS.slots = []; CS.floats = [];
-      const prof = csReadProfile();
-      const preName = csIsRealName(prof.member) ? prof.member : '';
-      const preKey = prof.access_key || csGenKey();
+      const stored = figReadStoredAccessKey();
+      const preName = stored ? stored.member : (csIsRealName(csReadProfile().member) ? csReadProfile().member : '');
+      const keyLabel = stored ? (stored.access_key + ' (서버 할당 · 변경 불가)') : '로그인 시 서버에서 자동 할당 (변경 불가)';
       csRoot().innerHTML =
-        '<div class="cs-unlock"><form class="wk-card" onsubmit="csUnlock(event)"><h3>통합 콘솔 로그인 (접속 키 인증)</h3>' +
-        '<p class="manual-desc">세션이 만료되었거나 접속 키가 없습니다. 이름·접속 키와 사이트 비밀번호를 넣으면 다시 로그인됩니다. 모든 입력과 출력은 기록됩니다.</p>' +
+        '<div class="cs-unlock"><form class="wk-card" onsubmit="csUnlock(event)"><h3>통합 콘솔 로그인 (불변 접속 키)</h3>' +
+        '<p class="manual-desc">세션이 만료되었거나 접속 키가 없습니다. 이름과 사이트 비밀번호를 입력하면 서버가 접속 키를 자동 할당·유지합니다. 모든 입력과 출력은 기록됩니다.</p>' +
         '<label>사용자 이름 <span>(필수)</span><input name="member" required maxlength="20" autocomplete="nickname" value="' + cfgEsc(preName) + '" placeholder="예: 홍길동"></label>' +
-        '<label>접속 키값 <span>(자동 발급 · 변경 가능)</span><div style="display:flex;gap:6px;">' +
-        '<input name="access_key" required maxlength="16" autocomplete="off" value="' + cfgEsc(preKey) + '" style="flex:1;font-family:var(--font-mono);text-transform:uppercase;">' +
-        '<button type="button" class="cfg-copy" onclick="this.previousElementSibling.value=csGenKey()">재발급</button></div></label>' +
+        '<label>접속 키값 <span>(서버 자동 할당 · 변경 불가)</span><div class="login-key-readonly" style="margin-bottom:0;">' + cfgEsc(keyLabel) + '</div></label>' +
         '<label>사이트 비밀번호<input name="password" type="password" required autocomplete="current-password"></label>' +
         '<p class="wk-error" id="cs-unlock-err" role="alert"' + (msg ? '' : ' hidden') + '>' + cfgEsc(msg || '') + '</p>' +
         '<div class="wk-bar wk-bar-inline"><button type="submit" class="wk-btn wk-primary">로그인 및 잠금 해제</button>' +
@@ -591,25 +577,18 @@
       const err = document.getElementById('cs-unlock-err');
       const form = ev.target;
       const member = (form.member ? form.member.value : '').trim();
-      const ak = csNormKey(form.access_key ? form.access_key.value : '');
       if (!csIsRealName(member)) {
         err.textContent = '사용자 이름을 입력하세요. (게스트/seed 제외)';
         err.hidden = false;
         if (form.member) form.member.focus();
         return;
       }
-      if (ak.length < 2) {
-        err.textContent = '접속 키값은 2자 이상 영문·숫자로 입력하세요.';
-        err.hidden = false;
-        if (form.access_key) form.access_key.focus();
-        return;
-      }
       try {
-        await csApi('POST', '/console/api/unlock', {
+        const res = await csApi('POST', '/console/api/unlock', {
           password: form.password.value,
-          access_key: ak,
           member: member
         });
+        const ak = csNormKey(res && res.access_key) || csReadProfile().access_key || csGenKey();
         csWriteProfile(member, ak);
         try { sessionStorage.setItem(figAuthStorageKey(), 'valid'); } catch (e) {}
         figRecordSiteVisit('authenticated', CS.page ? 'term' : 'console', '콘솔 로그인 성공');

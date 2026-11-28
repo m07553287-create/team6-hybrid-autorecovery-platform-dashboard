@@ -12,7 +12,7 @@ import time
 from fastapi import FastAPI, Request, Response, WebSocket
 from fastapi.responses import JSONResponse
 
-from console.auth import Lock, TTL, normalize_access_key
+from console.auth import KEY_COOKIE, KEY_COOKIE_TTL, Lock, TTL, normalize_access_key
 from console.pty_session import PtySession
 from console.status import Collector
 from console.presets import PresetError, PresetStore
@@ -155,22 +155,20 @@ def create_app():
             data = await request.json()
         except ValueError:
             data = {}
-        ak = data.get("access_key") or ""
-        member = data.get("member") or ""
-        try:
-            token = lock.unlock(str(data.get("password") or ""), ip, access_key=ak, member=member)
-        except ValueError as e:
-            _record_visit("expired", "/console/api/unlock", "login", ip, ua, ak, member, "접속 키 누락 거부")
-            return JSONResponse({"error": str(e), "field": "access_key"}, status_code=422)
+        # 클라이언트 입력값 무시: 오직 서버 발급 HttpOnly 키 쿠키만 신뢰(없으면 서버가 신규 8자리 자동 할당)
+        cookie_ak = normalize_access_key(request.cookies.get(KEY_COOKIE) or "")
+        member = str(data.get("member") or "").strip()[:20]
+        token = lock.unlock(str(data.get("password") or ""), ip, access_key=cookie_ak, member=member, ua=_summarize_ua(ua))
         if not token:
             log.warning("unlock failed ip=%s", ip)
-            _record_visit("login_fail", "/console/api/unlock", "login", ip, ua, ak, member, "콘솔/사이트 비밀번호 오류")
+            _record_visit("login_fail", "/console/api/unlock", "login", ip, ua, cookie_ak, member, "콘솔/사이트 비밀번호 오류")
             return JSONResponse({"error": "콘솔 비밀번호가 맞지 않습니다"}, status_code=401)
-        norm_ak = normalize_access_key(ak)
-        log.info("unlock ok ip=%s key=%s", ip, norm_ak or "-")
-        _record_visit("authenticated", "/console/api/unlock", "login", ip, ua, norm_ak, member, "콘솔/사이트 로그인 성공")
+        assigned_ak = lock.session_key(token)
+        log.info("unlock ok ip=%s key=%s", ip, assigned_ak or "-")
+        _record_visit("authenticated", "/console/api/unlock", "login", ip, ua, assigned_ak, member, "콘솔/사이트 로그인 성공")
         response.set_cookie(COOKIE, token, max_age=TTL, httponly=True, secure=True, samesite="strict", path="/console")
-        return {"ok": True, "ttl": TTL, "access_key": norm_ak}
+        response.set_cookie(KEY_COOKIE, assigned_ak, max_age=KEY_COOKIE_TTL, httponly=True, secure=True, samesite="lax", path="/")
+        return {"ok": True, "ttl": TTL, "access_key": assigned_ak, "member": member}
 
     presets = PresetStore(os.environ.get("CONSOLE_PRESETS", "/var/lib/figteam-console/presets.json"), targets)
 
@@ -212,27 +210,38 @@ def create_app():
         """사이트 입장 로그인 상태 (서버 확인). 대시보드 첫 화면이 이걸로 로그인 여부를 판단한다."""
         ip = ip_of(request)
         ua = request.headers.get("user-agent", "")
+        cookie_ak = normalize_access_key(request.cookies.get(KEY_COOKIE) or "")
         status, info = lock.check_detail(request.cookies.get(COOKIE), ip)
         if status == "ok":
-            out = {"unlocked": True, "ttl": TTL}
+            out = {"unlocked": True, "ttl": TTL, "key_assigned": True}
             if info and info.get("access_key"):
                 out["access_key"] = info["access_key"]
             if info and info.get("member"):
                 out["member"] = info["member"]
             return out
         if status == "no_key":
-            _record_visit("expired", "/console/api/me", "login", ip, ua, detail="접속 키 없는 콘솔 세션 만료")
+            _record_visit("expired", "/console/api/me", "login", ip, ua, cookie_ak, detail="접속 키 없는 콘솔 세션 만료")
             response.delete_cookie(COOKIE, path="/console")
-            return {"unlocked": False, "key_expired": True}
-        _record_visit("visitor", "/console/api/me", "login", ip, ua, detail="미로그인 상태 사이트 접속", throttle_anon=True)
-        return {"unlocked": False}
+            return {"unlocked": False, "key_expired": True, "key_assigned": bool(cookie_ak)}
+        _record_visit("visitor", "/console/api/me", "login", ip, ua, cookie_ak, detail="미로그인 상태 사이트 접속", throttle_anon=True)
+        out = {"unlocked": False, "key_assigned": bool(cookie_ak)}
+        if cookie_ak:
+            out["access_key"] = cookie_ak
+        return out
 
     @app.post("/console/api/lock")
     def lock_(request: Request, response: Response):
-        _record_visit("logout", "/console/api/lock", "login", ip_of(request), request.headers.get("user-agent", ""), detail="로그아웃 / 세션 잠금")
+        cookie_ak = normalize_access_key(request.cookies.get(KEY_COOKIE) or "")
+        _record_visit("logout", "/console/api/lock", "login", ip_of(request), request.headers.get("user-agent", ""), cookie_ak, detail="로그아웃 / 세션 잠금")
         lock.lock(request.cookies.get(COOKIE))
         response.delete_cookie(COOKIE, path="/console")
         return {"ok": True}
+
+    @app.get("/console/api/keys")
+    def list_keys(request: Request):
+        if not unlocked(request):
+            return JSONResponse({"error": "로그인이 필요합니다"}, status_code=401)
+        return {"keys": lock.key_registry}
 
     @app.get("/console/api/visitors")
     def list_visitors(request: Request, limit: int = 200):

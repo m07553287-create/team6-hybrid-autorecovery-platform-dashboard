@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { wkGenAccessKey, wkNormalizeAccessKey, wkFormatAuthor, wkParseAuthor, wkIsRealName, wkResolveEntryName, wkHasValidAccessKey, wkBuildSiteVisitors, wkSummarizeVisitors } = require('../wiki.js');
+const { wkGenAccessKey, wkNormalizeAccessKey, wkFormatAuthor, wkParseAuthor, wkIsRealName, wkResolveEntryName, wkHasValidAccessKey, wkBuildSiteVisitors, wkSummarizeVisitors, wkBuildKeyTrace } = require('../wiki.js');
 
 test('wkGenAccessKey produces 6 unambiguous uppercase alphanumeric characters', () => {
   const key = wkGenAccessKey();
@@ -97,4 +97,37 @@ test('wkBuildSiteVisitors merges wiki/console/local visits, deduplicates bucket,
 
   const sum = wkSummarizeVisitors(rows);
   assert.deepEqual(sum, { total: 4, authenticated: 1, anonymous: 1, expiredOrFail: 2, uniqueIps: 3 });
+});
+
+test('wkBuildKeyTrace aggregates name changes, real IPs, timestamps, and activity counts', () => {
+  const keybook = {
+    AB12CD34: {
+      access_key: 'AB12CD34',
+      member: '홍길동',
+      names: ['김초기', '홍길동'],
+      ips: ['175.196.197.51'],
+      first_seen: 900,
+      updated_at: 1200
+    }
+  };
+  const changes = [
+    { doc_id: 1, rev: 1, author: '김초기#AB12CD34', access_key: 'AB12CD34', created_at: 950 }
+  ];
+  const logs = [
+    { ts: 1000, member: '김초기', access_key: 'AB12CD34', ip: '175.196.197.51', action: 'login' },
+    { ts: 1100, member: '홍길동', access_key: 'AB12CD34', ip: '10.10.10.9', action: 'rename' }
+  ];
+  const visits = [
+    { ts: 1250, accessKey: 'AB12CD34', matchedUser: '홍길동', ip: '현재 브라우저', authState: 'authenticated' }
+  ];
+  const trace = wkBuildKeyTrace('ab12cd34', keybook, changes, logs, visits);
+  assert.equal(trace.accessKey, 'AB12CD34');
+  assert.equal(trace.currentMember, '홍길동');
+  assert.deepEqual(trace.names, ['김초기', '홍길동']);
+  assert.deepEqual(trace.ips, ['175.196.197.51', '10.10.10.9']);
+  assert.equal(trace.firstSeen, 900);
+  assert.equal(trace.lastSeen, 1250);
+  assert.equal(trace.changeCount, 1);
+  assert.equal(trace.accessCount, 2);
+  assert.equal(trace.visitCount, 1);
 });
