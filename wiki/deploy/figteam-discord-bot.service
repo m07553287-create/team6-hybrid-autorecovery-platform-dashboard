@@ -1,0 +1,18 @@
+[Unit]
+Description=FIGTEAM Discord #figteaminfra 멘션 수신 브리지 (과제/공유 자동 분류)
+After=network-online.target figteam-wiki.service
+Wants=network-online.target
+
+[Service]
+User=wiki
+Group=wiki
+WorkingDirectory=/opt/figteam-wiki
+EnvironmentFile=/etc/figteam-wiki/env
+ExecStart=/opt/figteam-wiki/.venv/bin/python -m wiki.discord_bot
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

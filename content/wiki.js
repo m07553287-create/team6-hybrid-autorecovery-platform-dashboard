@@ -481,6 +481,7 @@
         '<span class="wk-key-pill" title="현재 브라우저 접속 키값">' + cfgEsc(prof.access_key) + '</span></div>' +
         '<div class="wk-teambar-acts">' +
         '<button type="button" class="wk-mini" onclick="wkOpenIdentityModal()">사용자 이름 설정</button>' +
+        '<button type="button" class="wk-mini" onclick="cfgSelect(\'ref\',\'__discord\',\'\')">💬 디코 과제·공유</button>' +
         '<button type="button" class="wk-mini" onclick="cfgSelect(\'ref\',\'__changes\',\'\')">접속·변경 기록</button>' +
         '<button type="button" class="wk-mini" onclick="wkOpenShareBridge()">팀 목표 · AI · Discord</button>' +
         '<button type="button" class="wk-mini" onclick="wkCopyAiFeed(this)">AI 프롬프트 복사</button>' +
@@ -1675,6 +1676,136 @@
         ]);
       }
       wkRenderChangesTab();
+    }
+
+    // ---------- Discord #figteaminfra 멘션 수신함 (처리할 과제 vs 공유) ----------
+    function wkDiscordSetFilter(cat) {
+      WIKI.dcInbox = WIKI.dcInbox || { filter: 'all', items: [], summary: {} };
+      WIKI.dcInbox.filter = cat || 'all';
+      wkRenderDiscordInbox();
+    }
+
+    async function wkDiscordUpdateState(itemId, payload) {
+      try {
+        const res = await api('POST', '/api/discord/inbox/' + itemId + '/state', payload);
+        if (typeof wikiToast === 'function') {
+          const it = res && res.item ? res.item : null;
+          wikiToast(it ? ('#' + it.id + ' → ' + it.category_label + ' (' + it.task_status_label + ')') : '상태가 반영되었습니다.');
+        }
+        await wikiDiscordInboxView();
+      } catch (e) {
+        alert((e && e.error) ? e.error : '처리에 실패했습니다.');
+      }
+    }
+
+    async function wkDiscordIngest(ev) {
+      ev.preventDefault();
+      const f = ev.target;
+      const content = (f.content.value || '').trim();
+      if (!content) return;
+      const btn = f.querySelector('button[type=submit]');
+      btn.disabled = true;
+      try {
+        const res = await api('POST', '/api/discord/inbound', {
+          content: content,
+          channel: (f.channel.value || 'figteaminfra').trim() || 'figteaminfra',
+          category: f.category.value || '',
+          source: 'portal',
+          notify_discord: true,
+          force: true
+        });
+        f.content.value = '';
+        if (typeof wikiToast === 'function' && res && res.item) {
+          wikiToast('접수됨: [' + res.item.category_label + '] ' + res.item.title);
+        }
+        await wikiDiscordInboxView();
+      } catch (e) {
+        alert((e && e.error) ? e.error : '메시지 접수에 실패했습니다.');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function wkRenderDiscordInbox() {
+      const box = document.getElementById('wk-dc-panel');
+      if (!box) return;
+      const st = WIKI.dcInbox || { filter: 'all', items: [], summary: {} };
+      const sum = st.summary || {};
+      const flt = st.filter || 'all';
+      const rows = (st.items || []).filter(it => {
+        if (flt === 'task') return it.category === 'task';
+        if (flt === 'open_task') return it.category === 'task' && it.task_status !== 'done';
+        if (flt === 'share') return it.category === 'share';
+        return true;
+      });
+      box.innerHTML =
+        '<div class="wk-kpi-strip">' +
+          '<div class="wk-kpi-card"><span>전체 멘션</span><b>' + (sum.total || 0) + '건</b></div>' +
+          '<div class="wk-kpi-card"><span>📌 미처리 과제</span><b>' + (sum.tasks_open || 0) + '건</b></div>' +
+          '<div class="wk-kpi-card"><span>🔄 진행중 과제</span><b>' + (sum.tasks_in_progress || 0) + '건</b></div>' +
+          '<div class="wk-kpi-card"><span>✅ 처리완료</span><b>' + (sum.tasks_done || 0) + '건</b></div>' +
+          '<div class="wk-kpi-card"><span>📣 공유 메시지</span><b>' + (sum.shares || 0) + '건</b></div>' +
+        '</div>' +
+        '<div class="wk-filter-pills">' +
+          '<button type="button" class="wk-fpill' + (flt === 'all' ? ' active' : '') + '" onclick="wkDiscordSetFilter(\'all\')">전체 (' + (sum.total || 0) + ')</button>' +
+          '<button type="button" class="wk-fpill' + (flt === 'task' ? ' active' : '') + '" onclick="wkDiscordSetFilter(\'task\')">📌 처리할 과제 (' + (sum.tasks_total || 0) + ')</button>' +
+          '<button type="button" class="wk-fpill' + (flt === 'open_task' ? ' active' : '') + '" onclick="wkDiscordSetFilter(\'open_task\')">⏳ 미처리 과제 (' + ((sum.tasks_open || 0) + (sum.tasks_in_progress || 0)) + ')</button>' +
+          '<button type="button" class="wk-fpill' + (flt === 'share' ? ' active' : '') + '" onclick="wkDiscordSetFilter(\'share\')">📣 공유 (' + (sum.shares || 0) + ')</button>' +
+        '</div>' +
+        (rows.length ? rows.map(it => {
+          const isTask = it.category === 'task';
+          const badgeCls = isTask ? 'wk-vs-expired' : 'wk-vs-visitor';
+          const tags = (it.hashtags || []).map(t => '<span class="wk-hist-chip">#' + cfgEsc(t) + '</span>').join('');
+          const goalTag = it.linked_goal_id ? ' <span class="wk-matched-badge">목표 #' + cfgEsc(it.linked_goal_id) + '</span>' : '';
+          const acts = isTask
+            ? '<button type="button" class="wk-mini" onclick="wkDiscordUpdateState(' + it.id + ',{task_status:\'in_progress\'})">진행중</button> ' +
+              '<button type="button" class="wk-mini" onclick="wkDiscordUpdateState(' + it.id + ',{task_status:\'done\'})" style="border-color:#059669;color:#6ee7b7;">처리완료</button> ' +
+              (it.linked_goal_id ? '' : '<button type="button" class="wk-mini" onclick="wkDiscordUpdateState(' + it.id + ',{promote_goal:true})">공동목표 승격</button> ') +
+              '<button type="button" class="wk-mini" onclick="wkDiscordUpdateState(' + it.id + ',{category:\'share\'})">공유로 전환</button>'
+            : '<button type="button" class="wk-mini" onclick="wkDiscordUpdateState(' + it.id + ',{task_status:\'read\'})">확인완료</button> ' +
+              '<button type="button" class="wk-mini" onclick="wkDiscordUpdateState(' + it.id + ',{category:\'task\'})">과제로 전환</button>';
+          return '<div class="wk-dc-card ' + (isTask ? 'wk-dc-task' : 'wk-dc-share') + '">' +
+            '<div class="wk-dc-head">' +
+              '<div><span class="wk-vstate ' + badgeCls + '">' + (isTask ? '📌 처리할 과제' : '📣 공유') + '</span> ' +
+              '<span class="wk-act-badge">' + cfgEsc(it.task_status_label || it.task_status) + '</span> ' +
+              '<code>' + cfgEsc(it.area || 'figteaminfra') + '</code>' + goalTag + '</div>' +
+              '<span class="wk-ip-muted">' + cfgEsc(it.author || 'Discord') + ' · #' + cfgEsc(it.channel || 'discord') + ' · ' + wkTime(it.ts) + '</span>' +
+            '</div>' +
+            '<div style="font-weight:700;color:#fff;font-size:14px;">' + cfgEsc(it.title || '') + '</div>' +
+            '<div style="font-size:13px;color:#cbd5e1;white-space:pre-wrap;">' + cfgEsc(it.summary || it.raw_text || '') + '</div>' +
+            '<div style="font-size:11.5px;color:#94a3b8;">' + tags + ' 분류 근거: ' + cfgEsc(it.classify_reason || '-') + (it.handled_by ? ' · 처리: ' + cfgEsc(it.handled_by) : '') + '</div>' +
+            '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">' + acts + '</div>' +
+          '</div>';
+        }).join('') : '<p class="cfg-empty">표시할 Discord 멘션 메시지가 없습니다.</p>');
+    }
+
+    async function wikiDiscordInboxView() {
+      const bodyEl = document.getElementById('manual-body-content');
+      const st = WIKI.dcInbox = WIKI.dcInbox || { filter: 'all', items: [], summary: {} };
+      bodyEl.innerHTML = cfgCrumb() +
+        '<div class="cfg-head"><h2 class="cfg-head-title">💬 Discord #figteaminfra 과제 · 공유 수신함</h2>' +
+        '<p class="manual-desc">Discord에서 <code>#figteaminfra</code>, <code>#과제</code>, <code>#공유</code> 등으로 보낸 메시지를 웹사이트에서 <b>처리할 과제</b>와 <b>공유</b>로 자동 구분해 확인·처리합니다.</p></div>' +
+        '<div class="wk-id-bar">' +
+          '<button type="button" class="wk-mini" onclick="wikiDiscordInboxView()">↻ 새로고침</button>' +
+          '<a class="wk-mini" href="/api/ai/hub#discord-inbox" target="_blank" rel="noopener" style="text-decoration:none;">🚀 /api/ai/hub 허브에서 보기</a>' +
+        '</div>' +
+        '<form class="wk-keybook-form" onsubmit="wkDiscordIngest(event)" style="margin-top:10px;">' +
+          '<input type="text" name="channel" value="figteaminfra" maxlength="60" placeholder="채널" style="max-width:140px;flex:0 1 140px;">' +
+          '<select name="category" style="background:#06090e;border:1px solid #334155;border-radius:6px;color:#fff;padding:7px 10px;font-size:12.5px;">' +
+            '<option value="">자동 구분 (과제 vs 공유)</option><option value="task">📌 처리할 과제</option><option value="share">📣 공유</option></select>' +
+          '<input type="text" name="content" required maxlength="2000" placeholder="#figteaminfra KT Edge 502 확인해주세요 / #figteaminfra #공유 k3s 정상 완료">' +
+          '<button type="submit" class="wk-btn wk-primary">접수 + 디코 알림</button>' +
+        '</form>' +
+        '<div id="wk-dc-panel"><p class="cfg-empty">Discord 수신함을 불러오는 중…</p></div>';
+      try {
+        const res = await api('GET', '/api/discord/inbox?category=all&limit=100');
+        st.items = (res && res.items) || [];
+        st.summary = (res && res.summary) || {};
+      } catch (e) {
+        st.items = [];
+        st.summary = {};
+      }
+      wkRenderDiscordInbox();
     }
 
     function wkHasValidAccessKey(profile) {

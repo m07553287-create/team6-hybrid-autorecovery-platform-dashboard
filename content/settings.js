@@ -198,6 +198,7 @@
       if (lens === 'zoom') return [VIEW_FOREST].concat(cfgClouds().map(c => ({ id: c, name: CLOUD_NAME[c], sub: cfgInstOrder().filter(pid => cfgPage(pid).cloud === c).length + '대 · 연결·의존·멈추면', cloud: c })));
       if (lens === 'step') return [{ id: 'all', name: '처음부터 끝까지', sub: d.steps.length ? d.steps.length + '단계' : '아직 단계가 없습니다' }];
       return d.reference.filter(r => !/^시점 · /.test(r[1] || '')).map(r => ({ id: r[0], name: r[1], sub: cfgPage(r[0]).tag }))
+        .concat(typeof wikiDiscordInboxView === 'function' ? [{ id: '__discord', name: '디코 과제 · 공유 수신함', sub: '#figteaminfra 멘션 · 과제/공유 구분' }] : [])
         .concat(typeof wikiChangesView === 'function' ? [{ id: '__changes', name: '최근 변경 · 접속 기록', sub: '키값·수정자 매칭 및 접속 이력' }] : []);
     }
     function cfgMinors(lens, major) {
@@ -483,7 +484,9 @@
       let html = cfgCrumb();
       const empty = msg => '<div class="cfg-empty-panel"><p>' + msg + '</p>' +
         (typeof wikiEmptyActions === 'function' ? wikiEmptyActions(CFG.lens) : '') + '</div>';
-      if (CFG.lens === 'ref' && CFG.major === '__changes') {
+      if (CFG.lens === 'ref' && CFG.major === '__discord' && typeof wikiDiscordInboxView === 'function') {
+        body.innerHTML = ''; wikiDiscordInboxView(); return;
+      } else if (CFG.lens === 'ref' && CFG.major === '__changes') {
         body.innerHTML = ''; wikiChangesView(); return;
       } else if (CFG.lens === 'ref') {
         const p = cfgPage(CFG.major);

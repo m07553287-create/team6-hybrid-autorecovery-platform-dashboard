@@ -248,7 +248,14 @@ def create_app(redis_client=None):
     @app.delete("/api/docs/{doc_id}")
     async def delete(doc_id: int, request: Request):
         data = await body_of(request)
-        return docs.delete_doc(r, session_of(request), doc_id, data)
+        s = session_of(request)
+        kind = r.hget(f"fw:doc:{doc_id}", "kind") or ""
+        res = docs.delete_doc(r, s, doc_id, data)
+        collab.notify_wiki_change(
+            s.slug, f"doc#{doc_id}", kind, res.get("rev", 1),
+            s.member, s.access_key, data.get("message") or "문서가 삭제되었습니다.", action="delete",
+        )
+        return res
 
     @app.get("/api/docs/{doc_id}/revisions")
     def revisions(doc_id: int, request: Request):
@@ -261,7 +268,14 @@ def create_app(redis_client=None):
     @app.post("/api/docs/{doc_id}/restore")
     async def restore(doc_id: int, request: Request):
         data = await body_of(request)
-        return docs.restore_doc(r, session_of(request), doc_id, data)
+        s = session_of(request)
+        kind = r.hget(f"fw:doc:{doc_id}", "kind") or ""
+        res = docs.restore_doc(r, s, doc_id, data)
+        collab.notify_wiki_change(
+            s.slug, f"doc#{doc_id}", kind, res.get("rev", 1),
+            s.member, s.access_key, data.get("message") or "이전 판으로 되돌렸습니다.", action="restore",
+        )
+        return res
 
     @app.get("/api/changes")
     def changes(request: Request, before: int = 0, limit: int = 50):
@@ -455,13 +469,14 @@ def create_app(redis_client=None):
         if s:
             goals = collab.list_goals(r, s.team_id, limit=50)
             shares = collab.list_shares(r, s.team_id, limit=15)
-            changes = docs.list_changes(r, s, limit=5)
+            changes = docs.list_changes(r, s, limit=8)
+            discord_items = collab.list_discord_inbox(r, s.team_id, limit=40)
             fg = collab._parse_optional_int(prefill.get("goal_id"))
             prompts = collab.build_ai_launch_prompt(
                 s.slug, s.member, s.access_key, goals, shares, changes, focus_goal_id=fg
             )
         else:
-            goals, shares, prompts = [], [], ("", "")
+            goals, shares, changes, discord_items, prompts = [], [], [], [], ("", "")
         return HTMLResponse(
             collab.render_collab_hub_html(
                 s,
@@ -473,6 +488,8 @@ def create_app(redis_client=None):
                 error=error,
                 notice=notice,
                 default_slug=default_slug,
+                discord_items=discord_items,
+                recent_changes=changes,
             ),
             status_code=status_code,
         )
@@ -498,6 +515,44 @@ def create_app(redis_client=None):
         _, s = auth.get_session_detail(r, tok, require_key=require_key)
         return s, tok
 
+    @app.post("/api/discord/inbound")
+    async def discord_inbound(request: Request):
+        data = await body_of(request)
+        expected = os.environ.get("FIGTEAM_INTERNAL_KEY") or os.environ.get("FIGTEAM_AUTH_KEY") or "figteam-sec-2026-dr"
+        provided = request.headers.get("x-internal-key") or ""
+        s = None
+        if provided and hmac.compare_digest(provided, expected):
+            slug = str(data.get("team") or os.environ.get("DEFAULT_TEAM_SLUG", "figteam")).strip() or "figteam"
+            t = r.hgetall(f"fw:team:{slug}")
+            if not t or not t.get("id"):
+                raise ApiError(404, "팀을 찾을 수 없습니다")
+            team_id = int(t["id"])
+            default_author = "Discord"
+        else:
+            s = ai_session_of(request)
+            team_id = s.team_id
+            default_author = f"{s.member} ({s.access_key})" if s.access_key else s.member
+        return collab.ingest_discord_message(
+            r,
+            team_id,
+            data,
+            default_author=default_author,
+            notify_discord=bool(data.get("notify_discord", False)),
+            force=bool(data.get("force", False)),
+        )
+
+    @app.get("/api/discord/inbox")
+    def discord_inbox(request: Request, category: str = "all", limit: int = 50):
+        s = ai_session_of(request)
+        all_items = collab.list_discord_inbox(r, s.team_id, category="all", limit=collab.DISCORD_INBOX_LIMIT)
+        items = collab.list_discord_inbox(r, s.team_id, category=category, limit=limit)
+        return {"items": items, "summary": collab.summarize_discord_inbox(all_items)}
+
+    @app.post("/api/discord/inbox/{item_id}/state")
+    async def discord_inbox_state(item_id: int, request: Request):
+        s = ai_session_of(request)
+        return collab.update_discord_inbox_item(r, s, item_id, await body_of(request))
+
     @app.get("/api/ai/hub")
     @app.get("/api/ai/share-ui")
     def ai_share_ui_get(
@@ -510,6 +565,7 @@ def create_app(redis_client=None):
         cfg_url: str = "",
         goal_id: str = "",
         goal_status: str = "",
+        dc_filter: str = "all",
     ):
         s = optional_session_of(request)
         prefill = {
@@ -521,6 +577,7 @@ def create_app(redis_client=None):
             "cfg_url": cfg_url,
             "goal_id": goal_id,
             "goal_status": goal_status,
+            "dc_filter": dc_filter,
         }
         return _hub_render(s, prefill)
 
@@ -608,6 +665,60 @@ def create_app(redis_client=None):
             {"area": g_obj.get("area") or "general", "goal_id": str(g_obj["id"])},
             notice=f"공동 목표 #{g_obj['id']} → [{g_obj['status_label']}] 변경됨 (달성 {res['summary']['done']}/{res['summary']['total']})",
         )
+
+    @app.post("/api/ai/hub/discord-ingest")
+    async def ai_hub_discord_ingest(request: Request):
+        form = await form_or_json(request)
+        slug = str(form.get("slug") or os.environ.get("DEFAULT_TEAM_SLUG", "figteam")).strip() or "figteam"
+        try:
+            s, new_cookie_tok = _hub_session_or_login(request, form)
+        except ApiError as exc:
+            return _hub_render(None, {"area": "general"}, error=exc.message, default_slug=slug, status_code=exc.status)
+        try:
+            res = collab.ingest_discord_message(
+                r,
+                s.team_id,
+                {
+                    "content": form.get("content") or "",
+                    "channel": form.get("channel") or "figteaminfra",
+                    "category": form.get("category") or "",
+                    "source": "web_hub",
+                },
+                default_author=f"{s.member} ({s.access_key})" if s.access_key else s.member,
+                notify_discord=True,
+                force=True,
+            )
+            it = res["item"]
+            notice = f"Discord 수신함 #{it['id']} [{it['category_label']}] 등록됨 (분류: {it['classify_reason']})"
+            resp = _hub_render(s, {"area": "general"}, notice=notice)
+        except ApiError as exc:
+            resp = _hub_render(s, {"area": "general"}, error=exc.message, status_code=exc.status)
+        if new_cookie_tok:
+            set_cookie(resp, new_cookie_tok)
+            if s and s.access_key:
+                set_key_cookie(resp, s.access_key)
+        return resp
+
+    @app.post("/api/ai/hub/discord-state")
+    async def ai_hub_discord_state(request: Request):
+        form = await form_or_json(request)
+        s = session_of(request)
+        iid = collab._parse_optional_int(form.get("item_id"))
+        if not iid:
+            raise ApiError(422, "item_id 가 필요합니다")
+        res = collab.update_discord_inbox_item(
+            r,
+            s,
+            iid,
+            {
+                "task_status": form.get("task_status") or "",
+                "category": form.get("category") or "",
+                "promote_goal": form.get("promote_goal") in ("1", "true", True),
+            },
+        )
+        it = res["item"]
+        g_msg = f" · 공동목표 #{res['goal']['id']} 등록" if res.get("goal") else ""
+        return _hub_render(s, {"area": "general"}, notice=f"#{it['id']} → [{it['category_label']} / {it['task_status_label']}]{g_msg}")
 
     static_dir = os.environ.get("SERVE_STATIC")
     if static_dir:  # 로컬 개발 전용: 화면(public/)도 같은 출처로 제공
