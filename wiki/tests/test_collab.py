@@ -390,7 +390,8 @@ def test_discord_inbound_inbox_state_and_doc_delete_webhook(client, monkeypatch)
     assert "Discord 멘션 수신함" in hub.text
     assert "처리할 과제" in hub.text and "공유" in hub.text
     assert "hub-nav" in hub.text and "pane-inbox" in hub.text and "pane-dispatch" in hub.text
-    assert "수신함 (디코 ➔ 웹)" in hub.text and "발신함 (웹 ➔ 디코)" in hub.text
+    assert "전체 사서함" in hub.text and "수신함" in hub.text and "발신함" in hub.text
+    assert "과제 목록" in hub.text and "신규 접수" in hub.text
 
     hub_dispatch = client.get("/api/ai/hub?tab=dispatch")
     assert hub_dispatch.status_code == 200
