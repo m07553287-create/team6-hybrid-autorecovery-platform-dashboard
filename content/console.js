@@ -447,87 +447,99 @@
     }
     // 새로고침·재진입 시, 이 이름으로 살아 있는 세션을 "쓰던 분할 배치 그대로" 다시 붙인다(로그=스크롤백 재생).
     async function csResume() {
-      if (CS.solo || CS.slots.some(s => s.t)) return;
-      const n = csOwnerName();
-      if (!n) return;                      // 이름을 아직 안 넣었으면 조용히 건너뜀
-      let rows = [];
-      try { rows = await csApi('GET', '/console/api/sessions?u=' + encodeURIComponent(n)); } catch (e) { return; }
-      const alive = new Set(rows.map(r => r.target));
-      const usable = tid => alive.has(tid) && CS.targets.some(t => t.id === tid && !t.disabled);
-      CS.owner = n;
-      let snap = null;
-      try { snap = JSON.parse(localStorage.getItem('fig.term.layout') || 'null'); } catch (e) {}
-      const snapHas = snap && ((snap.slots || []).some(usable) || (snap.floats || []).some(f => usable(f.target)));
-      if (snapHas) {
-        CS.layout = snap.layout || '1';
-        CS.sizes = snap.sizes || CS.sizes;
-        CS.active = Math.max(0, snap.active || 0);
-        csRender();                        // 저장된 분할로 빈 칸을 만든 뒤
-        (snap.slots || []).forEach((tid, i) => { if (usable(tid) && CS.slots[i]) csConnectSlot(i, tid); });
-        (snap.floats || []).forEach(f => { if (usable(f.target)) { const t = csNewTerm(f.target); CS.floats.push(t); csPlaceFloat(t, f.pos); csStart(t); } });
-        csApplySizes(); csTabs();
-        return;
+      if (CS._resuming) return;
+      CS._resuming = true;
+      try {
+        if (CS.solo || CS.slots.some(s => s.t)) return;
+        const n = csOwnerName();
+        if (!n) return;                      // 이름을 아직 안 넣었으면 조용히 건너뜀
+        let rows = [];
+        try { rows = await csApi('GET', '/console/api/sessions?u=' + encodeURIComponent(n)); } catch (e) { return; }
+        const alive = new Set(rows.map(r => r.target));
+        const usable = tid => alive.has(tid) && CS.targets.some(t => t.id === tid && !t.disabled);
+        CS.owner = n;
+        let snap = null;
+        try { snap = JSON.parse(localStorage.getItem('fig.term.layout') || 'null'); } catch (e) {}
+        const snapHas = snap && ((snap.slots || []).some(usable) || (snap.floats || []).some(f => usable(f.target)));
+        if (snapHas) {
+          CS.layout = snap.layout || '1';
+          CS.sizes = snap.sizes || CS.sizes;
+          CS.active = Math.max(0, snap.active || 0);
+          csRender();                        // 저장된 분할로 빈 칸을 만든 뒤
+          (snap.slots || []).forEach((tid, i) => { if (usable(tid) && CS.slots[i]) csConnectSlot(i, tid); });
+          (snap.floats || []).forEach(f => { if (usable(f.target)) { const t = csNewTerm(f.target); CS.floats.push(t); csPlaceFloat(t, f.pos); csStart(t); } });
+          csApplySizes(); csTabs();
+          return;
+        }
+        if (!rows.length) return;            // 배치 기록이 없으면 살아 있는 세션을 순서대로
+        rows.slice(0, csPaneCount()).forEach((r, i) => { if (usable(r.target)) csConnectSlot(i, r.target); });
+      } finally {
+        CS._resuming = false;
       }
-      if (!rows.length) return;            // 배치 기록이 없으면 살아 있는 세션을 순서대로
-      rows.slice(0, csPaneCount()).forEach((r, i) => { if (usable(r.target)) csConnectSlot(i, r.target); });
     }
 
     // ---------- 열기 · 닫기 · 잠금 ----------
     async function csOpen(soloId) {
-      if (soloId === 's1' || soloId === 't1-vm2') {
-        const root = csRoot(); root.hidden = false; document.body.classList.add('cs-on');
-        root.innerHTML = '<div style="padding:60px 20px; text-align:center; color:#f87171; background:#0f172a; min-height:100vh;">' +
-          '<h2 style="font-size:22px; margin-bottom:12px;">🚫 웹 콘솔 터미널 접근 불가</h2>' +
-          '<p style="color:#94a3b8; font-size:14px; margin-bottom:24px;">s1 호스트는 기본 팀(figteam) 보안 정책상 웹에서 콘솔 터미널 접근이 제외된 물리 베이스 구역입니다.</p>' +
-          '<button type="button" class="wk-btn wk-primary" onclick="location.href=\'/\'" style="padding:8px 16px; background:#0284c7; color:#fff; border:none; border-radius:6px; cursor:pointer;">대시보드로 돌아가기</button>' +
-          '</div>';
-        return;
-      }
-      if (!figReadStoredAccessKey()) {
-        figExpireKeylessSessions();
-        figRecordSiteVisit('expired', CS.page ? 'term' : 'console', '키 없는 콘솔 접속 차단');
+      if (CS._opening) return;
+      CS._opening = true;
+      try {
+        if (soloId === 's1' || soloId === 't1-vm2') {
+          const root = csRoot(); root.hidden = false; document.body.classList.add('cs-on');
+          root.innerHTML = '<div style="padding:60px 20px; text-align:center; color:#f87171; background:#0f172a; min-height:100vh;">' +
+            '<h2 style="font-size:22px; margin-bottom:12px;">🚫 웹 콘솔 터미널 접근 불가</h2>' +
+            '<p style="color:#94a3b8; font-size:14px; margin-bottom:24px;">s1 호스트는 기본 팀(figteam) 보안 정책상 웹에서 콘솔 터미널 접근이 제외된 물리 베이스 구역입니다.</p>' +
+            '<button type="button" class="wk-btn wk-primary" onclick="location.href=\'/\'" style="padding:8px 16px; background:#0284c7; color:#fff; border:none; border-radius:6px; cursor:pointer;">대시보드로 돌아가기</button>' +
+            '</div>';
+          return;
+        }
+        if (!figReadStoredAccessKey()) {
+          figExpireKeylessSessions();
+          figRecordSiteVisit('expired', CS.page ? 'term' : 'console', '키 없는 콘솔 접속 차단');
+          const root = csRoot();
+          root.hidden = false;
+          root.classList.toggle('cs-solo', !!soloId);
+          root.classList.toggle('cs-page', CS.page);
+          document.body.classList.add('cs-on');
+          CS.open = true; CS.solo = soloId || null;
+          return csShowUnlock('접속 키가 없는 이전 세션이 만료되었습니다. 이름·접속 키와 비밀번호를 입력해 다시 로그인해 주세요.');
+        }
+        figRecordSiteVisit('authenticated', CS.page ? 'term' : 'console', '통합 콘솔 접속');
         const root = csRoot();
+        if (CS.targets && root.querySelector('.cs-wrap') && !soloId) {   // 다른 화면에 갔다 와도 열린 터미널은 그대로
+          root.hidden = false; document.body.classList.add('cs-on'); CS.open = true;
+          const curName = csOwnerName();
+          const chip = document.getElementById('cs-owner-chip');
+          if (chip) chip.textContent = curName || '미설정';
+          csApplySizes(); csLoadStatus();
+          await csEnsureFirstEntryName('console');
+          if (CS.pending) { const id = CS.pending; CS.pending = null; csPick(id); }
+          return;
+        }
+        CS.open = true; CS.solo = soloId || null;
+        CS.booting = true;   // 복원 끝나기 전엔 레이아웃 저장 금지(빈 칸으로 스냅샷을 덮어쓰지 않도록)
         root.hidden = false;
-        root.classList.toggle('cs-solo', !!soloId);
+        root.classList.toggle('cs-solo', !!CS.solo);
         root.classList.toggle('cs-page', CS.page);
         document.body.classList.add('cs-on');
-        CS.open = true; CS.solo = soloId || null;
-        return csShowUnlock('접속 키가 없는 이전 세션이 만료되었습니다. 이름·접속 키와 비밀번호를 입력해 다시 로그인해 주세요.');
-      }
-      figRecordSiteVisit('authenticated', CS.page ? 'term' : 'console', '통합 콘솔 접속');
-      const root = csRoot();
-      if (CS.targets && root.querySelector('.cs-wrap') && !soloId) {   // 다른 화면에 갔다 와도 열린 터미널은 그대로
-        root.hidden = false; document.body.classList.add('cs-on'); CS.open = true;
-        const curName = csOwnerName();
-        const chip = document.getElementById('cs-owner-chip');
-        if (chip) chip.textContent = curName || '미설정';
-        csApplySizes(); csLoadStatus();
+        if (!root.querySelector('.cs-wrap')) root.innerHTML = '<p class="cs-wait">통합 콘솔을 불러오는 중…</p>';
+        try { await csLoadXterm(); }
+        catch (e) { root.innerHTML = '<p class="cs-wait wk-error">터미널 화면 구성요소(xterm.js)를 불러오지 못했습니다. 인터넷 연결을 확인하세요.</p>'; return; }
+        try { CS.targets = await csApi('GET', '/console/api/targets'); await csLoadPresets(); }
+        catch (e) { return csShowUnlock(e.status === 401 ? '' : (e.error || '콘솔 서버에 연결하지 못했습니다 (' + e.status + ')')); }
+        csRender();
+        csLoadStatus();
         await csEnsureFirstEntryName('console');
-        if (CS.pending) { const id = CS.pending; CS.pending = null; csPick(id); }
-        return;
+        const chipAfter = document.getElementById('cs-owner-chip');
+        if (chipAfter) chipAfter.textContent = csOwnerName() || '미설정';
+        if (!CS.stTimer) CS.stTimer = setInterval(() => { if (CS.open && !csRoot().hidden) csLoadStatus(); }, 20000);
+        if (CS.solo && !CS.slots[0].t) csConnectSlot(0, CS.solo);
+        else if (CS.scenarioMode) await csSetupScenarioSlots(CS.scenarioMode);
+        else if (CS.pending) { const id = CS.pending; CS.pending = null; if (CS.targets.some(t => t.id === id && !t.disabled)) csPick(id); }
+        else await csResume();   // 새로고침·재진입 시 이 이름의 살아 있는 세션을 자동으로 다시 붙인다
+        CS.booting = false; csSaveLayout();   // 복원 끝 — 이제부터 변경은 저장
+      } finally {
+        CS._opening = false;
       }
-      CS.open = true; CS.solo = soloId || null;
-      CS.booting = true;   // 복원 끝나기 전엔 레이아웃 저장 금지(빈 칸으로 스냅샷을 덮어쓰지 않도록)
-      root.hidden = false;
-      root.classList.toggle('cs-solo', !!CS.solo);
-      root.classList.toggle('cs-page', CS.page);
-      document.body.classList.add('cs-on');
-      if (!root.querySelector('.cs-wrap')) root.innerHTML = '<p class="cs-wait">통합 콘솔을 불러오는 중…</p>';
-      try { await csLoadXterm(); }
-      catch (e) { root.innerHTML = '<p class="cs-wait wk-error">터미널 화면 구성요소(xterm.js)를 불러오지 못했습니다. 인터넷 연결을 확인하세요.</p>'; return; }
-      try { CS.targets = await csApi('GET', '/console/api/targets'); await csLoadPresets(); }
-      catch (e) { return csShowUnlock(e.status === 401 ? '' : (e.error || '콘솔 서버에 연결하지 못했습니다 (' + e.status + ')')); }
-      csRender();
-      csLoadStatus();
-      await csEnsureFirstEntryName('console');
-      const chipAfter = document.getElementById('cs-owner-chip');
-      if (chipAfter) chipAfter.textContent = csOwnerName() || '미설정';
-      if (!CS.stTimer) CS.stTimer = setInterval(() => { if (CS.open && !csRoot().hidden) csLoadStatus(); }, 20000);
-      if (CS.solo && !CS.slots[0].t) csConnectSlot(0, CS.solo);
-      else if (CS.scenarioMode) await csSetupScenarioSlots(CS.scenarioMode);
-      else if (CS.pending) { const id = CS.pending; CS.pending = null; if (CS.targets.some(t => t.id === id && !t.disabled)) csPick(id); }
-      else await csResume();   // 새로고침·재진입 시 이 이름의 살아 있는 세션을 자동으로 다시 붙인다
-      CS.booting = false; csSaveLayout();   // 복원 끝 — 이제부터 변경은 저장
     }
     // 머리글 [대시보드]·[설정]·[콘솔] 전환 (본문만 바뀜)
     function csView(v) {
@@ -644,11 +656,21 @@
       return (L === 'h' || L === '4' ? '<div class="cs-gutter cs-gx" onmousedown="csDrag(event,\'col\')" title="좌우 크기 조절"></div>' : '') +
              (L === 'v' || L === '4' ? '<div class="cs-gutter cs-gy" onmousedown="csDrag(event,\'row\')" title="상하 크기 조절"></div>' : '');
     }
+    function csSafeFit(t) {
+      if (!t || t.disposed || !t.term || !t.fit) return;
+      if (!t.box || !t.box.isConnected) return;
+      if (t.box.clientWidth <= 0 || t.box.clientHeight <= 0) return;
+      try {
+        const core = t.term._core;
+        if (core && core._renderService && !core._renderService.dimensions) return;
+        t.fit.fit();
+      } catch (e) {}
+    }
     function csApplySizes() {
       const g = document.getElementById('cs-grid'); if (!g) return;
       g.style.setProperty('--cs-col', CS.sizes.col + '%');
       g.style.setProperty('--cs-row', CS.sizes.row + '%');
-      csAllTerms().forEach(t => { try { t.fit.fit(); } catch (e) {} });
+      csAllTerms().forEach(t => csSafeFit(t));
     }
     function csDrag(ev, axis) {
       ev.preventDefault();
@@ -741,7 +763,7 @@
       }
       el.innerHTML = csHeadHtml(t, false) + '<div class="cs-term" id="cs-host-' + t.uid + '"></div>';
       document.getElementById('cs-host-' + t.uid).appendChild(t.box);
-      setTimeout(() => { try { t.fit.fit(); } catch (e) {} }, 0);
+      setTimeout(() => csSafeFit(t), 50);
     }
     function csNewTerm(target) {
       const t = { uid: ++CS.seq, target: target, stKind: 'wait', stText: '연결 중…' };
@@ -752,19 +774,23 @@
       const term = new window.Terminal({ cursorBlink: true, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, scrollback: 5000,
         theme: { background: '#06090e', foreground: '#e2e8f0', cursor: '#93c5fd', selectionBackground: '#1e3a8a' } });
       const fit = new window.FitAddon.FitAddon();
-      term.loadAddon(fit); term.open(t.box);
-      try { fit.fit(); } catch (e) {}
+      term.loadAddon(fit);
       t.term = term; t.fit = fit;
+      term.open(t.box);
+      requestAnimationFrame(() => csSafeFit(t));
       csStatus(t, 'wait', '연결 중…');
       const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/console/ws/' + encodeURIComponent(t.target) +
         '?cols=' + term.cols + '&rows=' + term.rows + '&u=' + encodeURIComponent(csOwner());
       const ws = new WebSocket(url);
       t.ws = ws;
       ws.onopen = () => {
-        csStatus(t, 'ok', '연결됨'); term.focus();
+        if (t.disposed || t.ws !== ws) { try { ws.close(); } catch (e) {} return; }
+        csStatus(t, 'ok', '연결됨');
+        requestAnimationFrame(() => csSafeFit(t));
+        term.focus();
         if (t.queue) { const q = t.queue; t.queue = null; setTimeout(() => { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'i', d: q + '\r' })); }, 700); }
       };
-      ws.onmessage = e => term.write(e.data);
+      ws.onmessage = e => { if (!t.disposed) term.write(e.data); };
       ws.onclose = e => {
         if (t.ws !== ws) return;
         const msg = CS_CLOSE_MSG[e.code] || (e.code === 1000 ? '세션이 끝났습니다' : '연결이 끊겼습니다 (' + e.code + ')');
@@ -772,9 +798,9 @@
         term.write('\r\n\x1b[33m[' + msg + ' — ⟳ 로 다시 연결]\x1b[0m\r\n');
         if (e.code === 4401) csShowUnlock('잠금이 만료되었습니다. 다시 풀어 주세요.');
       };
-      term.onData(d => { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'i', d: d })); });
-      term.onResize(sz => { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'r', c: sz.cols, r: sz.rows })); });
-      t.ro = new ResizeObserver(() => { try { fit.fit(); } catch (e) {} });
+      term.onData(d => { if (!t.disposed && ws.readyState === 1) ws.send(JSON.stringify({ t: 'i', d: d })); });
+      term.onResize(sz => { if (!t.disposed && ws.readyState === 1) ws.send(JSON.stringify({ t: 'r', c: sz.cols, r: sz.rows })); });
+      t.ro = new ResizeObserver(() => { requestAnimationFrame(() => csSafeFit(t)); });
       t.ro.observe(t.box);
     }
     function csStatus(t, kind, text) {
@@ -786,10 +812,28 @@
     }
     function csDispose(t) {
       if (!t) return;
-      if (t.ro) { t.ro.disconnect(); t.ro = null; }
-      if (t.ws) { const w = t.ws; t.ws = null; try { w.close(); } catch (e) {} }
+      t.disposed = true;
+      if (t.ro) { try { t.ro.disconnect(); } catch (e) {} t.ro = null; }
+      if (t.ws) {
+        const w = t.ws;
+        t.ws = null;
+        w.onmessage = null;
+        w.onerror = null;
+        w.onclose = null;
+        try {
+          if (w.readyState === WebSocket.CONNECTING) {
+            w.onopen = () => { try { w.close(1000, 'disposed'); } catch (e) {} };
+          } else if (w.readyState === WebSocket.OPEN) {
+            w.close(1000, 'disposed');
+          }
+        } catch (e) {}
+      }
       if (t.term) { try { t.term.dispose(); } catch (e) {} t.term = null; }
-      if (t.el) { t.el.remove(); t.el = null; }
+      t.fit = null;
+      if (t.box && t.box.parentNode) {
+        try { t.box.parentNode.removeChild(t.box); } catch (e) {}
+      }
+      if (t.el) { try { t.el.remove(); } catch (e) {} t.el = null; }
     }
     function csFind(uid) {
       const i = CS.slots.findIndex(s => s.t && s.t.uid === uid);
@@ -814,7 +858,13 @@
         if (typeof wikiToast === 'function') wikiToast('s1 호스트는 웹에서 콘솔 터미널 접근이 불가합니다.');
         return;
       }
-      csDispose(CS.slots[i].t);
+      const existing = CS.slots[i] && CS.slots[i].t;
+      if (existing && existing.target === id && !existing.disposed && existing.ws && (existing.ws.readyState === WebSocket.OPEN || existing.ws.readyState === WebSocket.CONNECTING)) {
+        csFillSlot(i);
+        csTabs();
+        return;
+      }
+      if (existing) csDispose(existing);
       const t = csNewTerm(id);
       CS.slots[i].t = t;
       csFillSlot(i); csFocus(i); csStart(t); csTabs();
@@ -934,7 +984,7 @@
       t.el = el;
       el.addEventListener('mousedown', () => { el.style.zIndex = ++CS.z; });
       el.querySelector('.cs-pane-head').addEventListener('mousedown', e => csFloatDragStart(e, el));
-      setTimeout(() => { try { t.fit.fit(); } catch (e) {} }, 0);
+      setTimeout(() => csSafeFit(t), 50);
     }
     function csFloatDragStart(e, el) {
       if (e.target.closest('button') || el.classList.contains('cs-max')) return;
@@ -945,7 +995,7 @@
       document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
     }
     function csFloatMin(uid) { const f = csFind(uid); if (f && f.t.el) { f.t.el.classList.toggle('cs-min'); f.t.el.classList.remove('cs-max'); csStackMin(); } }
-    function csFloatMax(uid) { const f = csFind(uid); if (f && f.t.el) { f.t.el.classList.toggle('cs-max'); f.t.el.classList.remove('cs-min'); setTimeout(() => { try { f.t.fit.fit(); } catch (e) {} }, 50); csStackMin(); } }
+    function csFloatMax(uid) { const f = csFind(uid); if (f && f.t.el) { f.t.el.classList.toggle('cs-max'); f.t.el.classList.remove('cs-min'); setTimeout(() => csSafeFit(f.t), 50); csStackMin(); } }
     function csStackMin() {
       let x = 290;
       CS.floats.forEach(t => { if (t.el && t.el.classList.contains('cs-min')) { t.el.style.left = x + 'px'; t.el.style.top = (window.innerHeight - 96) + 'px'; x += 270; } });
