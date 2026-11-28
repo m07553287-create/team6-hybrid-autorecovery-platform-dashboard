@@ -1176,102 +1176,114 @@
     }
     .dr-log-toggle-btn:hover { background: #1e293b; color: #f1f5f9; }
 
-    /* 터미널 하단 실시간 인프라 & Pod 현황 스트립 (Live Infra & Pod Telemetry Strip) */
+    /* 터미널 하단 실시간 인프라 & Pod 현황 스트립 (대폭 확대 & 시인성 강화) */
     .dr-infra-strip {
-      background: #090e17;
-      border-top: 1px solid #1e293b;
-      padding: 6px 12px;
+      background: linear-gradient(180deg, #0b1329 0%, #060a14 100%);
+      border-top: 2px solid #2563eb;
+      padding: 10px 16px;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 14px;
       overflow-x: auto;
       flex-shrink: 0;
       font-family: inherit;
+      box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.4);
     }
     .dr-strip-title {
-      font-size: 11px;
-      font-weight: 700;
-      color: #94a3b8;
+      font-size: 13px;
+      font-weight: 800;
+      color: #38bdf8;
       white-space: nowrap;
       display: flex;
-      align-items: center;
-      gap: 5px;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .dr-strip-title small {
+      font-size: 10px;
+      color: #64748b;
+      font-weight: 600;
     }
     .dr-strip-cards {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       flex: 1;
     }
     .dr-node-card {
       background: #0f172a;
-      border: 1px solid #334155;
-      border-radius: 5px;
-      padding: 4px 10px;
+      border: 1.5px solid #334155;
+      border-radius: 8px;
+      padding: 6px 12px;
       display: flex;
       align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      transition: all 0.25s ease;
+      gap: 8px;
+      font-size: 12.5px;
+      transition: all 0.2s ease;
       white-space: nowrap;
+      min-height: 42px;
     }
     .dr-node-card.node-down {
-      background: rgba(239, 68, 68, 0.15);
+      background: rgba(239, 68, 68, 0.2);
       border-color: #ef4444;
-      box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
-      animation: drPulseRed 1.5s infinite;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
+      animation: drPulseRed 1.2s infinite;
     }
     .dr-node-card.node-warn {
-      background: rgba(245, 158, 11, 0.15);
+      background: rgba(245, 158, 11, 0.2);
       border-color: #f59e0b;
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
     }
     .dr-node-card.node-active {
-      background: rgba(16, 185, 129, 0.12);
+      background: rgba(16, 185, 129, 0.18);
       border-color: #10b981;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
     }
     .dr-node-card.node-serving {
-      background: rgba(59, 130, 246, 0.18);
+      background: rgba(59, 130, 246, 0.22);
       border-color: #3b82f6;
-      box-shadow: 0 0 8px rgba(59, 130, 246, 0.35);
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
     }
     .dr-node-card.node-standby {
-      background: rgba(148, 163, 184, 0.08);
+      background: rgba(148, 163, 184, 0.1);
       border-color: #475569;
       color: #94a3b8;
     }
     .dr-node-dot {
-      width: 8px;
-      height: 8px;
+      width: 11px;
+      height: 11px;
       border-radius: 50%;
       background: #10b981;
       flex-shrink: 0;
+      box-shadow: 0 0 6px currentColor;
     }
-    .node-down .dr-node-dot { background: #ef4444; }
-    .node-warn .dr-node-dot { background: #f59e0b; }
-    .node-serving .dr-node-dot { background: #60a5fa; }
-    .node-standby .dr-node-dot { background: #64748b; }
+    .node-down .dr-node-dot { background: #ef4444; color: #ef4444; }
+    .node-warn .dr-node-dot { background: #f59e0b; color: #f59e0b; }
+    .node-serving .dr-node-dot { background: #60a5fa; color: #60a5fa; }
+    .node-standby .dr-node-dot { background: #64748b; color: #64748b; }
     .dr-node-name {
-      font-weight: 700;
-      color: #f1f5f9;
+      font-weight: 800;
+      color: #f8fafc;
+      font-size: 13px;
     }
     .dr-node-state {
-      font-size: 10px;
-      padding: 1px 4px;
-      border-radius: 3px;
-      font-weight: 700;
-      background: rgba(255, 255, 255, 0.08);
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 800;
+      background: rgba(255, 255, 255, 0.1);
       color: #cbd5e1;
     }
-    .node-down .dr-node-state { color: #fca5a5; background: rgba(239, 68, 68, 0.25); }
-    .node-active .dr-node-state { color: #86efac; background: rgba(16, 185, 129, 0.25); }
-    .node-serving .dr-node-state { color: #93c5fd; background: rgba(59, 130, 246, 0.25); }
+    .node-down .dr-node-state { color: #fecaca; background: rgba(239, 68, 68, 0.35); }
+    .node-active .dr-node-state { color: #bbf7d0; background: rgba(16, 185, 129, 0.35); }
+    .node-serving .dr-node-state { color: #bfdbfe; background: rgba(59, 130, 246, 0.35); }
     .dr-node-desc {
-      font-size: 10px;
-      color: #94a3b8;
+      font-size: 11px;
+      color: #cbd5e1;
+      margin-left: 2px;
     }
     @keyframes drPulseRed {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.65; }
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.75; transform: scale(0.98); }
     }
 
     .dr-log-panel {
@@ -2875,13 +2887,13 @@
       },
       8: {
         nodes: {
-          'compute1': { alive: true, state: 'RUNNING', cls: 'node-active', desc: '온프렘 정상 운영' },
+          'compute1': { alive: true, state: 'RUNNING', cls: 'node-active', desc: '온프렘 워커 정상' },
           'k8s-cp1': { alive: true, state: 'RUNNING', cls: 'node-active', desc: 'K8s 마스터 Ready' },
           'db-01': { alive: true, state: 'RUNNING', cls: 'node-active', desc: 'MySQL 8.4 마스터' },
-          'kt-edge-dr-01': { alive: true, state: 'PRIMARY', cls: 'node-active', desc: '온프렘 Primary 원복' },
-          'aws-dr': { alive: true, state: 'STANDBY', cls: 'node-standby', desc: 'Warm-Standby 대기' }
+          'kt-edge-dr-01': { alive: true, state: 'PRIMARY', cls: 'node-active', desc: '온프렘 200 OK 복귀' },
+          'aws-dr': { alive: true, state: 'NORMAL', cls: 'node-active', desc: 'DR 대기 정상 (ALL GREEN)' }
         },
-        pod: { name: 'minwon-app', ready: '2/2', phase: 'Running', ok: true, cls: 'node-active', desc: '평시 정상 운영 복귀 (2/2)' }
+        pod: { name: 'minwon-app', ready: '2/2', phase: 'Running', ok: true, cls: 'node-active', desc: '대국민 서비스 완전 정상화 (2/2)' }
       }
     };
 
@@ -2894,7 +2906,7 @@
       elapsedMs: 0,
       logs: [],
       showLogs: true,
-      stepDelaySec: 10,
+      stepDelaySec: 5,
       paused: false,
       stopped: false,
       currentTelemetry: DR_TELEMETRY_MAP[0]
@@ -2934,10 +2946,15 @@
         </div>
       `;
 
+      const statusSummary = DR_STATE.curStep === 8 ? '✅ 모든 인프라 정상 복귀 완료 (ALL GREEN)' :
+                            (DR_STATE.curStep === 2 ? '🚨 온프렘 정전 장애 발생' :
+                            (DR_STATE.curStep >= 4 && DR_STATE.curStep < 6 ? '🔄 AWS DR 활성 우회 서빙 중' : '실시간 텔레메트리 연동'));
+
       return `
         <div class="dr-infra-strip" id="dr-live-infra-strip">
           <div class="dr-strip-title">
-            <span>🌐 대시보드 실시간 인프라·Pod 텔레메트리:</span>
+            <span>🌐 대시보드 실시간 인프라·Pod 텔레메트리</span>
+            <small id="dr-strip-substatus">${statusSummary}</small>
           </div>
           <div class="dr-strip-cards">
             ${nodesHtml}
@@ -3081,10 +3098,10 @@
             <div class="dr-controls">
               <div class="dr-timer-box">RTO 실측: <b id="dr-rto-timer">${(DR_STATE.elapsedMs / 1000).toFixed(1)}s</b></div>
               <select class="dr-speed-select" id="dr-speed-select" onchange="csChangeSpeed(this.value)">
-                <option value="10" ${DR_STATE.stepDelaySec === 10 ? 'selected' : ''}>간격: 10초 (여유 시연)</option>
-                <option value="15" ${DR_STATE.stepDelaySec === 15 ? 'selected' : ''}>간격: 15초 (상세 해설)</option>
-                <option value="6" ${DR_STATE.stepDelaySec === 6 ? 'selected' : ''}>간격: 6초 (보통)</option>
-                <option value="3" ${DR_STATE.stepDelaySec === 3 ? 'selected' : ''}>간격: 3초 (고속)</option>
+                <option value="5" ${DR_STATE.stepDelaySec === 5 ? 'selected' : ''}>간격: 5초 (빠른 시연)</option>
+                <option value="8" ${DR_STATE.stepDelaySec === 8 ? 'selected' : ''}>간격: 8초 (표준 해설)</option>
+                <option value="12" ${DR_STATE.stepDelaySec === 12 ? 'selected' : ''}>간격: 12초 (상세 시연)</option>
+                <option value="3" ${DR_STATE.stepDelaySec === 3 ? 'selected' : ''}>간격: 3초 (초고속)</option>
               </select>
               <button type="button" class="dr-btn dr-btn-run" id="dr-run-btn" onclick="csRunAutoScenario()">▶ 전체 자동 실행</button>
               <button type="button" class="dr-btn" id="dr-pause-btn" onclick="csTogglePause()" ${DR_STATE.running ? '' : 'disabled'}>⏸ 일시정지</button>
@@ -3218,7 +3235,7 @@
       const descEl = document.getElementById('dr-step-desc-text');
       if (descEl) descEl.textContent = `[Step ${DR_STATE.curStep}] ${st.desc}`;
 
-      // 각 노드별 명령어 주입: 사람이 타자 치듯 1.2초 간격을 두어 순차 실행
+      // 각 노드별 명령어 주입: 사람이 타자 치듯 0.45초 간격을 두어 신속 순차 실행
       const cmds = st.commands || (st.target && st.cmd ? [{ target: st.target, cmd: st.cmd, tag: 'info', log: st.desc }] : []);
       for (let i = 0; i < cmds.length; i++) {
         if (DR_STATE.stopped) break;
@@ -3226,7 +3243,7 @@
         csSendCmdToTarget(c.target, c.cmd, c.title);
         csAppendScenarioLog(c.target, c.tag || 'info', c.log || c.cmd);
         if (i < cmds.length - 1) {
-          await new Promise(r => setTimeout(r, 1200));
+          await new Promise(r => setTimeout(r, 450));
         }
       }
 
