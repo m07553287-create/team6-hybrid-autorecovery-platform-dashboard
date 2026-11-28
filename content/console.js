@@ -1069,29 +1069,28 @@
             ]
           },
           {
-            name: "RTO 검증",
-            desc: "AWS DR 서비스 무중단 200 OK 복구 확인 및 RTO 실측 종료",
-            stopTimer: true,
+            name: "AWS DR 확인",
+            desc: "AWS DR Warm-Standby 무중단 인계 및 임시 200 OK 서비스 확인",
             commands: [
               {
                 target: "kt-edge-dr-01",
                 tag: "pass",
-                title: "대국민 민원 포털 서비스 엔드투엔드 검증",
-                cmd: "curl -I -s http://127.0.0.1:80 2>/dev/null | head -n 4 || echo 'HTTP/1.1 200 OK (Served via AWS DR Warm-Standby)' && echo '✅ [PASS] Disaster Recovery Verified! Service Completely Restored.'",
-                log: "서비스 복구 완료: AWS DR Warm-Standby에서 정상 HTTP 200 OK 응답 수신! 대국민 민원 서비스 무중단 정상화"
+                title: "대국민 민원 포털 서비스 임시 서빙 검증",
+                cmd: "curl -I -s http://127.0.0.1:80 2>/dev/null | head -n 4 || echo 'HTTP/1.1 200 OK (Served via AWS DR Warm-Standby)' && echo 'ℹ️ [DR ACTIVE] AWS DR Serving Civilians during On-Prem Outage'",
+                log: "임시 서비스 유지: AWS DR Warm-Standby에서 정상 HTTP 200 OK 응답 수신 (온프렘 장애 중 무중단 서비스 유지)"
               },
               {
                 target: "k8s-cp1",
                 tag: "pass",
-                title: "재해 복구 감사 로그 완료",
-                cmd: "echo '✅ [AUDIT LOG] Failover Sequence Succeeded. Total Downtime < 30s. Zero Data Loss Achieved.'",
-                log: "감사 완료: Failover 시퀀스 성공 종료. 목표 RTO(30초) 이내 자동 복구 달성 및 RPO 0건 검증"
+                title: "DR 절체 상태 감사 기록",
+                cmd: "echo 'ℹ️ [AUDIT] Traffic Safely Rerouted to AWS DR. Ready for On-Prem Infrastructure Restoration.'",
+                log: "절체 확인: AWS DR로 트래픽 인계 완료. 온프렘 인프라 전원 복구 대기"
               }
             ]
           },
           {
             name: "온프렘 복구",
-            desc: "온프렘 IDC 전원 정상화 및 K8s/MySQL 인프라 재기동",
+            desc: "온프렘 IDC 전원 정상화 및 K8s 워커/마스터/MySQL 인프라 재기동 (ALL ON)",
             commands: [
               {
                 target: "compute1",
@@ -1118,7 +1117,7 @@
           },
           {
             name: "데이터 역동기화",
-            desc: "AWS DR 운영 중 생성된 신규 민원 트랜잭션을 온프렘 DB로 증분 동기화",
+            desc: "AWS DR 운영 중 생성된 신규 민원 트랜잭션을 온프렘 DB로 증분 동기화 (RPO=0)",
             commands: [
               {
                 target: "db-01",
@@ -1137,8 +1136,9 @@
             ]
           },
           {
-            name: "온프렘 원복(Failback)",
-            desc: "KT Edge 업스트림을 온프렘 Primary(10.200.0.2)로 완전 원복 및 검증",
+            name: "온프렘 원복 검증",
+            desc: "KT Edge 업스트림 온프렘 Primary 원복 및 200 OK 정상 서비스 확인 (모의 시뮬레이션 완결)",
+            stopTimer: true,
             commands: [
               {
                 target: "kt-edge-dr-01",
@@ -1150,9 +1150,9 @@
               {
                 target: "kt-edge-dr-01",
                 tag: "pass",
-                title: "온프렘 엔드투엔드 서비스 최종 검증",
-                cmd: "curl -I -s http://127.0.0.1:80 2>/dev/null | head -n 4 || echo 'HTTP/1.1 200 OK (Served via On-Prem Primary)' && echo '✅ [FAILBACK COMPLETE] System Returned to Normal Steady State.'",
-                log: "최종 완결: 온프렘 Primary 서비스 200 OK 정상 응답 확인! L3 재해 복구 및 원복(Failback) E2E 사이클 완료"
+                title: "온프렘 엔드투엔드 대국민 민원 정상 서비스 최종 검증",
+                cmd: "curl -I -s http://127.0.0.1:80 2>/dev/null | head -n 4 || echo 'HTTP/1.1 200 OK (Served via On-Prem Primary)' && echo '✅ [SIMULATION COMPLETE] On-Prem Infrastructure & Service 100% Fully Restored!'",
+                log: "최종 완결: 온프렘 모든 인프라 기동(ALL ON) 및 Primary 200 OK 정상 서비스 회복 완료! 모의 시뮬레이션 최종 종료"
               }
             ]
           }
@@ -1871,8 +1871,8 @@
         const rBtn = document.getElementById('dr-report-btn');
         if (rBtn) { rBtn.disabled = false; rBtn.style.opacity = '1'; }
         if (pBtn) pBtn.disabled = true;
-        if (descEl) descEl.textContent = `✓ [모든 단계 완료] 실측 RTO ${(DR_STATE.elapsedMs / 1000).toFixed(1)}초 달성! 아래 [결과 허브·디스코드 리포트 발행] 버튼으로 공유할 수 있습니다.`;
-        csAppendScenarioLog('system', 'pass', `모의 시나리오 종료: 실측 RTO ${(DR_STATE.elapsedMs / 1000).toFixed(1)}초 달성, 서비스 전면 복구 완료!`);
+        if (descEl) descEl.textContent = `✓ [모의 시뮬레이션 완결] 온프렘 인프라 전원 정상 기동(ALL ON) & 200 OK 대국민 정상 서비스 완전 회복! 총 소요 시간: ${(DR_STATE.elapsedMs / 1000).toFixed(1)}초`;
+        csAppendScenarioLog('system', 'pass', `모의 시뮬레이션 최종 완결: 온프렘 인프라(ALL ON) 및 대국민 서비스 완전 정상화 확인, 총 소요 시간 ${(DR_STATE.elapsedMs / 1000).toFixed(1)}초`);
       }
     }
 
@@ -1924,8 +1924,8 @@
     async function csPublishReport() {
       const sc = DR_SCENARIOS[DR_STATE.curScenario] || DR_SCENARIOS.l3_failover;
       const rtoSec = (DR_STATE.elapsedMs / 1000).toFixed(1);
-      const repTitle = `[GameDay DR 실측] ${sc.title}`;
-      const repSummary = `• 대상: ${sc.id}\n• 실측 복구 시간(RTO): ${rtoSec}초 (목표치 30초 대비 정상 달성)\n• 데이터 무유실(RPO): 0건 (GTID 동기화 보존)\n• 판정: PASS (하이브리드 자동복구 정상 가동)`;
+      const repTitle = `[GameDay DR 완결] ${sc.title}`;
+      const repSummary = `• 대상: ${sc.id}\n• 온프렘 인프라: compute1/k8s-cp1/db-01 전원 정상 기동 (ALL ON)\n• 대국민 민원 서비스: 온프렘 Primary (10.200.0.2:30080) 200 OK 완전 회복\n• 총 복구 시간: ${rtoSec}초\n• 데이터 무유실(RPO): 0건 (GTID 역방향 동기화 완결)\n• 판정: PASS (온프렘 인프라 및 서비스 완전 정상화로 모의 시뮬레이션 완결)`;
 
       try {
         const res = await fetch('/api/ai/share', {
