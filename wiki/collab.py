@@ -1946,6 +1946,25 @@ def render_collab_hub_html(
       color: #fff;
       border-color: #3b82f6;
     }}
+    .logout-btn {{
+      background: transparent;
+      border: 1px solid var(--surface-border);
+      color: var(--text-sub);
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 11.5px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-family: inherit;
+      display: inline-flex;
+      align-items: center;
+      text-decoration: none;
+    }}
+    .logout-btn:hover {{
+      background: #1f2937;
+      color: #fff;
+      border-color: #4b5563;
+    }}
     .g-user-badge {{
       display: flex;
       align-items: center;
@@ -2397,8 +2416,9 @@ def render_collab_hub_html(
       <a class="nav-btn" href="/">대시보드</a>
       <a class="nav-btn" href="/#cfg/">설계/설정</a>
       <a class="nav-btn" href="/#term/">콘솔</a>
-      <a class="nav-btn active" href="/api/ai/hub#inbox">협업 허브</a>
+      <a class="nav-btn active" href="/api/ai/hub">협업 허브</a>
       {user_header_html}
+      <button type="button" class="logout-btn" id="logout-btn" onclick="hubLogout()" title="로그아웃">로그아웃</button>
     </div>
   </header>
 
@@ -2778,11 +2798,32 @@ def render_collab_hub_html(
     setInterval(updateClock, 1000);
     updateClock();
 
-    // 탑 헤더 글자 크기 조절
-    function figFont(delta) {{
-      const cur = parseInt(document.documentElement.style.fontSize || '14', 10);
-      const next = delta === 0 ? 14 : Math.min(18, Math.max(12, cur + delta));
-      document.documentElement.style.fontSize = next + 'px';
+    // 탑 헤더 글자 크기 조절 (포털과 localStorage.fig.fs 100% 동일 연동)
+    var FIG_FS = [0.85, 0.925, 1, 1.1, 1.25, 1.4], FIG_FS_BASE = 2;
+    function figFont(dir) {{
+      var i;
+      try {{ i = parseInt(localStorage.getItem('fig.fs'), 10); }} catch (e) {{}}
+      if (isNaN(i)) i = FIG_FS_BASE;
+      if (dir === 1) i = Math.min(FIG_FS.length - 1, i + 1);
+      else if (dir === -1) i = Math.max(0, i - 1);
+      else if (dir === 0) i = FIG_FS_BASE;
+      try {{ localStorage.setItem('fig.fs', i); }} catch (e) {{}}
+      var z = FIG_FS[i];
+      var el = document.querySelector('.hub-container');
+      if (el) el.style.zoom = z;
+    }}
+    window.addEventListener('load', function () {{ setTimeout(function () {{ figFont(); }}, 50); }});
+
+    // 로그아웃 (포털 세션, 콘솔 락, 위키 토큰 일괄 초기화 후 포털 메인으로 이동)
+    async function hubLogout() {{
+      try {{
+        sessionStorage.removeItem('figteam_auth_token');
+        sessionStorage.removeItem('fig.auth');
+        localStorage.removeItem('fig.term.user');
+        await fetch('/console/api/lock', {{ method: 'POST', credentials: 'same-origin' }}).catch(() => {{}});
+        await fetch('/api/logout', {{ method: 'POST', credentials: 'same-origin' }}).catch(() => {{}});
+      }} catch (e) {{}}
+      window.location.href = '/';
     }}
 
     // 자동 이름 연동 (포털에서 1회 설정된 이름을 읽어 허브 세션 자동 생성)
