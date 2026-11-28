@@ -1723,7 +1723,7 @@ def render_collab_hub_html(
     .g-user-name {{ font-weight: 700; color: #f8fafc; }}
     .g-user-key {{ font-family: var(--font-mono); color: #93c5fd; font-size: 11px; }}
 
-    /* 2. 메인 워크스페이스 레이아웃: 좌측 사이드바(타이틀만 보유) + 우측 바디 */
+    /* 2. 메인 워크스페이스 레이아웃 (이메일 클라이언트 형태의 계단식 사이드바) */
     .hub-container {{
       display: grid;
       grid-template-columns: 240px 1fr;
@@ -1734,37 +1734,138 @@ def render_collab_hub_html(
       .hub-container {{ grid-template-columns: 1fr; }}
     }}
 
-    /* 좌측 사이드바 (설명 없이 오직 타이틀만 보유) */
+    /* 좌측 사이드바: 이메일 클라이언트형 계단식(Tree) 네비게이션 */
     .hub-side {{
       background: #090e1a;
       border-right: 1px solid var(--surface-border);
-      padding: 16px 12px;
+      padding: 14px 10px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 12px;
+      overflow-y: auto;
     }}
-    .side-menu {{ display: flex; flex-direction: column; gap: 4px; }}
-    .side-btn {{
+
+    /* 계단식 트리 그룹 */
+    .tree-group {{
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 4px;
+    }}
+    .tree-root {{
       display: flex;
       align-items: center;
       justify-content: space-between;
-      width: 100%;
-      padding: 10px 12px;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: 700;
+      padding: 7px 8px;
+      border-radius: 5px;
+      font-size: 11.5px;
+      font-weight: 800;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: .04em;
       cursor: pointer;
+      user-select: none;
+      transition: all .12s;
+    }}
+    .tree-root:hover {{
+      background: rgba(255, 255, 255, .04);
+      color: #f1f5f9;
+    }}
+    .tree-root-left {{
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }}
+    .tree-arrow {{
+      font-size: 9px;
+      display: inline-block;
+      transition: transform .15s ease;
+      color: #64748b;
+    }}
+    .tree-group.collapsed .tree-arrow {{
+      transform: rotate(-90deg);
+    }}
+    .tree-group.collapsed .tree-children {{
+      display: none;
+    }}
+
+    /* 계단식 하위 트리 컨테이너 (수직 가이드선 포함) */
+    .tree-children {{
+      display: flex;
+      flex-direction: column;
+      margin-left: 10px;
+      padding-left: 8px;
+      border-left: 1px solid #1e293b;
+      gap: 2px;
+      margin-top: 2px;
+    }}
+
+    /* 1차 하위: 수신함, 발신함 */
+    .tree-node {{
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 2px;
+    }}
+    .tree-node-head {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 8px;
+      border-radius: 5px;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #cbd5e1;
+      cursor: pointer;
+      transition: all .12s;
       background: transparent;
       border: 1px solid transparent;
-      color: #94a3b8;
+      width: 100%;
       text-align: left;
-      transition: all .15s;
     }}
-    .side-btn:hover {{ background: #1e293b; color: #fff; }}
-    .side-btn.active {{
-      background: #1e40af;
-      border-color: #3b82f6;
+    .tree-node-head:hover {{
+      background: #1e293b;
       color: #fff;
+    }}
+    .tree-node-head.active {{
+      background: rgba(37, 99, 235, .15);
+      color: #60a5fa;
+      border-color: rgba(59, 130, 246, .3);
+    }}
+
+    /* 2차 하위: 과제 목록, 신규 접수 등 (계단식 2단계 들여쓰기) */
+    .tree-sub-children {{
+      display: flex;
+      flex-direction: column;
+      margin-left: 8px;
+      padding-left: 8px;
+      border-left: 1px dotted #25334d;
+      gap: 2px;
+      margin-top: 1px;
+      margin-bottom: 4px;
+    }}
+    .tree-leaf {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #94a3b8;
+      cursor: pointer;
+      background: transparent;
+      border: 0;
+      text-align: left;
+      width: 100%;
+      transition: all .12s;
+    }}
+    .tree-leaf:hover {{
+      background: #1e293b;
+      color: #fff;
+    }}
+    .tree-leaf.active {{
+      background: #1e40af;
+      color: #fff;
+      font-weight: 700;
     }}
     .badge-count {{
       font-size: 11px;
@@ -1774,7 +1875,6 @@ def render_collab_hub_html(
       background: #0f172a;
       color: #94a3b8;
     }}
-    .side-btn.active .badge-count {{ background: #2563eb; color: #fff; }}
     .badge-warn {{ background: rgba(245,158,11,.2); color: #fde68a !important; }}
 
     /* 3. 우측 바디 콘텐츠 */
@@ -2015,28 +2115,92 @@ def render_collab_hub_html(
     </div>
   </header>
 
-  <!-- 2. 메인 워크스페이스 레이아웃 (좌측 사이드바: 타이틀만 보유 + 우측 바디) -->
+  <!-- 2. 메인 워크스페이스 레이아웃 (이메일 클라이언트 형태: 전체 사서함 > 수신함 / 발신함 계단식 아코디언) -->
   <div class="hub-container">
-    <!-- 좌측 사이드바 (설명 없이 오직 타이틀만 보유) -->
-    <aside class="hub-side">
-      <nav class="side-menu hub-nav" id="hub-menu">
-        <button type="button" class="side-btn" data-pane="inbox" onclick="switchHubTab('inbox')">
-          <span>수신함 (디코 ➔ 웹)</span>
-          <span class="badge-count badge-warn">{dc_sum['tasks_open']}</span>
-        </button>
-        <button type="button" class="side-btn" data-pane="dispatch" onclick="switchHubTab('dispatch')">
-          <span>발신함 (웹 ➔ 디코)</span>
-          <span class="badge-count">{len(shares)}</span>
-        </button>
-        <button type="button" class="side-btn" data-pane="goals" onclick="switchHubTab('goals')">
-          <span>공동 목표 및 AI 연계</span>
+    <!-- 좌측 사이드바: 전체 사서함 > 수신함/발신함 아코디언 및 계단식 트리 -->
+    <aside class="hub-side hub-nav" id="hub-menu">
+      <!-- 1. 전체 사서함 그룹 (아코디언/계단식) -->
+      <div class="tree-group" id="group-mail">
+        <div class="tree-root" onclick="toggleTreeGroup('mail')">
+          <div class="tree-root-left">
+            <span class="tree-arrow">▼</span>
+            <span>전체 사서함</span>
+          </div>
+          <span class="badge-count">{dc_sum['total'] + len(shares)}</span>
+        </div>
+        <div class="tree-children" id="tree-mail-children">
+          <!-- 수신함 (괄호 생략 및 계단식 하위 메뉴) -->
+          <div class="tree-node">
+            <button type="button" class="tree-node-head" id="side-node-inbox" data-pane="inbox" onclick="navTo('inbox', 'list')">
+              <span>수신함</span>
+              <span class="badge-count badge-warn">{dc_sum['tasks_open']}</span>
+            </button>
+            <div class="tree-sub-children">
+              <button type="button" class="tree-leaf" id="leaf-inbox-list" data-pane="inbox-list" onclick="navTo('inbox', 'list')">
+                <span>과제 목록</span>
+                <span style="font-size:10.5px;color:#64748b;">{dc_sum['total']}</span>
+              </button>
+              <button type="button" class="tree-leaf" id="leaf-inbox-create" data-pane="inbox-create" onclick="navTo('inbox', 'create')">
+                <span>신규 접수</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 발신함 (괄호 생략 및 계단식 하위 메뉴) -->
+          <div class="tree-node">
+            <button type="button" class="tree-node-head" id="side-node-dispatch" data-pane="dispatch" onclick="navTo('dispatch', 'form')">
+              <span>발신함</span>
+              <span class="badge-count">{len(shares)}</span>
+            </button>
+            <div class="tree-sub-children">
+              <button type="button" class="tree-leaf" id="leaf-dispatch-form" data-pane="dispatch-form" onclick="navTo('dispatch', 'form')">
+                <span>상황 작성</span>
+              </button>
+              <button type="button" class="tree-leaf" id="leaf-dispatch-feed" data-pane="dispatch-feed" onclick="navTo('dispatch', 'feed')">
+                <span>공유 내역</span>
+                <span style="font-size:10.5px;color:#64748b;">{len(shares)}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. 공동 목표 및 AI 그룹 -->
+      <div class="tree-group" id="group-goals">
+        <div class="tree-root" onclick="toggleTreeGroup('goals')">
+          <div class="tree-root-left">
+            <span class="tree-arrow">▼</span>
+            <span>공동 목표 및 AI</span>
+          </div>
           <span class="badge-count">{gs['done']}/{gs['total']}</span>
-        </button>
-        <button type="button" class="side-btn" data-pane="portal" onclick="switchHubTab('portal')">
-          <span>포털 변경 이력</span>
+        </div>
+        <div class="tree-children" id="tree-goals-children">
+          <button type="button" class="tree-leaf" id="leaf-goals-board" onclick="navTo('goals', 'board')">
+            <span>목표 보드</span>
+            <span style="font-size:10.5px;color:#10b981;font-weight:700;">{gs['percent']}%</span>
+          </button>
+          <button type="button" class="tree-leaf" id="leaf-goals-ai" onclick="navTo('goals', 'ai')">
+            <span>AI 연계</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. 포털 변경 이력 그룹 -->
+      <div class="tree-group" id="group-portal">
+        <div class="tree-root" onclick="toggleTreeGroup('portal')">
+          <div class="tree-root-left">
+            <span class="tree-arrow">▼</span>
+            <span>포털 변경 이력</span>
+          </div>
           <span class="badge-count">{len(ch_list)}</span>
-        </button>
-      </nav>
+        </div>
+        <div class="tree-children" id="tree-portal-children">
+          <button type="button" class="tree-leaf" id="leaf-portal-log" onclick="navTo('portal', 'log')">
+            <span>감사 로그</span>
+            <span style="font-size:10.5px;color:#64748b;">{len(ch_list)}</span>
+          </button>
+        </div>
+      </div>
     </aside>
 
     <!-- 우측 본문 (바디에 나눠진 작업을 작업 메뉴로 분리) -->
@@ -2252,18 +2416,31 @@ def render_collab_hub_html(
       if (el) {{ el.value = val; el.focus(); }}
     }}
 
+    function navTo(pane, task) {{
+      switchHubTab(pane);
+      if (task) switchTaskView(pane, task);
+      updateActiveSidebar(pane, task);
+    }}
+
+    function toggleTreeGroup(id) {{
+      const g = document.getElementById('group-' + id);
+      if (g) g.classList.toggle('collapsed');
+    }}
+
+    function updateActiveSidebar(pane, task) {{
+      document.querySelectorAll('.tree-node-head, .tree-leaf').forEach(el => el.classList.remove('active'));
+      const node = document.getElementById('side-node-' + pane);
+      if (node) node.classList.add('active');
+      if (task) {{
+        const leaf = document.getElementById('leaf-' + pane + '-' + task);
+        if (leaf) leaf.classList.add('active');
+      }}
+    }}
+
     function switchHubTab(tabName) {{
       const valid = ['inbox', 'dispatch', 'goals', 'portal'];
       if (!valid.includes(tabName)) tabName = 'inbox';
       
-      document.querySelectorAll('.side-btn').forEach(btn => {{
-        if (btn.getAttribute('data-pane') === tabName) {{
-          btn.classList.add('active');
-        }} else {{
-          btn.classList.remove('active');
-        }}
-      }});
-
       document.querySelectorAll('.pane').forEach(p => {{
         if (p.id === 'pane-' + tabName) {{
           p.classList.add('active');
@@ -2300,6 +2477,7 @@ def render_collab_hub_html(
           }}
         }});
       }}
+      updateActiveSidebar(paneName, taskName);
     }}
 
     // 탑 헤더 실시간 시계 연동
@@ -2348,9 +2526,17 @@ def render_collab_hub_html(
 
     window.addEventListener('DOMContentLoaded', () => {{
       checkAutoSync();
-      let t = "{default_tab}";
+      const default_tab = "{default_tab}";
+      let t = default_tab;
+      let task = "";
       const h = (window.location.hash || '').replace('#', '').trim();
-      if (['inbox', 'dispatch', 'goals', 'portal'].includes(h)) {{
+      if (h.includes('-')) {{
+        const parts = h.split('-');
+        if (['inbox', 'dispatch', 'goals', 'portal'].includes(parts[0])) {{
+          t = parts[0];
+          task = parts.slice(1).join('-');
+        }}
+      }} else if (['inbox', 'dispatch', 'goals', 'portal'].includes(h)) {{
         t = h;
       }} else {{
         try {{
@@ -2358,7 +2544,13 @@ def render_collab_hub_html(
           if (['inbox', 'dispatch', 'goals', 'portal'].includes(saved)) t = saved;
         }} catch(e) {{}}
       }}
-      switchHubTab(t);
+      if (!task) {{
+        if (t === 'inbox') task = 'list';
+        else if (t === 'dispatch') task = 'form';
+        else if (t === 'goals') task = 'board';
+        else if (t === 'portal') task = 'log';
+      }}
+      navTo(t, task);
     }});
 
     async function launchAi(target) {{
