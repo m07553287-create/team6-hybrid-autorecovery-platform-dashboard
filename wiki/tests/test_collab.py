@@ -290,3 +290,114 @@ def test_mcp_server_uses_flannel_1042():
     assert "10.244." not in src
     assert "10.42.0.0/16" in src
     assert "flannel VXLAN" in src
+
+
+def test_discord_message_classification_task_vs_share():
+    from wiki.collab import classify_discord_message, has_figteam_trigger
+
+    assert has_figteam_trigger("#figteaminfra db-01 확인해주세요") is True
+    assert has_figteam_trigger("일반 잡담입니다 점심 뭐먹지") is False
+
+    t1 = classify_discord_message("#figteaminfra KT Edge 502 에러 간헐 발생 확인해주세요")
+    assert t1["category"] == "task"
+    assert t1["area"] == "inst-ktedge/nginx"
+
+    t2 = classify_discord_message("#figteaminfra #과제 AWS DR GTID 지연 점검")
+    assert t2["category"] == "task"
+    assert t2["area"] == "inst-awsdr/dr"
+
+    s1 = classify_discord_message("#figteaminfra #공유 k3s flannel 10.42.0.0/16 점검 완료했습니다")
+    assert s1["category"] == "share"
+    assert s1["area"] == "inst-cp1/k8s"
+
+
+def test_discord_inbound_inbox_state_and_doc_delete_webhook(client, monkeypatch):
+    monkeypatch.setenv("FIGTEAM_INTERNAL_KEY", "internal-test-key")
+    monkeypatch.setenv("FIGTEAM_DISCORD_WEBHOOK_URL", MOCK_WEBHOOK)
+    monkeypatch.setenv("FIGTEAM_DISCORD_NOTIFY_WIKI", "1")
+    sent_payloads = []
+
+    def fake_urlopen(req, timeout=5):
+        sent_payloads.append(json.loads(req.data.decode("utf-8")))
+        return _FakeResp(204)
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    assert client.post("/api/teams", json=TEAM).status_code == 201
+
+    # 1. 트리거 없는 일반 메시지 무시, 트리거 있는 과제/공유 적재 + 중복 방지 + 비밀값 차단
+    ig = client.post(
+        "/api/discord/inbound",
+        headers={"X-Internal-Key": "internal-test-key"},
+        json={"content": "트리거 없는 잡담", "discord_message_id": "m1"},
+    )
+    assert ig.status_code == 200 and ig.json().get("ignored") is True
+
+    sec = client.post(
+        "/api/discord/inbound",
+        headers={"X-Internal-Key": "internal-test-key"},
+        json={"content": f"#figteaminfra {MOCK_WEBHOOK}", "discord_message_id": "m2"},
+    )
+    assert sec.status_code == 422
+
+    r_task = client.post(
+        "/api/discord/inbound",
+        headers={"X-Internal-Key": "internal-test-key"},
+        json={
+            "content": "#figteaminfra db-01 MySQL 3306 연결 지연 확인 부탁드립니다",
+            "discord_message_id": "m3",
+            "author": "현진",
+            "notify_discord": True,
+        },
+    )
+    assert r_task.status_code == 200
+    task_id = r_task.json()["item"]["id"]
+    assert r_task.json()["item"]["category"] == "task"
+
+    # 중복 discord_message_id 차단
+    dup = client.post(
+        "/api/discord/inbound",
+        headers={"X-Internal-Key": "internal-test-key"},
+        json={"content": "#figteaminfra duplicate", "discord_message_id": "m3"},
+    )
+    assert dup.status_code == 200 and dup.json().get("duplicate") is True
+
+    r_share = client.post(
+        "/api/discord/inbound",
+        headers={"X-Internal-Key": "internal-test-key"},
+        json={
+            "content": "#figteaminfra #공유 k3s w1 노드 패치 완료했습니다",
+            "discord_message_id": "m4",
+            "author": "민수",
+        },
+    )
+    assert r_share.status_code == 200 and r_share.json()["item"]["category"] == "share"
+
+    # 2. 수신함 조회 및 처리 (처리완료 + 공동목표 승격)
+    inbox = client.get("/api/discord/inbox").json()
+    assert inbox["summary"]["total"] == 2
+    assert inbox["summary"]["tasks_open"] == 1
+    assert inbox["summary"]["shares"] == 1
+
+    upd = client.post(
+        f"/api/discord/inbox/{task_id}/state",
+        json={"task_status": "done", "promote_goal": True},
+    )
+    assert upd.status_code == 200 and upd.json()["item"]["task_status"] == "done" and upd.json()["goal"]["id"] >= 1
+
+    # 3. /api/ai/hub HTML 에 Discord 수신함 및 과제/공유 표시 확인
+    hub = client.get("/api/ai/hub")
+    assert hub.status_code == 200
+    assert "Discord 멘션 수신함" in hub.text
+    assert "처리할 과제" in hub.text and "공유" in hub.text
+
+    # 4. 문서 생성·수정·삭제·복원 모두 Discord Webhook 알림 전송 확인
+    sent_payloads.clear()
+    created = client.post("/api/docs", json={"kind": "page", "body": {"title": "노트", "blocks": []}, "message": "생성"}).json()
+    assert client.put(f"/api/docs/{created['id']}", json={"base_rev": 1, "body": {"title": "노트2", "blocks": []}, "message": "수정"}).status_code == 200
+    assert client.request("DELETE", f"/api/docs/{created['id']}", json={"base_rev": 2, "message": "삭제"}).status_code == 200
+    assert client.post(f"/api/docs/{created['id']}/restore", json={"base_rev": 3, "rev": 1, "message": "복원"}).status_code == 200
+    titles = [p["embeds"][0]["title"] for p in sent_payloads]
+    assert any("신규 생성" in t for t in titles)
+    assert any("수정" in t for t in titles)
+    assert any("삭제" in t for t in titles)
+    assert any("되돌리기" in t for t in titles)

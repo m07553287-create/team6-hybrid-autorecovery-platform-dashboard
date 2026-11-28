@@ -100,4 +100,14 @@ FIGTEAM_OAUTH_CLIENT_ID=figteam-ai-connector
 FIGTEAM_OAUTH_CLIENT_SECRET=<강한_랜덤값>
 FIGTEAM_INTERNAL_KEY=figteam-sec-2026-dr
 PUBLIC_BASE_URL=https://figteam.ktci5.kr
+# 선택: Discord 채널(#figteaminfra 멘션) 실시간 수신 봇 활성화 시
+FIGTEAM_DISCORD_BOT_TOKEN=<DISCORD_BOT_TOKEN>
+FIGTEAM_DISCORD_CHANNEL_IDS=<감시할_채널_ID>
 ```
+
+---
+
+## 6. Discord `#figteaminfra` 양방향 과제·공유 수신함
+- Discord 채널에서 `#figteaminfra`, `@figteaminfra`, `#과제`, `#공유` 등으로 메시지를 남기면 **처리할 과제(`task`)** 와 **공유(`share`)** 로 자동 구분되어 웹(`https://figteam.ktci5.kr/api/ai/hub#discord-inbox` 및 `https://figteam.ktci5.kr/#cfg/ref/__discord`)에 적재됩니다.
+- 웹에서 **진행중 / 처리완료 / 공동목표 승격 / 과제↔공유 전환** 버튼을 누르면 Discord Webhook으로 처리 결과가 회신됩니다.
+- Bot 토큰 활성화 시 `wiki-01`에서 `systemctl enable --now figteam-discord-bot` 로 상시 수신할 수 있으며, 미설정 시에도 웹·AI 커넥터(`POST /api/discord/inbound`)에서 동일하게 접수됩니다.

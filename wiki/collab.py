@@ -20,8 +20,57 @@ from wiki.guard import find_secret
 
 SHARE_LIMIT = 200
 GOAL_LIMIT = 100
+DISCORD_INBOX_LIMIT = 300
 OAUTH_CODE_TTL = 300
 OAUTH_TOKEN_TTL = 30 * 24 * 3600
+
+DISCORD_CATEGORY_META: dict[str, tuple[str, int]] = {
+    "task": ("처리할 과제", 0xF59E0B),
+    "share": ("공유", 0x38BDF8),
+}
+
+DISCORD_TASK_STATUS_META: dict[str, str] = {
+    "open": "미처리",
+    "in_progress": "진행중",
+    "done": "처리완료",
+    "read": "확인됨",
+}
+
+DEFAULT_TRIGGER_TAGS = (
+    "#figteaminfra",
+    "@figteaminfra",
+    "#figteam",
+    "@figteam",
+    "#인프라",
+    "#과제",
+    "#공유",
+    "#장애",
+    "#확인",
+    "#요청",
+)
+
+_TASK_TAGS = {
+    "과제", "할일", "todo", "task", "요청", "확인", "확인필요", "점검", "수정",
+    "장애", "이슈", "긴급", "에러", "fix", "bug", "check", "incident", "action",
+}
+_SHARE_TAGS = {"공유", "참고", "완료", "공지", "info", "fyi", "done", "share", "notice"}
+
+_TASK_KW_RE = re.compile(
+    r"(해\s*주|부탁|확인\s*필요|확인\s*요청|점검\s*필요|수정\s*필요|처리\s*필요|조치\s*필요|"
+    r"수정해|점검해|확인해|조치해|복구해|장애|오류|에러|실패|안\s*됨|안됨|끊김|멈춤|"
+    r"\b(?:502|503|504|404|oom)\b|\?\s*$)",
+    re.I,
+)
+_SHARE_KW_RE = re.compile(r"(공유드립니다|공유합니다|참고하세요|공지합니다|완료했습니다|완료됨|정상입니다|정상\s*동작)", re.I)
+
+_AREA_HINTS: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"(aws[\s-]?dr|10\.51|orchestrator|eks)", re.I), "inst-awsdr/dr"),
+    (re.compile(r"(mysql|db[\s-]?01|gtid|binlog|3306)", re.I), "inst-db01/mysql"),
+    (re.compile(r"(kt[\s-]?edge|ktedge|nginx|upstream|waf|ssl|tls)", re.I), "inst-ktedge/nginx"),
+    (re.compile(r"(k3s|cp1|w1|flannel|pod|6443|argocd|kube)", re.I), "inst-cp1/k8s"),
+    (re.compile(r"(wireguard|wg0|10\.200|vpn|mtu)", re.I), "network/wireguard"),
+    (re.compile(r"(openstack|nova|neutron|compute|controller|fip|horizon)", re.I), "openstack/core"),
+]
 
 STATUS_META: dict[str, tuple[str, int]] = {
     "in_progress": ("진행중", 0x3B82F6),
@@ -318,24 +367,316 @@ def notify_wiki_change(
     if os.environ.get("FIGTEAM_DISCORD_NOTIFY_WIKI", "1") != "1":
         return {"sent": False, "reason": "wiki_notify_disabled"}
     author_disp = f"{member} ({access_key})" if access_key else member
-    act_label = "신규 생성" if action == "create" else "수정"
+    action_map = {
+        "create": ("신규 생성", 0x10B981),
+        "update": ("수정", 0x10B981),
+        "delete": ("삭제", 0xEF4444),
+        "restore": ("판 되돌리기", 0xF59E0B),
+    }
+    act_label, color = action_map.get(action, ("수정", 0x10B981))
     payload = {
         "username": "FIGTEAM 위키 알림",
         "embeds": [
             {
                 "title": f"[위키 {act_label}] {doc_title or kind} (r{rev})"[:250],
                 "description": (message or "구성 문서가 업데이트되었습니다.")[:1000],
-                "color": 0x10B981,
+                "color": color,
                 "fields": [
                     {"name": "팀", "value": team_slug, "inline": True},
                     {"name": "문서 종류", "value": kind, "inline": True},
                     {"name": "작성자", "value": author_disp, "inline": True},
+                    {"name": "웹 확인", "value": "https://figteam.ktci5.kr/#cfg/ · https://figteam.ktci5.kr/api/ai/hub", "inline": False},
                 ],
                 "footer": {"text": "https://figteam.ktci5.kr/#cfg/"},
             }
         ],
     }
     return send_discord_webhook(payload)
+
+
+def has_figteam_trigger(text: str) -> bool:
+    raw = str(text or "").strip().lower()
+    if not raw:
+        return False
+    extra = [x.strip().lower() for x in os.environ.get("FIGTEAM_DISCORD_TRIGGER_TAGS", "").split(",") if x.strip()]
+    tags = DEFAULT_TRIGGER_TAGS + tuple(extra)
+    return any(t in raw for t in tags) or "<@" in raw
+
+
+def classify_discord_message(text: str, category_override: str = "") -> dict[str, Any]:
+    raw = str(text or "").strip()
+    hashtags = [m.group(1) for m in re.finditer(r"#([0-9A-Za-z가-힣_-]{1,40})", raw)]
+    mentions = [m.group(0) for m in re.finditer(r"(?:@[0-9A-Za-z가-힣_-]{2,40}|<@!?\d+>)", raw)]
+    tags_lower = [t.lower() for t in hashtags]
+
+    ov = str(category_override or "").strip().lower()
+    has_task_tag = any(t in _TASK_TAGS for t in tags_lower)
+    has_share_tag = any(t in _SHARE_TAGS for t in tags_lower)
+    has_task_kw = bool(_TASK_KW_RE.search(raw))
+    has_share_kw = bool(_SHARE_KW_RE.search(raw))
+
+    if ov in DISCORD_CATEGORY_META:
+        category = ov
+        reason = "수동 지정"
+    elif has_task_tag:
+        category = "task"
+        reason = "과제/장애/요청 해시태그 감지"
+    elif has_task_kw and not (has_share_tag and not has_task_tag and "?" not in raw):
+        category = "task"
+        reason = "조치/확인/오류 요청 표현 감지"
+    elif has_share_tag or has_share_kw:
+        category = "share"
+        reason = "공유/완료/참고 표현 감지"
+    else:
+        category = "share"
+        reason = "일반 공유 메시지 분류"
+
+    area = "figteaminfra"
+    for pat, guessed in _AREA_HINTS:
+        if pat.search(raw):
+            area = guessed
+            break
+
+    clean = re.sub(r"<@!?\d+>", "", raw)
+    clean = re.sub(r"^(?:\s*[#@][0-9A-Za-z가-힣_-]+)+", "", clean).strip() or raw
+    first_line = clean.splitlines()[0].strip() if clean else raw
+    title = first_line[:100]
+    hints = build_crosscheck_hints(area, clean)
+    return {
+        "category": category,
+        "category_label": DISCORD_CATEGORY_META[category][0],
+        "reason": reason,
+        "hashtags": hashtags[:12],
+        "mentions": mentions[:8],
+        "area": area,
+        "title": title,
+        "clean_text": clean,
+        "crosscheck_hints": hints,
+    }
+
+
+def format_discord_inbound_embed(entry: dict[str, Any], event_label: str = "웹 접수") -> dict[str, Any]:
+    cat = entry.get("category") or "share"
+    cat_label, color = DISCORD_CATEGORY_META.get(cat, DISCORD_CATEGORY_META["share"])
+    st_label = DISCORD_TASK_STATUS_META.get(entry.get("task_status") or "", entry.get("task_status") or "-")
+    fields: list[dict[str, Any]] = [
+        {"name": "구분", "value": cat_label, "inline": True},
+        {"name": "상태", "value": st_label, "inline": True},
+        {"name": "영역", "value": f"`{entry.get('area') or 'figteaminfra'}`", "inline": True},
+        {"name": "작성자", "value": entry.get("author") or "Discord", "inline": True},
+    ]
+    if entry.get("linked_goal_id"):
+        fields.append({"name": "연계 공동 목표", "value": f"#{entry['linked_goal_id']}", "inline": True})
+    fields.append({"name": "웹사이트 확인", "value": "https://figteam.ktci5.kr/api/ai/hub#discord-inbox", "inline": False})
+    return {
+        "username": "FIGTEAM Discord 브리지",
+        "embeds": [
+            {
+                "title": f"[{event_label} · {cat_label}] {entry.get('title', '')}"[:250],
+                "description": (entry.get("summary") or entry.get("raw_text") or "")[:1500],
+                "color": color,
+                "fields": fields[:10],
+                "footer": {"text": f"분류근거: {entry.get('classify_reason') or '-'} · ID #{entry.get('id', '')}"},
+            }
+        ],
+    }
+
+
+def ingest_discord_message(
+    r,
+    team_id: int,
+    data: dict[str, Any],
+    default_author: str = "Discord",
+    notify_discord: bool = False,
+    force: bool = False,
+) -> dict[str, Any]:
+    raw_text = _clean_text(data.get("content") or data.get("text") or data.get("summary"), "content", 2000, required=True)
+    if not force and not has_figteam_trigger(raw_text):
+        return {"ok": True, "ignored": True, "reason": "no_trigger"}
+
+    ext_msg_id = str(data.get("discord_message_id") or data.get("message_id") or "").strip()[:64]
+    seen_key = f"fw:discord:seen:{team_id}"
+    if ext_msg_id:
+        if r.sismember(seen_key, ext_msg_id):
+            return {"ok": True, "duplicate": True, "discord_message_id": ext_msg_id}
+        r.sadd(seen_key, ext_msg_id)
+
+    author = _clean_text(data.get("author") or default_author, "author", 40, required=False, default=default_author)
+    channel = _clean_text(data.get("channel") or "discord", "channel", 60, required=False, default="discord")
+    cat_override = str(data.get("category") or "").strip().lower()
+    cls = classify_discord_message(raw_text, category_override=cat_override)
+    area = _clean_text(data.get("area"), "area", 60, required=False, default=cls["area"]) or cls["area"]
+    category = cls["category"]
+    task_status = "open" if category == "task" else "read"
+
+    item_id = int(r.incr("fw:seq:discord_inbox"))
+    ts = int(data.get("ts") or time.time())
+    entry: dict[str, Any] = {
+        "id": item_id,
+        "ts": ts,
+        "updated_at": ts,
+        "discord_message_id": ext_msg_id,
+        "channel": channel,
+        "author": author,
+        "raw_text": raw_text,
+        "title": cls["title"],
+        "summary": cls["clean_text"],
+        "category": category,
+        "category_label": cls["category_label"],
+        "task_status": task_status,
+        "task_status_label": DISCORD_TASK_STATUS_META.get(task_status, task_status),
+        "classify_reason": cls["reason"],
+        "hashtags": cls["hashtags"],
+        "mentions": cls["mentions"],
+        "area": area,
+        "crosscheck_hints": cls["crosscheck_hints"],
+        "source": str(data.get("source") or "discord")[:32],
+        "linked_goal_id": None,
+        "handled_by": "",
+    }
+
+    inbox_key = f"fw:discord:inbox:{team_id}"
+    order_key = f"fw:discord:order:{team_id}"
+    p = r.pipeline()
+    p.hset(inbox_key, str(item_id), json.dumps(entry, ensure_ascii=False))
+    p.lpush(order_key, str(item_id))
+    p.ltrim(order_key, 0, DISCORD_INBOX_LIMIT - 1)
+    p.execute()
+
+    discord_res: dict[str, Any] = {"sent": False, "reason": "skipped"}
+    if notify_discord:
+        discord_res = send_discord_webhook(format_discord_inbound_embed(entry, event_label="접수"))
+    return {"ok": True, "item": entry, "discord": discord_res}
+
+
+def list_discord_inbox(r, team_id: int, category: str = "all", limit: int = 50) -> list[dict[str, Any]]:
+    limit = max(1, min(int(limit or 50), DISCORD_INBOX_LIMIT))
+    inbox_key = f"fw:discord:inbox:{team_id}"
+    order_key = f"fw:discord:order:{team_id}"
+    ids = [x for x in r.lrange(order_key, 0, DISCORD_INBOX_LIMIT - 1)]
+    if not ids:
+        raw_map = r.hgetall(inbox_key)
+        ids = sorted(raw_map.keys(), key=lambda x: int(x) if str(x).isdigit() else 0, reverse=True)
+    cat_q = str(category or "all").strip().lower()
+    out: list[dict[str, Any]] = []
+    for iid in ids:
+        raw = r.hget(inbox_key, str(iid))
+        if not raw:
+            continue
+        try:
+            item = json.loads(raw)
+        except ValueError:
+            continue
+        if cat_q == "task" and item.get("category") != "task":
+            continue
+        if cat_q == "open_task" and not (item.get("category") == "task" and item.get("task_status") != "done"):
+            continue
+        if cat_q == "share" and item.get("category") != "share":
+            continue
+        out.append(item)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def summarize_discord_inbox(items: list[dict[str, Any]]) -> dict[str, int]:
+    total = len(items)
+    tasks_open = 0
+    tasks_in_progress = 0
+    tasks_done = 0
+    shares = 0
+    for it in items:
+        if it.get("category") == "task":
+            st = it.get("task_status") or "open"
+            if st == "done":
+                tasks_done += 1
+            elif st == "in_progress":
+                tasks_in_progress += 1
+            else:
+                tasks_open += 1
+        else:
+            shares += 1
+    return {
+        "total": total,
+        "tasks_open": tasks_open,
+        "tasks_in_progress": tasks_in_progress,
+        "tasks_done": tasks_done,
+        "tasks_total": tasks_open + tasks_in_progress + tasks_done,
+        "shares": shares,
+    }
+
+
+def update_discord_inbox_item(
+    r,
+    s: auth.Session,
+    item_id: int,
+    data: dict[str, Any],
+    send_discord: bool = True,
+) -> dict[str, Any]:
+    inbox_key = f"fw:discord:inbox:{s.team_id}"
+    raw = r.hget(inbox_key, str(item_id))
+    if not raw:
+        raise ApiError(404, f"Discord 메시지 #{item_id} 를 찾을 수 없습니다")
+    item = json.loads(raw)
+
+    prev_cat = item.get("category") or "share"
+    prev_st = item.get("task_status") or "open"
+    new_cat = str(data.get("category") or prev_cat).strip().lower()
+    if new_cat not in DISCORD_CATEGORY_META:
+        new_cat = prev_cat
+    item["category"] = new_cat
+    item["category_label"] = DISCORD_CATEGORY_META[new_cat][0]
+
+    req_st = str(data.get("task_status") or "").strip().lower()
+    if req_st in DISCORD_TASK_STATUS_META:
+        item["task_status"] = req_st
+    elif new_cat != prev_cat:
+        item["task_status"] = "open" if new_cat == "task" else "read"
+    item["task_status_label"] = DISCORD_TASK_STATUS_META.get(item["task_status"], item["task_status"])
+    item["handled_by"] = f"{s.member} ({s.access_key})" if s.access_key else s.member
+    item["updated_at"] = int(time.time())
+
+    goal_created: dict[str, Any] | None = None
+    if data.get("promote_goal"):
+        item["category"] = "task"
+        item["category_label"] = DISCORD_CATEGORY_META["task"][0]
+        if item["task_status"] not in ("in_progress", "done"):
+            item["task_status"] = "open"
+            item["task_status_label"] = DISCORD_TASK_STATUS_META["open"]
+        g_res = upsert_goal(
+            r,
+            s,
+            {
+                "title": f"[Discord] {item.get('title') or '과제'}",
+                "area": item.get("area") or "figteaminfra",
+                "owner": s.member,
+                "status": "in_progress" if item["task_status"] == "in_progress" else "todo",
+                "note": (item.get("summary") or "")[:400],
+            },
+            send_discord=False,
+        )
+        goal_created = g_res["goal"]
+        item["linked_goal_id"] = goal_created["id"]
+
+    r.hset(inbox_key, str(item_id), json.dumps(item, ensure_ascii=False))
+    if s.access_key:
+        auth.record_access(
+            r,
+            s.team_id,
+            s.member,
+            s.access_key,
+            "discord",
+            detail=f"#{item_id} [{item['category_label']}/{item['task_status_label']}]",
+        )
+
+    discord_res: dict[str, Any] = {"sent": False, "reason": "skipped"}
+    if send_discord and (item["task_status"] != prev_st or item["category"] != prev_cat or goal_created):
+        discord_res = send_discord_webhook(format_discord_inbound_embed(item, event_label="웹 처리"))
+
+    out: dict[str, Any] = {"ok": True, "item": item, "discord": discord_res}
+    if goal_created:
+        out["goal"] = goal_created
+    return out
 
 
 def _parse_optional_int(val: Any) -> int | None:
@@ -1004,6 +1345,8 @@ def render_collab_hub_html(
     error: str = "",
     notice: str = "",
     default_slug: str = "figteam",
+    discord_items: list[dict[str, Any]] | None = None,
+    recent_changes: list[dict[str, Any]] | None = None,
 ) -> str:
     esc = html.escape
     goals_list = goals or []
@@ -1111,6 +1454,77 @@ def render_collab_hub_html(
         )
     feed_html = "".join(feed_rows) if feed_rows else '<p class="sub">로그인 후 또는 첫 공유 등록 시 최근 팀 진행 내역이 표시됩니다.</p>'
 
+    dc_list = discord_items or []
+    dc_sum = summarize_discord_inbox(dc_list)
+    dc_filter = str(prefill.get("dc_filter") or "all").strip().lower()
+    dc_cards: list[str] = []
+    for d_it in dc_list[:25]:
+        d_cat = d_it.get("category") or "share"
+        if dc_filter == "task" and d_cat != "task":
+            continue
+        if dc_filter == "open_task" and not (d_cat == "task" and d_it.get("task_status") != "done"):
+            continue
+        if dc_filter == "share" and d_cat != "share":
+            continue
+        d_st = d_it.get("task_status") or ("open" if d_cat == "task" else "read")
+        cat_lbl = d_it.get("category_label") or DISCORD_CATEGORY_META.get(d_cat, ("공유", 0))[0]
+        st_lbl = d_it.get("task_status_label") or DISCORD_TASK_STATUS_META.get(d_st, d_st)
+        cat_bg = "rgba(245,158,11,.16);border-color:#d97706;color:#fde68a;" if d_cat == "task" else "rgba(56,189,248,.14);border-color:#0284c7;color:#7dd3fc;"
+        tag_chips = "".join(f'<span class="pill" style="font-size:10.5px;">#{esc(t)}</span> ' for t in (d_it.get("hashtags") or [])[:5])
+        goal_chip = f' <span class="pill">목표 #{d_it["linked_goal_id"]}</span>' if d_it.get("linked_goal_id") else ""
+        dc_acts = ""
+        if session:
+            next_cat = "share" if d_cat == "task" else "task"
+            next_cat_lbl = "공유로 전환" if d_cat == "task" else "과제로 전환"
+            dc_acts = '<div class="acts" style="margin-top:8px;">'
+            if d_cat == "task":
+                dc_acts += (
+                    f'<form method="post" action="/api/ai/hub/discord-state" style="display:inline;">'
+                    f'<input type="hidden" name="item_id" value="{d_it["id"]}"><input type="hidden" name="task_status" value="in_progress">'
+                    f'<button type="submit" class="btn btn-sub" style="padding:4px 10px;font-size:11.5px;">진행중</button></form>'
+                    f'<form method="post" action="/api/ai/hub/discord-state" style="display:inline;">'
+                    f'<input type="hidden" name="item_id" value="{d_it["id"]}"><input type="hidden" name="task_status" value="done">'
+                    f'<button type="submit" class="btn" style="padding:4px 10px;font-size:11.5px;background:#059669;">처리완료</button></form>'
+                )
+                if not d_it.get("linked_goal_id"):
+                    dc_acts += (
+                        f'<form method="post" action="/api/ai/hub/discord-state" style="display:inline;">'
+                        f'<input type="hidden" name="item_id" value="{d_it["id"]}"><input type="hidden" name="promote_goal" value="1">'
+                        f'<button type="submit" class="btn btn-sub" style="padding:4px 10px;font-size:11.5px;">공동목표 승격</button></form>'
+                    )
+            else:
+                dc_acts += (
+                    f'<form method="post" action="/api/ai/hub/discord-state" style="display:inline;">'
+                    f'<input type="hidden" name="item_id" value="{d_it["id"]}"><input type="hidden" name="task_status" value="read">'
+                    f'<button type="submit" class="btn btn-sub" style="padding:4px 10px;font-size:11.5px;">확인완료</button></form>'
+                )
+            dc_acts += (
+                f'<form method="post" action="/api/ai/hub/discord-state" style="display:inline;">'
+                f'<input type="hidden" name="item_id" value="{d_it["id"]}"><input type="hidden" name="category" value="{next_cat}">'
+                f'<button type="submit" class="btn btn-sub" style="padding:4px 10px;font-size:11.5px;">{next_cat_lbl}</button></form></div>'
+            )
+        dc_cards.append(
+            '<div class="feed-item">'
+            f'<div class="feed-top"><span><span class="pill" style="{cat_bg}">{"📌 " if d_cat == "task" else "📣 "}{esc(cat_lbl)}</span> '
+            f'<span class="pill">{esc(st_lbl)}</span> <code>{esc(d_it.get("area") or "figteaminfra")}</code>{goal_chip}</span>'
+            f'<span>{esc(d_it.get("author") or "Discord")} · #{esc(d_it.get("channel") or "discord")} · {_fmt_ts(d_it.get("ts", 0))}</span></div>'
+            f'<div class="feed-title">{esc(d_it.get("title") or "")}</div>'
+            f'<div class="feed-body">{esc(d_it.get("summary") or d_it.get("raw_text") or "")}</div>'
+            f'<div style="margin-top:6px;font-size:11.5px;color:#94a3b8;">{tag_chips}분류: {esc(d_it.get("classify_reason") or "-")}</div>'
+            f'{dc_acts}</div>'
+        )
+    discord_inbox_html = "".join(dc_cards) if dc_cards else '<p class="sub">아직 접수된 #figteaminfra 멘션 메시지가 없습니다. Discord 채널 또는 아래 폼으로 등록하면 과제/공유가 자동 구분됩니다.</p>'
+
+    ch_list = recent_changes or []
+    ch_rows = "".join(
+        f'<div class="feed-item" style="padding:9px 12px;"><div class="feed-top"><span><code>{esc(c.get("kind") or "")}</code> '
+        f'<b>{esc(c.get("title") or "(제목 없음)")}</b> (r{c.get("rev", 1)})</span>'
+        f'<span>{esc(c.get("matched_user") or c.get("author") or "-")} · {_fmt_ts(c.get("created_at", 0))}</span></div>'
+        f'<div style="font-size:12px;color:#94a3b8;">{esc(c.get("message") or "문서 업데이트")} · <a href="/#cfg/" style="color:#60a5fa;">#cfg 에서 보기</a></div></div>'
+        for c in ch_list[:8]
+    )
+    recent_changes_html = ch_rows if ch_rows else '<p class="sub">최근 문서 변경 이력이 없습니다.</p>'
+
     full_prompt_txt = esc(ai_prompts[0] or "")
     return f"""<!DOCTYPE html>
 <html lang="ko">
@@ -1194,9 +1608,41 @@ def render_collab_hub_html(
       </form>
     </div>
 
+    <div class="card" id="discord-inbox">
+      <h2>💬 Discord 멘션 수신함 (#figteaminfra · 과제 vs 공유)</h2>
+      <p class="sub">Discord에서 <code>#figteaminfra</code>, <code>#과제</code>, <code>#공유</code> 등으로 메시지를 남기면 웹사이트에서 확인 가능한 과제와 공유로 자동 구분됩니다.
+        · 전체 <b>{dc_sum['total']}</b> · 📌 미처리 과제 <b>{dc_sum['tasks_open']}</b> · 🔄 진행중 <b>{dc_sum['tasks_in_progress']}</b> · ✅ 완료 <b>{dc_sum['tasks_done']}</b> · 📣 공유 <b>{dc_sum['shares']}</b></p>
+      <div class="acts" style="margin-top:0;margin-bottom:12px;">
+        <a class="btn btn-sub" style="padding:5px 11px;font-size:12px;" href="/api/ai/hub?dc_filter=all#discord-inbox">전체 ({dc_sum['total']})</a>
+        <a class="btn btn-sub" style="padding:5px 11px;font-size:12px;" href="/api/ai/hub?dc_filter=task#discord-inbox">📌 처리할 과제 ({dc_sum['tasks_total']})</a>
+        <a class="btn btn-sub" style="padding:5px 11px;font-size:12px;" href="/api/ai/hub?dc_filter=open_task#discord-inbox">⏳ 미처리 과제 ({dc_sum['tasks_open'] + dc_sum['tasks_in_progress']})</a>
+        <a class="btn btn-sub" style="padding:5px 11px;font-size:12px;" href="/api/ai/hub?dc_filter=share#discord-inbox">📣 공유 ({dc_sum['shares']})</a>
+        <a class="btn btn-sub" style="padding:5px 11px;font-size:12px;" href="/#cfg/ref/__discord">포털(#cfg) 수신함 열기</a>
+      </div>
+      {discord_inbox_html}
+      <details style="margin-top:12px;">
+        <summary style="cursor:pointer;font-weight:700;color:#93c5fd;font-size:13.5px;">+ #figteaminfra 메시지 수동 접수 / 분류 테스트</summary>
+        <form method="post" action="/api/ai/hub/discord-ingest" style="margin-top:10px;">
+          {inline_login if not session else ''}
+          <div class="row">
+            <div><label>채널명 (선택)</label><input type="text" name="channel" value="figteaminfra" maxlength="60"></div>
+            <div><label>구분</label><select name="category"><option value="">자동 구분 (과제 vs 공유)</option><option value="task">📌 처리할 과제</option><option value="share">📣 공유</option></select></div>
+          </div>
+          <label>Discord 메시지 내용 (#figteaminfra 멘션 포함)</label>
+          <textarea name="content" required placeholder="예: #figteaminfra KT Edge 502 에러 간헐 발생 확인해주세요&#10;또는: #figteaminfra #공유 k3s flannel 점검 완료했습니다"></textarea>
+          <div class="acts"><button type="submit" class="btn">📥 접수 · 과제/공유 분류 + Discord 알림</button></div>
+        </form>
+      </details>
+    </div>
+
     <div class="card">
       <h2>최근 팀 공유 피드</h2>
       {feed_html}
+    </div>
+
+    <div class="card">
+      <h2>🔄 포털(#cfg) 최근 수정 · 업데이트 (Discord 자동 알림)</h2>
+      {recent_changes_html}
     </div>
   </div>
   <script>
