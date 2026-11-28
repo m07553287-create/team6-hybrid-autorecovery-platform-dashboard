@@ -551,4 +551,41 @@ def test_share_discord_reply_mapping_and_feed_display(client, monkeypatch):
     assert "확인" in hub_page.text
 
 
+def test_share_state_update_and_counting_reduction(client, monkeypatch):
+    monkeypatch.setenv("DISCORD_WEBHOOK_URL", "")
+    assert client.post("/api/teams", json=TEAM).status_code == 201
+
+    # 1. 로그인
+    login_res = client.post("/api/ai/hub/auto-login", json={"member": "정다운"})
+    assert login_res.status_code == 200
+
+    # 2. 공유 등록 (check_needed 상태: 미완료)
+    sh_res = client.post(
+        "/api/ai/share",
+        json={"title": "상황보고", "summary": "DB Failover 테스트 점검", "area": "inst-db01/mysql", "status": "check_needed"},
+    )
+    assert sh_res.status_code == 200
+    share_id = sh_res.json()["share"]["id"]
+
+    # 3. 등록 직후 허브 확인: 미완료 건수로 카운트 (남은 1 / 총 1)
+    h1 = client.get("/api/ai/hub", params={"tab": "dispatch"})
+    assert h1.status_code == 200
+    assert "확인 완료" in h1.text
+    assert "1/1" in h1.text
+
+    # 4. 확인 완료 상태로 변경 (POST /api/ai/hub/share-state)
+    st_res = client.post(
+        "/api/ai/hub/share-state",
+        data={"share_id": str(share_id), "status": "done"},
+    )
+    assert st_res.status_code == 200
+
+    # 5. 변경 후 허브 확인: 남은 숫자가 0으로 줄어들고 (0/1) 및 재확인/진행 버튼 표시
+    h2 = client.get("/api/ai/hub", params={"tab": "dispatch"})
+    assert h2.status_code == 200
+    assert "재확인/진행" in h2.text
+    assert "0/1" in h2.text
+
+
+
 

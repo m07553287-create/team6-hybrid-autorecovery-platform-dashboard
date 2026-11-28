@@ -823,6 +823,18 @@ def create_app(redis_client=None):
         g_msg = f" · 공동목표 #{res['goal']['id']} 등록" if res.get("goal") else ""
         return _hub_render(s, {"area": "general", "tab": "inbox"}, notice=f"#{it['id']} → [{it['category_label']} / {it['task_status_label']}]{g_msg}")
 
+    @app.post("/api/ai/hub/share-state")
+    async def ai_hub_share_state(request: Request):
+        form = await form_or_json(request)
+        s = session_of(request)
+        sid = collab._parse_optional_int(form.get("share_id"))
+        if not sid:
+            raise ApiError(422, "share_id 가 필요합니다")
+        new_status = form.get("status") or "done"
+        res = collab.update_share_status(r, s, sid, new_status)
+        it = res["share"]
+        return _hub_render(s, {"area": "general", "tab": "dispatch", "subtab": "feed"}, notice=f"공유 #{it['id']} [{it['title']}] 상태가 [{it['status_label']}](으)로 변경되었습니다.")
+
     static_dir = os.environ.get("SERVE_STATIC")
     if static_dir:  # 로컬 개발 전용: 화면(public/)도 같은 출처로 제공
         from fastapi.staticfiles import StaticFiles
