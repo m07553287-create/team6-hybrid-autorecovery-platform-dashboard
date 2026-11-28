@@ -3101,8 +3101,39 @@ LANDING_HTML = """<!DOCTYPE html>
         '<div class="wk-teambar-acts">' +
         '<button type="button" class="wk-mini" onclick="wkOpenIdentityModal()">키·사용자 설정</button>' +
         '<button type="button" class="wk-mini" onclick="cfgSelect(\\'ref\\',\\'__changes\\',\\'\\')">접속·변경 기록</button>' +
+        '<button type="button" class="wk-mini" onclick="wkOpenShareBridge()">Discord 공유 · AI</button>' +
+        '<button type="button" class="wk-mini" onclick="wkCopyAiFeed(this)">AI용 현황 복사</button>' +
         '</div>' +
         '</div>';
+    }
+
+    function wkOpenShareBridge() {
+      const h = location.hash || '#cfg/overview';
+      let area = 'general';
+      const m = /^#cfg\\/inst\\/([^/]+)(?:\\/([^/?]+))?/.exec(h);
+      if (m) area = m[2] ? (m[1] + '/' + m[2]) : m[1];
+      const cfgUrl = 'https://figteam.ktci5.kr/' + (h.indexOf('#cfg') === 0 ? h : '#cfg/overview');
+      const qs = 'area=' + encodeURIComponent(area) + '&cfg_url=' + encodeURIComponent(cfgUrl);
+      window.open('/api/ai/share-ui?' + qs, '_blank', 'noopener');
+    }
+
+    async function wkCopyAiFeed(btn) {
+      const orig = btn ? btn.textContent : '';
+      try {
+        const res = await fetch('/api/ai/feed?limit=15', { credentials: 'same-origin', cache: 'no-store' });
+        if (!res.ok) throw new Error('로그인이 필요합니다 (' + res.status + ')');
+        const data = await res.json();
+        const text = (data && data.markdown_brief) ? data.markdown_brief : '';
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+        }
+        if (btn) {
+          btn.textContent = '복사됨!';
+          setTimeout(() => { btn.textContent = orig; }, 2000);
+        }
+      } catch (e) {
+        alert((e && e.message) ? e.message : '현황 복사에 실패했습니다.');
+      }
     }
 
     function wkOpenIdentityModal(presetKey, opts) {

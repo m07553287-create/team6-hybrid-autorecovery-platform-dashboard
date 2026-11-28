@@ -17,6 +17,11 @@
   fw:script:<id>        hash          path, host, status, keys(JSON), text
   fw:access:<team>      list          사용자 접속·변경 기록 JSON(최대 500건)
   fw:keybook:<team>     hash          접속 키값 → {access_key, member, updated_at, last_ip} 매칭표
+  fw:seq:share          string        협업 공유 일련번호
+  fw:shares:<team>      list          팀 진행·설정 공유 JSON(최대 200건)
+  fw:oauth:code:<sha>   string + TTL  OAuth 인가 코드 JSON(5분)
+  fw:oauth:tok:<sha>    hash + TTL    OAuth Bearer 토큰(30일)
+  fw:oauth:toklist:<t>  set           팀별 발급 Bearer 토큰 키 목록
 """
 import os
 

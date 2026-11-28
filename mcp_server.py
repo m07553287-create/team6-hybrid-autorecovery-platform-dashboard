@@ -26,7 +26,9 @@ import re
 import sys
 import threading
 import time
+import urllib.error
 import urllib.parse
+import urllib.request
 import uuid
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
@@ -1356,7 +1358,33 @@ class McpHttpHandler(BaseHTTPRequestHandler):
         lines.append("## 4. 백엔드 호스트 s1 안내 (물리 게이트웨이 · 웹 직접 접근 제외)\n")
         lines.append("> 🔒 **보안 안내**: `s1 (10.10.10.8)` 호스트는 온프렘 하이퍼바이저 및 내부 vmnet8 NAT 라우팅 게이트웨이입니다. 보안 및 안정성을 위해 **웹 콘솔을 통한 직접 설정 및 조작이 원천 제한(제외)**된 보호 영역입니다. 모든 작업은 위 오픈스택, KT, AWS 영역을 통해 수행하십시오.\n")
 
+        team_shares_md = self.fetch_recent_team_shares_markdown()
+        if team_shares_md:
+            lines.append("---\n")
+            lines.append(team_shares_md)
+        else:
+            lines.append("> 💡 팀 진행·설정 공유 및 Discord 연동: https://figteam.ktci5.kr/api/ai/share-ui\n")
+
         return "\n".join(lines)
+
+    def fetch_recent_team_shares_markdown(self) -> str:
+        """wiki-01 내부 API(/api/ai/feed/internal)에서 최근 팀 진행·설정 공유를 베스트에포트로 조회"""
+        wiki_base = os.environ.get("FIGTEAM_WIKI_API_BASE", "http://192.168.120.230:8080").rstrip("/")
+        internal_key = os.environ.get("FIGTEAM_INTERNAL_KEY", DEFAULT_TEAM_KEY)
+        url = f"{wiki_base}/api/ai/feed/internal?limit=10"
+        req = urllib.request.Request(
+            url,
+            headers={"X-Internal-Key": internal_key, "Accept": "application/json"},
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=1.5) as resp:
+                if resp.status != 200:
+                    return ""
+                data = json.loads(resp.read().decode("utf-8"))
+                return str(data.get("markdown_section") or "").strip()
+        except Exception:
+            return ""
 
     def build_cluster_unified_markdown(self) -> str:
         """s1을 제외한 전체 하이브리드 멀티클라우드 클러스터 통합 명세 및 웹 설정 직결 마크다운"""
