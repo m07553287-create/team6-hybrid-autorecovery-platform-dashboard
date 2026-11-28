@@ -431,3 +431,67 @@ def test_hub_auto_login_and_query_member(client, monkeypatch):
     assert "박엔지니어" in page.text
     assert "fw_s" in client.cookies or "fw_s" in page.headers.get("set-cookie", "")
 
+
+def test_discord_reply_mapping_and_web_thread(client, monkeypatch):
+    monkeypatch.setenv("FIGTEAM_INTERNAL_KEY", "internal-test-key")
+    monkeypatch.setenv("FIGTEAM_DISCORD_WEBHOOK_URL", MOCK_WEBHOOK)
+    sent_payloads = []
+
+    def fake_urlopen(req, timeout=5):
+        sent_payloads.append(json.loads(req.data.decode("utf-8")))
+        return _FakeResp(204)
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    assert client.post("/api/teams", json=TEAM).status_code == 201
+
+    # 1. 원본 과제 등록
+    r_task = client.post(
+        "/api/discord/inbound",
+        headers={"X-Internal-Key": "internal-test-key"},
+        json={
+            "content": "#figteaminfra db-01 복제 지연 점검 요청",
+            "discord_message_id": "orig-msg-100",
+            "author": "김엔지니어",
+        },
+    )
+    assert r_task.status_code == 200
+    task_id = r_task.json()["item"]["id"]
+
+    # 2. 디스코드에서 태그 없이 '답장(Reply)'만 달았을 때 -> 원본 항목에 댓글(reply)로 수집
+    r_reply = client.post(
+        "/api/discord/inbound",
+        headers={"X-Internal-Key": "internal-test-key"},
+        json={
+            "content": "확인했습니다. Seconds_Behind_Master 0초 정상입니다.",
+            "discord_message_id": "reply-msg-101",
+            "reply_to_msg_id": "orig-msg-100",
+            "author": "정다운",
+        },
+    )
+    assert r_reply.status_code == 200
+    assert r_reply.json().get("reply") is True
+    assert r_reply.json().get("parent_item_id") == task_id
+
+    # 3. 웹에서 답변 등록 (/api/discord/inbox/{item_id}/reply)
+    login_res = client.post("/api/ai/hub/auto-login", json={"member": "이엔지니어"})
+    assert login_res.status_code == 200
+
+    sent_payloads.clear()
+    web_rep = client.post(
+        f"/api/discord/inbox/{task_id}/reply",
+        json={"content": "웹에서 확인 완료 메모 추가합니다."},
+    )
+    assert web_rep.status_code == 200
+    assert len(web_rep.json()["item"]["replies"]) == 2
+    # 디스코드 알림 발송 확인
+    assert any("답변이 등록되었습니다" in p["embeds"][0]["title"] for p in sent_payloads)
+
+    # 4. 웹 허브 페이지(/api/ai/hub)에 답변 및 작성자가 렌더링되는지 확인
+    page = client.get("/api/ai/hub")
+    assert page.status_code == 200
+    assert "답변 및 조치 내역 (2건)" in page.text
+    assert "정다운" in page.text
+    assert "Seconds_Behind_Master 0초 정상" in page.text
+    assert "웹에서 확인 완료 메모" in page.text
+
+

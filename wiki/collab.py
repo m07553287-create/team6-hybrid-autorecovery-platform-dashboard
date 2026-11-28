@@ -482,6 +482,56 @@ def format_discord_inbound_embed(entry: dict[str, Any], event_label: str = "웹 
     }
 
 
+def add_discord_inbox_reply(
+    r,
+    team_id: int,
+    item_id: int,
+    author: str,
+    content: str,
+    source: str = "web",
+    discord_message_id: str = "",
+    notify_discord: bool = True,
+) -> dict[str, Any]:
+    inbox_key = f"fw:discord:inbox:{team_id}"
+    raw = r.hget(inbox_key, str(item_id))
+    if not raw:
+        return {"ok": False, "error": "not_found"}
+    entry = json.loads(raw)
+    replies = entry.get("replies") or []
+    ts = int(time.time())
+    rep_obj = {
+        "id": f"rep-{int(time.time()*1000)}-{len(replies)+1}",
+        "author": author,
+        "content": content,
+        "ts": ts,
+        "source": source,
+        "discord_message_id": discord_message_id,
+    }
+    replies.append(rep_obj)
+    entry["replies"] = replies
+    entry["updated_at"] = ts
+    r.hset(inbox_key, str(item_id), json.dumps(entry, ensure_ascii=False))
+
+    discord_res = {"sent": False, "reason": "skipped"}
+    if notify_discord and source == "web":
+        msg_payload = {
+            "embeds": [
+                {
+                    "title": f"💬 [{entry.get('title') or '과제/공유'}]에 답변이 등록되었습니다",
+                    "description": content,
+                    "color": 0x38BDF8,
+                    "fields": [
+                        {"name": "작성자", "value": author, "inline": True},
+                        {"name": "대상 항목", "value": f"#{item_id} {entry.get('category_label') or ''}", "inline": True},
+                    ],
+                    "footer": {"text": f"FIGTEAM 협업 허브 · source={source}"},
+                }
+            ]
+        }
+        discord_res = send_discord_webhook(msg_payload)
+    return {"ok": True, "reply": rep_obj, "item": entry, "discord": discord_res}
+
+
 def ingest_discord_message(
     r,
     team_id: int,
@@ -491,7 +541,10 @@ def ingest_discord_message(
     force: bool = False,
 ) -> dict[str, Any]:
     raw_text = _clean_text(data.get("content") or data.get("text") or data.get("summary"), "content", 2000, required=True)
-    if not force and not has_figteam_trigger(raw_text):
+    reply_to_msg_id = str(data.get("reply_to_msg_id") or data.get("parent_message_id") or (data.get("message_reference") or {}).get("message_id") or "").strip()
+    is_reply = bool(reply_to_msg_id)
+
+    if not force and not is_reply and not has_figteam_trigger(raw_text):
         return {"ok": True, "ignored": True, "reason": "no_trigger"}
 
     ext_msg_id = str(data.get("discord_message_id") or data.get("message_id") or "").strip()[:64]
@@ -503,6 +556,25 @@ def ingest_discord_message(
 
     author = _clean_text(data.get("author") or default_author, "author", 40, required=False, default=default_author)
     channel = _clean_text(data.get("channel") or "discord", "channel", 60, required=False, default="discord")
+
+    # 디스코드 봇 메시지에 대한 '답장(Reply)'인 경우 부모 항목을 찾아 댓글로 추가
+    if is_reply:
+        msg_map_key = f"fw:discord:msg_map:{team_id}"
+        parent_item_id = r.hget(msg_map_key, reply_to_msg_id)
+        if parent_item_id:
+            rep_res = add_discord_inbox_reply(
+                r,
+                team_id=team_id,
+                item_id=int(parent_item_id),
+                author=author,
+                content=raw_text,
+                source="discord",
+                discord_message_id=ext_msg_id,
+                notify_discord=False,
+            )
+            if rep_res.get("ok"):
+                return {"ok": True, "reply": True, "parent_item_id": int(parent_item_id), "item": rep_res["item"]}
+
     cat_override = str(data.get("category") or "").strip().lower()
     cls = classify_discord_message(raw_text, category_override=cat_override)
     area = _clean_text(data.get("area"), "area", 60, required=False, default=cls["area"]) or cls["area"]
@@ -516,6 +588,7 @@ def ingest_discord_message(
         "ts": ts,
         "updated_at": ts,
         "discord_message_id": ext_msg_id,
+        "reply_to_msg_id": reply_to_msg_id,
         "channel": channel,
         "author": author,
         "raw_text": raw_text,
@@ -533,14 +606,18 @@ def ingest_discord_message(
         "source": str(data.get("source") or "discord")[:32],
         "linked_goal_id": None,
         "handled_by": "",
+        "replies": [],
     }
 
     inbox_key = f"fw:discord:inbox:{team_id}"
     order_key = f"fw:discord:order:{team_id}"
+    msg_map_key = f"fw:discord:msg_map:{team_id}"
     p = r.pipeline()
     p.hset(inbox_key, str(item_id), json.dumps(entry, ensure_ascii=False))
     p.lpush(order_key, str(item_id))
     p.ltrim(order_key, 0, DISCORD_INBOX_LIMIT - 1)
+    if ext_msg_id:
+        p.hset(msg_map_key, ext_msg_id, str(item_id))
     p.execute()
 
     discord_res: dict[str, Any] = {"sent": False, "reason": "skipped"}
@@ -1504,6 +1581,39 @@ def render_collab_hub_html(
             )
         tag_cls = "tag-task" if d_cat == "task" else "tag-share"
         card_border = "border-task" if d_cat == "task" else "border-share"
+
+        replies = d_it.get("replies") or []
+        rep_html_list = []
+        for rep in replies:
+            src_lbl = "디스코드" if rep.get("source") == "discord" else "웹"
+            src_tag = f'<span class="reply-src-badge">{src_lbl}</span>'
+            rep_html_list.append(
+                f'<div class="reply-item">'
+                f'<div class="reply-meta"><b>{esc(rep.get("author") or "작성자")}</b> {src_tag} · {_fmt_ts(rep.get("ts", 0))}</div>'
+                f'<div class="reply-content">{esc(rep.get("content") or "")}</div>'
+                f'</div>'
+            )
+        replies_block = ""
+        if rep_html_list:
+            replies_block = (
+                f'<div class="card-replies-box">'
+                f'<div class="reply-header">답변 및 조치 내역 ({len(replies)}건)</div>'
+                f'{"".join(rep_html_list)}'
+                f'</div>'
+            )
+
+        reply_form_html = ""
+        if session:
+            reply_form_html = (
+                f'<form method="post" action="/api/ai/hub/reply" class="inline-reply-form" style="margin-top:10px;">'
+                f'<input type="hidden" name="item_id" value="{d_it["id"]}">'
+                f'<input type="hidden" name="tab" value="inbox">'
+                f'<div style="display:flex;gap:6px;">'
+                f'<input type="text" name="content" placeholder="답변이나 조치 경과를 입력하세요..." required style="flex:1;padding:6px 10px;font-size:12px;">'
+                f'<button type="submit" class="act-btn" style="padding:6px 12px;font-size:12px;white-space:nowrap;">답변 등록</button>'
+                f'</div></form>'
+            )
+
         dc_cards.append(
             f'<div class="work-card {card_border}">'
             f'<div class="card-head">'
@@ -1513,7 +1623,9 @@ def render_collab_hub_html(
             f'<div class="card-title">{esc(d_it.get("title") or "")}</div>'
             f'<div class="card-desc">{esc(d_it.get("summary") or d_it.get("raw_text") or "")}</div>'
             f'<div class="card-sub-info">분류 근거: {esc(d_it.get("classify_reason") or "키워드")}</div>'
-            f'{dc_acts}</div>'
+            f'{replies_block}'
+            f'{dc_acts}'
+            f'{reply_form_html}</div>'
         )
     discord_inbox_html = "".join(dc_cards) if dc_cards else '<div class="empty-box">접수된 Discord 과제 또는 공유 메시지가 없습니다.</div>'
 
@@ -1950,6 +2062,55 @@ def render_collab_hub_html(
     .card-meta {{ font-size: 11.5px; color: #94a3b8; }}
     .card-sub-info {{ font-size: 11px; color: #64748b; margin-top: 6px; }}
     .card-alert {{ background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.3); border-radius: 6px; padding: 6px 10px; font-size: 12px; color: #fde68a; }}
+
+    /* 답변 및 댓글 스레드 */
+    .card-replies-box {{
+      background: #080c16;
+      border: 1px solid var(--surface-border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-top: 10px;
+    }}
+    .reply-header {{
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #94a3b8;
+      margin-bottom: 6px;
+    }}
+    .reply-item {{
+      padding: 6px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }}
+    .reply-item:first-child {{
+      border-top: 0;
+      padding-top: 2px;
+    }}
+    .reply-meta {{
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 2px;
+    }}
+    .reply-meta b {{
+      color: #cbd5e1;
+    }}
+    .reply-src-badge {{
+      font-size: 10px;
+      font-weight: 700;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.12);
+      padding: 1px 4px;
+      border-radius: 3px;
+      margin-left: 3px;
+    }}
+    .reply-content {{
+      font-size: 12.5px;
+      color: #e2e8f0;
+      white-space: pre-wrap;
+      line-height: 1.45;
+    }}
+    .inline-reply-form input {{
+      background: #080c16 !important;
+    }}
 
     /* 태그 */
     .tag {{ display: inline-block; font-size: 10.5px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-right: 4px; }}

@@ -553,6 +553,48 @@ def create_app(redis_client=None):
         s = ai_session_of(request)
         return collab.update_discord_inbox_item(r, s, item_id, await body_of(request))
 
+    @app.post("/api/discord/inbox/{item_id}/reply")
+    async def discord_inbox_reply(item_id: int, request: Request):
+        s = ai_session_of(request)
+        data = await body_of(request)
+        content = str(data.get("content") or data.get("text") or "").strip()
+        if not content:
+            raise ApiError(422, "답변 내용을 입력하세요")
+        author = f"{s.member} ({s.access_key})" if s.access_key else s.member
+        res = collab.add_discord_inbox_reply(
+            r,
+            team_id=s.team_id,
+            item_id=item_id,
+            author=author,
+            content=content,
+            source="web",
+            notify_discord=True,
+        )
+        if not res.get("ok"):
+            raise ApiError(404, "대상을 찾을 수 없습니다")
+        return res
+
+    @app.post("/api/ai/hub/reply")
+    async def ai_hub_reply_form(request: Request):
+        s = ai_session_of(request)
+        form = await form_or_json(request)
+        item_id = int(form.get("item_id") or 0)
+        content = str(form.get("content") or "").strip()
+        tab = str(form.get("tab") or "inbox").strip()
+        if not item_id or not content:
+            raise ApiError(422, "답변 내용을 입력하세요")
+        author = f"{s.member} ({s.access_key})" if s.access_key else s.member
+        collab.add_discord_inbox_reply(
+            r,
+            team_id=s.team_id,
+            item_id=item_id,
+            author=author,
+            content=content,
+            source="web",
+            notify_discord=True,
+        )
+        return RedirectResponse(url=f"/api/ai/hub#{tab}", status_code=303)
+
     @app.post("/api/ai/hub/auto-login")
     async def ai_hub_auto_login(request: Request):
         form = await form_or_json(request)

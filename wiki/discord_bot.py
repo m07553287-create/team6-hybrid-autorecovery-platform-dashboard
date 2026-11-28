@@ -80,11 +80,18 @@ def poll_once(
             if author_obj.get("bot"):
                 continue
             content = str(msg.get("content") or "").strip()
-            if not content or not has_figteam_trigger(content):
+            ref = msg.get("message_reference") or {}
+            reply_to_msg_id = str(ref.get("message_id") or "")
+            has_trigger = has_figteam_trigger(content)
+            # 트리거 태그(#figteaminfra 등)가 있거나, 봇 메시지에 대한 '답장(Reply)'인 경우 모두 수집!
+            if not content:
+                continue
+            if not has_trigger and not reply_to_msg_id:
                 continue
             payload = {
                 "team": os.environ.get("DEFAULT_TEAM_SLUG", "figteam"),
                 "discord_message_id": str(msg["id"]),
+                "reply_to_msg_id": reply_to_msg_id,
                 "channel": f"ch-{cid[-6:]}",
                 "author": author_obj.get("global_name") or author_obj.get("username") or "Discord",
                 "content": content,
