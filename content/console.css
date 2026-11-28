@@ -287,7 +287,104 @@
     }
     .dr-log-toggle-btn:hover { background: #1e293b; color: #f1f5f9; }
 
-    /* 실시간 시나리오 이벤트 & 상세 로그 패널 (Live Audit & Telemetry Log) */
+    /* 터미널 하단 실시간 인프라 & Pod 현황 스트립 (Live Infra & Pod Telemetry Strip) */
+    .dr-infra-strip {
+      background: #090e17;
+      border-top: 1px solid #1e293b;
+      padding: 6px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      overflow-x: auto;
+      flex-shrink: 0;
+      font-family: inherit;
+    }
+    .dr-strip-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #94a3b8;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .dr-strip-cards {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+    }
+    .dr-node-card {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 5px;
+      padding: 4px 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      transition: all 0.25s ease;
+      white-space: nowrap;
+    }
+    .dr-node-card.node-down {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: #ef4444;
+      box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
+      animation: drPulseRed 1.5s infinite;
+    }
+    .dr-node-card.node-warn {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: #f59e0b;
+    }
+    .dr-node-card.node-active {
+      background: rgba(16, 185, 129, 0.12);
+      border-color: #10b981;
+    }
+    .dr-node-card.node-serving {
+      background: rgba(59, 130, 246, 0.18);
+      border-color: #3b82f6;
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.35);
+    }
+    .dr-node-card.node-standby {
+      background: rgba(148, 163, 184, 0.08);
+      border-color: #475569;
+      color: #94a3b8;
+    }
+    .dr-node-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      flex-shrink: 0;
+    }
+    .node-down .dr-node-dot { background: #ef4444; }
+    .node-warn .dr-node-dot { background: #f59e0b; }
+    .node-serving .dr-node-dot { background: #60a5fa; }
+    .node-standby .dr-node-dot { background: #64748b; }
+    .dr-node-name {
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+    .dr-node-state {
+      font-size: 10px;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.08);
+      color: #cbd5e1;
+    }
+    .node-down .dr-node-state { color: #fca5a5; background: rgba(239, 68, 68, 0.25); }
+    .node-active .dr-node-state { color: #86efac; background: rgba(16, 185, 129, 0.25); }
+    .node-serving .dr-node-state { color: #93c5fd; background: rgba(59, 130, 246, 0.25); }
+    .dr-node-desc {
+      font-size: 10px;
+      color: #94a3b8;
+    }
+    @keyframes drPulseRed {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.65; }
+    }
+
     .dr-log-panel {
       background: #05080f;
       border: 1px solid #1e293b;
