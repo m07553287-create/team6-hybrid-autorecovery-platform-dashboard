@@ -86,12 +86,35 @@ def create_app(redis_client=None):
         out = {"slug": s.slug, "team_name": s.team_name, "member": s.member}
         if s.auto:
             out["auto"] = True
+        if s.access_key:
+            out["access_key"] = s.access_key
         return out
 
     @app.post("/api/me/name")
     async def me_name(request: Request):
         data = await body_of(request)
-        return {"member": auth.rename(r, request.cookies.get(auth.COOKIE), data.get("member"))}
+        return {"member": auth.rename(r, request.cookies.get(auth.COOKIE), data.get("member"),
+                                      access_key=data.get("access_key"), client_ip=client_key(request))}
+
+    @app.post("/api/access/register")
+    async def access_register(request: Request):
+        data = await body_of(request)
+        s = session_of(request)
+        return auth.register_access(r, request.cookies.get(auth.COOKIE), s, data.get("member"),
+                                    data.get("access_key"), client_key(request),
+                                    data.get("action") or "visit", data.get("detail") or "")
+
+    @app.get("/api/access/logs")
+    def access_logs(request: Request, limit: int = 100):
+        s = session_of(request)
+        return auth.get_access_logs(r, s.team_id, limit)
+
+    @app.post("/api/access/keybook")
+    async def access_keybook(request: Request):
+        data = await body_of(request)
+        s = session_of(request)
+        kb = auth.upsert_keybook(r, s.team_id, data.get("access_key"), data.get("member"), client_key(request))
+        return {"ok": True, "keybook": kb}
 
     @app.post("/api/team/password")
     async def team_password(request: Request, response: Response):
