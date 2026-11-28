@@ -2139,27 +2139,27 @@ LANDING_HTML = """<!DOCTYPE html>
     .cs-wait { padding: 40px; color: var(--text-sub); text-align: center; }
     .cs-unlock { display: flex; justify-content: center; padding-top: 8vh; }
     .cs-unlock .wk-card { width: min(440px, 92vw); }
-    .cs-wrap { display: grid; grid-template-columns: 270px minmax(0, 1fr); height: 100%; }
-    #cs-root.cs-solo .cs-wrap { grid-template-columns: minmax(0, 1fr); }
-    .cs-drawer { background: #0c1322; border-right: 1px solid var(--surface-border); overflow-y: auto; padding: 12px 10px; display: flex; flex-direction: column; gap: 4px; }
-    .cs-drawer-head { padding: 2px 6px 10px; border-bottom: 1px solid var(--surface-border); margin-bottom: 4px; }
-    .cs-drawer-head b { display: block; color: #fff; font-size: 15px; }
+    .cs-wrap { display: grid; grid-template-columns: 240px minmax(0, 1fr); height: 100vh; max-height: 100vh; overflow: hidden; width: 100%; }
+    #cs-root.cs-solo .cs-wrap, .cs-wrap.cs-warroom-wrap { grid-template-columns: minmax(0, 1fr) !important; width: 100% !important; }
+    .cs-drawer { background: #0c1322; border-right: 1px solid var(--surface-border); overflow-y: auto; padding: 10px 8px; display: flex; flex-direction: column; gap: 4px; }
+    .cs-drawer-head { padding: 2px 6px 8px; border-bottom: 1px solid var(--surface-border); margin-bottom: 4px; }
+    .cs-drawer-head b { display: block; color: #fff; font-size: 14px; }
     .cs-drawer-head span { font-size: 11px; color: #fbbf24; }
     .cs-area { display: flex; flex-direction: column; gap: 2px; }
     .cs-target { display: flex; flex-direction: column; gap: 2px; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 6px;
-      padding: 7px 10px; color: #fff; cursor: pointer; font-family: inherit; }
-    .cs-target b { font-size: 13px; font-family: var(--font-mono); }
-    .cs-target span { font-size: 11px; color: var(--text-muted); }
+      padding: 6px 8px; color: #fff; cursor: pointer; font-family: inherit; }
+    .cs-target b { font-size: 12.5px; font-family: var(--font-mono); }
+    .cs-target span { font-size: 10.5px; color: var(--text-muted); }
     .cs-target:hover:not(:disabled) { background: var(--surface-card); border-color: #334155; }
     .cs-target:disabled { opacity: .45; cursor: not-allowed; }
     .cs-target:focus-visible { outline: 2px solid #93c5fd; }
-    .cs-drawer-foot { margin-top: auto; display: flex; gap: 6px; padding-top: 12px; border-top: 1px solid var(--surface-border); }
-    .cs-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-    .cs-bar { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--surface-border); }
+    .cs-drawer-foot { margin-top: auto; display: flex; gap: 6px; padding-top: 10px; border-top: 1px solid var(--surface-border); }
+    .cs-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100vh; max-height: 100vh; overflow: hidden; position: relative; width: 100%; }
+    .cs-bar { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-bottom: 1px solid var(--surface-border); flex-shrink: 0; }
     .cs-layouts { display: flex; gap: 4px; }
     .cs-on-btn { background: var(--primary); border-color: var(--primary); color: #fff; }
     .cs-hint { font-size: 11.5px; color: var(--text-muted); }
-    .cs-grid { --cs-col: 50%; --cs-row: 50%; flex: 1; min-height: 0; display: grid; position: relative; gap: 6px; padding: 6px; }
+    .cs-grid { --cs-col: 50%; --cs-row: 50%; flex: 1 1 0%; min-height: 0; display: grid; position: relative; gap: 6px; padding: 6px; overflow: hidden; }
     .cs-l1 { grid-template: 1fr / 1fr; }
     .cs-lh { grid-template: 1fr / var(--cs-col) 1fr; }
     .cs-lv { grid-template: var(--cs-row) 1fr / 1fr; }
@@ -2251,14 +2251,14 @@ LANDING_HTML = """<!DOCTYPE html>
     .cs-owner:hover { border-color: #93c5fd; color: #fff; }
     .cs-owner b { color: #bfdbfe; font-weight: 600; }
 
-    /* DR 모의 시나리오 워룸 관제 패널 */
+    /* DR 모의 시나리오 워룸 관제 패널 (FHD 데스크탑 고정뷰 슬림 최적화) */
     #cs-scenario-bar {
       background: #0f172a;
       border-bottom: 2px solid #1e293b;
-      padding: 10px 16px;
+      padding: 6px 14px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 5px;
       flex-shrink: 0;
       z-index: 10;
     }
@@ -2266,17 +2266,17 @@ LANDING_HTML = """<!DOCTYPE html>
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       flex-wrap: wrap;
     }
     .dr-title-group {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
     }
     .dr-title-group b {
       color: #f8fafc;
-      font-size: 14px;
+      font-size: 13.5px;
       display: flex;
       align-items: center;
       gap: 6px;
@@ -2286,15 +2286,15 @@ LANDING_HTML = """<!DOCTYPE html>
       border: 1px solid #334155;
       color: #38bdf8;
       border-radius: 5px;
-      padding: 4px 10px;
-      font-size: 12px;
+      padding: 3px 8px;
+      font-size: 11.5px;
       font-family: inherit;
       font-weight: 600;
     }
     .dr-controls {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       flex-wrap: wrap;
     }
     .dr-speed-select {
@@ -2302,38 +2302,38 @@ LANDING_HTML = """<!DOCTYPE html>
       border: 1px solid #334155;
       color: #94a3b8;
       border-radius: 5px;
-      padding: 3px 8px;
-      font-size: 11.5px;
+      padding: 3px 6px;
+      font-size: 11px;
       font-family: inherit;
     }
     .dr-countdown-badge {
       font-size: 11px;
       color: #38bdf8;
       font-weight: 600;
-      margin-left: 6px;
+      margin-left: 4px;
     }
     .dr-timer-box {
       font-family: var(--font-mono);
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 700;
       color: #94a3b8;
       background: #06090e;
       border: 1px solid #334155;
-      padding: 4px 10px;
+      padding: 3px 8px;
       border-radius: 5px;
     }
     .dr-timer-box b {
       color: #f59e0b;
-      font-size: 14px;
+      font-size: 13px;
       margin-left: 4px;
     }
     .dr-btn {
       background: #1e293b;
       border: 1px solid #334155;
       color: #f8fafc;
-      padding: 4px 12px;
+      padding: 3px 10px;
       border-radius: 5px;
-      font-size: 12px;
+      font-size: 11.5px;
       font-weight: 600;
       cursor: pointer;
       font-family: inherit;
@@ -2346,21 +2346,23 @@ LANDING_HTML = """<!DOCTYPE html>
     .dr-btn-report:hover:not(:disabled) { background: #047857; }
     .dr-btn-report:disabled { cursor: not-allowed; opacity: 0.45; }
 
-    /* 인터랙티브 스테퍼 (5~8단계 자동 유연 배치) */
+    /* 인터랙티브 스테퍼 (FHD 8단계 1줄 완벽 고정) */
     .dr-stepper {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
-      gap: 6px;
-      margin-top: 2px;
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+      gap: 5px;
+      margin-top: 1px;
     }
     .dr-step-item {
       background: #0b1120;
       border: 1px solid #1e293b;
       border-radius: 6px;
-      padding: 6px 10px;
+      padding: 4px 6px;
+      min-height: 38px;
+      max-height: 42px;
       display: flex;
       flex-direction: column;
-      gap: 2px;
+      gap: 1px;
       transition: all 0.2s ease;
       position: relative;
     }
@@ -2384,17 +2386,18 @@ LANDING_HTML = """<!DOCTYPE html>
     .dr-step-item.active .dr-step-head { color: #60a5fa; }
     .dr-step-item.done .dr-step-head { color: #34d399; }
     .dr-step-sub {
-      font-size: 10px;
+      font-size: 9.5px;
       color: #64748b;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      line-height: 1.2;
     }
     .dr-step-item.active .dr-step-sub { color: #cbd5e1; }
     .dr-step-desc-bar {
-      font-size: 11.5px;
+      font-size: 11px;
       color: #94a3b8;
-      padding: 3px 6px;
+      padding: 2px 6px;
       background: #06090e;
       border-radius: 4px;
       display: flex;
@@ -2408,66 +2411,73 @@ LANDING_HTML = """<!DOCTYPE html>
       border: 1px solid #334155;
       color: #94a3b8;
       border-radius: 3px;
-      padding: 2px 6px;
-      font-size: 10.5px;
+      padding: 1px 5px;
+      font-size: 10px;
       cursor: pointer;
       font-family: inherit;
     }
     .dr-log-toggle-btn:hover { background: #1e293b; color: #f1f5f9; }
 
-    /* 터미널 하단 실시간 인프라 & Pod 현황 스트립 (대폭 확대 & 고시인성 네온 관제 스타일) */
+    /* 터미널 하단 실시간 인프라 & Pod 현황 스트립 (FHD 데스크탑 고정뷰 네온 관제 스타일) */
     .dr-infra-strip {
       background: linear-gradient(180deg, #0b1329 0%, #060a14 100%);
       border-top: 3px solid #3b82f6;
-      padding: 12px 20px;
+      padding: 6px 16px;
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 10px;
       overflow-x: auto;
+      overflow-y: hidden;
       flex-shrink: 0;
       font-family: inherit;
-      box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.5);
       z-index: 100;
+      min-height: 52px;
+      max-height: 56px;
     }
     .dr-strip-title {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 800;
       color: #38bdf8;
       white-space: nowrap;
       display: flex;
       flex-direction: column;
-      gap: 3px;
+      gap: 2px;
       letter-spacing: -0.3px;
+      flex-shrink: 0;
     }
     .dr-strip-title small {
-      font-size: 11px;
+      font-size: 10px;
       color: #94a3b8;
       font-weight: 600;
     }
     .dr-strip-cards {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 8px;
       flex: 1;
+      overflow-x: auto;
     }
     .dr-node-card {
       background: #0f172a;
       border: 1.5px solid #334155;
-      border-radius: 8px;
-      padding: 8px 14px;
+      border-radius: 6px;
+      padding: 4px 10px;
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-size: 13px;
+      gap: 8px;
+      font-size: 12px;
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       white-space: nowrap;
-      min-height: 48px;
+      min-height: 38px;
+      max-height: 42px;
       box-sizing: border-box;
+      flex: 1 1 auto;
     }
     .dr-node-card.node-down {
       background: rgba(239, 68, 68, 0.25) !important;
       border-color: #ef4444 !important;
-      box-shadow: 0 0 14px rgba(239, 68, 68, 0.55) !important;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.55) !important;
       animation: drPulseRed 1.2s infinite ease-in-out;
     }
     .dr-node-card.node-warn {
@@ -2478,12 +2488,12 @@ LANDING_HTML = """<!DOCTYPE html>
     .dr-node-card.node-active {
       background: rgba(16, 185, 129, 0.22) !important;
       border-color: #10b981 !important;
-      box-shadow: 0 0 14px rgba(16, 185, 129, 0.5) !important;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.5) !important;
     }
     .dr-node-card.node-serving {
       background: rgba(59, 130, 246, 0.22) !important;
       border-color: #3b82f6 !important;
-      box-shadow: 0 0 14px rgba(59, 130, 246, 0.5) !important;
+      box-shadow: 0 0 12px rgba(59, 130, 246, 0.5) !important;
     }
     .dr-node-card.node-standby {
       background: rgba(148, 163, 184, 0.1);
@@ -2491,8 +2501,8 @@ LANDING_HTML = """<!DOCTYPE html>
       color: #94a3b8;
     }
     .dr-node-dot {
-      width: 13px;
-      height: 13px;
+      width: 12px;
+      height: 12px;
       border-radius: 50%;
       background: #10b981;
       flex-shrink: 0;
@@ -2505,12 +2515,12 @@ LANDING_HTML = """<!DOCTYPE html>
     .dr-node-name {
       font-weight: 800;
       color: #f8fafc;
-      font-size: 13.5px;
+      font-size: 12.5px;
     }
     .dr-node-state {
-      font-size: 11.5px;
-      padding: 3px 8px;
-      border-radius: 5px;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
       font-weight: 800;
       background: rgba(255, 255, 255, 0.1);
       color: #cbd5e1;
@@ -2520,7 +2530,7 @@ LANDING_HTML = """<!DOCTYPE html>
     .node-active .dr-node-state { color: #bbf7d0; background: rgba(16, 185, 129, 0.4); }
     .node-serving .dr-node-state { color: #bfdbfe; background: rgba(59, 130, 246, 0.4); }
     .dr-node-desc {
-      font-size: 12px;
+      font-size: 11px;
       color: #cbd5e1;
       margin-left: 2px;
       font-weight: 500;
@@ -2648,6 +2658,47 @@ LANDING_HTML = """<!DOCTYPE html>
       border-color: #38bdf8 !important;
       color: #38bdf8 !important;
       box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+    }
+
+    /* =========================================================================
+       FHD(1920x1080) 데스크탑 고정 뷰: 노 스크롤(No Scroll) 전체 한 화면 자동 노출
+       ========================================================================= */
+    @media (min-width: 1200px) {
+      html, body {
+        height: 100vh !important;
+        max-height: 100vh !important;
+        overflow: hidden !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      #cs-root {
+        height: 100vh !important;
+        max-height: 100vh !important;
+        overflow: hidden !important;
+        position: fixed !important;
+        inset: 0 !important;
+      }
+      .cs-wrap {
+        height: 100vh !important;
+        max-height: 100vh !important;
+        overflow: hidden !important;
+      }
+      .cs-main {
+        height: 100vh !important;
+        max-height: 100vh !important;
+        overflow: hidden !important;
+        display: flex !important;
+        flex-direction: column !important;
+      }
+      .dr-stepper {
+        grid-template-columns: repeat(8, minmax(0, 1fr)) !important;
+      }
+      .dr-infra-strip {
+        flex-shrink: 0 !important;
+        position: relative !important;
+        bottom: 0 !important;
+        width: 100% !important;
+      }
     }
 
     /* ===== 메인 대시보드 실측 (content/dashboard.css) ===== */
@@ -9200,14 +9251,15 @@ LANDING_HTML = """<!DOCTYPE html>
         if (s.t) CS.floats.push(s.t);
       }
       if (CS.active >= n) CS.active = 0;
-      const drawer = CS.solo ? '' :
+      const isWarRoom = !!CS.scenarioMode;
+      const drawer = (CS.solo || isWarRoom) ? '' :
         '<aside class="cs-drawer"><div class="cs-drawer-head"><b>콘솔</b><span>인스턴스를 누르면 바로 접속 · 서비스를 누르면 상태 확인</span>' +
         '<button type="button" class="cs-owner" onclick="csOwner(true)" title="세션 이어가기에 쓰는 이름 — 누르면 변경">이름: <b id="cs-owner-chip">' + cfgEsc(csOwnerName() || '미설정') + '</b></button></div>' +
         '<div id="cs-tree">' + csTreeHtml() + '</div>' +
         '<div class="cs-drawer-foot"><button type="button" class="wk-mini" onclick="csBack()">← 대시보드</button>' +
         (CS.page ? '' : '<button type="button" class="wk-mini" onclick="window.open(\\'/term/\\', \\'_blank\\')">새 창으로</button>') +
         '<button type="button" class="wk-mini cs-btn-gameday" onclick="csOpenScenarioWarRoom()" style="background:#b91c1c;color:#fff;border-color:#ef4444;margin-left:4px;" title="하이브리드 DR 모의 훈련 워룸 열기">🚀 DR 모의 시나리오</button>' + '</div></aside>';
-      const bar = CS.solo ? '' :
+      const bar = (CS.solo || isWarRoom) ? '' :
         '<div class="cs-bar"><div class="cs-layouts" role="group" aria-label="창 배치">' + CS_LAYOUTS.map(l =>
           '<button type="button" class="wk-mini' + (CS.layout === l[0] ? ' cs-on-btn' : '') + '" aria-pressed="' + (CS.layout === l[0]) + '" onclick="csLayout(\\'' + l[0] + '\\')">' + l[1] + '</button>').join('') +
           '<button type="button" class="wk-mini cs-bar-clear-all" onclick="csClearAllTerms()" title="열려있는 모든 터미널 화면 일괄 초기화" style="margin-left:8px;background:#1e293b;border-color:#475569;color:#e2e8f0;">🧹 전체 화면 초기화</button>' +
@@ -9215,7 +9267,7 @@ LANDING_HTML = """<!DOCTYPE html>
       const grid = '<div class="cs-grid cs-l' + (CS.solo ? '1' : CS.layout) + '" id="cs-grid">' +
         CS.slots.map((s, i) => '<section class="cs-pane' + (i === CS.active ? ' cs-active' : '') + '" data-i="' + i + '" onmousedown="csFocus(' + i + ')" id="cs-slot-' + i + '"></section>').join('') +
         csGutters() + '</div>';
-      csRoot().innerHTML = '<div class="cs-wrap">' + drawer + '<div class="cs-main">' + csScenarioBarHtml() + bar + grid + csScenarioInfraStripHtml() + '</div></div><div class="cs-float-layer" id="cs-float-layer"></div>';
+      csRoot().innerHTML = '<div class="cs-wrap' + (isWarRoom ? ' cs-warroom-wrap' : '') + '">' + drawer + '<div class="cs-main">' + csScenarioBarHtml() + bar + grid + csScenarioInfraStripHtml() + '</div></div><div class="cs-float-layer" id="cs-float-layer"></div>';
       CS.slots.forEach((s, i) => csFillSlot(i));
       CS.floats.forEach(t => csPlaceFloat(t));
       csApplySizes();
@@ -10221,7 +10273,7 @@ LANDING_HTML = """<!DOCTYPE html>
       startTime: 0,
       elapsedMs: 0,
       logs: [],
-      showLogs: true,
+      showLogs: false,
       stepDelaySec: 4,
       paused: false,
       stopped: false,
@@ -10324,7 +10376,7 @@ LANDING_HTML = """<!DOCTYPE html>
     function csOpenScenarioWarRoom(scId) {
       scId = scId || 'l3_failover';
       const u = (typeof csOwnerName === 'function' ? csOwnerName() : '') || localStorage.getItem('fig.term.user') || '';
-      const win = window.open('/term/?scenario=' + encodeURIComponent(scId) + (u ? '&u=' + encodeURIComponent(u) : ''), 'dr_warroom_' + Date.now(), 'width=1600,height=980');
+      const win = window.open('/term/?scenario=' + encodeURIComponent(scId) + (u ? '&u=' + encodeURIComponent(u) : ''), 'dr_warroom_' + Date.now(), 'width=1920,height=1080');
       if (win) win.focus();
     }
 
