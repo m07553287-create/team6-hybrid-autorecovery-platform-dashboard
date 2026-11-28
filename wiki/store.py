@@ -15,6 +15,8 @@
   fw:steps:<team>       string        진행 순서 문서 id
   fw:scripts:<team>     list          스크립트 id
   fw:script:<id>        hash          path, host, status, keys(JSON), text
+  fw:access:<team>      list          사용자 접속·변경 기록 JSON(최대 500건)
+  fw:keybook:<team>     hash          접속 키값 → {access_key, member, updated_at, last_ip} 매칭표
 """
 import os
 

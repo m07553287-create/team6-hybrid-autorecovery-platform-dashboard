@@ -198,7 +198,7 @@
       if (lens === 'zoom') return [VIEW_FOREST].concat(cfgClouds().map(c => ({ id: c, name: CLOUD_NAME[c], sub: cfgInstOrder().filter(pid => cfgPage(pid).cloud === c).length + '대 · 연결·의존·멈추면', cloud: c })));
       if (lens === 'step') return [{ id: 'all', name: '처음부터 끝까지', sub: d.steps.length ? d.steps.length + '단계' : '아직 단계가 없습니다' }];
       return d.reference.filter(r => !/^시점 · /.test(r[1] || '')).map(r => ({ id: r[0], name: r[1], sub: cfgPage(r[0]).tag }))
-        .concat(typeof wikiChangesView === 'function' ? [{ id: '__changes', name: '최근 변경', sub: '팀 전체 변경 기록' }] : []);
+        .concat(typeof wikiChangesView === 'function' ? [{ id: '__changes', name: '최근 변경 · 접속 기록', sub: '키값·수정자 매칭 및 접속 이력' }] : []);
     }
     function cfgMinors(lens, major) {
       const d = CFG.data;
@@ -593,6 +593,9 @@
               body: nextBody,
               message: message || '서비스 영역 항목 수정'
             });
+            if (typeof wkRecordLocalAccess === 'function') {
+              wkRecordLocalAccess('edit', 'area:' + (nextBody.name || a.name || a.docId) + ' (' + r.rev + '판)');
+            }
             if (typeof wikiToast === 'function') wikiToast('서버에 저장했습니다 (' + r.rev + '판)');
             await wikiReload(true);
             return true;

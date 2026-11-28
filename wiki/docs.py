@@ -4,6 +4,7 @@ import time
 
 import redis
 
+from wiki import auth
 from wiki.errors import ApiError
 from wiki.guard import find_secret, validate_body
 
@@ -47,9 +48,22 @@ def _int(v, field):
         raise ApiError(422, f"{field} 가 필요합니다", {"field": field})
 
 
-def _rev_entry(rev, body_raw, deleted, author, message, ts):
-    return json.dumps({"rev": rev, "body": body_raw, "deleted": deleted, "author": author,
-                       "message": message, "created_at": ts}, ensure_ascii=False)
+def _rev_entry(rev, body_raw, deleted, author, message, ts, access_key=""):
+    d = {"rev": rev, "body": body_raw, "deleted": deleted, "author": author,
+         "message": message, "created_at": ts}
+    if access_key:
+        d["access_key"] = access_key
+    return json.dumps(d, ensure_ascii=False)
+
+
+def _enrich_author(author, explicit_key, keybook):
+    base_name, parsed_key = auth.parse_author_key(author)
+    ak = (explicit_key or parsed_key or "").upper()
+    if ak and ak in keybook:
+        matched = keybook[ak].get("member") or base_name or author
+    else:
+        matched = base_name or author
+    return ak, matched
 
 
 def _out(doc_id, d):
@@ -67,11 +81,12 @@ def get_tree(r, s):
     return {"team": {"slug": s.slug, "name": s.team_name}, "docs": [_out(i, d) for i, d in rows]}
 
 
-def insert_doc(r, team_id, kind, parent_id, sort, body, author, message, ts=None):
+def insert_doc(r, team_id, kind, parent_id, sort, body, author, message, ts=None, access_key=""):
     """검사 없이 새 문서(1판)를 쓴다 — create_doc 와 시드가 사용."""
     ts = ts or int(time.time())
     doc_id = r.incr("fw:seq:doc")
     raw = json.dumps(body, ensure_ascii=False)
+    ak = (access_key or auth.parse_author_key(author)[1] or "").upper()
     p = r.pipeline(transaction=True)
     p.hset(f"fw:doc:{doc_id}", mapping={"team_id": team_id, "kind": kind, "parent_id": parent_id or "",
                                          "sort": int(sort or 0), "rev": 1, "body": raw, "deleted": 0,
@@ -81,7 +96,7 @@ def insert_doc(r, team_id, kind, parent_id, sort, body, author, message, ts=None
         p.sadd(f"fw:kids:{parent_id}", doc_id)
     if kind == "steps":
         p.set(f"fw:steps:{team_id}", doc_id)
-    p.rpush(f"fw:revs:{doc_id}", _rev_entry(1, raw, 0, author, message, ts))
+    p.rpush(f"fw:revs:{doc_id}", _rev_entry(1, raw, 0, author, message, ts, ak))
     p.zadd(f"fw:changes:{team_id}", {f"{doc_id}:1": ts * 1000 + doc_id % 1000})
     p.execute()
     return doc_id
@@ -111,14 +126,18 @@ def create_doc(r, s, data):
             raise ApiError(409, "진행 순서 문서는 팀에 하나만 둘 수 있습니다")
     if r.scard(f"fw:docs:{s.team_id}") >= MAX_DOCS:
         raise ApiError(422, "팀 문서는 2000개까지입니다")
-    doc_id = insert_doc(r, s.team_id, kind, parent_id, data.get("sort"), body, s.member, message)
+    ak = (s.access_key or auth.parse_author_key(s.member)[1] or "").upper()
+    doc_id = insert_doc(r, s.team_id, kind, parent_id, data.get("sort"), body, s.member, message, access_key=ak)
+    if ak:
+        auth.record_access(r, s.team_id, s.member, ak, "create", "", f"{kind}:{_title(body)}")
     return {"id": doc_id, "rev": 1}
 
 
-def _new_rev(r, s, doc_id, base_rev, body, deleted, message):
+def _new_rev(r, s, doc_id, base_rev, body, deleted, message, action="edit"):
     """current rev == base_rev 일 때만 새 판. WATCH 로 동시 저장을 판정하고, 아니면 409 + 최신 판."""
     key = f"fw:doc:{doc_id}"
     raw = json.dumps(body, ensure_ascii=False)
+    ak = (s.access_key or auth.parse_author_key(s.member)[1] or "").upper()
     with r.pipeline() as p:
         try:
             p.watch(key)
@@ -130,13 +149,15 @@ def _new_rev(r, s, doc_id, base_rev, body, deleted, message):
             rev = base_rev + 1
             p.multi()
             p.hset(key, mapping={"rev": rev, "body": raw, "deleted": deleted, "updated_at": ts})
-            p.rpush(f"fw:revs:{doc_id}", _rev_entry(rev, raw, deleted, s.member, message, ts))
+            p.rpush(f"fw:revs:{doc_id}", _rev_entry(rev, raw, deleted, s.member, message, ts, ak))
             p.zadd(f"fw:changes:{s.team_id}", {f"{doc_id}:{rev}": ts * 1000 + rev % 1000})
             if d["parent_id"]:
                 (p.srem if deleted else p.sadd)(f"fw:kids:{d['parent_id']}", doc_id)
             p.execute()
         except redis.WatchError:
             raise _conflict(r, doc_id)
+    if ak:
+        auth.record_access(r, s.team_id, s.member, ak, action, "", f"{d['kind']}:{_title(body)} ({rev}판)")
     return {"rev": rev}
 
 
@@ -152,7 +173,7 @@ def update_doc(r, s, doc_id, data):
         raise ApiError(422, "삭제된 문서입니다. 기록에서 먼저 되돌리세요")
     body = data.get("body")
     _check(d["kind"], body)
-    return _new_rev(r, s, doc_id, _int(data.get("base_rev"), "base_rev"), body, 0, _message(data))
+    return _new_rev(r, s, doc_id, _int(data.get("base_rev"), "base_rev"), body, 0, _message(data), "edit")
 
 
 def delete_doc(r, s, doc_id, data):
@@ -160,15 +181,20 @@ def delete_doc(r, s, doc_id, data):
     if r.scard(f"fw:kids:{doc_id}"):
         raise ApiError(422, "하위 문서를 먼저 삭제하세요")
     return _new_rev(r, s, doc_id, _int(data.get("base_rev"), "base_rev"), json.loads(d["body"]), 1,
-                    _message(data, "삭제"))
+                    _message(data, "삭제"), "delete")
 
 
 def list_revisions(r, s, doc_id):
     _doc(r, s.team_id, doc_id)
+    keybook = auth.get_keybook(r, s.team_id)
     out = []
     for raw in reversed(r.lrange(f"fw:revs:{doc_id}", 0, -1)):
         e = json.loads(raw)
-        out.append({k: e[k] for k in ("rev", "author", "message", "created_at", "deleted")})
+        row = {k: e[k] for k in ("rev", "author", "message", "created_at", "deleted")}
+        ak, matched = _enrich_author(e.get("author", ""), e.get("access_key", ""), keybook)
+        row["access_key"] = ak
+        row["matched_user"] = matched
+        out.append(row)
     return out
 
 
@@ -178,8 +204,10 @@ def get_revision(r, s, doc_id, rev):
     if not raw:
         raise ApiError(404, "그 판이 없습니다")
     e = json.loads(raw)
+    keybook = auth.get_keybook(r, s.team_id)
+    ak, matched = _enrich_author(e.get("author", ""), e.get("access_key", ""), keybook)
     return {"rev": e["rev"], "body": json.loads(e["body"]), "deleted": e["deleted"],
-            "author": e["author"], "created_at": e["created_at"]}
+            "author": e["author"], "access_key": ak, "matched_user": matched, "created_at": e["created_at"]}
 
 
 def restore_doc(r, s, doc_id, data):
@@ -188,20 +216,22 @@ def restore_doc(r, s, doc_id, data):
     if d["parent_id"] and r.hget(f"fw:doc:{d['parent_id']}", "deleted") == "1":
         raise ApiError(422, "상위 문서가 삭제되어 있습니다. 상위 문서를 먼저 되돌리세요")
     msg = _message(data, f"{old['rev']}판으로 되돌림")
-    return _new_rev(r, s, doc_id, _int(data.get("base_rev"), "base_rev"), old["body"], 0, msg)
+    return _new_rev(r, s, doc_id, _int(data.get("base_rev"), "base_rev"), old["body"], 0, msg, "restore")
 
 
 def list_changes(r, s, before=None, limit=50):
     limit = max(1, min(int(limit or 50), 100))
     hi = f"({int(before) * 1000}" if before else "+inf"
     members = r.zrevrangebyscore(f"fw:changes:{s.team_id}", hi, "-inf", start=0, num=limit)
+    keybook = auth.get_keybook(r, s.team_id)
     out = []
     for m in members:
         doc_id, rev = (int(x) for x in m.split(":"))
         e = json.loads(r.lindex(f"fw:revs:{doc_id}", rev - 1))
+        ak, matched = _enrich_author(e.get("author", ""), e.get("access_key", ""), keybook)
         out.append({"doc_id": doc_id, "kind": r.hget(f"fw:doc:{doc_id}", "kind"), "title": _title(json.loads(e["body"])),
-                    "rev": rev, "author": e["author"], "message": e["message"],
-                    "created_at": e["created_at"], "deleted": e["deleted"]})
+                    "rev": rev, "author": e["author"], "access_key": ak, "matched_user": matched,
+                    "message": e["message"], "created_at": e["created_at"], "deleted": e["deleted"]})
     return out
 
 

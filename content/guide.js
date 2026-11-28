@@ -1709,6 +1709,9 @@
             lastKind = r.kind;
             lastId = r.docId;
           }
+          if (typeof wkRecordLocalAccess === 'function') {
+            wkRecordLocalAccess(r.action === 'create' ? 'create' : 'edit', r.kind + ':' + (r.title || r.docId));
+          }
           savedCount++;
         } catch (e) {
           if (e.status === 401) return false;

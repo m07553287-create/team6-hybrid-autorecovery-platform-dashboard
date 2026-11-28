@@ -36,7 +36,7 @@
       return WIKI.staticCfg;
     }
 
-    // 설정 탭 진입: 로그인 상태 확인 → 트리 읽기 → 화면
+    // 설정 탭 진입: 로그인 상태 확인 → 접속 키·사용자 동기화 → 트리 읽기 → 화면
     async function wikiInit() {
       try {
         WIKI.me = await api('GET', '/api/me');
@@ -44,6 +44,7 @@
         wikiShowLogin(e.status === 401 ? '' : (e.error || '서버에 연결하지 못했습니다.'));
         return;
       }
+      await wkSyncIdentity('visit');
       await wikiReload();
     }
 
@@ -133,14 +134,22 @@
             '<label>팀 주소<input name="slug" required autocomplete="username" value="figteam" readonly style="background:rgba(255,255,255,0.06);color:#94a3b8;cursor:not-allowed;"></label>' +
             '<div style="font-size:12px;color:#64748b;margin-top:-6px;margin-bottom:12px;">* 기본 팀(figteam)으로 설정된 팀만 해당됩니다.</div>' +
             '<label>팀 비밀번호<input name="password" type="password" required autocomplete="current-password"></label>' +
-            '<label>내 이름 <span>(고친 기록에 남습니다)</span><input name="member" required maxlength="20" autocomplete="nickname"></label>' +
+            '<label>내 이름 <span>(고친 기록·접속 기록에 남습니다)</span><input name="member" required maxlength="13" autocomplete="nickname"></label>' +
+            '<label>접속 키값 <span>(자동 발급 · 변경 가능)</span><input name="access_key" maxlength="16" autocomplete="off" style="font-family:var(--font-mono);text-transform:uppercase;"></label>' +
             '<p class="wk-error" id="wk-login-err" role="alert" hidden></p>' +
             '<button type="submit" class="wk-btn wk-primary">들어가기</button>' +
           '</form>' +
         '</div>';
+      const prof = wkGetAccessProfile();
+      const f = document.getElementById('wk-login-form');
+      if (f) {
+        f.slug.value = 'figteam';
+        if (f.access_key) f.access_key.value = prof.access_key;
+        if (prof.member && prof.member !== '게스트') f.member.value = prof.member;
+      }
       const last = localStorage.getItem('fw_last');
-      if (last) {
-        try { const v = JSON.parse(last); const f = document.getElementById('wk-login-form'); f.slug.value = 'figteam'; f.member.value = v.member || ''; } catch (e) {}
+      if (last && f && !f.member.value) {
+        try { const v = JSON.parse(last); f.member.value = wkParseAuthor(v.member || '').name || ''; } catch (e) {}
       }
     }
 
@@ -155,12 +164,21 @@
       const form = ev.target;
       const btn = form.querySelector('button[type=submit]');
       const err = document.getElementById(errId);
-      const data = wikiFormData(form);
+      const rawData = wikiFormData(form);
+      const ak = wkNormalizeAccessKey(rawData.access_key) || wkGenAccessKey();
+      const rawName = (rawData.member || '게스트').trim() || '게스트';
+      const data = Object.assign({}, rawData, {
+        member: wkFormatAuthor(rawName, ak),
+        access_key: ak
+      });
       err.hidden = true; btn.disabled = true;
       try {
         await api('POST', path, data);
-        localStorage.setItem('fw_last', JSON.stringify({ slug: data.slug, member: data.member }));
+        wkSaveAccessProfile(rawName, ak);
+        wkRecordLocalAccess('login', '팀 위키 로그인', rawName, ak);
+        localStorage.setItem('fw_last', JSON.stringify({ slug: data.slug, member: rawName, access_key: ak }));
         WIKI.me = await api('GET', '/api/me');
+        await wkSyncIdentity('login');
         await wikiReload();
         if (typeof wikiAfterLogin === 'function') wikiAfterLogin();
       } catch (e) {
@@ -178,35 +196,294 @@
       wikiShowLogin();
     }
 
-    function wikiTeamBar() {
-      let userName = '';
+    // ===== 접속 키값 · 사용자 매칭 (키값 발급 · 포맷 · 파싱 · 키북 · 접속 로그) =====
+    const WK_ACCESS_STORAGE = {
+      profile: 'fig.access.profile_v1',
+      logs: 'fig.access.logs_v1',
+      keybook: 'fig.access.keybook_v1'
+    };
+
+    function wkGenAccessKey() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let out = '';
+      for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
+      return out;
+    }
+
+    function wkNormalizeAccessKey(k) {
+      return String(k == null ? '' : k).trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 16);
+    }
+
+    function wkParseAuthor(author, explicitKey, keybook) {
+      const raw = String(author == null ? '' : author).trim();
+      let baseName = raw;
+      let parsedKey = '';
+      const mHash = raw.match(/^(.*?)#([A-Za-z0-9_-]{2,16})$/);
+      const mParen = !mHash && raw.match(/^(.*?)\s*\(([A-Za-z0-9_-]{2,16})\)$/);
+      const m = mHash || mParen;
+      if (m) {
+        baseName = (m[1] || '').trim() || '게스트';
+        parsedKey = m[2];
+      }
+      const ak = wkNormalizeAccessKey(explicitKey || parsedKey);
+      const kbEntry = (ak && keybook && keybook[ak]) ? keybook[ak] : null;
+      const kbName = kbEntry && kbEntry.member ? String(kbEntry.member).trim() : '';
+      const registered = Boolean(kbName && kbName !== '게스트');
+      const displayBase = baseName || '게스트';
+      const matchedUser = registered ? kbName : displayBase;
+      const hasRealName = registered || (displayBase !== '게스트' && displayBase !== 'seed');
+      return {
+        rawAuthor: raw,
+        name: displayBase,
+        accessKey: ak,
+        matchedUser: matchedUser,
+        registered: registered,
+        hasRealName: Boolean(hasRealName)
+      };
+    }
+
+    function wkFormatAuthor(member, accessKey) {
+      const parsed = wkParseAuthor(member);
+      const name = (parsed.name && parsed.name !== '' ? parsed.name : '게스트').trim() || '게스트';
+      const ak = wkNormalizeAccessKey(accessKey || parsed.accessKey);
+      if (!ak) return name.slice(0, 20);
+      const maxName = Math.max(1, 20 - 1 - ak.length);
+      const shortName = name.slice(0, maxName).trim() || '게스트';
+      return shortName + '#' + ak;
+    }
+
+    function wkReadLocalJson(key, fallback) {
       try {
-        userName = (typeof csOwnerName === 'function' ? csOwnerName() : '') || localStorage.getItem('fig.term.user') || (WIKI.me && WIKI.me.member !== '게스트' ? WIKI.me.member : '') || '';
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch (e) { return fallback; }
+    }
+
+    function wkWriteLocalJson(key, val) {
+      try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
+    }
+
+    function wkGetAccessProfile() {
+      const saved = wkReadLocalJson(WK_ACCESS_STORAGE.profile, null) || {};
+      let ak = wkNormalizeAccessKey(saved.access_key);
+      if (!ak) ak = wkGenAccessKey();
+      let termUser = '';
+      try { termUser = (localStorage.getItem('fig.term.user') || '').trim(); } catch (e) {}
+      if (termUser === 'guest' || termUser === '게스트') termUser = '';
+      const meParsed = (typeof WIKI !== 'undefined' && WIKI.me && WIKI.me.member) ? wkParseAuthor(WIKI.me.member, WIKI.me.access_key) : { name: '' };
+      let member = (saved.member || '').trim() || termUser || (meParsed.name && meParsed.name !== '게스트' ? meParsed.name : '') || '게스트';
+      if (!saved.access_key || saved.member !== member) {
+        wkWriteLocalJson(WK_ACCESS_STORAGE.profile, { member: member, access_key: ak });
+      }
+      return { member: member, access_key: ak };
+    }
+
+    function wkSaveAccessProfile(member, accessKey) {
+      const ak = wkNormalizeAccessKey(accessKey) || wkGenAccessKey();
+      const parsed = wkParseAuthor(member);
+      const cleanName = (parsed.name || '게스트').trim() || '게스트';
+      wkWriteLocalJson(WK_ACCESS_STORAGE.profile, { member: cleanName, access_key: ak });
+      const kb = wkReadLocalJson(WK_ACCESS_STORAGE.keybook, {}) || {};
+      const prev = kb[ak];
+      if (!(cleanName === '게스트' && prev && prev.member && prev.member !== '게스트')) {
+        kb[ak] = { access_key: ak, member: cleanName, updated_at: Math.floor(Date.now() / 1000), last_ip: '현재 브라우저' };
+        wkWriteLocalJson(WK_ACCESS_STORAGE.keybook, kb);
+      }
+      try {
+        if (cleanName && cleanName !== '게스트') localStorage.setItem('fig.term.user', cleanName);
       } catch (e) {}
-      if (userName === 'guest' || userName === '게스트') userName = '';
+      return { member: cleanName, access_key: ak };
+    }
+
+    function wkRecordLocalAccess(action, detail, member, accessKey) {
+      if (typeof localStorage === 'undefined') return;
+      const prof = (!member || !accessKey) ? wkGetAccessProfile() : null;
+      const ak = wkNormalizeAccessKey(accessKey || (prof && prof.access_key));
+      const parsed = wkParseAuthor(member || (prof && prof.member));
+      const cleanName = parsed.name || '게스트';
+      const logs = wkReadLocalJson(WK_ACCESS_STORAGE.logs, []) || [];
+      logs.unshift({
+        ts: Math.floor(Date.now() / 1000),
+        member: cleanName,
+        access_key: ak,
+        action: action || 'visit',
+        detail: detail || '',
+        ip: '현재 브라우저'
+      });
+      wkWriteLocalJson(WK_ACCESS_STORAGE.logs, logs.slice(0, 200));
+      wkSaveAccessProfile(cleanName, ak);
+    }
+
+    function wkMergedKeybook(extraServerKeybook, changesList) {
+      const out = {};
+      const localKb = wkReadLocalJson(WK_ACCESS_STORAGE.keybook, {}) || {};
+      Object.keys(localKb).forEach(k => { out[wkNormalizeAccessKey(k)] = Object.assign({}, localKb[k]); });
+      if (WIKI.keybook) {
+        Object.keys(WIKI.keybook).forEach(k => {
+          const nk = wkNormalizeAccessKey(k);
+          out[nk] = Object.assign({}, out[nk] || {}, WIKI.keybook[k]);
+        });
+      }
+      if (extraServerKeybook) {
+        Object.keys(extraServerKeybook).forEach(k => {
+          const nk = wkNormalizeAccessKey(k);
+          out[nk] = Object.assign({}, out[nk] || {}, extraServerKeybook[k]);
+        });
+      }
+      (changesList || []).forEach(c => {
+        const p = wkParseAuthor(c.author, c.access_key, out);
+        if (p.accessKey && !out[p.accessKey]) {
+          out[p.accessKey] = {
+            access_key: p.accessKey,
+            member: c.matched_user || p.name || '게스트',
+            updated_at: c.created_at || 0,
+            last_ip: ''
+          };
+        }
+      });
+      return out;
+    }
+
+    async function wkSyncIdentity(action, detail) {
+      if (!WIKI || !WIKI.me) return;
+      const prof = wkGetAccessProfile();
+      const formatted = wkFormatAuthor(prof.member, prof.access_key);
+      if (WIKI.me.member !== formatted || WIKI.me.access_key !== prof.access_key) {
+        try {
+          const rn = await api('POST', '/api/me/name', { member: formatted, access_key: prof.access_key });
+          WIKI.me.member = rn.member || formatted;
+          WIKI.me.access_key = prof.access_key;
+        } catch (e) {}
+      }
+      try {
+        const reg = await api('POST', '/api/access/register', {
+          member: prof.member,
+          access_key: prof.access_key,
+          action: action || 'visit',
+          detail: detail || ''
+        });
+        if (reg && reg.keybook) WIKI.keybook = reg.keybook;
+      } catch (e) {
+        // 구버전 서버(404) 호환: 로컬 접속 기록으로 폴백 저장
+        wkRecordLocalAccess(action || 'visit', detail || '', prof.member, prof.access_key);
+      }
+    }
+
+    function wkAuthorCellHtml(author, explicitKey, keybook, opts) {
+      opts = opts || {};
+      const p = wkParseAuthor(author, explicitKey, keybook);
+      const keyBadge = p.accessKey
+        ? '<button type="button" class="wk-key-pill" onclick="event.stopPropagation();wkFilterByKey(\'' + cfgEsc(p.accessKey) + '\')" title="이 접속 키값으로 필터">' + cfgEsc(p.accessKey) + '</button>'
+        : '<span class="wk-key-pill wk-key-none">키없음</span>';
+      const userName = cfgEsc(p.matchedUser || '게스트');
+      const matchBtn = (p.accessKey && !p.hasRealName && opts.allowQuickMatch !== false)
+        ? ' <button type="button" class="wk-mini" onclick="event.stopPropagation();wkOpenKeybookQuick(\'' + cfgEsc(p.accessKey) + '\')" title="이 접속 키값에 사용자 매칭 등록">매칭</button>'
+        : '';
+      const statusTag = p.registered
+        ? '<span class="wk-matched-badge">매칭</span>'
+        : (p.accessKey && !p.hasRealName ? '<span class="wk-unmatched-badge">미등록</span>' : '');
+      return {
+        keyHtml: keyBadge,
+        userHtml: '<span class="wk-user-pill' + (p.hasRealName ? ' named' : '') + '">' + userName + '</span> ' + statusTag + matchBtn,
+        parsed: p
+      };
+    }
+
+    function wikiTeamBar() {
+      const prof = wkGetAccessProfile();
+      const kb = wkMergedKeybook();
+      const kbName = kb[prof.access_key] && kb[prof.access_key].member;
+      const dispName = (prof.member && prof.member !== '게스트') ? prof.member : (kbName || '게스트');
 
       return '<div class="wk-teambar" id="wk-teambar">' +
-        '<div><b>figteam (team6)</b>' +
-        (userName ? '<span style="color:#38bdf8; font-weight:600; margin-left:6px;">' + cfgEsc(userName) + '</span>' : '') +
+        '<div class="wk-id-top"><div><b>figteam (team6)</b>' +
+        '<span class="wk-id-user">' + cfgEsc(dispName) + '</span></div>' +
+        '<span class="wk-key-pill" title="현재 브라우저 접속 키값">' + cfgEsc(prof.access_key) + '</span></div>' +
+        '<div class="wk-teambar-acts">' +
+        '<button type="button" class="wk-mini" onclick="wkOpenIdentityModal()">키·사용자 설정</button>' +
+        '<button type="button" class="wk-mini" onclick="cfgSelect(\'ref\',\'__changes\',\'\')">접속·변경 기록</button>' +
         '</div>' +
         '</div>';
     }
-    function wikiRenameStart() {
-      const bar = document.getElementById('wk-teambar');
-      bar.innerHTML = '<form class="wk-rename" onsubmit="wikiRenameSave(event)"><label>고친 기록에 남을 이름' +
-        '<input name="member" maxlength="20" required value="' + cfgEsc(WIKI.me.member === '게스트' ? '' : WIKI.me.member) + '"></label>' +
-        '<button type="submit" class="cfg-copy">저장</button><button type="button" class="cfg-copy" onclick="cfgRenderNav()">취소</button></form>';
-      bar.querySelector('input').focus();
+
+    function wkOpenIdentityModal(presetKey) {
+      const old = document.getElementById('wk-identity-modal');
+      if (old) old.remove();
+      const prof = wkGetAccessProfile();
+      const targetKey = wkNormalizeAccessKey(presetKey || prof.access_key);
+      const kb = wkMergedKeybook();
+      const curName = (presetKey && kb[targetKey] && kb[targetKey].member !== '게스트')
+        ? kb[targetKey].member
+        : (prof.member === '게스트' ? '' : prof.member);
+
+      const modal = document.createElement('div');
+      modal.id = 'wk-identity-modal';
+      modal.className = 'cfg-modal-overlay';
+      modal.innerHTML =
+        '<div class="cfg-builder-modal-card" role="dialog" aria-modal="true" style="max-width:480px;">' +
+        '<div class="cfg-builder-modal-head">' +
+        '<span>🔑 접속 키값 &amp; 사용자 매칭 설정</span>' +
+        '<button type="button" class="cfg-win-btn btn-close" id="wk-id-close" style="color:#cbd5e1;">✕</button>' +
+        '</div>' +
+        '<div class="cfg-builder-modal-body">' +
+        '<p class="manual-desc" style="margin:0;font-size:12.5px;">수정·등록 시 <b>접속 키값 + 사용자</b>가 최근 변경자료와 접속 기록에 함께 기록됩니다.</p>' +
+        '<div class="cfg-builder-field">' +
+        '<label class="cfg-builder-label">접속 키값 (영문·숫자 2~16자)</label>' +
+        '<div style="display:flex;gap:6px;">' +
+        '<input type="text" id="wk-id-key" class="cfg-builder-input" maxlength="16" value="' + cfgEsc(targetKey) + '" style="font-family:var(--font-mono);text-transform:uppercase;">' +
+        '<button type="button" class="cfg-copy" id="wk-id-regen" title="새 키값 발급">재발급</button>' +
+        '</div></div>' +
+        '<div class="cfg-builder-field">' +
+        '<label class="cfg-builder-label">매칭 사용자 이름 (1~13자 권장)</label>' +
+        '<input type="text" id="wk-id-name" class="cfg-builder-input" maxlength="20" value="' + cfgEsc(curName) + '" placeholder="예: 홍길동">' +
+        '</div>' +
+        '</div>' +
+        '<div class="cfg-modal-foot">' +
+        '<button type="button" class="cfg-btn-cancel" id="wk-id-cancel">취소</button>' +
+        '<button type="button" class="cfg-btn-confirm" id="wk-id-save" style="background:#2563eb;border-color:#3b82f6;">저장 및 매칭 반영</button>' +
+        '</div></div>';
+      document.body.appendChild(modal);
+
+      const close = () => { modal.remove(); document.removeEventListener('keydown', onKey); };
+      const onKey = e => { if (e.key === 'Escape') close(); };
+      document.addEventListener('keydown', onKey);
+      modal.querySelector('#wk-id-close').onclick = close;
+      modal.querySelector('#wk-id-cancel').onclick = close;
+      modal.onclick = e => { if (e.target === modal) close(); };
+      modal.querySelector('#wk-id-regen').onclick = () => {
+        modal.querySelector('#wk-id-key').value = wkGenAccessKey();
+      };
+      modal.querySelector('#wk-id-save').onclick = async () => {
+        const ak = wkNormalizeAccessKey(modal.querySelector('#wk-id-key').value);
+        const nm = (modal.querySelector('#wk-id-name').value || '').trim();
+        if (ak.length < 2) { alert('접속 키값은 2자 이상 영문·숫자로 입력하세요.'); return; }
+        if (!nm) { alert('사용자 이름을 입력하세요.'); return; }
+        if (!presetKey || presetKey === prof.access_key) {
+          wkSaveAccessProfile(nm, ak);
+          await wkSyncIdentity('rename', '키·사용자 매칭 설정');
+        } else {
+          const kbLocal = wkReadLocalJson(WK_ACCESS_STORAGE.keybook, {}) || {};
+          kbLocal[ak] = { access_key: ak, member: nm, updated_at: Math.floor(Date.now() / 1000), last_ip: '수동 매칭' };
+          wkWriteLocalJson(WK_ACCESS_STORAGE.keybook, kbLocal);
+        }
+        try {
+          const rkb = await api('POST', '/api/access/keybook', { access_key: ak, member: nm });
+          if (rkb && rkb.keybook) WIKI.keybook = rkb.keybook;
+        } catch (e) {}
+        close();
+        wikiToast('매칭 저장됨: ' + ak + ' → ' + nm);
+        cfgRenderNav();
+        if (CFG.lens === 'ref' && CFG.major === '__changes') wikiChangesView();
+      };
+      modal.querySelector('#wk-id-name').focus();
     }
-    async function wikiRenameSave(ev) {
-      ev.preventDefault();
-      try {
-        const r = await api('POST', '/api/me/name', { member: ev.target.member.value.trim() });
-        WIKI.me.member = r.member;
-        localStorage.setItem('fw_last', JSON.stringify({ slug: WIKI.me.slug, member: r.member }));
-        wikiToast('이름을 바꿨습니다: ' + r.member);
-      } catch (e) { if (e.status !== 401) wikiToast(e.error || '바꾸지 못했습니다'); }
-      cfgRenderNav();
+
+    function wkOpenKeybookQuick(accessKey) {
+      wkOpenIdentityModal(accessKey);
+    }
+
+    function wikiRenameStart() {
+      wkOpenIdentityModal();
     }
 
     // ===== 만들기 · 편집 · 삭제 =====
@@ -494,6 +771,7 @@
         }
         sessionStorage.removeItem('fw_editing');
         WIKI.editing = null;
+        wkRecordLocalAccess(!ed.meta.docId ? 'create' : 'edit', ed.meta.kind + ':' + (body.name || body.title || '진행 순서') + ' (' + r.rev + '판)');
         wikiToast('저장했습니다 (' + r.rev + '판)');
         await wikiReload(true);
         wkGoTo(ed.meta.kind, id);
@@ -581,6 +859,7 @@
       const d = wkDoc(docId);
       try {
         const r = await api('DELETE', '/api/docs/' + docId, { base_rev: d.rev, message: '삭제' });
+        wkRecordLocalAccess('delete', (d.kind || '') + ':' + (d.body && (d.body.name || d.body.title) || docId) + ' (' + r.rev + '판)');
         wikiToast('삭제했습니다 (' + r.rev + '판, 기록에서 되돌릴 수 있습니다)');
         await wikiReload(true);
         cfgSelect(CFG.lens, '', '');
@@ -629,17 +908,21 @@
       WIKI.hist = { docId: docId, kind: kind, title: title, latest: latest };
       history.replaceState(null, '', '#cfg/hist/' + docId + '/' + a + '/' + b);
       const alive = !!CFG.data.byId[docId];
+      const kb = wkMergedKeybook();
       bodyEl.innerHTML =
         '<nav class="cfg-crumb"><a href="javascript:void(0)" onclick="wkBackFromHistory()">← ' + (alive ? '문서로 돌아가기' : '목록으로') + '</a></nav>' +
         '<div class="cfg-head"><h2 class="cfg-head-title">' + cfgEsc(title) + ' — 기록 <span class="manual-tag">' + WK_KIND_NAME[kind] + '</span></h2>' +
         '<p class="manual-desc">판 ' + revs.length + '개. 비교할 두 판을 왼쪽(옛 판)·오른쪽(새 판)에서 고르세요.' + (alive ? '' : ' 이 문서는 삭제된 상태입니다. 판을 골라 되돌리면 다시 나타납니다.') + '</p></div>' +
-        '<div class="cfg-table-wrap"><table class="cfg-table wk-revs"><thead><tr><th>왼쪽</th><th>오른쪽</th><th>판</th><th>작성자</th><th>시각</th><th>메모</th><th></th></tr></thead><tbody>' +
-        revs.map(r => '<tr' + (r.deleted ? ' class="wk-rev-del"' : '') + '>' +
-          '<td><input type="radio" name="wk-a" value="' + r.rev + '"' + (r.rev === a ? ' checked' : '') + ' aria-label="' + r.rev + '판을 왼쪽에"></td>' +
-          '<td><input type="radio" name="wk-b" value="' + r.rev + '"' + (r.rev === b ? ' checked' : '') + ' aria-label="' + r.rev + '판을 오른쪽에"></td>' +
-          '<td><b>' + r.rev + '판</b>' + (r.rev === latest ? ' <span class="cfg-badge cfg-st-live">현재</span>' : '') + (r.deleted ? ' <span class="cfg-badge cfg-st-nolook">삭제</span>' : '') + '</td>' +
-          '<td>' + cfgEsc(r.author) + '</td><td>' + wkTime(r.created_at) + '</td><td>' + cfgEsc(r.message || '') + '</td>' +
-          '<td>' + (r.rev !== latest || r.deleted ? '<button type="button" class="wk-mini" onclick="wikiRestore(' + docId + ',' + r.rev + ',this)">' + (r.deleted ? '' : '이 판으로 되돌리기') + '</button>' : '') + '</td></tr>').join('') +
+        '<div class="cfg-table-wrap"><table class="cfg-table wk-revs"><thead><tr><th>왼쪽</th><th>오른쪽</th><th>판</th><th>접속 키값</th><th>수정자</th><th>시각</th><th>메모</th><th></th></tr></thead><tbody>' +
+        revs.map(r => {
+          const authCell = wkAuthorCellHtml(r.author, r.access_key, kb, { allowQuickMatch: true });
+          return '<tr' + (r.deleted ? ' class="wk-rev-del"' : '') + '>' +
+            '<td><input type="radio" name="wk-a" value="' + r.rev + '"' + (r.rev === a ? ' checked' : '') + ' aria-label="' + r.rev + '판을 왼쪽에"></td>' +
+            '<td><input type="radio" name="wk-b" value="' + r.rev + '"' + (r.rev === b ? ' checked' : '') + ' aria-label="' + r.rev + '판을 오른쪽에"></td>' +
+            '<td><b>' + r.rev + '판</b>' + (r.rev === latest ? ' <span class="cfg-badge cfg-st-live">현재</span>' : '') + (r.deleted ? ' <span class="cfg-badge cfg-st-nolook">삭제</span>' : '') + '</td>' +
+            '<td>' + authCell.keyHtml + '</td><td>' + authCell.userHtml + '</td><td>' + wkTime(r.created_at) + '</td><td>' + cfgEsc(r.message || '') + '</td>' +
+            '<td>' + (r.rev !== latest || r.deleted ? '<button type="button" class="wk-mini" onclick="wikiRestore(' + docId + ',' + r.rev + ',this)">' + (r.deleted ? '' : '이 판으로 되돌리기') + '</button>' : '') + '</td></tr>';
+        }).join('') +
         '</tbody></table></div>' +
         '<div class="wk-bar wk-bar-inline"><button type="button" class="wk-btn wk-primary" onclick="wkCompareSelected()">선택한 두 판 비교</button></div>' +
         '<div id="wk-compare"></div>';
@@ -658,10 +941,14 @@
       box.innerHTML = '<p class="cfg-empty">비교하는 중…</p>';
       try {
         const A = await wkRev(docId, a), B = await wkRev(docId, b);
+        const kb = wkMergedKeybook();
+        const pA = wkParseAuthor(A.author, A.access_key, kb);
+        const pB = wkParseAuthor(B.author, B.access_key, kb);
+        const labelA = a + '판 · ' + (pA.matchedUser || A.author) + (pA.accessKey ? ' [' + pA.accessKey + ']' : '') + ' · ' + wkTime(A.created_at);
+        const labelB = b + '판 · ' + (pB.matchedUser || B.author) + (pB.accessKey ? ' [' + pB.accessKey + ']' : '') + ' · ' + wkTime(B.created_at);
         const kind = WIKI.hist.kind;
         box.innerHTML = '<h3 class="cfg-h">' + a + '판 ↔ ' + b + '판</h3>' +
-          wikiDiffView(bodyToText(kind, A.body), bodyToText(kind, B.body),
-            a + '판 · ' + A.author + ' · ' + wkTime(A.created_at), b + '판 · ' + B.author + ' · ' + wkTime(B.created_at));
+          wikiDiffView(bodyToText(kind, A.body), bodyToText(kind, B.body), labelA, labelB);
         history.replaceState(null, '', '#cfg/hist/' + docId + '/' + a + '/' + b);
       } catch (e) { if (e.status !== 401) box.innerHTML = '<p class="wk-error">' + cfgEsc(e.error || '비교하지 못했습니다') + '</p>'; }
     }
@@ -680,6 +967,7 @@
           target = live ? live.rev : rev;
         }
         const r = await api('POST', '/api/docs/' + docId + '/restore', { rev: target, base_rev: WIKI.hist.latest, message: target + '판 내용으로 되돌림' });
+        wkRecordLocalAccess('restore', 'doc#' + docId + ' → ' + target + '판 복구 (' + r.rev + '판)');
         wikiToast(target + '판 내용으로 되돌렸습니다 (' + r.rev + '판)');
         await wikiReload(true);
         wikiHistory(docId, target, r.rev);
@@ -706,25 +994,249 @@
       return false;
     }
 
-    // ---------- 최근 변경 (참고 > 최근 변경) ----------
+    // ---------- 최근 변경 · 접속 기록 · 키값 매칭 (참고 > 최근 변경 · 접속 기록) ----------
+    const WK_ACTION_LABEL = {
+      visit: '포털 접속',
+      login: '로그인',
+      create_team: '팀 생성',
+      rename: '키·이름 변경',
+      create: '문서 생성',
+      edit: '문서 수정',
+      delete: '문서 삭제',
+      restore: '판 되돌리기'
+    };
+
+    function wkFilterByKey(ak) {
+      WIKI.changesView = WIKI.changesView || { tab: 'changes', query: '', filterKey: '', list: [], logs: [], serverKeybook: {} };
+      WIKI.changesView.filterKey = (WIKI.changesView.filterKey === ak) ? '' : ak;
+      const qInp = document.getElementById('wk-ch-q');
+      if (qInp) qInp.value = WIKI.changesView.filterKey;
+      WIKI.changesView.query = WIKI.changesView.filterKey;
+      wkRenderChangesTab();
+    }
+
+    function wkChangesSetTab(tab) {
+      WIKI.changesView = WIKI.changesView || { tab: 'changes', query: '', filterKey: '', list: [], logs: [], serverKeybook: {} };
+      WIKI.changesView.tab = tab;
+      document.querySelectorAll('.wk-subtab').forEach(b => b.classList.toggle('active', b.getAttribute('data-tab') === tab));
+      wkRenderChangesTab();
+    }
+
+    function wkChangesFilter(val) {
+      WIKI.changesView = WIKI.changesView || { tab: 'changes', query: '', filterKey: '', list: [], logs: [], serverKeybook: {} };
+      WIKI.changesView.query = String(val || '').trim();
+      WIKI.changesView.filterKey = '';
+      wkRenderChangesTab();
+    }
+
+    async function wkQuickKeybookSave(ev) {
+      if (ev) ev.preventDefault();
+      const kInp = document.getElementById('wk-kb-key');
+      const uInp = document.getElementById('wk-kb-user');
+      const ak = wkNormalizeAccessKey(kInp && kInp.value);
+      const nm = (uInp && uInp.value || '').trim();
+      if (ak.length < 2) { alert('접속 키값을 2자 이상 영문·숫자로 입력하세요.'); return; }
+      if (!nm) { alert('매칭할 사용자 이름을 입력하세요.'); return; }
+
+      const prof = wkGetAccessProfile();
+      if (ak === prof.access_key) {
+        wkSaveAccessProfile(nm, ak);
+        await wkSyncIdentity('rename', '키북 매칭 반영');
+      } else {
+        const kbLocal = wkReadLocalJson(WK_ACCESS_STORAGE.keybook, {}) || {};
+        kbLocal[ak] = { access_key: ak, member: nm, updated_at: Math.floor(Date.now() / 1000), last_ip: '매칭표 등록' };
+        wkWriteLocalJson(WK_ACCESS_STORAGE.keybook, kbLocal);
+      }
+      try {
+        const r = await api('POST', '/api/access/keybook', { access_key: ak, member: nm });
+        if (r && r.keybook) WIKI.keybook = r.keybook;
+      } catch (e) {}
+
+      wikiToast('매칭 등록: ' + ak + ' → ' + nm);
+      if (kInp) kInp.value = '';
+      if (uInp) uInp.value = '';
+      cfgRenderNav();
+      wkRenderChangesTab();
+    }
+
+    function wkBuildCombinedLogs(serverLogs, changesList, keybook) {
+      const seen = {};
+      const out = [];
+      const addRow = row => {
+        const p = wkParseAuthor(row.member || row.author, row.access_key, keybook);
+        const keySig = (row.ts || row.created_at || 0) + '|' + p.accessKey + '|' + (row.action || '') + '|' + (row.detail || '');
+        if (seen[keySig]) return;
+        seen[keySig] = true;
+        out.push({
+          ts: row.ts || row.created_at || 0,
+          accessKey: p.accessKey,
+          matchedUser: p.matchedUser || row.matched_user || p.name || '게스트',
+          registered: p.registered,
+          hasRealName: p.hasRealName,
+          action: row.action || 'visit',
+          detail: row.detail || '',
+          ip: row.ip || ''
+        });
+      };
+      (serverLogs || []).forEach(addRow);
+      (wkReadLocalJson(WK_ACCESS_STORAGE.logs, []) || []).forEach(addRow);
+      (changesList || []).forEach(c => {
+        addRow({
+          ts: c.created_at,
+          author: c.author,
+          access_key: c.access_key,
+          matched_user: c.matched_user,
+          action: c.deleted ? 'delete' : (c.rev === 1 ? 'create' : 'edit'),
+          detail: (WK_KIND_NAME[c.kind] || c.kind) + ': ' + (c.title || '(제목 없음)') + ' (' + c.rev + '판)',
+          ip: '문서 저장'
+        });
+      });
+      out.sort((a, b) => b.ts - a.ts);
+      return out;
+    }
+
+    function wkRenderChangesTab() {
+      const box = document.getElementById('wk-ch-panel');
+      if (!box) return;
+      const st = WIKI.changesView || { tab: 'changes', query: '', filterKey: '', list: [], logs: [], serverKeybook: {} };
+      const q = (st.query || '').toLowerCase();
+      const kb = wkMergedKeybook(st.serverKeybook, st.list);
+
+      if (st.tab === 'changes') {
+        const filtered = (st.list || []).filter(c => {
+          if (!q) return true;
+          const p = wkParseAuthor(c.author, c.access_key, kb);
+          const hay = [p.accessKey, p.matchedUser, c.author, c.title, c.message, WK_KIND_NAME[c.kind]].join(' ').toLowerCase();
+          return hay.indexOf(q) >= 0;
+        });
+        box.innerHTML =
+          '<div class="cfg-table-wrap"><table class="cfg-table wk-changes">' +
+          '<thead><tr><th>시각</th><th>접속 키값</th><th>수정자 (매칭)</th><th>문서</th><th>판</th><th>메모</th></tr></thead>' +
+          '<tbody>' +
+          (filtered.length ? filtered.map(c => {
+            const auth = wkAuthorCellHtml(c.author, c.access_key, kb, { allowQuickMatch: true });
+            return '<tr class="wk-ch-row" tabindex="0" onclick="wikiHistory(' + c.doc_id + ',' + Math.max(1, c.rev - 1) + ',' + c.rev + ',\'' + c.kind + '\',' + cfgEsc(JSON.stringify(c.title)) + ')">' +
+              '<td>' + wkTime(c.created_at) + '</td>' +
+              '<td>' + auth.keyHtml + '</td>' +
+              '<td>' + auth.userHtml + '</td>' +
+              '<td>' + WK_KIND_NAME[c.kind] + ' / <b>' + cfgEsc(c.title || '(제목 없음)') + '</b>' + (c.deleted ? ' <span class="cfg-badge cfg-st-nolook">삭제</span>' : '') + '</td>' +
+              '<td>' + c.rev + '판</td><td>' + cfgEsc(c.message || '') + '</td></tr>';
+          }).join('') : '<tr><td colspan="6">조건에 맞는 변경 기록이 없습니다.</td></tr>') +
+          '</tbody></table></div>' +
+          '<div class="wk-bar wk-bar-inline"><button type="button" class="wk-btn" id="wk-ch-more"' + (st.hasMore ? '' : ' hidden') + '>이전 변경 더 보기</button></div>';
+        const more = document.getElementById('wk-ch-more');
+        if (more && st.hasMore && st.list.length) {
+          more.onclick = () => wikiChangesView(st.list[st.list.length - 1].created_at);
+        }
+      } else if (st.tab === 'access') {
+        const combined = wkBuildCombinedLogs(st.logs, st.list, kb).filter(row => {
+          if (!q) return true;
+          const hay = [row.accessKey, row.matchedUser, WK_ACTION_LABEL[row.action] || row.action, row.detail, row.ip].join(' ').toLowerCase();
+          return hay.indexOf(q) >= 0;
+        });
+        box.innerHTML =
+          '<div class="cfg-table-wrap"><table class="cfg-table wk-changes">' +
+          '<thead><tr><th>접속 시각</th><th>접속 키값</th><th>사용자 (매칭)</th><th>활동</th><th>대상 / 메모 · IP</th></tr></thead>' +
+          '<tbody>' +
+          (combined.length ? combined.map(row => {
+            const auth = wkAuthorCellHtml(row.matchedUser, row.accessKey, kb, { allowQuickMatch: true });
+            return '<tr>' +
+              '<td>' + wkTime(row.ts) + '</td>' +
+              '<td>' + auth.keyHtml + '</td>' +
+              '<td>' + auth.userHtml + '</td>' +
+              '<td><span class="wk-act-badge wk-act-' + cfgEsc(row.action) + '">' + cfgEsc(WK_ACTION_LABEL[row.action] || row.action) + '</span></td>' +
+              '<td>' + cfgEsc(row.detail || '-') + (row.ip ? ' <span class="wk-ip-muted">(' + cfgEsc(row.ip) + ')</span>' : '') + '</td></tr>';
+          }).join('') : '<tr><td colspan="5">표시할 사용자 접속 기록이 없습니다.</td></tr>') +
+          '</tbody></table></div>';
+      } else {
+        // keybook tab: 접속 키값 <-> 사용자 매칭표
+        const counts = {};
+        const lastTs = {};
+        (st.list || []).forEach(c => {
+          const p = wkParseAuthor(c.author, c.access_key, kb);
+          if (!p.accessKey) return;
+          counts[p.accessKey] = (counts[p.accessKey] || 0) + 1;
+          lastTs[p.accessKey] = Math.max(lastTs[p.accessKey] || 0, c.created_at || 0);
+        });
+        (st.logs || []).forEach(l => {
+          const ak = wkNormalizeAccessKey(l.access_key);
+          if (!ak) return;
+          lastTs[ak] = Math.max(lastTs[ak] || 0, l.ts || 0);
+        });
+        const keys = Object.keys(kb).sort((a, b) => (lastTs[b] || kb[b].updated_at || 0) - (lastTs[a] || kb[a].updated_at || 0));
+        box.innerHTML =
+          '<form class="wk-keybook-form" onsubmit="wkQuickKeybookSave(event)">' +
+            '<input type="text" id="wk-kb-key" maxlength="16" placeholder="접속 키값 (예: K7M3P9)" style="font-family:var(--font-mono);text-transform:uppercase;">' +
+            '<input type="text" id="wk-kb-user" maxlength="20" placeholder="매칭할 사용자 이름 (예: 홍길동)">' +
+            '<button type="submit" class="wk-btn wk-primary">매칭 등록/수정</button>' +
+          '</form>' +
+          '<div class="cfg-table-wrap"><table class="cfg-table wk-changes">' +
+          '<thead><tr><th>접속 키값</th><th>매칭 사용자</th><th>문서 변경 건수</th><th>최근 활동 시각</th><th>관리</th></tr></thead>' +
+          '<tbody>' +
+          (keys.length ? keys.map(ak => {
+            const item = kb[ak];
+            const isNamed = item.member && item.member !== '게스트';
+            return '<tr>' +
+              '<td><button type="button" class="wk-key-pill" onclick="wkFilterByKey(\'' + cfgEsc(ak) + '\')">' + cfgEsc(ak) + '</button></td>' +
+              '<td><span class="wk-user-pill' + (isNamed ? ' named' : '') + '">' + cfgEsc(item.member || '게스트') + '</span> ' +
+                (isNamed ? '<span class="wk-matched-badge">매칭됨</span>' : '<span class="wk-unmatched-badge">이름 미지정</span>') + '</td>' +
+              '<td>' + (counts[ak] || 0) + '건</td>' +
+              '<td>' + (lastTs[ak] || item.updated_at ? wkTime(lastTs[ak] || item.updated_at) : '-') + '</td>' +
+              '<td><button type="button" class="wk-mini" onclick="wkOpenIdentityModal(\'' + cfgEsc(ak) + '\')">이름 수정</button></td>' +
+            '</tr>';
+          }).join('') : '<tr><td colspan="5">등록된 접속 키값이 없습니다.</td></tr>') +
+          '</tbody></table></div>';
+      }
+    }
+
     async function wikiChangesView(before) {
       const bodyEl = document.getElementById('manual-body-content');
-      if (!before) bodyEl.innerHTML = cfgCrumb() + '<div class="cfg-head"><h2 class="cfg-head-title">최근 변경</h2>' +
-        '<p class="manual-desc">팀 전체에서 저장·삭제·되돌린 기록입니다. 줄을 누르면 그 판과 바로 앞 판을 비교합니다.</p></div>' +
-        '<div class="cfg-table-wrap"><table class="cfg-table wk-changes"><thead><tr><th>시각</th><th>작성자</th><th>문서</th><th>판</th><th>메모</th></tr></thead><tbody id="wk-ch-body"></tbody></table></div>' +
-        '<div class="wk-bar wk-bar-inline"><button type="button" class="wk-btn" id="wk-ch-more" hidden>더 보기</button></div>';
-      let list;
+      const st = WIKI.changesView = WIKI.changesView || { tab: 'changes', query: '', filterKey: '', list: [], logs: [], serverKeybook: {}, hasMore: false };
+      if (!before) {
+        st.list = [];
+        const prof = wkGetAccessProfile();
+        bodyEl.innerHTML = cfgCrumb() +
+          '<div class="cfg-head"><h2 class="cfg-head-title">최근 변경 · 접속 기록</h2>' +
+          '<p class="manual-desc">모든 문서 변경 이력과 사용자 접속 기록을 <b>접속 키값 + 사용자</b> 기준으로 매칭해 조회합니다.</p></div>' +
+          '<div class="wk-id-bar">' +
+            '<span>내 접속 정보: <span class="wk-key-pill">' + cfgEsc(prof.access_key) + '</span> <b style="color:#fff;">' + cfgEsc(prof.member) + '</b></span>' +
+            '<button type="button" class="wk-mini" onclick="wkOpenIdentityModal()">내 키·이름 변경</button>' +
+            '<input type="search" id="wk-ch-q" class="cfg-search wk-filter-input" value="' + cfgEsc(st.query || '') + '" placeholder="접속 키값, 사용자, 문서명, 메모 검색" oninput="wkChangesFilter(this.value)">' +
+          '</div>' +
+          '<div class="wk-subtabs" role="tablist">' +
+            '<button type="button" class="wk-subtab' + (st.tab === 'changes' ? ' active' : '') + '" data-tab="changes" onclick="wkChangesSetTab(\'changes\')">최근 변경자료 (키값·수정자)</button>' +
+            '<button type="button" class="wk-subtab' + (st.tab === 'access' ? ' active' : '') + '" data-tab="access" onclick="wkChangesSetTab(\'access\')">사용자 접속 기록</button>' +
+            '<button type="button" class="wk-subtab' + (st.tab === 'keybook' ? ' active' : '') + '" data-tab="keybook" onclick="wkChangesSetTab(\'keybook\')">접속 키값 ↔ 사용자 매칭표</button>' +
+          '</div>' +
+          '<div id="wk-ch-panel"><p class="cfg-empty">접속·변경 기록을 불러오는 중…</p></div>';
+      }
+      let list = [];
       try { list = await api('GET', '/api/changes?limit=50' + (before ? '&before=' + before : '')); }
       catch (e) { return; }
-      const tb = document.getElementById('wk-ch-body');
-      if (!tb) return;
-      if (!list.length && !before) tb.innerHTML = '<tr><td colspan="5">아직 변경 기록이 없습니다.</td></tr>';
-      tb.insertAdjacentHTML('beforeend', list.map(c =>
-        '<tr class="wk-ch-row" tabindex="0" onclick="wikiHistory(' + c.doc_id + ',' + Math.max(1, c.rev - 1) + ',' + c.rev + ',\'' + c.kind + '\',' + cfgEsc(JSON.stringify(c.title)) + ')">' +
-        '<td>' + wkTime(c.created_at) + '</td><td>' + cfgEsc(c.author) + '</td>' +
-        '<td>' + WK_KIND_NAME[c.kind] + ' / <b>' + cfgEsc(c.title || '(제목 없음)') + '</b>' + (c.deleted ? ' <span class="cfg-badge cfg-st-nolook">삭제</span>' : '') + '</td>' +
-        '<td>' + c.rev + '판</td><td>' + cfgEsc(c.message || '') + '</td></tr>').join(''));
-      const more = document.getElementById('wk-ch-more');
-      if (list.length === 50) { more.hidden = false; more.onclick = () => wikiChangesView(list[list.length - 1].created_at); }
-      else more.hidden = true;
+      st.list = before ? st.list.concat(list) : list;
+      st.hasMore = list.length === 50;
+
+      if (!before) {
+        try {
+          const acc = await api('GET', '/api/access/logs?limit=150');
+          if (acc) {
+            st.logs = acc.logs || [];
+            st.serverKeybook = acc.keybook || {};
+            WIKI.keybook = st.serverKeybook;
+          }
+        } catch (e) {
+          st.logs = [];
+          st.serverKeybook = {};
+        }
+      }
+      wkRenderChangesTab();
+    }
+
+    if (typeof module !== 'undefined') {
+      module.exports = {
+        wkGenAccessKey: wkGenAccessKey,
+        wkNormalizeAccessKey: wkNormalizeAccessKey,
+        wkFormatAuthor: wkFormatAuthor,
+        wkParseAuthor: wkParseAuthor
+      };
     }
