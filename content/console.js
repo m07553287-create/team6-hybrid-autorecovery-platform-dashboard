@@ -1510,13 +1510,13 @@
       },
       8: {
         nodes: {
-          'compute1': { alive: true, state: 'RUNNING', cls: 'node-active', desc: '온프렘 정상 운영' },
+          'compute1': { alive: true, state: 'RUNNING', cls: 'node-active', desc: '온프렘 워커 정상' },
           'k8s-cp1': { alive: true, state: 'RUNNING', cls: 'node-active', desc: 'K8s 마스터 Ready' },
           'db-01': { alive: true, state: 'RUNNING', cls: 'node-active', desc: 'MySQL 8.4 마스터' },
-          'kt-edge-dr-01': { alive: true, state: 'PRIMARY', cls: 'node-active', desc: '온프렘 Primary 원복' },
-          'aws-dr': { alive: true, state: 'STANDBY', cls: 'node-standby', desc: 'Warm-Standby 대기' }
+          'kt-edge-dr-01': { alive: true, state: 'PRIMARY', cls: 'node-active', desc: '온프렘 200 OK 복귀' },
+          'aws-dr': { alive: true, state: 'NORMAL', cls: 'node-active', desc: 'DR 대기 정상 (ALL GREEN)' }
         },
-        pod: { name: 'minwon-app', ready: '2/2', phase: 'Running', ok: true, cls: 'node-active', desc: '평시 정상 운영 복귀 (2/2)' }
+        pod: { name: 'minwon-app', ready: '2/2', phase: 'Running', ok: true, cls: 'node-active', desc: '대국민 서비스 완전 정상화 (2/2)' }
       }
     };
 
@@ -1529,7 +1529,7 @@
       elapsedMs: 0,
       logs: [],
       showLogs: true,
-      stepDelaySec: 10,
+      stepDelaySec: 5,
       paused: false,
       stopped: false,
       currentTelemetry: DR_TELEMETRY_MAP[0]
@@ -1569,10 +1569,15 @@
         </div>
       `;
 
+      const statusSummary = DR_STATE.curStep === 8 ? '✅ 모든 인프라 정상 복귀 완료 (ALL GREEN)' :
+                            (DR_STATE.curStep === 2 ? '🚨 온프렘 정전 장애 발생' :
+                            (DR_STATE.curStep >= 4 && DR_STATE.curStep < 6 ? '🔄 AWS DR 활성 우회 서빙 중' : '실시간 텔레메트리 연동'));
+
       return `
         <div class="dr-infra-strip" id="dr-live-infra-strip">
           <div class="dr-strip-title">
-            <span>🌐 대시보드 실시간 인프라·Pod 텔레메트리:</span>
+            <span>🌐 대시보드 실시간 인프라·Pod 텔레메트리</span>
+            <small id="dr-strip-substatus">${statusSummary}</small>
           </div>
           <div class="dr-strip-cards">
             ${nodesHtml}
@@ -1716,10 +1721,10 @@
             <div class="dr-controls">
               <div class="dr-timer-box">RTO 실측: <b id="dr-rto-timer">${(DR_STATE.elapsedMs / 1000).toFixed(1)}s</b></div>
               <select class="dr-speed-select" id="dr-speed-select" onchange="csChangeSpeed(this.value)">
-                <option value="10" ${DR_STATE.stepDelaySec === 10 ? 'selected' : ''}>간격: 10초 (여유 시연)</option>
-                <option value="15" ${DR_STATE.stepDelaySec === 15 ? 'selected' : ''}>간격: 15초 (상세 해설)</option>
-                <option value="6" ${DR_STATE.stepDelaySec === 6 ? 'selected' : ''}>간격: 6초 (보통)</option>
-                <option value="3" ${DR_STATE.stepDelaySec === 3 ? 'selected' : ''}>간격: 3초 (고속)</option>
+                <option value="5" ${DR_STATE.stepDelaySec === 5 ? 'selected' : ''}>간격: 5초 (빠른 시연)</option>
+                <option value="8" ${DR_STATE.stepDelaySec === 8 ? 'selected' : ''}>간격: 8초 (표준 해설)</option>
+                <option value="12" ${DR_STATE.stepDelaySec === 12 ? 'selected' : ''}>간격: 12초 (상세 시연)</option>
+                <option value="3" ${DR_STATE.stepDelaySec === 3 ? 'selected' : ''}>간격: 3초 (초고속)</option>
               </select>
               <button type="button" class="dr-btn dr-btn-run" id="dr-run-btn" onclick="csRunAutoScenario()">▶ 전체 자동 실행</button>
               <button type="button" class="dr-btn" id="dr-pause-btn" onclick="csTogglePause()" ${DR_STATE.running ? '' : 'disabled'}>⏸ 일시정지</button>
@@ -1853,7 +1858,7 @@
       const descEl = document.getElementById('dr-step-desc-text');
       if (descEl) descEl.textContent = `[Step ${DR_STATE.curStep}] ${st.desc}`;
 
-      // 각 노드별 명령어 주입: 사람이 타자 치듯 1.2초 간격을 두어 순차 실행
+      // 각 노드별 명령어 주입: 사람이 타자 치듯 0.45초 간격을 두어 신속 순차 실행
       const cmds = st.commands || (st.target && st.cmd ? [{ target: st.target, cmd: st.cmd, tag: 'info', log: st.desc }] : []);
       for (let i = 0; i < cmds.length; i++) {
         if (DR_STATE.stopped) break;
@@ -1861,7 +1866,7 @@
         csSendCmdToTarget(c.target, c.cmd, c.title);
         csAppendScenarioLog(c.target, c.tag || 'info', c.log || c.cmd);
         if (i < cmds.length - 1) {
-          await new Promise(r => setTimeout(r, 1200));
+          await new Promise(r => setTimeout(r, 450));
         }
       }
 
