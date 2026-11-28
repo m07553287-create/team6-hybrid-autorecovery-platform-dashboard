@@ -617,14 +617,15 @@
         if (s.t) CS.floats.push(s.t);
       }
       if (CS.active >= n) CS.active = 0;
-      const drawer = CS.solo ? '' :
+      const isWarRoom = !!CS.scenarioMode;
+      const drawer = (CS.solo || isWarRoom) ? '' :
         '<aside class="cs-drawer"><div class="cs-drawer-head"><b>콘솔</b><span>인스턴스를 누르면 바로 접속 · 서비스를 누르면 상태 확인</span>' +
         '<button type="button" class="cs-owner" onclick="csOwner(true)" title="세션 이어가기에 쓰는 이름 — 누르면 변경">이름: <b id="cs-owner-chip">' + cfgEsc(csOwnerName() || '미설정') + '</b></button></div>' +
         '<div id="cs-tree">' + csTreeHtml() + '</div>' +
         '<div class="cs-drawer-foot"><button type="button" class="wk-mini" onclick="csBack()">← 대시보드</button>' +
         (CS.page ? '' : '<button type="button" class="wk-mini" onclick="window.open(\'/term/\', \'_blank\')">새 창으로</button>') +
         '<button type="button" class="wk-mini cs-btn-gameday" onclick="csOpenScenarioWarRoom()" style="background:#b91c1c;color:#fff;border-color:#ef4444;margin-left:4px;" title="하이브리드 DR 모의 훈련 워룸 열기">🚀 DR 모의 시나리오</button>' + '</div></aside>';
-      const bar = CS.solo ? '' :
+      const bar = (CS.solo || isWarRoom) ? '' :
         '<div class="cs-bar"><div class="cs-layouts" role="group" aria-label="창 배치">' + CS_LAYOUTS.map(l =>
           '<button type="button" class="wk-mini' + (CS.layout === l[0] ? ' cs-on-btn' : '') + '" aria-pressed="' + (CS.layout === l[0]) + '" onclick="csLayout(\'' + l[0] + '\')">' + l[1] + '</button>').join('') +
           '<button type="button" class="wk-mini cs-bar-clear-all" onclick="csClearAllTerms()" title="열려있는 모든 터미널 화면 일괄 초기화" style="margin-left:8px;background:#1e293b;border-color:#475569;color:#e2e8f0;">🧹 전체 화면 초기화</button>' +
@@ -632,7 +633,7 @@
       const grid = '<div class="cs-grid cs-l' + (CS.solo ? '1' : CS.layout) + '" id="cs-grid">' +
         CS.slots.map((s, i) => '<section class="cs-pane' + (i === CS.active ? ' cs-active' : '') + '" data-i="' + i + '" onmousedown="csFocus(' + i + ')" id="cs-slot-' + i + '"></section>').join('') +
         csGutters() + '</div>';
-      csRoot().innerHTML = '<div class="cs-wrap">' + drawer + '<div class="cs-main">' + csScenarioBarHtml() + bar + grid + csScenarioInfraStripHtml() + '</div></div><div class="cs-float-layer" id="cs-float-layer"></div>';
+      csRoot().innerHTML = '<div class="cs-wrap' + (isWarRoom ? ' cs-warroom-wrap' : '') + '">' + drawer + '<div class="cs-main">' + csScenarioBarHtml() + bar + grid + csScenarioInfraStripHtml() + '</div></div><div class="cs-float-layer" id="cs-float-layer"></div>';
       CS.slots.forEach((s, i) => csFillSlot(i));
       CS.floats.forEach(t => csPlaceFloat(t));
       csApplySizes();
@@ -1638,7 +1639,7 @@
       startTime: 0,
       elapsedMs: 0,
       logs: [],
-      showLogs: true,
+      showLogs: false,
       stepDelaySec: 4,
       paused: false,
       stopped: false,
@@ -1741,7 +1742,7 @@
     function csOpenScenarioWarRoom(scId) {
       scId = scId || 'l3_failover';
       const u = (typeof csOwnerName === 'function' ? csOwnerName() : '') || localStorage.getItem('fig.term.user') || '';
-      const win = window.open('/term/?scenario=' + encodeURIComponent(scId) + (u ? '&u=' + encodeURIComponent(u) : ''), 'dr_warroom_' + Date.now(), 'width=1600,height=980');
+      const win = window.open('/term/?scenario=' + encodeURIComponent(scId) + (u ? '&u=' + encodeURIComponent(u) : ''), 'dr_warroom_' + Date.now(), 'width=1920,height=1080');
       if (win) win.focus();
     }
 
