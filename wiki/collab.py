@@ -1353,37 +1353,26 @@ def render_collab_hub_html(
     gs = summarize_goals(goals_list)
     err_html = f'<div class="alert alert-err">{esc(error)}</div>' if error else ""
     notice_html = f'<div class="alert alert-ok">{esc(notice)}</div>' if notice else ""
-    dc_status_label = "연결됨" if discord_configured else "미설정"
+    dc_status_label = "Discord 연동됨" if discord_configured else "Discord 미연동"
     dc_status_class = "ok" if discord_configured else "warn"
 
+    member_name = esc(session.member) if session else ""
+    access_key = esc(session.access_key) if (session and session.access_key) else ""
+    is_logged_in = bool(session)
+
     if session:
-        ak = f' <span class="pill mono">{esc(session.access_key)}</span>' if session.access_key else ""
-        profile_block = (
-            f'<div class="hub-user-card">'
-            f'<div class="hub-user-meta">'
-            f'<div class="hub-user-name"><b>{esc(session.member)}</b>{ak}</div>'
-            f'<div class="hub-team-badge">팀 {esc(session.team_name)}</div>'
-            f'</div>'
+        user_header_html = (
+            f'<div class="g-user-badge">'
+            f'<span class="g-user-dot"></span>'
+            f'<span class="g-user-name">{member_name}</span>'
+            f'<span class="g-user-key">{access_key}</span>'
             f'</div>'
         )
-        inline_login = ""
     else:
-        profile_block = (
-            f'<div class="hub-user-card guest">'
-            f'<div class="hub-user-meta">'
-            f'<div class="hub-user-name"><b>미인증 게스트</b></div>'
-            f'<div class="hub-team-badge">로그인 필요</div>'
-            f'</div>'
-            f'</div>'
-        )
-        inline_login = (
-            '<div class="row" style="margin-bottom:10px;">'
-            f'<div><label>팀 식별자</label><input type="text" name="slug" value="{esc(default_slug)}" readonly></div>'
-            '<div><label>사용자 이름</label><input type="text" name="member" placeholder="실명 또는 닉네임" maxlength="20" required></div>'
-            '</div>'
-            '<div class="row" style="margin-bottom:10px;">'
-            '<div><label>접속 키</label><input type="text" value="서버 자동 할당 (불변)" readonly style="color:#93c5fd;"></div>'
-            '<div><label>팀 비밀번호</label><input type="password" name="password" placeholder="팀 비밀번호" required></div>'
+        user_header_html = (
+            '<div class="g-user-badge guest" id="g-login-status">'
+            '<span class="g-user-dot warn"></span>'
+            '<span class="g-user-name">포털 사용자 확인 중...</span>'
             '</div>'
         )
 
@@ -1397,72 +1386,74 @@ def render_collab_hub_html(
     goal_select_html = "".join(goal_sel_opts)
 
     goal_cards: list[str] = []
-    for g_item in goals_list[:25]:
+    for g_item in goals_list[:20]:
         st_k = g_item.get("status") or "todo"
         st_lbl = g_item.get("status_label") or GOAL_STATUS_META.get(st_k, ("대기", 0))[0]
-        due = f' · 기한: {esc(g_item["target_date"])}' if g_item.get("target_date") else ""
-        note_html = f'<div class="feed-body" style="margin-bottom:8px;font-size:12.5px;">{esc(g_item["note"])}</div>' if g_item.get("note") else ""
+        due = f' · 기한 {esc(g_item["target_date"])}' if g_item.get("target_date") else ""
+        note_html = f'<div class="card-desc" style="margin-top:6px;">{esc(g_item["note"])}</div>' if g_item.get("note") else ""
         st_btns: list[str] = []
         if session:
             for k_btn, (lbl_btn, _) in GOAL_STATUS_META.items():
-                active_cls = " btn" if k_btn == st_k else " btn btn-sub"
+                active_cls = " act-btn active" if k_btn == st_k else " act-btn"
                 st_btns.append(
                     f'<form method="post" action="/api/ai/hub/goal-status" style="display:inline;">'
                     f'<input type="hidden" name="goal_id" value="{g_item["id"]}">'
                     f'<input type="hidden" name="status" value="{esc(k_btn)}">'
-                    f'<button type="submit" class="{active_cls}" style="padding:4px 9px;font-size:11.5px;">{esc(lbl_btn)}</button>'
+                    f'<button type="submit" class="{active_cls}">{esc(lbl_btn)}</button>'
                     f'</form>'
                 )
         goal_cards.append(
-            '<div class="feed-item">'
-            f'<div class="feed-top"><span><span class="pill">#{g_item["id"]} {esc(st_lbl)}</span> '
-            f'<code class="area-code">{esc(g_item.get("area") or "general")}</code></span>'
-            f'<span>담당: {esc(g_item.get("owner") or "-")}{due}</span></div>'
-            f'<div class="feed-title">{esc(g_item.get("title") or "")}</div>'
+            '<div class="work-card">'
+            f'<div class="card-head">'
+            f'<div><span class="tag tag-target">목표 #{g_item["id"]}</span> <span class="tag tag-status">{esc(st_lbl)}</span> <span class="tag tag-area">{esc(g_item.get("area") or "general")}</span></div>'
+            f'<div class="card-meta">담당자: {esc(g_item.get("owner") or "미지정")}{due}</div>'
+            f'</div>'
+            f'<div class="card-title">{esc(g_item.get("title") or "")}</div>'
             f'{note_html}'
-            f'<div class="acts" style="margin-top:6px;gap:6px;">{"".join(st_btns)}</div>'
+            f'<div class="card-actions" style="margin-top:10px;">{"".join(st_btns)}</div>'
             '</div>'
         )
-    goals_board_html = "".join(goal_cards) if goal_cards else '<p class="sub">등록된 공동 목표가 없습니다. 아래에서 첫 목표를 등록하세요.</p>'
+    goals_board_html = "".join(goal_cards) if goal_cards else '<div class="empty-box">등록된 팀 목표가 없습니다. 아래에서 첫 목표를 등록하세요.</div>'
 
     cur_status = prefill.get("status") or "info"
     opts = []
     for k, (label, _) in STATUS_META.items():
         sel = " selected" if k == cur_status else ""
-        opts.append(f'<option value="{esc(k)}"{sel}>{esc(label)} ({esc(k)})</option>')
+        opts.append(f'<option value="{esc(k)}"{sel}>{esc(label)}</option>')
     options_html = "".join(opts)
 
     cur_goal_st = prefill.get("goal_status") or ""
-    g_st_opts = ['<option value="">목표 상태 변경 안 함</option>']
+    g_st_opts = ['<option value="">연계 목표 상태 유지</option>']
     for k, (label, _) in GOAL_STATUS_META.items():
         sel = " selected" if k == cur_goal_st else ""
-        g_st_opts.append(f'<option value="{esc(k)}"{sel}>연계 목표를 [{esc(label)}]로 변경</option>')
+        g_st_opts.append(f'<option value="{esc(k)}"{sel}>연계 목표를 [{esc(label)}] 상태로 변경</option>')
 
     feed_rows: list[str] = []
     for item in shares[:20]:
         ak_txt = f" ({esc(item['access_key'])})" if item.get("access_key") else ""
-        dc_txt = " · Discord 전송됨" if item.get("discord_sent") else ""
-        g_badge = f' <span class="pill">목표 #{item["goal_id"]}</span>' if item.get("goal_id") else ""
+        dc_txt = " · Discord 발송됨" if item.get("discord_sent") else ""
+        g_badge = f' <span class="tag tag-target">목표 #{item["goal_id"]}</span>' if item.get("goal_id") else ""
         chk = (
-            f'<div style="margin-top:6px;font-size:12px;color:#fde68a;">확인요청: {esc(item["check_request"])}</div>'
+            f'<div class="card-alert" style="margin-top:8px;">확인 요청: {esc(item["check_request"])}</div>'
             if item.get("check_request")
             else ""
         )
         url_link = (
-            f'<div style="margin-top:4px;font-size:11.5px;"><a href="{esc(item["cfg_url"])}" target="_blank" rel="noopener" style="color:#60a5fa;">연관 포털 링크 바로가기 ↗</a></div>'
+            f'<div style="margin-top:6px;font-size:12px;"><a href="{esc(item["cfg_url"])}" target="_blank" rel="noopener" class="link-btn">관련 #cfg 설정 열기 ↗</a></div>'
             if item.get("cfg_url")
             else ""
         )
         feed_rows.append(
-            '<div class="feed-item">'
-            f'<div class="feed-top"><span><span class="pill">{esc(item.get("status_label") or item.get("status") or "공유")}</span> '
-            f'<code class="area-code">{esc(item.get("area") or "general")}</code>{g_badge}</span>'
-            f'<span>{esc(item.get("author") or "게스트")}{ak_txt} · {_fmt_ts(item.get("ts", 0))}{dc_txt}</span></div>'
-            f'<div class="feed-title">{esc(item.get("title") or "")}</div>'
-            f'<div class="feed-body">{esc(item.get("summary") or "")}</div>'
+            '<div class="work-card">'
+            f'<div class="card-head">'
+            f'<div><span class="tag tag-share">{esc(item.get("status_label") or "공유")}</span> <span class="tag tag-area">{esc(item.get("area") or "general")}</span>{g_badge}</div>'
+            f'<div class="card-meta">{esc(item.get("author") or "게스트")}{ak_txt} · {_fmt_ts(item.get("ts", 0))}{dc_txt}</div>'
+            f'</div>'
+            f'<div class="card-title">{esc(item.get("title") or "")}</div>'
+            f'<div class="card-desc">{esc(item.get("summary") or "")}</div>'
             f'{chk}{url_link}</div>'
         )
-    feed_html = "".join(feed_rows) if feed_rows else '<p class="sub">등록된 팀 공유 내역이 없습니다.</p>'
+    feed_html = "".join(feed_rows) if feed_rows else '<div class="empty-box">등록된 팀 공유 내역이 없습니다.</div>'
 
     dc_list = discord_items or []
     dc_sum = summarize_discord_inbox(dc_list)
@@ -1479,62 +1470,66 @@ def render_collab_hub_html(
         d_st = d_it.get("task_status") or ("open" if d_cat == "task" else "read")
         cat_lbl = "과제" if d_cat == "task" else "공유"
         st_lbl = d_it.get("task_status_label") or DISCORD_TASK_STATUS_META.get(d_st, d_st)
-        cat_style = "background:rgba(245,158,11,.16);border-color:#d97706;color:#fde68a;" if d_cat == "task" else "background:rgba(56,189,248,.14);border-color:#0284c7;color:#7dd3fc;"
-        tag_chips = "".join(f'<span class="pill mono" style="font-size:10.5px;">#{esc(t)}</span> ' for t in (d_it.get("hashtags") or [])[:5])
-        goal_chip = f' <span class="pill">목표 #{d_it["linked_goal_id"]}</span>' if d_it.get("linked_goal_id") else ""
+        goal_chip = f' <span class="tag tag-target">목표 #{d_it["linked_goal_id"]}</span>' if d_it.get("linked_goal_id") else ""
         dc_acts = ""
         if session:
             next_cat = "share" if d_cat == "task" else "task"
-            next_cat_lbl = "공유 전환" if d_cat == "task" else "과제 전환"
-            dc_acts = '<div class="acts" style="margin-top:8px;gap:6px;">'
+            next_cat_lbl = "공유로 전환" if d_cat == "task" else "과제로 전환"
+            dc_acts = '<div class="card-actions" style="margin-top:10px;">'
             if d_cat == "task":
                 dc_acts += (
                     f'<form method="post" action="/api/ai/hub/discord-state" style="display:inline;">'
                     f'<input type="hidden" name="item_id" value="{d_it["id"]}"><input type="hidden" name="task_status" value="in_progress">'
-                    f'<button type="submit" class="btn btn-sub" style="padding:4px 9px;font-size:11.5px;">진행중</button></form>'
+                    f'<button type="submit" class="act-btn">진행 시작</button></form>'
                     f'<form method="post" action="/api/ai/hub/discord-state" style="display:inline;">'
                     f'<input type="hidden" name="item_id" value="{d_it["id"]}"><input type="hidden" name="task_status" value="done">'
-                    f'<button type="submit" class="btn" style="padding:4px 9px;font-size:11.5px;background:#059669;">처리완료</button></form>'
+                    f'<button type="submit" class="act-btn btn-done">완료</button></form>'
                 )
                 if not d_it.get("linked_goal_id"):
                     dc_acts += (
                         f'<form method="post" action="/api/ai/hub/discord-state" style="display:inline;">'
                         f'<input type="hidden" name="item_id" value="{d_it["id"]}"><input type="hidden" name="promote_goal" value="1">'
-                        f'<button type="submit" class="btn btn-sub" style="padding:4px 9px;font-size:11.5px;">공동목표 승격</button></form>'
+                        f'<button type="submit" class="act-btn">공동목표 승격</button></form>'
                     )
             else:
                 dc_acts += (
                     f'<form method="post" action="/api/ai/hub/discord-state" style="display:inline;">'
                     f'<input type="hidden" name="item_id" value="{d_it["id"]}"><input type="hidden" name="task_status" value="read">'
-                    f'<button type="submit" class="btn btn-sub" style="padding:4px 9px;font-size:11.5px;">확인완료</button></form>'
+                    f'<button type="submit" class="act-btn">확인 완료</button></form>'
                 )
             dc_acts += (
                 f'<form method="post" action="/api/ai/hub/discord-state" style="display:inline;">'
                 f'<input type="hidden" name="item_id" value="{d_it["id"]}"><input type="hidden" name="category" value="{next_cat}">'
-                f'<button type="submit" class="btn btn-sub" style="padding:4px 9px;font-size:11.5px;">{next_cat_lbl}</button></form></div>'
+                f'<button type="submit" class="act-btn">{next_cat_lbl}</button></form></div>'
             )
-        border_cls = "task-border" if d_cat == "task" else "share-border"
+        tag_cls = "tag-task" if d_cat == "task" else "tag-share"
+        card_border = "border-task" if d_cat == "task" else "border-share"
         dc_cards.append(
-            f'<div class="feed-item {border_cls}">'
-            f'<div class="feed-top"><span><span class="pill" style="{cat_style}">{esc(cat_lbl)}</span> '
-            f'<span class="pill">{esc(st_lbl)}</span> <code class="area-code">{esc(d_it.get("area") or "figteaminfra")}</code>{goal_chip}</span>'
-            f'<span>{esc(d_it.get("author") or "Discord")} · #{esc(d_it.get("channel") or "discord")} · {_fmt_ts(d_it.get("ts", 0))}</span></div>'
-            f'<div class="feed-title">{esc(d_it.get("title") or "")}</div>'
-            f'<div class="feed-body">{esc(d_it.get("summary") or d_it.get("raw_text") or "")}</div>'
-            f'<div style="margin-top:6px;font-size:11.5px;color:#94a3b8;">{tag_chips}분류 근거: {esc(d_it.get("classify_reason") or "-")}</div>'
+            f'<div class="work-card {card_border}">'
+            f'<div class="card-head">'
+            f'<div><span class="tag {tag_cls}">{esc(cat_lbl)}</span> <span class="tag tag-status">{esc(st_lbl)}</span> <span class="tag tag-area">{esc(d_it.get("area") or "figteaminfra")}</span>{goal_chip}</div>'
+            f'<div class="card-meta">{esc(d_it.get("author") or "Discord")} · #{esc(d_it.get("channel") or "figteam")} · {_fmt_ts(d_it.get("ts", 0))}</div>'
+            f'</div>'
+            f'<div class="card-title">{esc(d_it.get("title") or "")}</div>'
+            f'<div class="card-desc">{esc(d_it.get("summary") or d_it.get("raw_text") or "")}</div>'
+            f'<div class="card-sub-info">분류 근거: {esc(d_it.get("classify_reason") or "키워드")}</div>'
             f'{dc_acts}</div>'
         )
-    discord_inbox_html = "".join(dc_cards) if dc_cards else '<p class="sub">접수된 Discord 멘션 메시지가 없습니다.</p>'
+    discord_inbox_html = "".join(dc_cards) if dc_cards else '<div class="empty-box">접수된 Discord 과제 또는 공유 메시지가 없습니다.</div>'
 
     ch_list = recent_changes or []
     ch_rows = "".join(
-        f'<div class="feed-item" style="padding:9px 12px;"><div class="feed-top"><span><code class="area-code">{esc(c.get("kind") or "")}</code> '
-        f'<b>{esc(c.get("title") or "(제목 없음)")}</b> (r{c.get("rev", 1)})</span>'
-        f'<span>{esc(c.get("matched_user") or c.get("author") or "-")} · {_fmt_ts(c.get("created_at", 0))}</span></div>'
-        f'<div style="font-size:12px;color:#94a3b8;">{esc(c.get("message") or "문서 업데이트")} · <a href="/#cfg/" target="_blank" rel="noopener" style="color:#60a5fa;">#cfg 콘솔에서 확인 ↗</a></div></div>'
+        f'<div class="work-card">'
+        f'<div class="card-head">'
+        f'<div><span class="tag tag-area">{esc(c.get("kind") or "문서")}</span> <b>{esc(c.get("title") or "(제목 없음)")}</b> (r{c.get("rev", 1)})</div>'
+        f'<div class="card-meta">{esc(c.get("matched_user") or c.get("author") or "-")} · {_fmt_ts(c.get("created_at", 0))}</div>'
+        f'</div>'
+        f'<div class="card-desc">{esc(c.get("message") or "문서 업데이트")}</div>'
+        f'<div style="margin-top:6px;"><a href="/#cfg/" target="_blank" rel="noopener" class="link-btn">설계/설정(#cfg) 포털에서 확인 ↗</a></div>'
+        f'</div>'
         for c in ch_list[:12]
     )
-    recent_changes_html = ch_rows if ch_rows else '<p class="sub">최근 문서 변경 이력이 없습니다.</p>'
+    recent_changes_html = ch_rows if ch_rows else '<div class="empty-box">최근 문서 변경 이력이 없습니다.</div>'
 
     full_prompt_txt = esc(ai_prompts[0] or "")
     default_tab = str(prefill.get("tab") or "inbox").strip().lower()
@@ -1546,339 +1541,396 @@ def render_collab_hub_html(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>FIGTEAM 협업 허브 — 수신 및 발신 워크스페이스</title>
-  <style>{_BASE_STYLE}
-    html, body {{ height:100%; margin:0; background:#080d1a; color:#e2e8f0; }}
+  <title>FIGTEAM 인프라 협업 허브</title>
+  <style>
+    /* 리셋 및 기본 서체 */
+    *, *::before, *::after {{ box-sizing:border-box; }}
+    body {{
+      margin:0; background:#080d1a; color:#e2e8f0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Pretendard",sans-serif;
+      min-height:100vh; display:flex; flex-direction:column;
+    }}
+    a {{ color:#60a5fa; text-decoration:none; }}
+    a:hover {{ text-decoration:underline; }}
+
+    /* 1. 상단 공통 글로벌 헤더 (포털과 100% 동일한 네비게이션) */
+    .fig-global-header {{
+      background:#0f172a; border-bottom:1px solid #1e293b; height:56px; padding:0 20px;
+      display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100;
+    }}
+    .g-brand {{ display:flex; align-items:center; gap:8px; font-weight:900; font-size:16px; color:#fff; text-decoration:none; }}
+    .g-brand-badge {{ font-size:11px; font-weight:700; color:#38bdf8; background:rgba(56,189,248,.12); border:1px solid rgba(56,189,248,.25); padding:2px 6px; border-radius:4px; }}
     
-    /* 전체 2열 레이아웃: 좌측 사이드바 + 우측 메인 */
-    .hub-layout {{
-      display:grid; grid-template-columns:270px 1fr; min-height:100vh;
+    .g-nav {{ display:flex; align-items:center; gap:4px; height:100%; }}
+    .g-link {{
+      display:flex; align-items:center; height:100%; padding:0 14px; font-size:13.5px; font-weight:700; color:#94a3b8; text-decoration:none; border-bottom:2px solid transparent; transition:all .15s;
+    }}
+    .g-link:hover {{ color:#f8fafc; background:rgba(255,255,255,.03); text-decoration:none; }}
+    .g-link.active {{ color:#fff; border-bottom-color:#3b82f6; background:rgba(59,130,246,.08); }}
+
+    .g-user-badge {{
+      display:flex; align-items:center; gap:8px; background:#0b1220; border:1px solid #1e293b; border-radius:999px; padding:4px 12px; font-size:12px;
+    }}
+    .g-user-dot {{ width:7px; height:7px; border-radius:999px; background:#10b981; box-shadow:0 0 6px #10b981; }}
+    .g-user-dot.warn {{ background:#f59e0b; box-shadow:none; }}
+    .g-user-name {{ font-weight:700; color:#f8fafc; }}
+    .g-user-key {{ font-family:monospace; color:#93c5fd; font-size:11.5px; }}
+
+    /* 2. 메인 작업 레이아웃: 좌측 네비(260px) + 우측 콘텐츠 */
+    .hub-container {{
+      display:grid; grid-template-columns:260px 1fr; flex:1; min-height:calc(100vh - 56px);
     }}
     @media (max-width: 900px) {{
-      .hub-layout {{ grid-template-columns:1fr; }}
+      .hub-container {{ grid-template-columns:1fr; }}
     }}
 
     /* 좌측 사이드바 */
-    .hub-sidebar {{
-      background:#0f172a; border-right:1px solid #1e293b; padding:20px 16px;
-      display:flex; flex-direction:column; gap:18px; position:sticky; top:0; height:100vh; box-sizing:border-box; overflow-y:auto;
+    .hub-side {{
+      background:#0b1220; border-right:1px solid #1e293b; padding:20px 14px; display:flex; flex-direction:column; gap:20px;
+    }}
+    .side-title {{
+      font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.08em; padding-left:8px; margin-bottom:6px;
+    }}
+    .side-menu {{ display:flex; flex-direction:column; gap:4px; }}
+    .side-btn {{
+      display:flex; align-items:center; justify-content:space-between; width:100%; padding:11px 12px; border-radius:8px;
+      font-size:13.5px; font-weight:700; cursor:pointer; background:transparent; border:1px solid transparent; color:#94a3b8; text-align:left; transition:all .15s;
+    }}
+    .side-btn:hover {{ background:#1e293b; color:#fff; }}
+    .side-btn.active {{
+      background:#1e40af; border-color:#3b82f6; color:#fff; box-shadow:0 4px 12px rgba(30,64,175,.35);
+    }}
+    .badge-count {{
+      font-size:11px; font-weight:800; padding:2px 7px; border-radius:999px; background:#0f172a; color:#94a3b8;
+    }}
+    .side-btn.active .badge-count {{ background:#2563eb; color:#fff; }}
+    .badge-warn {{ background:rgba(245,158,11,.2); color:#fde68a !important; }}
+
+    .side-info-card {{
+      background:#0f172a; border:1px solid #1e293b; border-radius:8px; padding:12px; font-size:12px; color:#94a3b8; line-height:1.5;
+    }}
+    .side-info-card b {{ color:#f8fafc; }}
+
+    /* 우측 본문 */
+    .hub-content {{
+      padding:24px 32px; max-width:1100px; overflow-y:auto;
     }}
     @media (max-width: 900px) {{
-      .hub-sidebar {{ height:auto; position:relative; border-right:0; border-bottom:1px solid #1e293b; }}
-    }}
-    .hub-brand {{ display:flex; flex-direction:column; gap:3px; padding-bottom:12px; border-bottom:1px solid #1e293b; }}
-    .hub-brand-name {{ font-size:18px; font-weight:900; color:#fff; letter-spacing:-.02em; }}
-    .hub-brand-desc {{ font-size:11.5px; color:#94a3b8; line-height:1.4; }}
-    
-    .hub-user-card {{
-      background:#0b1220; border:1px solid #1e293b; border-radius:8px; padding:10px 12px;
-      display:flex; align-items:center; justify-content:space-between;
-    }}
-    .hub-user-name {{ font-size:13px; color:#f8fafc; }}
-    .hub-team-badge {{ font-size:11px; color:#94a3b8; }}
-
-    .hub-menu-group {{ display:flex; flex-direction:column; gap:6px; flex:1; }}
-    .hub-menu-title {{
-      font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; padding-left:4px;
-    }}
-    .hub-tab-btn {{
-      width:100%; display:flex; align-items:center; justify-content:space-between;
-      padding:10px 12px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;
-      background:transparent; border:1px solid transparent; color:#94a3b8; transition:all .15s ease;
-      text-align:left;
-    }}
-    .hub-tab-btn:hover {{ color:#f8fafc; background:#1e293b; }}
-    .hub-tab-btn.active {{
-      color:#fff; background:#2563eb; border-color:#3b82f6; box-shadow:0 3px 10px rgba(37,99,235,.35);
-    }}
-    .hub-counter {{
-      display:inline-block; padding:1px 7px; border-radius:999px; font-size:10.5px; font-weight:800;
-      background:#0f172a; color:#93c5fd; border:1px solid rgba(147,197,253,.3);
-    }}
-    .hub-tab-btn.active .hub-counter {{ background:#1e40af; color:#fff; border-color:#60a5fa; }}
-    .hub-counter.warn {{ background:rgba(245,158,11,.2); color:#fde68a; border-color:#f59e0b; }}
-    .hub-tab-btn.active .hub-counter.warn {{ background:#b45309; color:#fff; border-color:#fde68a; }}
-
-    .hub-side-links {{ display:flex; flex-direction:column; gap:5px; margin-top:6px; }}
-    .hub-side-link {{
-      display:flex; align-items:center; justify-content:space-between;
-      padding:8px 12px; border-radius:6px; font-size:12px; font-weight:600; text-decoration:none;
-      color:#94a3b8; background:#0b1220; border:1px solid #1e293b;
-    }}
-    .hub-side-link:hover {{ color:#fff; border-color:#3b82f6; background:#111827; }}
-
-    .hub-side-footer {{
-      padding-top:12px; border-top:1px solid #1e293b; font-size:11.5px; color:#94a3b8;
-      display:flex; align-items:center; justify-content:space-between;
-    }}
-    .hub-status-dot {{ display:inline-block; width:8px; height:8px; border-radius:999px; margin-right:5px; }}
-    .hub-status-dot.ok {{ background:#10b981; box-shadow:0 0 8px #10b981; }}
-    .hub-status-dot.warn {{ background:#f59e0b; }}
-
-    /* 우측 메인 영역 */
-    .hub-main {{
-      padding:24px 28px; overflow-y:auto; box-sizing:border-box; max-width:1100px;
-    }}
-    @media (max-width: 900px) {{
-      .hub-main {{ padding:18px 14px; }}
+      .hub-content {{ padding:16px 14px; }}
     }}
 
-    .hub-topbar {{ margin-bottom:18px; }}
-    .hub-topbar-head {{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:8px; }}
-    .hub-page-title {{ font-size:20px; font-weight:800; color:#fff; margin:0; }}
-    .hub-page-sub {{ font-size:12.5px; color:#94a3b8; margin:3px 0 0; }}
+    /* 섹션 패널 */
+    .pane {{ display:none; }}
+    .pane.active {{ display:block; animation:fadeIn .15s ease-in-out; }}
+    @keyframes fadeIn {{ from {{ opacity:0; transform:translateY(2px); }} to {{ opacity:1; transform:translateY(0); }} }}
 
-    /* 탭 패널 */
-    .hub-pane {{ display:none; }}
-    .hub-pane.active {{ display:block; animation:hubFadeIn .18s ease-in-out; }}
-    @keyframes hubFadeIn {{ from {{ opacity:0; transform:translateY(3px); }} to {{ opacity:1; transform:translateY(0); }} }}
+    .pane-header {{ margin-bottom:18px; }}
+    .pane-title {{ font-size:20px; font-weight:800; color:#fff; margin:0 0 4px; }}
+    .pane-desc {{ font-size:13px; color:#94a3b8; margin:0; line-height:1.5; }}
 
-    /* KPI 통계 바 */
-    .hub-kpi-bar {{
-      display:grid; grid-template-columns:repeat(auto-fit, minmax(135px, 1fr)); gap:10px; margin-bottom:16px;
+    /* 카드 */
+    .work-card {{
+      background:#0f172a; border:1px solid #1e293b; border-radius:10px; padding:16px 18px; margin-bottom:12px;
+      transition:border-color .15s;
     }}
-    .hub-kpi-card {{
-      background:#0f172a; border:1px solid #1e293b; border-radius:8px; padding:11px 13px;
-      display:flex; flex-direction:column; gap:4px;
+    .work-card:hover {{ border-color:#334155; }}
+    .border-task {{ border-left:4px solid #f59e0b; }}
+    .border-share {{ border-left:4px solid #38bdf8; }}
+
+    .card-head {{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px; }}
+    .card-title {{ font-size:15px; font-weight:800; color:#fff; margin-bottom:6px; }}
+    .card-desc {{ font-size:13.5px; color:#cbd5e1; white-space:pre-wrap; line-height:1.55; }}
+    .card-meta {{ font-size:12px; color:#94a3b8; }}
+    .card-sub-info {{ font-size:11.5px; color:#64748b; margin-top:6px; }}
+    .card-alert {{ background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.3); border-radius:6px; padding:6px 10px; font-size:12.5px; color:#fde68a; }}
+
+    /* 태그 */
+    .tag {{ display:inline-block; font-size:11px; font-weight:800; padding:2px 7px; border-radius:4px; margin-right:4px; }}
+    .tag-task {{ background:rgba(245,158,11,.16); color:#fde68a; border:1px solid #d97706; }}
+    .tag-share {{ background:rgba(56,189,248,.14); color:#7dd3fc; border:1px solid #0284c7; }}
+    .tag-status {{ background:#1e293b; color:#cbd5e1; border:1px solid #334155; }}
+    .tag-area {{ background:#0b1220; color:#93c5fd; border:1px solid #1e3a8a; font-family:monospace; }}
+    .tag-target {{ background:rgba(16,185,129,.14); color:#6ee7b7; border:1px solid #059669; }}
+
+    /* 버튼류 */
+    .act-btn {{
+      padding:5px 11px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; background:#1e293b; border:1px solid #334155; color:#cbd5e1; transition:all .1s;
     }}
-    .hub-kpi-card span {{ font-size:11.5px; color:#94a3b8; font-weight:600; }}
-    .hub-kpi-card b {{ font-size:17px; color:#f8fafc; font-weight:800; }}
-
-    .task-border {{ border-left:3px solid #f59e0b !important; }}
-    .share-border {{ border-left:3px solid #38bdf8 !important; }}
-    .area-code {{ background:#1e293b; color:#93c5fd; padding:1px 5px; border-radius:4px; font-size:11.5px; font-family:var(--font-mono, monospace); }}
-
-    .hub-quick-areas {{ display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 12px; }}
-    .hub-chip-btn {{
-      padding:5px 10px; border-radius:6px; font-size:11.5px; font-weight:600; cursor:pointer;
-      background:#0b1220; border:1px solid #334155; color:#cbd5e1; transition:all .1s;
+    .act-btn:hover {{ border-color:#60a5fa; color:#fff; }}
+    .act-btn.active {{ background:#2563eb; border-color:#3b82f6; color:#fff; }}
+    .btn-done {{ background:#059669; border-color:#10b981; color:#fff; }}
+    .btn-done:hover {{ background:#047857; }}
+    .btn-submit {{
+      background:#2563eb; color:#fff; border:0; border-radius:8px; padding:11px 20px; font-size:14px; font-weight:800; cursor:pointer; transition:background .15s;
     }}
-    .hub-chip-btn:hover {{ border-color:#60a5fa; color:#fff; background:#1e293b; }}
+    .btn-submit:hover {{ background:#1d4ed8; }}
+    .card-actions {{ display:flex; gap:6px; flex-wrap:wrap; }}
 
-    .prog {{ height:8px; background:#0f172a; border:1px solid #334155; border-radius:999px; overflow:hidden; margin:8px 0 14px; }}
-    .prog > span {{ display:block; height:100%; background:#10b981; }}
-    .btn-gpt {{ background:#059669; }} .btn-gpt:hover {{ background:#047857; }}
-    .btn-claude {{ background:#d97706; }} .btn-claude:hover {{ background:#b45309; }}
-    .btn-gemini {{ background:#2563eb; }} .btn-gemini:hover {{ background:#1d4ed8; }}
+    /* 폼 스타일 */
+    .form-panel {{
+      background:#0f172a; border:1px solid #1e293b; border-radius:10px; padding:20px; margin-bottom:18px;
+    }}
+    .form-row {{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }}
+    @media (max-width:640px) {{ .form-row {{ grid-template-columns:1fr; }} }}
+    .form-group {{ margin-bottom:14px; }}
+    .form-label {{ display:block; font-size:12px; font-weight:700; color:#94a3b8; margin-bottom:5px; }}
+    input[type=text], input[type=password], select, textarea {{
+      width:100%; background:#0b1220; border:1px solid #1e293b; color:#fff; border-radius:6px; padding:9px 11px; font-size:13.5px; font-family:inherit;
+    }}
+    input:focus, select:focus, textarea:focus {{ outline:none; border-color:#3b82f6; }}
+    textarea {{ min-height:90px; resize:vertical; line-height:1.5; }}
+
+    .quick-chips {{ display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 10px; }}
+    .chip-btn {{
+      padding:5px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; background:#0b1220; border:1px solid #1e293b; color:#94a3b8;
+    }}
+    .chip-btn:hover {{ border-color:#3b82f6; color:#fff; background:#1e293b; }}
+
+    /* KPI 바 */
+    .kpi-row {{ display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-bottom:16px; }}
+    .kpi-box {{ background:#0f172a; border:1px solid #1e293b; border-radius:8px; padding:10px 12px; }}
+    .kpi-title {{ font-size:11.5px; color:#94a3b8; font-weight:700; margin-bottom:4px; }}
+    .kpi-val {{ font-size:18px; font-weight:900; color:#fff; }}
+
+    .filter-pills {{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }}
+    .filter-pill {{
+      padding:6px 12px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; background:#0f172a; border:1px solid #1e293b; color:#94a3b8; text-decoration:none;
+    }}
+    .filter-pill:hover {{ color:#fff; border-color:#334155; text-decoration:none; }}
+    .filter-pill.active {{ background:#1e40af; border-color:#3b82f6; color:#fff; text-decoration:none; }}
+
+    /* 알림 박스 */
+    .alert {{ padding:11px 14px; border-radius:8px; font-size:13px; margin-bottom:16px; }}
+    .alert-ok {{ background:rgba(16,185,129,.14); border:1px solid rgba(16,185,129,.35); color:#a7f3d0; }}
+    .alert-err {{ background:rgba(239,68,68,.14); border:1px solid rgba(239,68,68,.35); color:#fecaca; }}
+    .empty-box {{ text-align:center; padding:32px 16px; color:#64748b; font-size:13.5px; background:#0f172a; border:1px dashed #1e293b; border-radius:8px; }}
+
+    .prog-bar {{ height:8px; background:#0b1220; border-radius:999px; overflow:hidden; margin:8px 0 16px; border:1px solid #1e293b; }}
+    .prog-fill {{ height:100%; background:#10b981; }}
   </style>
 </head>
 <body>
-  <div class="hub-layout">
-    <!-- 좌측 사이드바 메뉴 -->
-    <aside class="hub-sidebar">
-      <div class="hub-brand">
-        <div class="hub-brand-name">FIGTEAM HUB</div>
-        <div class="hub-brand-desc">하이브리드 DR 자동복구 인프라 협업 센터</div>
-      </div>
+  <!-- 1. 상단 공통 글로벌 헤더 (메인 포털과 동일 메뉴) -->
+  <header class="fig-global-header">
+    <div style="display:flex;align-items:center;gap:20px;height:100%;">
+      <a href="/" class="g-brand">
+        <span>FIGTEAM</span>
+        <span class="g-brand-badge">인프라 자동복구</span>
+      </a>
+      <nav class="g-nav">
+        <a href="/" class="g-link">대시보드</a>
+        <a href="/#cfg/" class="g-link">설계/설정</a>
+        <a href="/#term/" class="g-link">콘솔</a>
+        <a href="/api/ai/hub" class="g-link active">협업 허브 (Discord)</a>
+      </nav>
+    </div>
+    <div>
+      {user_header_html}
+    </div>
+  </header>
 
-      {profile_block}
-
-      <div class="hub-menu-group">
-        <div class="hub-menu-title">협업 워크스페이스</div>
-        <nav id="hub-menu" class="hub-nav">
-          <button type="button" class="hub-tab-btn" data-pane="inbox" onclick="switchHubTab('inbox')">
+  <!-- 2. 메인 워크스페이스 레이아웃 (좌측 메뉴 + 우측 바디) -->
+  <div class="hub-container">
+    <!-- 좌측 사이드바 -->
+    <aside class="hub-side">
+      <div>
+        <div class="side-title">협업 워크스페이스</div>
+        <nav class="side-menu hub-nav" id="hub-menu">
+          <button type="button" class="side-btn" data-pane="inbox" onclick="switchHubTab('inbox')">
             <span>수신함 (디코 ➔ 웹)</span>
-            <span class="hub-counter warn">{dc_sum['tasks_open']}</span>
+            <span class="badge-count badge-warn">{dc_sum['tasks_open']}</span>
           </button>
-          <button type="button" class="hub-tab-btn" data-pane="dispatch" onclick="switchHubTab('dispatch')">
+          <button type="button" class="side-btn" data-pane="dispatch" onclick="switchHubTab('dispatch')">
             <span>발신함 (웹 ➔ 디코)</span>
-            <span class="hub-counter">{len(shares)}</span>
+            <span class="badge-count">{len(shares)}</span>
           </button>
-          <button type="button" class="hub-tab-btn" data-pane="goals" onclick="switchHubTab('goals')">
+          <button type="button" class="side-btn" data-pane="goals" onclick="switchHubTab('goals')">
             <span>공동 목표 및 AI 연계</span>
-            <span class="hub-counter">{gs['done']}/{gs['total']}</span>
+            <span class="badge-count">{gs['done']}/{gs['total']}</span>
           </button>
-          <button type="button" class="hub-tab-btn" data-pane="portal" onclick="switchHubTab('portal')">
+          <button type="button" class="side-btn" data-pane="portal" onclick="switchHubTab('portal')">
             <span>포털 변경 이력</span>
-            <span class="hub-counter">{len(ch_list)}</span>
+            <span class="badge-count">{len(ch_list)}</span>
           </button>
         </nav>
       </div>
 
-      <div class="hub-menu-group" style="flex:none;">
-        <div class="hub-menu-title">인프라 관제 바로가기</div>
-        <div class="hub-side-links">
-          <a href="/#cfg/" target="_blank" rel="noopener" class="hub-side-link">
-            <span>설계/설정 포털 (#cfg)</span>
-            <span>↗</span>
-          </a>
-          <a href="/#term/" target="_blank" rel="noopener" class="hub-side-link">
-            <span>콘솔 터미널 (#term)</span>
-            <span>↗</span>
-          </a>
-          <a href="/#cfg/ref/__discord" target="_blank" rel="noopener" class="hub-side-link">
-            <span>포털 전용 수신함</span>
-            <span>↗</span>
-          </a>
-        </div>
-      </div>
-
-      <div class="hub-side-footer">
-        <div><span class="hub-status-dot {dc_status_class}"></span>Discord: {dc_status_label}</div>
-        <div style="font-size:10.5px;color:#64748b;">v4.1</div>
+      <div class="side-info-card">
+        <div style="margin-bottom:6px;font-weight:700;color:#f8fafc;">연동 현황</div>
+        <div>상태: <span style="color:#10b981;font-weight:700;">{dc_status_label}</span></div>
+        <div style="margin-top:4px;">채널: <code>#figteaminfra</code></div>
+        <div style="margin-top:6px;font-size:11.5px;color:#64748b;">포털에서 이름을 1회 설정하면 허브에 자동 연동됩니다.</div>
       </div>
     </aside>
 
-    <!-- 우측 메인 본문 -->
-    <main class="hub-main">
-      <div class="hub-topbar">
-        {err_html}{notice_html}
-      </div>
+    <!-- 우측 본문 -->
+    <main class="hub-content">
+      {err_html}{notice_html}
 
-      <!-- [패널 1] 수신함 (Discord ➔ Web) -->
-      <section class="hub-pane" id="pane-inbox">
-        <div class="card" id="discord-inbox">
-          <div class="hub-topbar-head">
-            <div>
-              <h2 class="hub-page-title">Discord 멘션 수신함</h2>
-              <p class="hub-page-sub">Discord 채널에서 #figteaminfra 멘션된 과제 및 공유 메시지를 실시간 수신하여 조치합니다.</p>
+      <!-- [섹션 1] 수신 과제함 (Discord ➔ Web) -->
+      <section class="pane" id="pane-inbox">
+        <div class="pane-header">
+          <h1 class="pane-title">Discord 멘션 수신함</h1>
+          <p class="pane-desc">Discord #figteaminfra 채널에서 들어온 확인 요청 및 공유 사항을 한곳에서 관리합니다.</p>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi-box"><div class="kpi-title">전체 접수</div><div class="kpi-val">{dc_sum['total']}건</div></div>
+          <div class="kpi-box" style="border-left:3px solid #f59e0b;"><div class="kpi-title" style="color:#fde68a;">미처리 과제</div><div class="kpi-val" style="color:#fde68a;">{dc_sum['tasks_open']}건</div></div>
+          <div class="kpi-box" style="border-left:3px solid #3b82f6;"><div class="kpi-title">진행중</div><div class="kpi-val">{dc_sum['tasks_in_progress']}건</div></div>
+          <div class="kpi-box" style="border-left:3px solid #10b981;"><div class="kpi-title">처리완료</div><div class="kpi-val">{dc_sum['tasks_done']}건</div></div>
+          <div class="kpi-box" style="border-left:3px solid #38bdf8;"><div class="kpi-title">공유 정보</div><div class="kpi-val">{dc_sum['shares']}건</div></div>
+        </div>
+
+        <div class="filter-pills">
+          <a class="filter-pill" href="/api/ai/hub?tab=inbox&amp;dc_filter=all">전체 ({dc_sum['total']})</a>
+          <a class="filter-pill" href="/api/ai/hub?tab=inbox&amp;dc_filter=task">처리할 과제 ({dc_sum['tasks_total']})</a>
+          <a class="filter-pill" href="/api/ai/hub?tab=inbox&amp;dc_filter=open_task">미처리 과제 ({dc_sum['tasks_open'] + dc_sum['tasks_in_progress']})</a>
+          <a class="filter-pill" href="/api/ai/hub?tab=inbox&amp;dc_filter=share">공유 ({dc_sum['shares']})</a>
+        </div>
+
+        {discord_inbox_html}
+
+        <div class="form-panel" style="margin-top:24px;">
+          <h2 style="font-size:15px;color:#fff;margin:0 0 4px;">신규 과제 또는 멘션 수동 접수</h2>
+          <p style="font-size:12.5px;color:#94a3b8;margin:0 0 12px;">회의 중 발생한 인프라 과제나 점검 사항을 웹에서 직접 등록하면 디스코드에 알림이 전송됩니다.</p>
+          <form method="post" action="/api/ai/hub/discord-ingest">
+            <input type="hidden" name="tab" value="inbox">
+            <div class="form-row">
+              <div><label class="form-label">채널</label><input type="text" name="channel" value="figteaminfra" maxlength="60"></div>
+              <div><label class="form-label">구분</label><select name="category"><option value="">자동 구분</option><option value="task">처리할 과제</option><option value="share">공유 정보</option></select></div>
             </div>
-            <div>
-              <a class="btn btn-sub" style="padding:6px 12px;font-size:12px;" href="/#cfg/ref/__discord" target="_blank" rel="noopener">#cfg 전용 뷰 ↗</a>
+            <div class="form-group">
+              <label class="form-label">내용 (#figteaminfra 멘션 포함)</label>
+              <textarea name="content" required placeholder="예: #figteaminfra KT Edge 502 에러 간헐 발생 점검 필요"></textarea>
             </div>
-          </div>
-
-          <div class="hub-kpi-bar">
-            <div class="hub-kpi-card"><span>전체 멘션</span><b>{dc_sum['total']}건</b></div>
-            <div class="hub-kpi-card task-border"><span>미처리 과제</span><b style="color:#fde68a;">{dc_sum['tasks_open']}건</b></div>
-            <div class="hub-kpi-card" style="border-left:3px solid #3b82f6;"><span>진행중 과제</span><b>{dc_sum['tasks_in_progress']}건</b></div>
-            <div class="hub-kpi-card" style="border-left:3px solid #10b981;"><span>처리완료</span><b>{dc_sum['tasks_done']}건</b></div>
-            <div class="hub-kpi-card share-border"><span>공유 메시지</span><b>{dc_sum['shares']}건</b></div>
-          </div>
-
-          <div class="acts" style="margin-top:0;margin-bottom:14px;gap:6px;">
-            <a class="btn btn-sub" style="padding:5px 11px;font-size:12px;" href="/api/ai/hub?tab=inbox&amp;dc_filter=all">전체 ({dc_sum['total']})</a>
-            <a class="btn btn-sub" style="padding:5px 11px;font-size:12px;" href="/api/ai/hub?tab=inbox&amp;dc_filter=task">처리할 과제 ({dc_sum['tasks_total']})</a>
-            <a class="btn btn-sub" style="padding:5px 11px;font-size:12px;" href="/api/ai/hub?tab=inbox&amp;dc_filter=open_task">미처리 과제 ({dc_sum['tasks_open'] + dc_sum['tasks_in_progress']})</a>
-            <a class="btn btn-sub" style="padding:5px 11px;font-size:12px;" href="/api/ai/hub?tab=inbox&amp;dc_filter=share">공유 ({dc_sum['shares']})</a>
-          </div>
-
-          {discord_inbox_html}
-
-          <details style="margin-top:18px;">
-            <summary style="cursor:pointer;font-weight:700;color:#93c5fd;font-size:13px;">+ 신규 과제 및 멘션 수동 접수 등록</summary>
-            <form method="post" action="/api/ai/hub/discord-ingest" style="margin-top:12px;">
-              <input type="hidden" name="tab" value="inbox">
-              {inline_login if not session else ''}
-              <div class="row">
-                <div><label>채널명</label><input type="text" name="channel" value="figteaminfra" maxlength="60"></div>
-                <div><label>구분</label><select name="category"><option value="">자동 구분 (과제 vs 공유)</option><option value="task">처리할 과제</option><option value="share">공유</option></select></div>
-              </div>
-              <label>Discord 메시지 내용 (#figteaminfra 멘션 포함)</label>
-              <textarea name="content" required placeholder="예: #figteaminfra KT Edge 502 에러 간헐 발생 확인 요청&#10;또는: #figteaminfra #공유 k3s flannel 서브넷 점검 완료"></textarea>
-              <div class="acts"><button type="submit" class="btn">과제 접수 및 Discord 알림</button></div>
-            </form>
-          </details>
+            <button type="submit" class="btn-submit">과제 접수 및 Discord 알림</button>
+          </form>
         </div>
       </section>
 
-      <!-- [패널 2] 발신함 (Web ➔ Discord) -->
-      <section class="hub-pane" id="pane-dispatch">
-        <div class="card">
-          <h2 class="hub-page-title" style="margin-bottom:4px;">진행 및 설정 공유 등록</h2>
-          <p class="hub-page-sub" style="margin-bottom:14px;">웹에서 작성한 변경 사항 및 점검 내용이 즉시 팀 Discord 채널로 전송되고 팀 피드에 저장됩니다.</p>
-          
+      <!-- [섹션 2] 상황 공유 발신 (Web ➔ Discord) -->
+      <section class="pane" id="pane-dispatch">
+        <div class="pane-header">
+          <h1 class="pane-title">팀 상황 공유 발신</h1>
+          <p class="pane-desc">인프라 작업 결과나 점검 내용을 작성하면 Discord 채널로 실시간 알림이 발송되고 팀 피드에 기록됩니다.</p>
+        </div>
+
+        <div class="form-panel">
           <form method="post" action="/api/ai/hub">
             <input type="hidden" name="tab" value="dispatch">
-            {inline_login}
             
-            <label>인프라 영역 (6대 세부분류 퀵 선택)</label>
-            <div class="hub-quick-areas">
-              <button type="button" class="hub-chip-btn" onclick="setArea('inst-ktedge/nginx')">KT Edge (Nginx)</button>
-              <button type="button" class="hub-chip-btn" onclick="setArea('inst-cp1/k8s')">k8s Control Plane</button>
-              <button type="button" class="hub-chip-btn" onclick="setArea('inst-db01/mysql')">db-01 (MySQL GTID)</button>
-              <button type="button" class="hub-chip-btn" onclick="setArea('inst-awsdr/dr')">AWS DR (Warm-Standby)</button>
-              <button type="button" class="hub-chip-btn" onclick="setArea('network/wireguard')">WireGuard 풀메쉬</button>
-              <button type="button" class="hub-chip-btn" onclick="setArea('openstack/core')">OpenStack Core</button>
-              <button type="button" class="hub-chip-btn" onclick="setArea('general')">일반 공통</button>
+            <div class="form-group">
+              <label class="form-label">대상 인프라 영역 (아래 버튼을 누르면 자동 입력됩니다)</label>
+              <div class="quick-chips">
+                <button type="button" class="chip-btn" onclick="setArea('inst-ktedge/nginx')">KT Edge (Nginx)</button>
+                <button type="button" class="chip-btn" onclick="setArea('inst-cp1/k8s')">k8s 마스터 (cp1)</button>
+                <button type="button" class="chip-btn" onclick="setArea('inst-db01/mysql')">MySQL DB (db-01)</button>
+                <button type="button" class="chip-btn" onclick="setArea('inst-awsdr/dr')">AWS DR (Warm-Standby)</button>
+                <button type="button" class="chip-btn" onclick="setArea('network/wireguard')">WireGuard 풀메쉬</button>
+                <button type="button" class="chip-btn" onclick="setArea('openstack/core')">OpenStack Core</button>
+                <button type="button" class="chip-btn" onclick="setArea('general')">일반 공통</button>
+              </div>
             </div>
-            
-            <div class="row">
-              <div><input type="text" id="dispatch-area" name="area" value="{esc(prefill.get('area') or 'general')}" maxlength="60" placeholder="영역명 (예: inst-db01/mysql)"></div>
-              <div><select name="status">{options_html}</select></div>
+
+            <div class="form-row">
+              <div><label class="form-label">영역 코드</label><input type="text" id="dispatch-area" name="area" value="{esc(prefill.get('area') or 'general')}" maxlength="60"></div>
+              <div><label class="form-label">진행 상태</label><select name="status">{options_html}</select></div>
             </div>
-            <div class="row">
-              <div><label>연계 공동 목표 (선택)</label><select name="goal_id">{goal_select_html}</select></div>
-              <div><label>연계 목표 상태 함께 변경</label><select name="goal_status">{"".join(g_st_opts)}</select></div>
+
+            <div class="form-row">
+              <div><label class="form-label">연계 목표 (선택)</label><select name="goal_id">{goal_select_html}</select></div>
+              <div><label class="form-label">연계 목표 상태 변경 (선택)</label><select name="goal_status">{"".join(g_st_opts)}</select></div>
             </div>
-            <label>한 줄 제목</label>
-            <input type="text" name="title" value="{esc(prefill.get('title') or '')}" placeholder="예: k3s flannel 10.42.0.0/16 점검 완료" maxlength="120">
-            <label>변경 및 확인 내용 요약 (비밀값 제외)</label>
-            <textarea name="summary" required placeholder="작업 결과, 점검 메트릭, 변경된 설정 내용을 입력하세요.">{esc(prefill.get('summary') or '')}</textarea>
-            <div class="row">
-              <div><label>타 영역 확인 요청 (선택)</label><input type="text" name="check_request" value="{esc(prefill.get('check_request') or '')}" placeholder="예: AWS DR 담당자 ch_dr 확인 부탁드립니다" maxlength="400"></div>
-              <div><label>관련 #cfg 웹 URL (선택)</label><input type="text" name="cfg_url" value="{esc(prefill.get('cfg_url') or '')}" placeholder="예: https://figteam.ktci5.kr/#cfg/inst-db01" maxlength="300"></div>
+
+            <div class="form-group">
+              <label class="form-label">제목</label>
+              <input type="text" name="title" value="{esc(prefill.get('title') or '')}" placeholder="예: k3s flannel 10.42.0.0/16 서브넷 점검 완료" maxlength="120">
             </div>
-            <div class="acts">
-              <button type="submit" class="btn">Discord 공유 및 팀 피드 기록</button>
+
+            <div class="form-group">
+              <label class="form-label">작업 내용 요약</label>
+              <textarea name="summary" required placeholder="수행한 작업 내용, 변경 파라미터, 확인된 수치를 입력하세요.">{esc(prefill.get('summary') or '')}</textarea>
             </div>
+
+            <div class="form-row">
+              <div><label class="form-label">타 영역 확인 요청 (선택)</label><input type="text" name="check_request" value="{esc(prefill.get('check_request') or '')}" placeholder="예: AWS DR 담당자 ch_dr 확인 부탁드립니다" maxlength="400"></div>
+              <div><label class="form-label">관련 포털 URL (선택)</label><input type="text" name="cfg_url" value="{esc(prefill.get('cfg_url') or '')}" placeholder="예: https://figteam.ktci5.kr/#cfg/inst-db01" maxlength="300"></div>
+            </div>
+
+            <button type="submit" class="btn-submit">Discord 공유 및 팀 피드 기록</button>
           </form>
         </div>
 
-        <div class="card">
-          <h2 class="hub-page-title" style="margin-bottom:4px;">최근 팀 공유 피드</h2>
-          <p class="hub-page-sub" style="margin-bottom:12px;">웹에서 Discord 채널로 전송된 최근 공유 이력입니다.</p>
+        <div style="margin-top:20px;">
+          <h2 style="font-size:16px;color:#fff;margin:0 0 10px;">최근 팀 공유 내역</h2>
           {feed_html}
         </div>
       </section>
 
-      <!-- [패널 3] 공동 목표 및 AI 연계 -->
-      <section class="hub-pane" id="pane-goals">
-        <div class="card">
-          <h2 class="hub-page-title" style="margin-bottom:4px;">3대 AI 채팅 1-Click 연계</h2>
-          <p class="hub-page-sub" style="margin-bottom:14px;">웹 로그인 세션 하나로 ChatGPT, Claude, Gemini에 현재 공동 목표와 최신 인프라 브리핑을 원클릭으로 주입합니다.</p>
-          
-          <label for="hub-focus-goal">집중 공동 목표 선택 (3대 AI 런처 반영)</label>
-          <select id="hub-focus-goal">{goal_select_html}</select>
-          <div class="acts">
-            <button type="button" class="btn btn-gpt" onclick="launchAi('chatgpt')">ChatGPT로 열기</button>
-            <button type="button" class="btn btn-claude" onclick="launchAi('claude')">Claude로 열기</button>
-            <button type="button" class="btn btn-gemini" onclick="launchAi('gemini')">Gemini로 열기</button>
-            <button type="button" class="btn btn-sub" id="btn-copy-prompt" onclick="launchAi('copy')">공통 프롬프트 복사</button>
-          </div>
-          <p id="hub-launch-msg" class="sub" style="margin-top:10px;margin-bottom:0;">버튼을 누르면 최신 공동 목표 및 팀 브리핑이 클립보드에 자동 복사되며 해당 AI 채팅창이 열립니다.</p>
-          <textarea id="hub-fallback-prompt" readonly style="margin-top:10px;min-height:80px;font-size:12px;color:#94a3b8;{'display:none;' if not full_prompt_txt else ''}">{full_prompt_txt}</textarea>
+      <!-- [섹션 3] 팀 공동 목표 및 AI -->
+      <section class="pane" id="pane-goals">
+        <div class="pane-header">
+          <h1 class="pane-title">팀 공동 목표 및 AI 연계</h1>
+          <p class="pane-desc">인프라 목표 달성률을 추적하고, ChatGPT, Claude, Gemini에 현재 인프라 현황을 원클릭으로 주입합니다.</p>
         </div>
 
-        <div class="card">
-          <h2 class="hub-page-title" style="margin-bottom:4px;">공동 목표 보드 (달성 {gs['done']}/{gs['total']} · {gs['percent']}%)</h2>
-          <div class="prog"><span style="width:{gs['percent']}%"></span></div>
+        <div class="form-panel">
+          <h2 style="font-size:15px;color:#fff;margin:0 0 6px;">3대 AI 채팅 1-Click 연계</h2>
+          <p style="font-size:12.5px;color:#94a3b8;margin:0 0 12px;">현재 인프라 상태와 목표 브리핑을 AI 창으로 자동 전달합니다.</p>
+          
+          <div class="form-group">
+            <label class="form-label">집중 공동 목표 선택</label>
+            <select id="hub-focus-goal">{goal_select_html}</select>
+          </div>
+
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="btn-submit" style="background:#059669;padding:9px 14px;font-size:13px;" onclick="launchAi('chatgpt')">ChatGPT로 열기</button>
+            <button type="button" class="btn-submit" style="background:#d97706;padding:9px 14px;font-size:13px;" onclick="launchAi('claude')">Claude로 열기</button>
+            <button type="button" class="btn-submit" style="background:#2563eb;padding:9px 14px;font-size:13px;" onclick="launchAi('gemini')">Gemini로 열기</button>
+            <button type="button" class="act-btn" id="btn-copy-prompt" style="padding:9px 14px;font-size:13px;" onclick="launchAi('copy')">공통 프롬프트 복사</button>
+          </div>
+          <p id="hub-launch-msg" style="margin:10px 0 0;font-size:12px;color:#94a3b8;"></p>
+          <textarea id="hub-fallback-prompt" readonly style="margin-top:10px;min-height:70px;font-size:12px;color:#94a3b8;{'display:none;' if not full_prompt_txt else ''}">{full_prompt_txt}</textarea>
+        </div>
+
+        <div class="form-panel">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <h2 style="font-size:15px;color:#fff;margin:0;">공동 목표 보드 (달성 {gs['done']}/{gs['total']} · {gs['percent']}%)</h2>
+            <span style="font-weight:900;color:#10b981;font-size:15px;">{gs['percent']}%</span>
+          </div>
+          <div class="prog-bar"><div class="prog-fill" style="width:{gs['percent']}%;"></div></div>
+
           {goals_board_html}
-          <details style="margin-top:14px;">
+
+          <details style="margin-top:16px;">
             <summary style="cursor:pointer;font-weight:700;color:#93c5fd;font-size:13px;">+ 신규 공동 목표 추가</summary>
-            <form method="post" action="/api/ai/hub/goal" style="margin-top:10px;">
+            <form method="post" action="/api/ai/hub/goal" style="margin-top:12px;">
               <input type="hidden" name="tab" value="goals">
-              {inline_login if not session else ''}
-              <div class="row">
-                <div><label>목표 제목</label><input type="text" name="title" placeholder="예: 3사 DR 자동 절체 리허설 완료" maxlength="120" required></div>
-                <div><label>영역 / 노드</label><input type="text" name="area" value="{esc(prefill.get('area') or 'general')}" maxlength="60"></div>
+              <div class="form-row">
+                <div><label class="form-label">목표 제목</label><input type="text" name="title" placeholder="예: 3사 DR 자동 절체 리허설 성공" maxlength="120" required></div>
+                <div><label class="form-label">대상 영역</label><input type="text" name="area" value="{esc(prefill.get('area') or 'general')}" maxlength="60"></div>
               </div>
-              <div class="row">
-                <div><label>담당자</label><input type="text" name="owner" value="{esc(session.member if session else '')}" placeholder="담당자 이름" maxlength="40"></div>
-                <div><label>목표 기한 (선택)</label><input type="text" name="target_date" placeholder="예: 2026-11-30" maxlength="20"></div>
+              <div class="form-row">
+                <div><label class="form-label">담당자</label><input type="text" name="owner" value="{member_name}" placeholder="담당자 이름" maxlength="40"></div>
+                <div><label class="form-label">기한</label><input type="text" name="target_date" placeholder="예: 2026-11-30" maxlength="20"></div>
               </div>
-              <label>완료 기준 및 검증 메모 (선택)</label>
-              <input type="text" name="note" placeholder="예: ch_dr 지연 0초 및 minwon.ktci5.kr 200 OK 확인" maxlength="600">
-              <div class="acts"><button type="submit" class="btn">목표 등록 및 알림</button></div>
+              <div class="form-group">
+                <label class="form-label">완료 기준 및 검증 메모</label>
+                <input type="text" name="note" placeholder="예: ch_dr 지연 0초 및 200 OK 확인" maxlength="600">
+              </div>
+              <button type="submit" class="btn-submit">목표 등록 및 알림</button>
             </form>
           </details>
         </div>
       </section>
 
-      <!-- [패널 4] 포털 변경 이력 -->
-      <section class="hub-pane" id="pane-portal">
-        <div class="card">
-          <div class="hub-topbar-head">
-            <div>
-              <h2 class="hub-page-title">포털(#cfg) 최근 수정 및 업데이트</h2>
-              <p class="hub-page-sub">웹 포털에서 설정 및 문서가 변경될 때마다 누적되는 감사 피드입니다.</p>
-            </div>
-            <div>
-              <a class="btn btn-sub" style="padding:6px 12px;font-size:12px;" href="/#cfg/" target="_blank" rel="noopener">#cfg 콘솔 바로가기 ↗</a>
-            </div>
-          </div>
-          {recent_changes_html}
+      <!-- [섹션 4] 포털 변경 감사로그 -->
+      <section class="pane" id="pane-portal">
+        <div class="pane-header">
+          <h1 class="pane-title">포털(#cfg) 변경 이력</h1>
+          <p class="pane-desc">설계/설정 포털에서 인프라 구성 및 문서가 변경될 때 기록되는 감사 로그입니다.</p>
         </div>
+        {recent_changes_html}
       </section>
     </main>
   </div>
@@ -1893,7 +1945,7 @@ def render_collab_hub_html(
       const valid = ['inbox', 'dispatch', 'goals', 'portal'];
       if (!valid.includes(tabName)) tabName = 'inbox';
       
-      document.querySelectorAll('.hub-tab-btn').forEach(btn => {{
+      document.querySelectorAll('.side-btn').forEach(btn => {{
         if (btn.getAttribute('data-pane') === tabName) {{
           btn.classList.add('active');
         }} else {{
@@ -1901,7 +1953,7 @@ def render_collab_hub_html(
         }}
       }});
 
-      document.querySelectorAll('.hub-pane').forEach(p => {{
+      document.querySelectorAll('.pane').forEach(p => {{
         if (p.id === 'pane-' + tabName) {{
           p.classList.add('active');
         }} else {{
@@ -1915,7 +1967,34 @@ def render_collab_hub_html(
       }} catch (e) {{}}
     }}
 
+    // 자동 이름 연동 (포털에서 1회 설정된 이름을 읽어 허브 세션 자동 생성)
+    async function checkAutoSync() {{
+      const isLoggedIn = {"true" if is_logged_in else "false"};
+      if (isLoggedIn) return;
+      try {{
+        let name = (localStorage.getItem('fig.term.user') || '').trim();
+        if (!name) {{
+          const pRaw = localStorage.getItem('fig.access.profile_v1');
+          if (pRaw) {{
+            const p = JSON.parse(pRaw);
+            name = (p.member || '').trim();
+          }}
+        }}
+        if (name) {{
+          const res = await fetch('/api/ai/hub/auto-login', {{
+            method: 'POST',
+            headers: {{ 'Content-Type': 'application/json' }},
+            body: JSON.stringify({{ member: name }})
+          }});
+          if (res.ok) {{
+            location.reload();
+          }}
+        }}
+      }} catch (e) {{}}
+    }}
+
     window.addEventListener('DOMContentLoaded', () => {{
+      checkAutoSync();
       let t = "{default_tab}";
       const h = (window.location.hash || '').replace('#', '').trim();
       if (['inbox', 'dispatch', 'goals', 'portal'].includes(h)) {{

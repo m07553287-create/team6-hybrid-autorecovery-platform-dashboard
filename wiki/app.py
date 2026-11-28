@@ -553,6 +553,27 @@ def create_app(redis_client=None):
         s = ai_session_of(request)
         return collab.update_discord_inbox_item(r, s, item_id, await body_of(request))
 
+    @app.post("/api/ai/hub/auto-login")
+    async def ai_hub_auto_login(request: Request):
+        form = await form_or_json(request)
+        raw_m = str(form.get("member") or "").strip()
+        if not raw_m:
+            raise ApiError(422, "사용자 이름을 입력하세요")
+        clean_m = auth.check_member(raw_m)
+        slug = str(form.get("slug") or os.environ.get("DEFAULT_TEAM_SLUG", "figteam")).strip() or "figteam"
+        t = r.hgetall(f"fw:team:{slug}")
+        if not t or not t.get("id"):
+            raise ApiError(404, "팀을 찾을 수 없습니다")
+        team_id = int(t["id"])
+        cookie_ak = auth.check_access_key(request.cookies.get(auth.KEY_COOKIE) or "")
+        final_ak = cookie_ak or auth.gen_access_key()
+        tok = auth.new_session(r, team_id, clean_m, auto=True, access_key=final_ak)
+        auth.upsert_keybook(r, team_id, final_ak, clean_m, client_ip(request))
+        resp = JSONResponse({"ok": True, "member": clean_m, "access_key": final_ak})
+        set_cookie(resp, tok)
+        set_key_cookie(resp, final_ak)
+        return resp
+
     @app.get("/api/ai/hub")
     @app.get("/api/ai/share-ui")
     def ai_share_ui_get(
@@ -567,8 +588,26 @@ def create_app(redis_client=None):
         goal_status: str = "",
         dc_filter: str = "all",
         tab: str = "inbox",
+        member: str = "",
     ):
         s = optional_session_of(request)
+        new_tok = None
+        new_ak = None
+        if not s and member.strip():
+            try:
+                clean_m = auth.check_member(member.strip())
+                slug = os.environ.get("DEFAULT_TEAM_SLUG", "figteam")
+                t = r.hgetall(f"fw:team:{slug}")
+                if t and t.get("id"):
+                    team_id = int(t["id"])
+                    cookie_ak = auth.check_access_key(request.cookies.get(auth.KEY_COOKIE) or "")
+                    new_ak = cookie_ak or auth.gen_access_key()
+                    new_tok = auth.new_session(r, team_id, clean_m, auto=True, access_key=new_ak)
+                    auth.upsert_keybook(r, team_id, new_ak, clean_m, client_ip(request))
+                    _, s = auth.get_session_detail(r, new_tok, require_key=require_key)
+            except Exception:
+                pass
+
         prefill = {
             "area": area,
             "status": status,
@@ -581,7 +620,12 @@ def create_app(redis_client=None):
             "dc_filter": dc_filter,
             "tab": tab,
         }
-        return _hub_render(s, prefill)
+        resp = _hub_render(s, prefill)
+        if new_tok:
+            set_cookie(resp, new_tok)
+            if new_ak:
+                set_key_cookie(resp, new_ak)
+        return resp
 
     @app.post("/api/ai/hub")
     @app.post("/api/ai/share-ui")
