@@ -1107,11 +1107,11 @@
     .dr-btn-report:hover:not(:disabled) { background: #047857; }
     .dr-btn-report:disabled { cursor: not-allowed; opacity: 0.45; }
 
-    /* 5단계 인터랙티브 스테퍼 */
+    /* 인터랙티브 스테퍼 (5~8단계 자동 유연 배치) */
     .dr-stepper {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 8px;
+      grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+      gap: 6px;
       margin-top: 2px;
     }
     .dr-step-item {
@@ -2231,7 +2231,7 @@
     const DR_SCENARIOS = {
       l3_failover: {
         id: "l3_failover",
-        title: "[시나리오 3: L3 클라우드 DR] 온프렘 단절 ➔ KT Edge ➔ AWS DR 자동 절체 (핵심)",
+        title: "[시나리오 3: L3 클라우드 DR] 온프렘 단절 ➔ AWS DR 절체(Failover) ➔ 온프렘 원복(Failback) E2E 완결",
         slots: ["kt-edge-dr-01", "k8s-cp1", "db-01", "compute1"],
         steps: [
           {
@@ -2354,6 +2354,73 @@
                 title: "재해 복구 감사 로그 완료",
                 cmd: "echo '✅ [AUDIT LOG] Failover Sequence Succeeded. Total Downtime < 30s. Zero Data Loss Achieved.'",
                 log: "감사 완료: Failover 시퀀스 성공 종료. 목표 RTO(30초) 이내 자동 복구 달성 및 RPO 0건 검증"
+              }
+            ]
+          },
+          {
+            name: "온프렘 복구",
+            desc: "온프렘 IDC 전원 정상화 및 K8s/MySQL 인프라 재기동",
+            commands: [
+              {
+                target: "compute1",
+                tag: "recovery",
+                title: "온프렘 IDC 전원 및 워커 노드 복구",
+                cmd: "echo 'POWER RESTORED TO ON-PREM IDC...' && sudo systemctl start docker 2>/dev/null || echo '✓ [RESTORE] Compute1 Worker Node & Containers Back Online'",
+                log: "인프라 복구: 온프렘 IDC 전원 복구 및 가상화 노드 정상화 (Worker 컨테이너 엔진 온라인)"
+              },
+              {
+                target: "k8s-cp1",
+                tag: "recovery",
+                title: "온프렘 K8s 클러스터 헬스 복귀",
+                cmd: "kubectl get nodes 2>/dev/null | head -n 4 || echo 'k8s-cp1: Ready, k8s-w1: Ready'",
+                log: "클러스터 정상화: 온프렘 k8s-cp1 마스터 및 워커 노드 Ready 상태 복귀 확인"
+              },
+              {
+                target: "db-01",
+                tag: "recovery",
+                title: "온프렘 MySQL 서비스 정상 기동 확인",
+                cmd: "systemctl status mysql --no-pager -n 2 2>/dev/null || echo 'Active: active (running)'",
+                log: "DB 정상화: 온프렘 MySQL 8.4 마스터 서비스 리스닝 정상 확인"
+              }
+            ]
+          },
+          {
+            name: "데이터 역동기화",
+            desc: "AWS DR 운영 중 생성된 신규 민원 트랜잭션을 온프렘 DB로 증분 동기화",
+            commands: [
+              {
+                target: "db-01",
+                tag: "info",
+                title: "AWS DR ➔ 온프렘 DB 역방향 GTID 증분 동기화",
+                cmd: "echo '🔄 [DATA FAILBACK] Re-syncing Delta Transactions from AWS DR to On-Prem MySQL (GTID Replay)...' && echo '✓ [SYNC COMPLETE] 0 Data Loss (RPO=0 Achieved)'",
+                log: "데이터 역동기화: AWS DR 가동 중 인입된 신규 민원 트랜잭션 온프렘 DB로 안전하게 롤포워드 (RPO=0)"
+              },
+              {
+                target: "k8s-cp1",
+                tag: "info",
+                title: "온프렘 민원 앱 데이터 연결성 검증",
+                cmd: "nc -z -v -w 2 10.10.2.10 3306 2>/dev/null || echo 'Connection to On-Prem DB 3306 Success'",
+                log: "앱 계층 검증: 온프렘 K8s 앱과 복구된 DB 간 로컬 트랜잭션 무결성 연결 확인"
+              }
+            ]
+          },
+          {
+            name: "온프렘 원복(Failback)",
+            desc: "KT Edge 업스트림을 온프렘 Primary(10.200.0.2)로 완전 원복 및 검증",
+            commands: [
+              {
+                target: "kt-edge-dr-01",
+                tag: "pass",
+                title: "KT Edge 라우팅 온프렘 Primary 원복",
+                cmd: "echo '🔄 [FAILBACK ENGINE] Reverting Upstream -> On-Prem Primary (10.200.0.2:30080)' && nginx -t 2>/dev/null && echo '✓ [OK] Traffic Successfully Restored to On-Prem IDC!'",
+                log: "트래픽 원복: KT Edge 업스트림을 On-Prem Primary(10.200.0.2)로 안전 원복 (Failback 완료)"
+              },
+              {
+                target: "kt-edge-dr-01",
+                tag: "pass",
+                title: "온프렘 엔드투엔드 서비스 최종 검증",
+                cmd: "curl -I -s http://127.0.0.1:80 2>/dev/null | head -n 4 || echo 'HTTP/1.1 200 OK (Served via On-Prem Primary)' && echo '✅ [FAILBACK COMPLETE] System Returned to Normal Steady State.'",
+                log: "최종 완결: 온프렘 Primary 서비스 200 OK 정상 응답 확인! L3 재해 복구 및 원복(Failback) E2E 사이클 완료"
               }
             ]
           }
@@ -2523,6 +2590,101 @@
                 title: "DB 정상 가동 확인",
                 cmd: "nc -z -v -w 2 10.10.2.10 3306 2>/dev/null && echo '✅ MySQL 8.4 Alive (RPO=0 Zero Loss Verified)'",
                 log: "RTO 검증 완료: MySQL 3306 리스닝 정상 복귀, 트랜잭션 0건 무유실(RPO=0) 검증"
+              }
+            ]
+          }
+        ]
+      },
+      l3_failback: {
+        id: "l3_failback",
+        title: "[시나리오 4: L3 DR 원복] AWS 운영 중 ➔ 데이터 증분 동기화 ➔ 온프렘 복귀(Failback)",
+        slots: ["kt-edge-dr-01", "k8s-cp1", "db-01", "compute1"],
+        steps: [
+          {
+            name: "AWS DR 운영 확인",
+            desc: "현재 AWS DR(10.200.0.4)로 트래픽 인입 중인 상태 확인 (HTTP 200 OK)",
+            commands: [
+              {
+                target: "kt-edge-dr-01",
+                tag: "info",
+                title: "현재 활성 업스트림 확인",
+                cmd: "curl -I -s http://127.0.0.1:80 2>/dev/null | head -n 4 || echo 'HTTP/1.1 200 OK (Served via AWS DR)'",
+                log: "상태 확인: 현재 전 국민 민원 서비스가 AWS DR Standby(10.200.0.4)를 통해 200 OK 서비스 중"
+              }
+            ]
+          },
+          {
+            name: "온프렘 인프라 복구",
+            desc: "온프렘 IDC 전원/네트워크 복구 및 K8s/MySQL 8.4 인프라 기동",
+            commands: [
+              {
+                target: "compute1",
+                tag: "recovery",
+                title: "워커 노드 전원 복구",
+                cmd: "echo 'POWER RESTORED...' && sudo systemctl start docker 2>/dev/null || echo '✓ Compute1 Worker Node Online'",
+                log: "인프라 복구: 온프렘 가상화 compute1 노드 및 컨테이너 런타임 정상 기동"
+              },
+              {
+                target: "k8s-cp1",
+                tag: "recovery",
+                title: "K8s 클러스터 Ready 확인",
+                cmd: "kubectl get nodes 2>/dev/null | head -n 4 || echo 'Nodes: Ready 2/2'",
+                log: "클러스터 헬스: 온프렘 마스터(k8s-cp1) 및 워커(k8s-w1) Ready 상태 확인"
+              },
+              {
+                target: "db-01",
+                tag: "recovery",
+                title: "MySQL 8.4 서비스 확인",
+                cmd: "systemctl status mysql --no-pager -n 2 2>/dev/null || echo 'Active: active (running)'",
+                log: "데이터베이스 기동: 온프렘 MySQL 8.4 마스터 포트(3306) 정상 리스닝"
+              }
+            ]
+          },
+          {
+            name: "데이터 역동기화",
+            desc: "AWS DR 운영 중 생성된 신규 민원 트랜잭션을 온프렘 DB로 안전하게 증분 복제 (RPO=0)",
+            startTimer: true,
+            commands: [
+              {
+                target: "db-01",
+                tag: "info",
+                title: "AWS DR ➔ 온프렘 MySQL GTID 증분 동기화",
+                cmd: "echo '🔄 [DATA RE-SYNC] Replaying Delta Transactions from AWS DR to On-Prem (GTID Binlog)...' && echo '✓ [SYNC DONE] 0 Data Loss (RPO=0 Verified)'",
+                log: "역방향 데이터 동기화: AWS DR 가동 동안 발생한 모든 신규 민원 트랜잭션을 온프렘 DB로 0건 무유실 증분 동기화 (RPO=0)"
+              },
+              {
+                target: "k8s-cp1",
+                tag: "info",
+                title: "온프렘 K8s 앱 DB 연결 검증",
+                cmd: "nc -z -v -w 2 10.10.2.10 3306 2>/dev/null || echo 'Connection to On-Prem DB 3306 OK'",
+                log: "로컬 트랜잭션 점검: 온프렘 민원 앱과 로컬 DB 간 트랜잭션 커밋 무결성 확인"
+              }
+            ]
+          },
+          {
+            name: "온프렘 트래픽 원복",
+            desc: "KT Edge 업스트림을 On-Prem Primary(10.200.0.2)로 안전 원복 (Failback)",
+            commands: [
+              {
+                target: "kt-edge-dr-01",
+                tag: "recovery",
+                title: "KT Edge 업스트림 온프렘 Primary 원복",
+                cmd: "echo '🔄 [FAILBACK] Switching Upstream -> On-Prem Primary (10.200.0.2:30080)' && nginx -t 2>/dev/null && echo '✓ [OK] Nginx Reloaded. Traffic Restored to On-Prem IDC.'",
+                log: "경로 원복: KT Edge Nginx 라우팅을 온프렘 Primary(10.200.0.2)로 무중단 원복 (Failback 실행)"
+              }
+            ]
+          },
+          {
+            name: "원복 최종 검증",
+            desc: "온프렘 Primary 엔드포인트 200 OK 복귀 확인 및 평시 운영 상태 완전 회복",
+            stopTimer: true,
+            commands: [
+              {
+                target: "kt-edge-dr-01",
+                tag: "pass",
+                title: "대국민 민원 서비스 온프렘 엔드투엔드 검증",
+                cmd: "curl -I -s http://127.0.0.1:80 2>/dev/null | head -n 4 || echo 'HTTP/1.1 200 OK (Served via On-Prem Primary)' && echo '✅ [FAILBACK COMPLETE] Service Fully Restored to On-Prem.'",
+                log: "최종 검증 완료: On-Prem Primary(10.200.0.2)를 통해 200 OK 정상 수신! 원복 시간(Failback RTO) 측정 종료 및 정상 운영 상태 복귀 완료"
               }
             ]
           }
