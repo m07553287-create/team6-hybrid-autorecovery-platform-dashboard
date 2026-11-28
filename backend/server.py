@@ -2822,17 +2822,55 @@ LANDING_HTML = """<!DOCTYPE html>
       try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
     }
 
+    const WK_FIRST_ENTRY_SKIP_KEY = 'fig.entry_name_skipped_v1';
+    let WK_FIRST_ENTRY_PROMISE = null;
+
+    function wkIsRealName(name) {
+      const s = String(name == null ? '' : name).trim();
+      if (!s) return false;
+      const lower = s.toLowerCase();
+      return s !== '게스트' && s !== '미설정' && lower !== 'guest' && lower !== 'seed';
+    }
+
+    function wkResolveEntryName(sources) {
+      const src = sources || {};
+      const list = [src.profileMember, src.termUser, src.lastMember, src.meMember];
+      for (let i = 0; i < list.length; i++) {
+        const raw = list[i];
+        if (!raw) continue;
+        const parsedName = wkParseAuthor(raw).name;
+        if (wkIsRealName(parsedName)) return parsedName;
+      }
+      return '';
+    }
+
+    function wkGetSavedRealName() {
+      const saved = wkReadLocalJson(WK_ACCESS_STORAGE.profile, null) || {};
+      let termUser = '';
+      try { termUser = (localStorage.getItem('fig.term.user') || '').trim(); } catch (e) {}
+      const last = wkReadLocalJson('fw_last', null) || {};
+      const meMember = (typeof WIKI !== 'undefined' && WIKI.me && WIKI.me.member) ? WIKI.me.member : '';
+      return wkResolveEntryName({
+        profileMember: saved.member,
+        termUser: termUser,
+        lastMember: last.member,
+        meMember: meMember
+      });
+    }
+
     function wkGetAccessProfile() {
       const saved = wkReadLocalJson(WK_ACCESS_STORAGE.profile, null) || {};
       let ak = wkNormalizeAccessKey(saved.access_key);
       if (!ak) ak = wkGenAccessKey();
-      let termUser = '';
-      try { termUser = (localStorage.getItem('fig.term.user') || '').trim(); } catch (e) {}
-      if (termUser === 'guest' || termUser === '게스트') termUser = '';
-      const meParsed = (typeof WIKI !== 'undefined' && WIKI.me && WIKI.me.member) ? wkParseAuthor(WIKI.me.member, WIKI.me.access_key) : { name: '' };
-      let member = (saved.member || '').trim() || termUser || (meParsed.name && meParsed.name !== '게스트' ? meParsed.name : '') || '게스트';
+      const realName = wkGetSavedRealName();
+      const member = realName || '게스트';
       if (!saved.access_key || saved.member !== member) {
         wkWriteLocalJson(WK_ACCESS_STORAGE.profile, { member: member, access_key: ak });
+      }
+      if (realName) {
+        try {
+          if (localStorage.getItem('fig.term.user') !== realName) localStorage.setItem('fig.term.user', realName);
+        } catch (e) {}
       }
       return { member: member, access_key: ak };
     }
@@ -2848,9 +2886,15 @@ LANDING_HTML = """<!DOCTYPE html>
         kb[ak] = { access_key: ak, member: cleanName, updated_at: Math.floor(Date.now() / 1000), last_ip: '현재 브라우저' };
         wkWriteLocalJson(WK_ACCESS_STORAGE.keybook, kb);
       }
-      try {
-        if (cleanName && cleanName !== '게스트') localStorage.setItem('fig.term.user', cleanName);
-      } catch (e) {}
+      if (wkIsRealName(cleanName)) {
+        try { localStorage.setItem('fig.term.user', cleanName); } catch (e) {}
+        const last = wkReadLocalJson('fw_last', null) || {};
+        wkWriteLocalJson('fw_last', { slug: last.slug || 'figteam', member: cleanName, access_key: ak });
+        try { sessionStorage.removeItem(WK_FIRST_ENTRY_SKIP_KEY); } catch (e) {}
+        if (typeof CS !== 'undefined') CS.owner = cleanName;
+        const chip = typeof document !== 'undefined' ? document.getElementById('cs-owner-chip') : null;
+        if (chip) chip.textContent = cleanName;
+      }
       return { member: cleanName, access_key: ak };
     }
 
@@ -2965,15 +3009,24 @@ LANDING_HTML = """<!DOCTYPE html>
         '</div>';
     }
 
-    function wkOpenIdentityModal(presetKey) {
+    function wkOpenIdentityModal(presetKey, opts) {
+      opts = opts || {};
+      const isFirst = Boolean(opts.firstEntry);
       const old = document.getElementById('wk-identity-modal');
       if (old) old.remove();
       const prof = wkGetAccessProfile();
       const targetKey = wkNormalizeAccessKey(presetKey || prof.access_key);
       const kb = wkMergedKeybook();
-      const curName = (presetKey && kb[targetKey] && kb[targetKey].member !== '게스트')
+      const curName = (presetKey && kb[targetKey] && wkIsRealName(kb[targetKey].member))
         ? kb[targetKey].member
-        : (prof.member === '게스트' ? '' : prof.member);
+        : (wkIsRealName(prof.member) ? prof.member : '');
+
+      const titleHtml = isFirst
+        ? '<span>👤 처음 접속 안내 — 사용자 이름 입력</span>'
+        : '<span>🔑 접속 키값 &amp; 사용자 매칭 설정</span>';
+      const descHtml = isFirst
+        ? '<p class="manual-desc" style="margin:0;font-size:12.5px;line-height:1.55;">설계/설정 변경 이력과 통합 콘솔 세션 기록에 사용됩니다. <b>한 번 입력하면 두 화면에 자동 적용되며 이후 다시 묻지 않습니다.</b><br><span style="color:#94a3b8;font-size:11.5px;">나중에 좌측 [키·사용자 설정] 또는 콘솔 [이름]에서 언제든 변경할 수 있습니다.</span></p>'
+        : '<p class="manual-desc" style="margin:0;font-size:12.5px;">수정·등록 시 <b>접속 키값 + 사용자</b>가 최근 변경자료와 접속 기록에 함께 기록됩니다.</p>';
 
       const modal = document.createElement('div');
       modal.id = 'wk-identity-modal';
@@ -2981,60 +3034,142 @@ LANDING_HTML = """<!DOCTYPE html>
       modal.innerHTML =
         '<div class="cfg-builder-modal-card" role="dialog" aria-modal="true" style="max-width:480px;">' +
         '<div class="cfg-builder-modal-head">' +
-        '<span>🔑 접속 키값 &amp; 사용자 매칭 설정</span>' +
-        '<button type="button" class="cfg-win-btn btn-close" id="wk-id-close" style="color:#cbd5e1;">✕</button>' +
+        titleHtml +
+        (isFirst ? '' : '<button type="button" class="cfg-win-btn btn-close" id="wk-id-close" style="color:#cbd5e1;">✕</button>') +
         '</div>' +
         '<div class="cfg-builder-modal-body">' +
-        '<p class="manual-desc" style="margin:0;font-size:12.5px;">수정·등록 시 <b>접속 키값 + 사용자</b>가 최근 변경자료와 접속 기록에 함께 기록됩니다.</p>' +
+        descHtml +
         '<div class="cfg-builder-field">' +
-        '<label class="cfg-builder-label">접속 키값 (영문·숫자 2~16자)</label>' +
+        '<label class="cfg-builder-label">' + (isFirst ? '사용자 이름 (필수, 1~13자 권장)' : '매칭 사용자 이름 (1~13자 권장)') + '</label>' +
+        '<input type="text" id="wk-id-name" class="cfg-builder-input" maxlength="20" value="' + cfgEsc(curName) + '" placeholder="예: 홍길동">' +
+        '</div>' +
+        '<div class="cfg-builder-field">' +
+        '<label class="cfg-builder-label">접속 키값 (영문·숫자 2~16자 · 자동 발급)</label>' +
         '<div style="display:flex;gap:6px;">' +
         '<input type="text" id="wk-id-key" class="cfg-builder-input" maxlength="16" value="' + cfgEsc(targetKey) + '" style="font-family:var(--font-mono);text-transform:uppercase;">' +
         '<button type="button" class="cfg-copy" id="wk-id-regen" title="새 키값 발급">재발급</button>' +
         '</div></div>' +
-        '<div class="cfg-builder-field">' +
-        '<label class="cfg-builder-label">매칭 사용자 이름 (1~13자 권장)</label>' +
-        '<input type="text" id="wk-id-name" class="cfg-builder-input" maxlength="20" value="' + cfgEsc(curName) + '" placeholder="예: 홍길동">' +
-        '</div>' +
+        '<p class="wk-error" id="wk-id-err" role="alert" hidden style="margin:0;"></p>' +
         '</div>' +
         '<div class="cfg-modal-foot">' +
-        '<button type="button" class="cfg-btn-cancel" id="wk-id-cancel">취소</button>' +
-        '<button type="button" class="cfg-btn-confirm" id="wk-id-save" style="background:#2563eb;border-color:#3b82f6;">저장 및 매칭 반영</button>' +
+        '<button type="button" class="cfg-btn-cancel" id="wk-id-cancel">' + (isFirst ? '이번 세션 건너뛰기' : '취소') + '</button>' +
+        '<button type="button" class="cfg-btn-confirm" id="wk-id-save" style="background:#2563eb;border-color:#3b82f6;">' + (isFirst ? '이름 저장 후 시작' : '저장 및 매칭 반영') + '</button>' +
         '</div></div>';
       document.body.appendChild(modal);
 
-      const close = () => { modal.remove(); document.removeEventListener('keydown', onKey); };
-      const onKey = e => { if (e.key === 'Escape') close(); };
+      let settled = false;
+      const finish = res => {
+        if (settled) return;
+        settled = true;
+        if (typeof opts.onDone === 'function') opts.onDone(res);
+      };
+      const close = res => {
+        modal.remove();
+        document.removeEventListener('keydown', onKey);
+        finish(res || { skipped: true });
+      };
+      const onKey = e => { if (!isFirst && e.key === 'Escape') close({ skipped: true }); };
       document.addEventListener('keydown', onKey);
-      modal.querySelector('#wk-id-close').onclick = close;
-      modal.querySelector('#wk-id-cancel').onclick = close;
-      modal.onclick = e => { if (e.target === modal) close(); };
+      const closeBtn = modal.querySelector('#wk-id-close');
+      if (closeBtn) closeBtn.onclick = () => close({ skipped: true });
+      modal.querySelector('#wk-id-cancel').onclick = () => {
+        if (isFirst) { try { sessionStorage.setItem(WK_FIRST_ENTRY_SKIP_KEY, '1'); } catch (e) {} }
+        close({ skipped: true });
+      };
+      modal.onclick = e => { if (!isFirst && e.target === modal) close({ skipped: true }); };
       modal.querySelector('#wk-id-regen').onclick = () => {
         modal.querySelector('#wk-id-key').value = wkGenAccessKey();
       };
-      modal.querySelector('#wk-id-save').onclick = async () => {
-        const ak = wkNormalizeAccessKey(modal.querySelector('#wk-id-key').value);
-        const nm = (modal.querySelector('#wk-id-name').value || '').trim();
-        if (ak.length < 2) { alert('접속 키값은 2자 이상 영문·숫자로 입력하세요.'); return; }
-        if (!nm) { alert('사용자 이름을 입력하세요.'); return; }
-        if (!presetKey || presetKey === prof.access_key) {
-          wkSaveAccessProfile(nm, ak);
-          await wkSyncIdentity('rename', '키·사용자 매칭 설정');
-        } else {
-          const kbLocal = wkReadLocalJson(WK_ACCESS_STORAGE.keybook, {}) || {};
-          kbLocal[ak] = { access_key: ak, member: nm, updated_at: Math.floor(Date.now() / 1000), last_ip: '수동 매칭' };
-          wkWriteLocalJson(WK_ACCESS_STORAGE.keybook, kbLocal);
+
+      const errEl = modal.querySelector('#wk-id-err');
+      const saveBtn = modal.querySelector('#wk-id-save');
+      const nameInput = modal.querySelector('#wk-id-name');
+      const keyInput = modal.querySelector('#wk-id-key');
+
+      const submit = async () => {
+        const ak = wkNormalizeAccessKey(keyInput.value);
+        const nm = (nameInput.value || '').trim();
+        errEl.hidden = true;
+        if (!wkIsRealName(nm)) {
+          errEl.textContent = '사용자 이름을 입력하세요. (게스트/seed 제외)';
+          errEl.hidden = false;
+          nameInput.focus();
+          return;
         }
+        if (ak.length < 2) {
+          errEl.textContent = '접속 키값은 2자 이상 영문·숫자로 입력하세요.';
+          errEl.hidden = false;
+          keyInput.focus();
+          return;
+        }
+        saveBtn.disabled = true;
         try {
-          const rkb = await api('POST', '/api/access/keybook', { access_key: ak, member: nm });
-          if (rkb && rkb.keybook) WIKI.keybook = rkb.keybook;
-        } catch (e) {}
-        close();
-        wikiToast('매칭 저장됨: ' + ak + ' → ' + nm);
-        cfgRenderNav();
-        if (CFG.lens === 'ref' && CFG.major === '__changes') wikiChangesView();
+          if (!presetKey || presetKey === prof.access_key || isFirst) {
+            wkSaveAccessProfile(nm, ak);
+            const actionName = isFirst ? 'first_entry' : 'rename';
+            const detailText = isFirst
+              ? (opts.source === 'console' ? '통합 콘솔 최초 접속 이름 등록' : '설계/설정 최초 접속 이름 등록')
+              : '키·사용자 매칭 설정';
+            await wkSyncIdentity(actionName, detailText);
+          } else {
+            const kbLocal = wkReadLocalJson(WK_ACCESS_STORAGE.keybook, {}) || {};
+            kbLocal[ak] = { access_key: ak, member: nm, updated_at: Math.floor(Date.now() / 1000), last_ip: '수동 매칭' };
+            wkWriteLocalJson(WK_ACCESS_STORAGE.keybook, kbLocal);
+          }
+          try {
+            if (typeof WIKI !== 'undefined' && WIKI.ready) {
+              const rkb = await api('POST', '/api/access/keybook', { access_key: ak, member: nm });
+              if (rkb && rkb.keybook) WIKI.keybook = rkb.keybook;
+            }
+          } catch (e) {}
+          close({ member: nm, access_key: ak, skipped: false });
+          if (typeof wikiToast === 'function') wikiToast((isFirst ? '사용자 등록됨: ' : '매칭 저장됨: ') + nm + ' (' + ak + ')');
+          if (typeof cfgRenderNav === 'function' && typeof WIKI !== 'undefined' && WIKI.ready) cfgRenderNav();
+          if (typeof CFG !== 'undefined' && CFG.lens === 'ref' && CFG.major === '__changes' && typeof wikiChangesView === 'function') wikiChangesView();
+        } finally {
+          saveBtn.disabled = false;
+        }
       };
-      modal.querySelector('#wk-id-name').focus();
+
+      saveBtn.onclick = submit;
+      [nameInput, keyInput].forEach(el => {
+        el.addEventListener('keydown', e => {
+          if (e.key === 'Enter') { e.preventDefault(); submit(); }
+        });
+      });
+      nameInput.focus();
+    }
+
+    function wkIsSettingsVisible() {
+      const el = typeof document !== 'undefined' ? document.getElementById('view-settings') : null;
+      if (!el || el.classList.contains('wiki-anon')) return false;
+      if (el.style.display === 'none') return false;
+      try { return getComputedStyle(el).display !== 'none'; } catch (e) { return true; }
+    }
+
+    function wkEnsureFirstEntryName(source) {
+      const existingName = wkGetSavedRealName();
+      if (existingName) {
+        const prof = wkGetAccessProfile();
+        return Promise.resolve({ member: existingName, access_key: prof.access_key, existing: true });
+      }
+      try {
+        if (sessionStorage.getItem(WK_FIRST_ENTRY_SKIP_KEY) === '1') {
+          return Promise.resolve({ skipped: true });
+        }
+      } catch (e) {}
+      if (WK_FIRST_ENTRY_PROMISE) return WK_FIRST_ENTRY_PROMISE;
+      WK_FIRST_ENTRY_PROMISE = new Promise(resolve => {
+        wkOpenIdentityModal(null, {
+          firstEntry: true,
+          source: source || 'settings',
+          onDone: res => {
+            WK_FIRST_ENTRY_PROMISE = null;
+            resolve(res || { skipped: true });
+          }
+        });
+      });
+      return WK_FIRST_ENTRY_PROMISE;
     }
 
     function wkOpenKeybookQuick(accessKey) {
@@ -3796,7 +3931,9 @@ LANDING_HTML = """<!DOCTYPE html>
         wkGenAccessKey: wkGenAccessKey,
         wkNormalizeAccessKey: wkNormalizeAccessKey,
         wkFormatAuthor: wkFormatAuthor,
-        wkParseAuthor: wkParseAuthor
+        wkParseAuthor: wkParseAuthor,
+        wkIsRealName: wkIsRealName,
+        wkResolveEntryName: wkResolveEntryName
       };
     }
     // ===== 지침 기반 등록·수정·순서 편집 스튜디오 (content/guide.js) =====
@@ -5890,18 +6027,34 @@ LANDING_HTML = """<!DOCTYPE html>
       if (!WIKI.ready) { wikiInit(); return; }
       const h = (location.hash || '').split('/');
       const lg = CFG.data.legacy || {};
+      let handled = false;
       if (h[0] === '#cfg' && h.length > 1 && h[1]) {
         let lens = h[1], major = h[2], minor = h[3];
-        if (typeof wikiRoute === 'function' && wikiRoute(h)) return;
-        if (['inst', 'svc', 'zoom', 'step', 'ref'].indexOf(lens) < 0 && lg[lens]) { major = lens; minor = h[2]; lens = 'inst'; }  // #cfg/inst-ktw1/join
-        if (lens === 'inst' && major && !cfgPage(major) && lg[major]) {
-          const am = lg[major + '.' + minor];
-          major = lg[major]; minor = am ? am.split('.')[1] : '';
+        if (typeof wikiRoute === 'function' && wikiRoute(h)) handled = true;
+        else {
+          if (['inst', 'svc', 'zoom', 'step', 'ref'].indexOf(lens) < 0 && lg[lens]) { major = lens; minor = h[2]; lens = 'inst'; }  // #cfg/inst-ktw1/join
+          if (lens === 'inst' && major && !cfgPage(major) && lg[major]) {
+            const am = lg[major + '.' + minor];
+            major = lg[major]; minor = am ? am.split('.')[1] : '';
+          }
+          if (lens === 'svc' && minor && lg[minor]) minor = lg[minor];
+          if (['inst', 'svc', 'zoom', 'step', 'ref'].indexOf(lens) >= 0) { cfgSelect(lens, major, minor, true); handled = true; }
         }
-        if (lens === 'svc' && minor && lg[minor]) minor = lg[minor];
-        if (['inst', 'svc', 'zoom', 'step', 'ref'].indexOf(lens) >= 0) return cfgSelect(lens, major, minor, true);
       }
-      if (!CFG.lens) { const df = CFG.data.default; cfgSelect(df.lens, df.major, df.minor, true); }
+      if (!handled) {
+        if (!CFG.lens) { const df = CFG.data.default; cfgSelect(df.lens, df.major, df.minor, true); }
+        else if (typeof cfgRenderNav === 'function') cfgRenderNav();
+      }
+      if (typeof wkIsSettingsVisible === 'function' && wkIsSettingsVisible() && typeof wkEnsureFirstEntryName === 'function') {
+        const prof = typeof wkGetAccessProfile === 'function' ? wkGetAccessProfile() : null;
+        if (prof && typeof wkIsRealName === 'function' && wkIsRealName(prof.member) && WIKI.me && typeof wkFormatAuthor === 'function') {
+          const expected = wkFormatAuthor(prof.member, prof.access_key);
+          if (WIKI.me.member !== expected && typeof wkSyncIdentity === 'function') {
+            wkSyncIdentity('visit', '설계/설정 진입').then(() => { if (typeof cfgRenderNav === 'function') cfgRenderNav(); });
+          }
+        }
+        wkEnsureFirstEntryName('settings');
+      }
     }
 
     function cfgSelect(lens, major, minor, fromHash) {
@@ -7553,18 +7706,232 @@ LANDING_HTML = """<!DOCTYPE html>
       else t.queue = cmd;   // 연결되면 실행
     }
 
-    // ---------- 사용자 이름(세션 이어가기 열쇠) ----------
-    function csOwnerName() { try { return CS.owner || localStorage.getItem('fig.term.user') || ''; } catch (e) { return CS.owner || ''; } }
-    function csOwner(force) {
-      let n = '';
-      try { n = localStorage.getItem('fig.term.user') || ''; } catch (e) {}
-      if (!n || force) {
-        const v = (window.prompt('터미널 사용자 이름을 넣어 주세요.\\n이 이름으로 세션이 저장돼, 새로고침해도 이어집니다.', n) || '').trim();
-        if (v) { n = v; try { localStorage.setItem('fig.term.user', n); } catch (e) {} }
+    // ---------- 사용자 이름(세션 이어가기 열쇠 · 설계/설정과 공유) ----------
+    const CS_ENTRY_SKIP_KEY = 'fig.entry_name_skipped_v1';
+
+    function csIsRealName(name) {
+      const s = String(name == null ? '' : name).trim();
+      if (!s) return false;
+      const lower = s.toLowerCase();
+      return s !== '게스트' && s !== '미설정' && lower !== 'guest' && lower !== 'seed';
+    }
+    function csNormKey(k) {
+      return String(k == null ? '' : k).trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 16);
+    }
+    function csGenKey() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let out = '';
+      for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
+      return out;
+    }
+    function csReadJson(key, fallback) {
+      try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch (e) { return fallback; }
+    }
+    function csParseBaseName(raw) {
+      const s = String(raw == null ? '' : raw).trim();
+      const m = s.match(/^(.*?)#([A-Za-z0-9_-]{2,16})$/);
+      return (m ? m[1] : s).trim();
+    }
+    function csReadProfile() {
+      const prof = csReadJson('fig.access.profile_v1', null) || {};
+      const last = csReadJson('fw_last', null) || {};
+      let termUser = '';
+      try { termUser = localStorage.getItem('fig.term.user') || ''; } catch (e) {}
+      const ak = csNormKey(prof.access_key || last.access_key) || csGenKey();
+      const candidates = [CS.owner, termUser, prof.member, last.member];
+      let realName = '';
+      for (let i = 0; i < candidates.length; i++) {
+        const clean = csParseBaseName(candidates[i]);
+        if (csIsRealName(clean)) { realName = clean; break; }
       }
+      if (realName) {
+        try {
+          if (localStorage.getItem('fig.term.user') !== realName) localStorage.setItem('fig.term.user', realName);
+          if (!prof.access_key || prof.member !== realName) {
+            localStorage.setItem('fig.access.profile_v1', JSON.stringify({ member: realName, access_key: ak }));
+          }
+        } catch (e) {}
+      }
+      return { member: realName, access_key: ak };
+    }
+    function csWriteProfile(member, accessKey) {
+      const cleanName = csParseBaseName(member);
+      const ak = csNormKey(accessKey) || csReadProfile().access_key || csGenKey();
+      if (!csIsRealName(cleanName)) return { member: '', access_key: ak };
+      try {
+        localStorage.setItem('fig.term.user', cleanName);
+        localStorage.setItem('fig.access.profile_v1', JSON.stringify({ member: cleanName, access_key: ak }));
+        const kb = csReadJson('fig.access.keybook_v1', {}) || {};
+        kb[ak] = { access_key: ak, member: cleanName, updated_at: Math.floor(Date.now() / 1000), last_ip: '콘솔 등록' };
+        localStorage.setItem('fig.access.keybook_v1', JSON.stringify(kb));
+        const last = csReadJson('fw_last', null) || {};
+        localStorage.setItem('fw_last', JSON.stringify({ slug: last.slug || 'figteam', member: cleanName, access_key: ak }));
+        sessionStorage.removeItem(CS_ENTRY_SKIP_KEY);
+      } catch (e) {}
+      CS.owner = cleanName;
+      const chip = document.getElementById('cs-owner-chip');
+      if (chip) chip.textContent = cleanName;
+      return { member: cleanName, access_key: ak };
+    }
+    async function csSyncProfileToServer(member, ak, isFirst) {
+      const formatted = member.slice(0, Math.max(1, 20 - 1 - ak.length)).trim() + '#' + ak;
+      const post = (url, body) => fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }).catch(() => {});
+      await Promise.all([
+        post('/api/me/name', { member: formatted, access_key: ak }),
+        post('/api/access/register', {
+          member: member,
+          access_key: ak,
+          action: isFirst ? 'first_entry' : 'rename',
+          detail: isFirst ? '통합 콘솔 최초 접속 이름 등록' : '콘솔 이름 변경'
+        }),
+        post('/api/access/keybook', { access_key: ak, member: member })
+      ]);
+    }
+    function csOpenNameModal(isFirst, onDone) {
+      if (!isFirst && typeof wkOpenIdentityModal === 'function') {
+        wkOpenIdentityModal(null, { firstEntry: false, onDone: onDone });
+        return;
+      }
+      const old = document.getElementById('wk-identity-modal');
+      if (old) old.remove();
+      const prof = csReadProfile();
+      const curName = csIsRealName(prof.member) ? prof.member : '';
+      const modal = document.createElement('div');
+      modal.id = 'wk-identity-modal';
+      modal.className = 'cfg-modal-overlay';
+      modal.innerHTML =
+        '<div class="cfg-builder-modal-card" role="dialog" aria-modal="true" style="max-width:480px;">' +
+        '<div class="cfg-builder-modal-head">' +
+        '<span>' + (isFirst ? '👤 처음 접속 안내 — 사용자 이름 입력' : '👤 콘솔 사용자 이름 변경') + '</span>' +
+        (isFirst ? '' : '<button type="button" class="cfg-win-btn btn-close" id="cs-id-close" style="color:#cbd5e1;">✕</button>') +
+        '</div>' +
+        '<div class="cfg-builder-modal-body">' +
+        '<p class="manual-desc" style="margin:0;font-size:12.5px;line-height:1.55;">통합 콘솔 세션 이어가기와 설계/설정 변경 이력에 사용됩니다. <b>한 번 입력하면 두 화면에 자동 적용되며 이후 다시 묻지 않습니다.</b></p>' +
+        '<div class="cfg-builder-field">' +
+        '<label class="cfg-builder-label">사용자 이름 (필수, 1~13자 권장)</label>' +
+        '<input type="text" id="cs-id-name" class="cfg-builder-input" maxlength="20" value="' + cfgEsc(curName) + '" placeholder="예: 홍길동">' +
+        '</div>' +
+        '<div class="cfg-builder-field">' +
+        '<label class="cfg-builder-label">접속 키값 (영문·숫자 2~16자 · 자동 발급)</label>' +
+        '<div style="display:flex;gap:6px;">' +
+        '<input type="text" id="cs-id-key" class="cfg-builder-input" maxlength="16" value="' + cfgEsc(prof.access_key) + '" style="font-family:var(--font-mono);text-transform:uppercase;">' +
+        '<button type="button" class="cfg-copy" id="cs-id-regen" title="새 키값 발급">재발급</button>' +
+        '</div></div>' +
+        '<p class="wk-error" id="cs-id-err" role="alert" hidden style="margin:0;"></p>' +
+        '</div>' +
+        '<div class="cfg-modal-foot">' +
+        '<button type="button" class="cfg-btn-cancel" id="cs-id-cancel">' + (isFirst ? '이번 세션 건너뛰기' : '취소') + '</button>' +
+        '<button type="button" class="cfg-btn-confirm" id="cs-id-save" style="background:#2563eb;border-color:#3b82f6;">' + (isFirst ? '이름 저장 후 시작' : '저장') + '</button>' +
+        '</div></div>';
+      document.body.appendChild(modal);
+
+      let settled = false;
+      const finish = res => {
+        if (settled) return;
+        settled = true;
+        if (typeof onDone === 'function') onDone(res);
+      };
+      const close = res => {
+        modal.remove();
+        document.removeEventListener('keydown', onKey);
+        finish(res || { skipped: true });
+      };
+      const onKey = e => { if (!isFirst && e.key === 'Escape') close({ skipped: true }); };
+      document.addEventListener('keydown', onKey);
+      const closeBtn = modal.querySelector('#cs-id-close');
+      if (closeBtn) closeBtn.onclick = () => close({ skipped: true });
+      modal.querySelector('#cs-id-cancel').onclick = () => {
+        if (isFirst) { try { sessionStorage.setItem(CS_ENTRY_SKIP_KEY, '1'); } catch (e) {} }
+        close({ skipped: true });
+      };
+      modal.onclick = e => { if (!isFirst && e.target === modal) close({ skipped: true }); };
+      modal.querySelector('#cs-id-regen').onclick = () => { modal.querySelector('#cs-id-key').value = csGenKey(); };
+
+      const errEl = modal.querySelector('#cs-id-err');
+      const saveBtn = modal.querySelector('#cs-id-save');
+      const nameInput = modal.querySelector('#cs-id-name');
+      const keyInput = modal.querySelector('#cs-id-key');
+
+      const submit = async () => {
+        const nm = (nameInput.value || '').trim();
+        const ak = csNormKey(keyInput.value);
+        errEl.hidden = true;
+        if (!csIsRealName(nm)) {
+          errEl.textContent = '사용자 이름을 입력하세요. (게스트/seed 제외)';
+          errEl.hidden = false;
+          nameInput.focus();
+          return;
+        }
+        if (ak.length < 2) {
+          errEl.textContent = '접속 키값은 2자 이상 영문·숫자로 입력하세요.';
+          errEl.hidden = false;
+          keyInput.focus();
+          return;
+        }
+        saveBtn.disabled = true;
+        try {
+          csWriteProfile(nm, ak);
+          await csSyncProfileToServer(nm, ak, isFirst);
+          close({ member: nm, access_key: ak, skipped: false });
+          if (typeof wikiToast === 'function') wikiToast('사용자 등록됨: ' + nm + ' (' + ak + ')');
+        } finally {
+          saveBtn.disabled = false;
+        }
+      };
+
+      saveBtn.onclick = submit;
+      [nameInput, keyInput].forEach(el => {
+        el.addEventListener('keydown', e => {
+          if (e.key === 'Enter') { e.preventDefault(); submit(); }
+        });
+      });
+      nameInput.focus();
+    }
+    async function csEnsureFirstEntryName(source) {
+      if (typeof wkEnsureFirstEntryName === 'function') {
+        const res = await wkEnsureFirstEntryName(source || 'console');
+        const name = csReadProfile().member;
+        if (name) CS.owner = name;
+        const chip = document.getElementById('cs-owner-chip');
+        if (chip) chip.textContent = name || '미설정';
+        return res;
+      }
+      const existing = csReadProfile();
+      if (csIsRealName(existing.member)) {
+        CS.owner = existing.member;
+        const chip = document.getElementById('cs-owner-chip');
+        if (chip) chip.textContent = existing.member;
+        return { member: existing.member, access_key: existing.access_key, existing: true };
+      }
+      try {
+        if (sessionStorage.getItem(CS_ENTRY_SKIP_KEY) === '1') return { skipped: true };
+      } catch (e) {}
+      if (CS._entryPromise) return CS._entryPromise;
+      CS._entryPromise = new Promise(resolve => {
+        csOpenNameModal(true, res => {
+          CS._entryPromise = null;
+          resolve(res || { skipped: true });
+        });
+      });
+      return CS._entryPromise;
+    }
+
+    function csOwnerName() {
+      const prof = csReadProfile();
+      if (csIsRealName(prof.member)) { CS.owner = prof.member; return prof.member; }
+      return '';
+    }
+    function csOwner(force) {
+      if (force) { csOpenNameModal(false); return csOwnerName() || 'guest'; }
+      const n = csOwnerName();
       CS.owner = n || 'guest';
       const chip = document.getElementById('cs-owner-chip');
-      if (chip) chip.textContent = CS.owner;
+      if (chip) chip.textContent = n || '미설정';
       return CS.owner;
     }
     // 새로고침·재진입 시, 이 이름으로 살아 있는 세션을 "쓰던 분할 배치 그대로" 다시 붙인다(로그=스크롤백 재생).
@@ -7608,7 +7975,11 @@ LANDING_HTML = """<!DOCTYPE html>
       const root = csRoot();
       if (CS.targets && root.querySelector('.cs-wrap') && !soloId) {   // 다른 화면에 갔다 와도 열린 터미널은 그대로
         root.hidden = false; document.body.classList.add('cs-on'); CS.open = true;
+        const curName = csOwnerName();
+        const chip = document.getElementById('cs-owner-chip');
+        if (chip) chip.textContent = curName || '미설정';
         csApplySizes(); csLoadStatus();
+        await csEnsureFirstEntryName('console');
         if (CS.pending) { const id = CS.pending; CS.pending = null; csPick(id); }
         return;
       }
@@ -7625,6 +7996,9 @@ LANDING_HTML = """<!DOCTYPE html>
       catch (e) { return csShowUnlock(e.status === 401 ? '' : (e.error || '콘솔 서버에 연결하지 못했습니다 (' + e.status + ')')); }
       csRender();
       csLoadStatus();
+      await csEnsureFirstEntryName('console');
+      const chipAfter = document.getElementById('cs-owner-chip');
+      if (chipAfter) chipAfter.textContent = csOwnerName() || '미설정';
       if (!CS.stTimer) CS.stTimer = setInterval(() => { if (CS.open && !csRoot().hidden) csLoadStatus(); }, 20000);
       if (CS.solo && !CS.slots[0].t) csConnectSlot(0, CS.solo);
       else if (CS.pending) { const id = CS.pending; CS.pending = null; if (CS.targets.some(t => t.id === id && !t.disabled)) csPick(id); }

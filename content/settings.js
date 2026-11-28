@@ -231,18 +231,34 @@
       if (!WIKI.ready) { wikiInit(); return; }
       const h = (location.hash || '').split('/');
       const lg = CFG.data.legacy || {};
+      let handled = false;
       if (h[0] === '#cfg' && h.length > 1 && h[1]) {
         let lens = h[1], major = h[2], minor = h[3];
-        if (typeof wikiRoute === 'function' && wikiRoute(h)) return;
-        if (['inst', 'svc', 'zoom', 'step', 'ref'].indexOf(lens) < 0 && lg[lens]) { major = lens; minor = h[2]; lens = 'inst'; }  // #cfg/inst-ktw1/join
-        if (lens === 'inst' && major && !cfgPage(major) && lg[major]) {
-          const am = lg[major + '.' + minor];
-          major = lg[major]; minor = am ? am.split('.')[1] : '';
+        if (typeof wikiRoute === 'function' && wikiRoute(h)) handled = true;
+        else {
+          if (['inst', 'svc', 'zoom', 'step', 'ref'].indexOf(lens) < 0 && lg[lens]) { major = lens; minor = h[2]; lens = 'inst'; }  // #cfg/inst-ktw1/join
+          if (lens === 'inst' && major && !cfgPage(major) && lg[major]) {
+            const am = lg[major + '.' + minor];
+            major = lg[major]; minor = am ? am.split('.')[1] : '';
+          }
+          if (lens === 'svc' && minor && lg[minor]) minor = lg[minor];
+          if (['inst', 'svc', 'zoom', 'step', 'ref'].indexOf(lens) >= 0) { cfgSelect(lens, major, minor, true); handled = true; }
         }
-        if (lens === 'svc' && minor && lg[minor]) minor = lg[minor];
-        if (['inst', 'svc', 'zoom', 'step', 'ref'].indexOf(lens) >= 0) return cfgSelect(lens, major, minor, true);
       }
-      if (!CFG.lens) { const df = CFG.data.default; cfgSelect(df.lens, df.major, df.minor, true); }
+      if (!handled) {
+        if (!CFG.lens) { const df = CFG.data.default; cfgSelect(df.lens, df.major, df.minor, true); }
+        else if (typeof cfgRenderNav === 'function') cfgRenderNav();
+      }
+      if (typeof wkIsSettingsVisible === 'function' && wkIsSettingsVisible() && typeof wkEnsureFirstEntryName === 'function') {
+        const prof = typeof wkGetAccessProfile === 'function' ? wkGetAccessProfile() : null;
+        if (prof && typeof wkIsRealName === 'function' && wkIsRealName(prof.member) && WIKI.me && typeof wkFormatAuthor === 'function') {
+          const expected = wkFormatAuthor(prof.member, prof.access_key);
+          if (WIKI.me.member !== expected && typeof wkSyncIdentity === 'function') {
+            wkSyncIdentity('visit', '설계/설정 진입').then(() => { if (typeof cfgRenderNav === 'function') cfgRenderNav(); });
+          }
+        }
+        wkEnsureFirstEntryName('settings');
+      }
     }
 
     function cfgSelect(lens, major, minor, fromHash) {
