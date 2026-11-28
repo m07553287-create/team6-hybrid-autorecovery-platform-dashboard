@@ -20,6 +20,7 @@
         if (!r.ok) throw new Error('HTTP ' + r.status);
         DASH.snap = await r.json(); DASH.err = null;
         DASH.rtt = Math.round(performance.now() - t0);   // 외부 왕복(브라우저→Cloudflare→s1) 실측
+        if (DASH.drTelemetry) dashApplyDrTelemetry(DASH.drTelemetry);
       } catch (e) { DASH.err = e.message; }
       dashHeader();
       if (document.getElementById('view-dashboard').style.display !== 'none') dashRender();
@@ -225,23 +226,31 @@
     });
 
     function dashApplyDrTelemetry(tel) {
+      if (!tel) return;
+      DASH.drTelemetry = tel;
       if (!DASH.snap || !DASH.snap.instances) return;
       (DASH.snap.instances || []).forEach(inst => {
         const ov = tel.nodes && tel.nodes[inst.id];
         if (ov) {
           if (typeof ov.alive === 'boolean') inst.alive = ov.alive;
-          if (ov.state === 'DOWN') inst.status = 'SHUTOFF';
-          else if (ov.state === 'RUNNING') inst.status = 'ACTIVE';
+          if (ov.state === 'DOWN' || ov.state === 'SHUTOFF' || ov.state === '502 BAD') {
+            inst.status = 'SHUTOFF';
+            inst.alive = false;
+            inst.error = ov.desc || '단절 / 전원 꺼짐';
+          } else if (ov.state === 'RUNNING' || ov.state === 'PRIMARY' || ov.state === 'ONLINE' || ov.state === 'HEALTHY' || ov.state === 'NORMAL') {
+            inst.status = 'ACTIVE';
+            inst.alive = true;
+            delete inst.error;
+          }
+        }
+        if (inst.pods && tel.pod) {
+          inst.pods.forEach(p => {
+            if (p.name && p.name.indexOf('minwon-app') >= 0) {
+              p.phase = tel.pod.ok ? 'Running' : 'CrashLoopBackOff';
+            }
+          });
         }
       });
-      const cp1 = (DASH.snap.instances || []).find(i => i.id === 'k8s-cp1');
-      if (cp1 && cp1.pods && tel.pod) {
-        cp1.pods.forEach(p => {
-          if (p.name.indexOf('minwon-app') >= 0) {
-            p.phase = tel.pod.ok ? 'Running' : 'CrashLoopBackOff';
-          }
-        });
-      }
       dashHeader();
       const vd = document.getElementById('view-dashboard');
       if (vd && vd.style.display !== 'none') dashRender();

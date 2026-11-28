@@ -287,72 +287,75 @@
     }
     .dr-log-toggle-btn:hover { background: #1e293b; color: #f1f5f9; }
 
-    /* 터미널 하단 실시간 인프라 & Pod 현황 스트립 (대폭 확대 & 시인성 강화) */
+    /* 터미널 하단 실시간 인프라 & Pod 현황 스트립 (대폭 확대 & 고시인성 네온 관제 스타일) */
     .dr-infra-strip {
       background: linear-gradient(180deg, #0b1329 0%, #060a14 100%);
-      border-top: 2px solid #2563eb;
-      padding: 10px 16px;
+      border-top: 3px solid #3b82f6;
+      padding: 12px 20px;
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 16px;
       overflow-x: auto;
       flex-shrink: 0;
       font-family: inherit;
-      box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.6);
+      z-index: 100;
     }
     .dr-strip-title {
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 800;
       color: #38bdf8;
       white-space: nowrap;
       display: flex;
       flex-direction: column;
-      gap: 2px;
+      gap: 3px;
+      letter-spacing: -0.3px;
     }
     .dr-strip-title small {
-      font-size: 10px;
-      color: #64748b;
+      font-size: 11px;
+      color: #94a3b8;
       font-weight: 600;
     }
     .dr-strip-cards {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
       flex: 1;
     }
     .dr-node-card {
       background: #0f172a;
       border: 1.5px solid #334155;
       border-radius: 8px;
-      padding: 6px 12px;
+      padding: 8px 14px;
       display: flex;
       align-items: center;
-      gap: 8px;
-      font-size: 12.5px;
-      transition: all 0.2s ease;
+      gap: 10px;
+      font-size: 13px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       white-space: nowrap;
-      min-height: 42px;
+      min-height: 48px;
+      box-sizing: border-box;
     }
     .dr-node-card.node-down {
-      background: rgba(239, 68, 68, 0.2);
-      border-color: #ef4444;
-      box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
-      animation: drPulseRed 1.2s infinite;
+      background: rgba(239, 68, 68, 0.25) !important;
+      border-color: #ef4444 !important;
+      box-shadow: 0 0 14px rgba(239, 68, 68, 0.55) !important;
+      animation: drPulseRed 1.2s infinite ease-in-out;
     }
     .dr-node-card.node-warn {
-      background: rgba(245, 158, 11, 0.2);
-      border-color: #f59e0b;
-      box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+      background: rgba(245, 158, 11, 0.22) !important;
+      border-color: #f59e0b !important;
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.45) !important;
     }
     .dr-node-card.node-active {
-      background: rgba(16, 185, 129, 0.18);
-      border-color: #10b981;
-      box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
+      background: rgba(16, 185, 129, 0.22) !important;
+      border-color: #10b981 !important;
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.5) !important;
     }
     .dr-node-card.node-serving {
-      background: rgba(59, 130, 246, 0.22);
-      border-color: #3b82f6;
-      box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+      background: rgba(59, 130, 246, 0.22) !important;
+      border-color: #3b82f6 !important;
+      box-shadow: 0 0 14px rgba(59, 130, 246, 0.5) !important;
     }
     .dr-node-card.node-standby {
       background: rgba(148, 163, 184, 0.1);
@@ -360,12 +363,12 @@
       color: #94a3b8;
     }
     .dr-node-dot {
-      width: 11px;
-      height: 11px;
+      width: 13px;
+      height: 13px;
       border-radius: 50%;
       background: #10b981;
       flex-shrink: 0;
-      box-shadow: 0 0 6px currentColor;
+      box-shadow: 0 0 8px currentColor;
     }
     .node-down .dr-node-dot { background: #ef4444; color: #ef4444; }
     .node-warn .dr-node-dot { background: #f59e0b; color: #f59e0b; }
@@ -374,23 +377,25 @@
     .dr-node-name {
       font-weight: 800;
       color: #f8fafc;
-      font-size: 13px;
+      font-size: 13.5px;
     }
     .dr-node-state {
-      font-size: 11px;
-      padding: 2px 6px;
-      border-radius: 4px;
+      font-size: 11.5px;
+      padding: 3px 8px;
+      border-radius: 5px;
       font-weight: 800;
       background: rgba(255, 255, 255, 0.1);
       color: #cbd5e1;
+      letter-spacing: 0.3px;
     }
-    .node-down .dr-node-state { color: #fecaca; background: rgba(239, 68, 68, 0.35); }
-    .node-active .dr-node-state { color: #bbf7d0; background: rgba(16, 185, 129, 0.35); }
-    .node-serving .dr-node-state { color: #bfdbfe; background: rgba(59, 130, 246, 0.35); }
+    .node-down .dr-node-state { color: #fecaca; background: rgba(239, 68, 68, 0.4); }
+    .node-active .dr-node-state { color: #bbf7d0; background: rgba(16, 185, 129, 0.4); }
+    .node-serving .dr-node-state { color: #bfdbfe; background: rgba(59, 130, 246, 0.4); }
     .dr-node-desc {
-      font-size: 11px;
+      font-size: 12px;
       color: #cbd5e1;
       margin-left: 2px;
+      font-weight: 500;
     }
     @keyframes drPulseRed {
       0%, 100% { opacity: 1; transform: scale(1); }
