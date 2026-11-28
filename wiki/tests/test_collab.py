@@ -170,7 +170,7 @@ def test_oauth_full_flow_goals_and_bearer_api(client, r, monkeypatch):
     assert body["goal"]["status"] == "done"
     assert any("GTID" in h for h in body["crosscheck_hints"])
     assert len(captured) == 2
-    assert captured[1]["url"] == MOCK_WEBHOOK
+    assert captured[1]["url"].startswith(MOCK_WEBHOOK)
     assert captured[1]["ua"] == "figteam-collab/1.0"
     assert "[완료] MySQL GTID 상태 확인" in captured[1]["body"]["embeds"][0]["title"]
 
@@ -493,5 +493,62 @@ def test_discord_reply_mapping_and_web_thread(client, monkeypatch):
     assert "정다운" in page.text
     assert "Seconds_Behind_Master 0초 정상" in page.text
     assert "웹에서 확인 완료 메모" in page.text
+
+
+def test_share_discord_reply_mapping_and_feed_display(client, monkeypatch):
+    monkeypatch.setenv("FIGTEAM_INTERNAL_KEY", "internal-test-key")
+    monkeypatch.setenv("FIGTEAM_DISCORD_WEBHOOK_URL", MOCK_WEBHOOK)
+    sent_payloads = []
+
+    def fake_urlopen(req, timeout=5):
+        sent_payloads.append(json.loads(req.data.decode("utf-8")))
+        # 디스코드 웹훅 메시지 생성 응답 시뮬레이션
+        class _FakeRespWithId:
+            status = 200
+            def read(self):
+                return json.dumps({"id": "discord-share-msg-555"}).encode("utf-8")
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                pass
+        return _FakeRespWithId()
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    assert client.post("/api/teams", json=TEAM).status_code == 201
+
+    # 1. 웹에서 상황 공유 발신
+    login_res = client.post("/api/ai/hub/auto-login", json={"member": "정다운"})
+    assert login_res.status_code == 200
+
+    sh_res = client.post(
+        "/api/ai/share",
+        json={"title": "테스트", "summary": "테스트확인", "area": "infra", "check_request": "온프렘"},
+    )
+    assert sh_res.status_code == 200
+    share_id = sh_res.json()["share"]["id"]
+
+    # 2. 디스코드에서 해당 공유 메시지에 답장으로 "확인" 작성
+    r_reply = client.post(
+        "/api/discord/inbound",
+        headers={"X-Internal-Key": "internal-test-key"},
+        json={
+            "content": "확인",
+            "discord_message_id": "reply-msg-777",
+            "reply_to_msg_id": "discord-share-msg-555",
+            "author": "정다운",
+        },
+    )
+    assert r_reply.status_code == 200
+    assert r_reply.json().get("reply") is True
+    assert r_reply.json().get("parent_share_id") == share_id
+
+    # 3. 최근 팀 공유 내역 화면(/api/ai/hub?tab=dispatch)에 답글 "확인" 및 작성자가 나타나는지 검증
+    hub_page = client.get("/api/ai/hub", params={"tab": "dispatch"})
+    assert hub_page.status_code == 200
+    assert "테스트확인" in hub_page.text
+    assert "답변 및 조치 내역 (1건)" in hub_page.text
+    assert "정다운" in hub_page.text
+    assert "확인" in hub_page.text
+
 
 

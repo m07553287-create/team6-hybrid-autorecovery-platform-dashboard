@@ -291,13 +291,14 @@ def get_bearer_session(r, auth_header: str) -> auth.Session | None:
     )
 
 
-def send_discord_webhook(payload: dict[str, Any], webhook_url: str = "") -> dict[str, Any]:
+def send_discord_webhook(payload: dict[str, Any], webhook_url: str = "", wait: bool = True) -> dict[str, Any]:
     url = (webhook_url or os.environ.get("FIGTEAM_DISCORD_WEBHOOK_URL", "")).strip()
     if not url:
         return {"sent": False, "reason": "webhook_not_configured"}
+    req_url = f"{url}{'&' if '?' in url else '?'}wait=true" if wait else url
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
-        url,
+        req_url,
         data=body,
         headers={
             "Content-Type": "application/json; charset=utf-8",
@@ -307,7 +308,15 @@ def send_discord_webhook(payload: dict[str, Any], webhook_url: str = "") -> dict
     )
     try:
         with urllib.request.urlopen(req, timeout=5) as resp:
-            return {"sent": 200 <= resp.status < 300, "status": resp.status}
+            resp_body = resp.read().decode("utf-8") if resp.status == 200 else ""
+            msg_id = ""
+            if resp_body:
+                try:
+                    resp_json = json.loads(resp_body)
+                    msg_id = str(resp_json.get("id") or "")
+                except Exception:
+                    pass
+            return {"sent": 200 <= resp.status < 300, "status": resp.status, "message_id": msg_id}
     except urllib.error.HTTPError as exc:
         return {"sent": False, "reason": f"http_{exc.code}"}
     except Exception as exc:  # noqa: BLE001
@@ -482,6 +491,67 @@ def format_discord_inbound_embed(entry: dict[str, Any], event_label: str = "웹 
     }
 
 
+def add_share_reply(
+    r,
+    team_id: int,
+    share_id: int,
+    author: str,
+    content: str,
+    source: str = "web",
+    discord_message_id: str = "",
+    notify_discord: bool = True,
+) -> dict[str, Any]:
+    key = f"fw:shares:{team_id}"
+    raw_list = r.lrange(key, 0, SHARE_LIMIT - 1)
+    target_idx = -1
+    target_entry = None
+    for idx, raw in enumerate(raw_list):
+        try:
+            item = json.loads(raw)
+            if int(item.get("id") or 0) == share_id:
+                target_idx = idx
+                target_entry = item
+                break
+        except Exception:
+            continue
+    if not target_entry or target_idx < 0:
+        return {"ok": False, "error": "not_found"}
+
+    replies = target_entry.get("replies") or []
+    ts = int(time.time())
+    rep_obj = {
+        "id": f"srep-{int(time.time()*1000)}-{len(replies)+1}",
+        "author": author,
+        "content": content,
+        "ts": ts,
+        "source": source,
+        "discord_message_id": discord_message_id,
+    }
+    replies.append(rep_obj)
+    target_entry["replies"] = replies
+    target_entry["updated_at"] = ts
+    r.lset(key, target_idx, json.dumps(target_entry, ensure_ascii=False))
+
+    discord_res = {"sent": False, "reason": "skipped"}
+    if notify_discord and source == "web":
+        msg_payload = {
+            "embeds": [
+                {
+                    "title": f"💬 [공유: {target_entry.get('title') or ''}]에 답변이 등록되었습니다",
+                    "description": content,
+                    "color": 0x38BDF8,
+                    "fields": [
+                        {"name": "작성자", "value": author, "inline": True},
+                        {"name": "공유 ID", "value": f"#{share_id}", "inline": True},
+                    ],
+                    "footer": {"text": f"FIGTEAM 협업 허브 · source={source}"},
+                }
+            ]
+        }
+        discord_res = send_discord_webhook(msg_payload)
+    return {"ok": True, "reply": rep_obj, "share": target_entry, "discord": discord_res}
+
+
 def add_discord_inbox_reply(
     r,
     team_id: int,
@@ -557,8 +627,24 @@ def ingest_discord_message(
     author = _clean_text(data.get("author") or default_author, "author", 40, required=False, default=default_author)
     channel = _clean_text(data.get("channel") or "discord", "channel", 60, required=False, default="discord")
 
-    # 디스코드 봇 메시지에 대한 '답장(Reply)'인 경우 부모 항목을 찾아 댓글로 추가
+    # 디스코드 봇 메시지에 대한 '답장(Reply)'인 경우 부모 항목(공유 또는 수신과제)을 찾아 댓글로 추가
     if is_reply:
+        share_map_key = f"fw:share:msg_map:{team_id}"
+        parent_share_id = r.hget(share_map_key, reply_to_msg_id)
+        if parent_share_id:
+            rep_res = add_share_reply(
+                r,
+                team_id=team_id,
+                share_id=int(parent_share_id),
+                author=author,
+                content=raw_text,
+                source="discord",
+                discord_message_id=ext_msg_id,
+                notify_discord=False,
+            )
+            if rep_res.get("ok"):
+                return {"ok": True, "reply": True, "parent_share_id": int(parent_share_id), "share": rep_res["share"]}
+
         msg_map_key = f"fw:discord:msg_map:{team_id}"
         parent_item_id = r.hget(msg_map_key, reply_to_msg_id)
         if parent_item_id:
@@ -953,12 +1039,17 @@ def create_share(
         "source": source,
         "crosscheck_hints": hints,
         "discord_sent": False,
+        "replies": [],
     }
 
     discord_res: dict[str, Any] = {"sent": False, "reason": "skipped"}
     if send_discord:
         discord_res = send_discord_webhook(format_share_embed(entry, hints))
         entry["discord_sent"] = bool(discord_res.get("sent"))
+        d_msg_id = str(discord_res.get("message_id") or "").strip()
+        if d_msg_id:
+            entry["discord_message_id"] = d_msg_id
+            r.hset(f"fw:share:msg_map:{s.team_id}", d_msg_id, str(share_id))
 
     key = f"fw:shares:{s.team_id}"
     p = r.pipeline()
@@ -1520,15 +1611,50 @@ def render_collab_hub_html(
             if item.get("cfg_url")
             else ""
         )
+        # 답변 / 댓글 스레드 렌더링
+        replies = item.get("replies") or []
+        rep_html_list = []
+        for rep in replies:
+            src_lbl = "디스코드" if rep.get("source") == "discord" else "웹"
+            src_tag = f'<span class="reply-src-badge">{src_lbl}</span>'
+            rep_html_list.append(
+                f'<div class="reply-item">'
+                f'<div class="reply-meta"><b>{esc(rep.get("author") or "작성자")}</b> {src_tag} · {_fmt_ts(rep.get("ts", 0))}</div>'
+                f'<div class="reply-content">{esc(rep.get("content") or "")}</div>'
+                f'</div>'
+            )
+        replies_block = ""
+        if rep_html_list:
+            replies_block = (
+                f'<div class="card-replies-box">'
+                f'<div class="reply-header">답변 및 조치 내역 ({len(replies)}건)</div>'
+                f'{"".join(rep_html_list)}'
+                f'</div>'
+            )
+
+        reply_form_html = ""
+        if session:
+            reply_form_html = (
+                f'<form method="post" action="/api/ai/hub/reply" class="inline-reply-form" style="margin-top:10px;">'
+                f'<input type="hidden" name="share_id" value="{item["id"]}">'
+                f'<input type="hidden" name="tab" value="dispatch">'
+                f'<div style="display:flex;gap:6px;">'
+                f'<input type="text" name="content" placeholder="답변이나 조치 경과를 입력하세요..." required style="flex:1;padding:6px 10px;font-size:12px;">'
+                f'<button type="submit" class="act-btn" style="padding:6px 12px;font-size:12px;white-space:nowrap;">답변 등록</button>'
+                f'</div></form>'
+            )
+
         feed_rows.append(
-            '<div class="work-card">'
+            '<div class="work-card border-share">'
             f'<div class="card-head">'
             f'<div><span class="tag tag-share">{esc(item.get("status_label") or "공유")}</span> <span class="tag tag-area">{esc(item.get("area") or "general")}</span>{g_badge}</div>'
             f'<div class="card-meta">{esc(item.get("author") or "게스트")}{ak_txt} · {_fmt_ts(item.get("ts", 0))}{dc_txt}</div>'
             f'</div>'
             f'<div class="card-title">{esc(item.get("title") or "")}</div>'
             f'<div class="card-desc">{esc(item.get("summary") or "")}</div>'
-            f'{chk}{url_link}</div>'
+            f'{chk}{url_link}'
+            f'{replies_block}'
+            f'{reply_form_html}</div>'
         )
     feed_html = "".join(feed_rows) if feed_rows else '<div class="empty-box">등록된 팀 공유 내역이 없습니다.</div>'
 
