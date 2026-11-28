@@ -122,3 +122,139 @@
     .cs-owner { margin-top: 8px; background: #0b1220; border: 1px solid #334155; border-radius: 7px; color: var(--text-sub); font-size: 11px; padding: 4px 9px; cursor: pointer; font-family: inherit; }
     .cs-owner:hover { border-color: #93c5fd; color: #fff; }
     .cs-owner b { color: #bfdbfe; font-weight: 600; }
+
+    /* DR 모의 시나리오 워룸 관제 패널 */
+    #cs-scenario-bar {
+      background: #0f172a;
+      border-bottom: 2px solid #1e293b;
+      padding: 10px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+    .dr-top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .dr-title-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .dr-title-group b {
+      color: #f8fafc;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dr-select {
+      background: #0b1120;
+      border: 1px solid #334155;
+      color: #38bdf8;
+      border-radius: 5px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-family: inherit;
+      font-weight: 600;
+    }
+    .dr-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dr-timer-box {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: #94a3b8;
+      background: #06090e;
+      border: 1px solid #334155;
+      padding: 4px 10px;
+      border-radius: 5px;
+    }
+    .dr-timer-box b {
+      color: #f59e0b;
+      font-size: 14px;
+      margin-left: 4px;
+    }
+    .dr-btn {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #f8fafc;
+      padding: 4px 12px;
+      border-radius: 5px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s ease;
+    }
+    .dr-btn:hover { background: #334155; border-color: #60a5fa; }
+    .dr-btn-run { background: #1e40af; border-color: #3b82f6; color: #fff; }
+    .dr-btn-run:hover { background: #2563eb; }
+    .dr-btn-report { background: #065f46; border-color: #10b981; color: #fff; }
+    .dr-btn-report:hover:not(:disabled) { background: #047857; }
+    .dr-btn-report:disabled { cursor: not-allowed; opacity: 0.45; }
+
+    /* 5단계 인터랙티브 스테퍼 */
+    .dr-stepper {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin-top: 2px;
+    }
+    .dr-step-item {
+      background: #0b1120;
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      padding: 6px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    .dr-step-item.active {
+      border-color: #3b82f6;
+      background: rgba(37, 99, 235, 0.12);
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
+    }
+    .dr-step-item.done {
+      border-color: #10b981;
+      background: rgba(16, 185, 129, 0.08);
+    }
+    .dr-step-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: #94a3b8;
+    }
+    .dr-step-item.active .dr-step-head { color: #60a5fa; }
+    .dr-step-item.done .dr-step-head { color: #34d399; }
+    .dr-step-sub {
+      font-size: 10px;
+      color: #64748b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .dr-step-item.active .dr-step-sub { color: #cbd5e1; }
+    .dr-step-desc-bar {
+      font-size: 11.5px;
+      color: #94a3b8;
+      padding: 3px 6px;
+      background: #06090e;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dr-step-desc-bar b { color: #f8fafc; }
