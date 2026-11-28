@@ -2389,7 +2389,104 @@
     }
     .dr-log-toggle-btn:hover { background: #1e293b; color: #f1f5f9; }
 
-    /* 실시간 시나리오 이벤트 & 상세 로그 패널 (Live Audit & Telemetry Log) */
+    /* 터미널 하단 실시간 인프라 & Pod 현황 스트립 (Live Infra & Pod Telemetry Strip) */
+    .dr-infra-strip {
+      background: #090e17;
+      border-top: 1px solid #1e293b;
+      padding: 6px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      overflow-x: auto;
+      flex-shrink: 0;
+      font-family: inherit;
+    }
+    .dr-strip-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #94a3b8;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .dr-strip-cards {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+    }
+    .dr-node-card {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 5px;
+      padding: 4px 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      transition: all 0.25s ease;
+      white-space: nowrap;
+    }
+    .dr-node-card.node-down {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: #ef4444;
+      box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
+      animation: drPulseRed 1.5s infinite;
+    }
+    .dr-node-card.node-warn {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: #f59e0b;
+    }
+    .dr-node-card.node-active {
+      background: rgba(16, 185, 129, 0.12);
+      border-color: #10b981;
+    }
+    .dr-node-card.node-serving {
+      background: rgba(59, 130, 246, 0.18);
+      border-color: #3b82f6;
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.35);
+    }
+    .dr-node-card.node-standby {
+      background: rgba(148, 163, 184, 0.08);
+      border-color: #475569;
+      color: #94a3b8;
+    }
+    .dr-node-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      flex-shrink: 0;
+    }
+    .node-down .dr-node-dot { background: #ef4444; }
+    .node-warn .dr-node-dot { background: #f59e0b; }
+    .node-serving .dr-node-dot { background: #60a5fa; }
+    .node-standby .dr-node-dot { background: #64748b; }
+    .dr-node-name {
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+    .dr-node-state {
+      font-size: 10px;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.08);
+      color: #cbd5e1;
+    }
+    .node-down .dr-node-state { color: #fca5a5; background: rgba(239, 68, 68, 0.25); }
+    .node-active .dr-node-state { color: #86efac; background: rgba(16, 185, 129, 0.25); }
+    .node-serving .dr-node-state { color: #93c5fd; background: rgba(59, 130, 246, 0.25); }
+    .dr-node-desc {
+      font-size: 10px;
+      color: #94a3b8;
+    }
+    @keyframes drPulseRed {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.65; }
+    }
+
     .dr-log-panel {
       background: #05080f;
       border: 1px solid #1e293b;
@@ -9031,7 +9128,7 @@
       const grid = '<div class="cs-grid cs-l' + (CS.solo ? '1' : CS.layout) + '" id="cs-grid">' +
         CS.slots.map((s, i) => '<section class="cs-pane' + (i === CS.active ? ' cs-active' : '') + '" data-i="' + i + '" onmousedown="csFocus(' + i + ')" id="cs-slot-' + i + '"></section>').join('') +
         csGutters() + '</div>';
-      csRoot().innerHTML = '<div class="cs-wrap">' + drawer + '<div class="cs-main">' + csScenarioBarHtml() + bar + grid + '</div></div><div class="cs-float-layer" id="cs-float-layer"></div>';
+      csRoot().innerHTML = '<div class="cs-wrap">' + drawer + '<div class="cs-main">' + csScenarioBarHtml() + bar + grid + csScenarioInfraStripHtml() + '</div></div><div class="cs-float-layer" id="cs-float-layer"></div>';
       CS.slots.forEach((s, i) => csFillSlot(i));
       CS.floats.forEach(t => csPlaceFloat(t));
       csApplySizes();
@@ -9824,6 +9921,102 @@
       }
     };
 
+    // =========================================================================
+    // DR 실시간 텔레메트리 맵: 단계별 인스턴스(ON/OFF) 및 Pod 상태 실시간 연동
+    // =========================================================================
+    const DR_TELEMETRY_MAP = {
+      0: {
+        nodes: {
+          'compute1': { alive: true, state: 'RUNNING', cls: 'node-active', desc: '온프렘 워커 정상' },
+          'k8s-cp1': { alive: true, state: 'RUNNING', cls: 'node-active', desc: 'K8s 마스터 Ready' },
+          'db-01': { alive: true, state: 'RUNNING', cls: 'node-active', desc: 'MySQL 8.4 마스터' },
+          'kt-edge-dr-01': { alive: true, state: 'PRIMARY', cls: 'node-active', desc: '인바운드 200 OK' },
+          'aws-dr': { alive: true, state: 'STANDBY', cls: 'node-standby', desc: 'Warm-Standby 대기' }
+        },
+        pod: { name: 'minwon-app', ready: '2/2', phase: 'Running', ok: true, cls: 'node-active', desc: '파드 가동 (2/2)' }
+      },
+      1: {
+        nodes: {
+          'compute1': { alive: true, state: 'RUNNING', cls: 'node-active', desc: '온프렘 워커 정상' },
+          'k8s-cp1': { alive: true, state: 'RUNNING', cls: 'node-active', desc: 'K8s 마스터 Ready' },
+          'db-01': { alive: true, state: 'RUNNING', cls: 'node-active', desc: 'MySQL 8.4 마스터' },
+          'kt-edge-dr-01': { alive: true, state: 'PRIMARY', cls: 'node-active', desc: '업스트림: 온프렘' },
+          'aws-dr': { alive: true, state: 'STANDBY', cls: 'node-standby', desc: 'Warm-Standby 대기' }
+        },
+        pod: { name: 'minwon-app', ready: '2/2', phase: 'Running', ok: true, cls: 'node-active', desc: '파드 헬시 (2/2)' }
+      },
+      2: {
+        nodes: {
+          'compute1': { alive: false, state: 'SHUTOFF', cls: 'node-down', desc: '⚡ IDC 정전 (통신 단절)' },
+          'k8s-cp1': { alive: true, state: 'DEGRADED', cls: 'node-warn', desc: '⚠️ 워커 NotReady' },
+          'db-01': { alive: true, state: 'LOCKED', cls: 'node-warn', desc: '⚠️ 외부 차단 (GTID 보존)' },
+          'kt-edge-dr-01': { alive: true, state: '502 BAD', cls: 'node-down', desc: '🚨 Upstream Fail (502)' },
+          'aws-dr': { alive: true, state: 'STANDBY', cls: 'node-standby', desc: 'Standby 대기' }
+        },
+        pod: { name: 'minwon-app', ready: '0/2', phase: 'CrashLoop / Down', ok: false, cls: 'node-down', desc: '🚨 파드 크래시 (0/2)' }
+      },
+      3: {
+        nodes: {
+          'compute1': { alive: false, state: 'SHUTOFF', cls: 'node-down', desc: '정전 장애 지속' },
+          'k8s-cp1': { alive: true, state: 'ALERT', cls: 'node-warn', desc: '⚠️ DR 절체 정책 트리거' },
+          'db-01': { alive: true, state: 'LOCKED', cls: 'node-warn', desc: 'RPO=0 무결성 확정' },
+          'kt-edge-dr-01': { alive: true, state: 'FAILOVER', cls: 'node-warn', desc: '🚨 L3 광역 재해 선언' },
+          'aws-dr': { alive: true, state: 'PROMOTING', cls: 'node-serving', desc: '트래픽 인계 대기' }
+        },
+        pod: { name: 'minwon-app', ready: '0/2', phase: 'Terminated', ok: false, cls: 'node-down', desc: '온프렘 서비스 중단' }
+      },
+      4: {
+        nodes: {
+          'compute1': { alive: false, state: 'BYPASS', cls: 'node-standby', desc: '온프렘 바이패스' },
+          'k8s-cp1': { alive: true, state: 'STANDBY', cls: 'node-standby', desc: '온프렘 대기' },
+          'db-01': { alive: true, state: 'STANDBY', cls: 'node-standby', desc: '동기화 대기' },
+          'kt-edge-dr-01': { alive: true, state: 'REROUTED', cls: 'node-serving', desc: '업스트림: AWS DR' },
+          'aws-dr': { alive: true, state: 'SERVING', cls: 'node-serving', desc: '🚀 AWS DR 활성 서빙' }
+        },
+        pod: { name: 'minwon-app (AWS)', ready: '2/2', phase: 'Running', ok: true, cls: 'node-serving', desc: 'AWS DR 클러스터 (2/2)' }
+      },
+      5: {
+        nodes: {
+          'compute1': { alive: false, state: 'BYPASS', cls: 'node-standby', desc: '온프렘 바이패스' },
+          'k8s-cp1': { alive: true, state: 'STANDBY', cls: 'node-standby', desc: '온프렘 대기' },
+          'db-01': { alive: true, state: 'STANDBY', cls: 'node-standby', desc: '동기화 대기' },
+          'kt-edge-dr-01': { alive: true, state: '200 OK', cls: 'node-serving', desc: 'AWS DR 200 OK 유지' },
+          'aws-dr': { alive: true, state: 'SERVING', cls: 'node-serving', desc: '✅ 무중단 대국민 서빙' }
+        },
+        pod: { name: 'minwon-app (AWS)', ready: '2/2', phase: 'Running', ok: true, cls: 'node-serving', desc: 'RTO 검증 완료 (2/2)' }
+      },
+      6: {
+        nodes: {
+          'compute1': { alive: true, state: 'BOOTING', cls: 'node-active', desc: '🔄 전원 복구 및 재기동' },
+          'k8s-cp1': { alive: true, state: 'RUNNING', cls: 'node-active', desc: '노드 Ready 복귀' },
+          'db-01': { alive: true, state: 'RUNNING', cls: 'node-active', desc: 'MySQL 8.4 마스터 기동' },
+          'kt-edge-dr-01': { alive: true, state: 'SERVING', cls: 'node-serving', desc: 'AWS DR 서빙 유지' },
+          'aws-dr': { alive: true, state: 'SERVING', cls: 'node-serving', desc: 'AWS DR 서빙 유지' }
+        },
+        pod: { name: 'minwon-app (On-Prem)', ready: '2/2', phase: 'Running', ok: true, cls: 'node-active', desc: '파드 복구 기동 (2/2)' }
+      },
+      7: {
+        nodes: {
+          'compute1': { alive: true, state: 'RUNNING', cls: 'node-active', desc: '온프렘 워커 정상' },
+          'k8s-cp1': { alive: true, state: 'RUNNING', cls: 'node-active', desc: '클러스터 정상' },
+          'db-01': { alive: true, state: 'SYNCING', cls: 'node-serving', desc: '🔄 AWS ➔ 온프렘 GTID 복제' },
+          'kt-edge-dr-01': { alive: true, state: 'READY', cls: 'node-active', desc: '원복 준비 완료' },
+          'aws-dr': { alive: true, state: 'SYNCING', cls: 'node-serving', desc: '트랜잭션 롤포워드' }
+        },
+        pod: { name: 'minwon-app (On-Prem)', ready: '2/2', phase: 'Running', ok: true, cls: 'node-active', desc: 'DB 연결 무결성 확인' }
+      },
+      8: {
+        nodes: {
+          'compute1': { alive: true, state: 'RUNNING', cls: 'node-active', desc: '온프렘 정상 운영' },
+          'k8s-cp1': { alive: true, state: 'RUNNING', cls: 'node-active', desc: 'K8s 마스터 Ready' },
+          'db-01': { alive: true, state: 'RUNNING', cls: 'node-active', desc: 'MySQL 8.4 마스터' },
+          'kt-edge-dr-01': { alive: true, state: 'PRIMARY', cls: 'node-active', desc: '온프렘 Primary 원복' },
+          'aws-dr': { alive: true, state: 'STANDBY', cls: 'node-standby', desc: 'Warm-Standby 대기' }
+        },
+        pod: { name: 'minwon-app', ready: '2/2', phase: 'Running', ok: true, cls: 'node-active', desc: '평시 정상 운영 복귀 (2/2)' }
+      }
+    };
+
     let DR_STATE = {
       curScenario: "l3_failover",
       curStep: 0,
@@ -9835,8 +10028,96 @@
       showLogs: true,
       stepDelaySec: 10,
       paused: false,
-      stopped: false
+      stopped: false,
+      currentTelemetry: DR_TELEMETRY_MAP[0]
     };
+
+    function csScenarioInfraStripHtml() {
+      if (!CS.scenarioMode) return '';
+      const tel = DR_STATE.currentTelemetry || DR_TELEMETRY_MAP[0];
+      const nodeKeys = ['compute1', 'k8s-cp1', 'db-01', 'kt-edge-dr-01', 'aws-dr'];
+      const nodeLabels = {
+        'compute1': 'compute1 (워커)',
+        'k8s-cp1': 'k8s-cp1 (마스터)',
+        'db-01': 'db-01 (DB)',
+        'kt-edge-dr-01': 'kt-edge-dr-01 (관문)',
+        'aws-dr': 'aws-dr (AWS Standby)'
+      };
+
+      const nodesHtml = nodeKeys.map(k => {
+        const n = tel.nodes[k] || { state: 'UNKNOWN', cls: 'node-standby', desc: '-' };
+        return `
+          <div class="dr-node-card ${n.cls}" id="dr-strip-${k}">
+            <div class="dr-node-dot"></div>
+            <span class="dr-node-name">${nodeLabels[k] || k}</span>
+            <span class="dr-node-state">${cfgEsc(n.state)}</span>
+            <span class="dr-node-desc">${cfgEsc(n.desc)}</span>
+          </div>
+        `;
+      }).join('');
+
+      const p = tel.pod || { name: 'minwon-app', ready: '2/2', cls: 'node-active', desc: 'Running' };
+      const podHtml = `
+        <div class="dr-node-card ${p.cls}" id="dr-strip-pod">
+          <div class="dr-node-dot"></div>
+          <span class="dr-node-name">Pod: ${cfgEsc(p.name)}</span>
+          <span class="dr-node-state">${cfgEsc(p.ready)} ${cfgEsc(p.phase || '')}</span>
+          <span class="dr-node-desc">${cfgEsc(p.desc)}</span>
+        </div>
+      `;
+
+      return `
+        <div class="dr-infra-strip" id="dr-live-infra-strip">
+          <div class="dr-strip-title">
+            <span>🌐 대시보드 실시간 인프라·Pod 텔레메트리:</span>
+          </div>
+          <div class="dr-strip-cards">
+            ${nodesHtml}
+            ${podHtml}
+          </div>
+        </div>
+      `;
+    }
+
+    function csApplyStepTelemetry(stepIdx) {
+      const tel = DR_TELEMETRY_MAP[stepIdx] || DR_TELEMETRY_MAP[0];
+      DR_STATE.currentTelemetry = tel;
+
+      // 1. 하단 실시간 인프라 스트립 갱신
+      const strip = document.getElementById('dr-live-infra-strip');
+      if (strip) strip.outerHTML = csScenarioInfraStripHtml();
+
+      // 2. 현재 창의 DASH 및 CS.status 갱신 & 리렌더링
+      if (typeof DASH !== 'undefined' && DASH.snap && DASH.snap.instances) {
+        DASH.snap.instances.forEach(inst => {
+          const n = tel.nodes[inst.id];
+          if (n) {
+            inst.alive = n.alive;
+            if (n.state === 'SHUTOFF' || n.state === 'DOWN') inst.status = 'SHUTOFF';
+            else if (n.state === 'RUNNING' || n.state === 'PRIMARY') inst.status = 'ACTIVE';
+          }
+        });
+        const cp1 = DASH.snap.instances.find(i => i.id === 'k8s-cp1');
+        if (cp1 && cp1.pods && tel.pod) {
+          cp1.pods.forEach(p => {
+            if (p.name.indexOf('minwon-app') >= 0) {
+              p.phase = tel.pod.ok ? 'Running' : 'CrashLoopBackOff';
+            }
+          });
+        }
+        if (typeof dashRender === 'function') dashRender();
+        if (typeof dashHeader === 'function') dashHeader();
+      }
+
+      // 3. 콘솔 왼쪽 인스턴스 트리 갱신
+      const tree = document.getElementById('cs-tree');
+      if (tree && typeof csTreeHtml === 'function') tree.innerHTML = csTreeHtml();
+
+      // 4. 다른 창/탭에 열린 메인 대시보드 실시간 브로드캐스팅
+      try {
+        localStorage.setItem('fig.dr.telemetry_sync', JSON.stringify({ ts: Date.now(), telemetry: tel }));
+      } catch (e) {}
+    }
 
     function csOpenScenarioWarRoom(scId) {
       scId = scId || 'l3_failover';
@@ -10020,6 +10301,7 @@
       DR_STATE.stopped = true;
       DR_STATE.elapsedMs = 0;
       DR_STATE.logs = [];
+      csApplyStepTelemetry(0);
       const tEl = document.getElementById('dr-rto-timer');
       if (tEl) tEl.textContent = '00.0s';
       const rBtn = document.getElementById('dr-report-btn');
@@ -10059,10 +10341,11 @@
         csStartRtoTimer();
       }
 
-      // 화면 단계 업데이트
+      // 화면 단계 업데이트 및 실시간 텔레메트리 (인스턴스 ON/OFF 및 Pod 갱신) 적용
       DR_STATE.curStep++;
       const bar = document.getElementById('cs-scenario-bar');
       if (bar) bar.outerHTML = csScenarioBarHtml();
+      csApplyStepTelemetry(DR_STATE.curStep);
 
       const descEl = document.getElementById('dr-step-desc-text');
       if (descEl) descEl.textContent = `[Step ${DR_STATE.curStep}] ${st.desc}`;
@@ -10091,8 +10374,9 @@
     }
 
     async function csRunAutoScenario() {
+      const sc = DR_SCENARIOS[DR_STATE.curScenario] || DR_SCENARIOS.l3_failover;
       if (DR_STATE.running && DR_STATE.curStep > 0 && !DR_STATE.paused) return;
-      if (DR_STATE.curStep >= 5) csResetScenario();
+      if (DR_STATE.curStep >= sc.steps.length) csResetScenario();
       DR_STATE.stopped = false;
       DR_STATE.paused = false;
       const sc = DR_SCENARIOS[DR_STATE.curScenario] || DR_SCENARIOS.l3_failover;
@@ -10448,6 +10732,39 @@
       html += '<div class="infra-badge-item"><span class="infra-badge-name">수집</span><span class="infra-badge-state">' +
         new Date(DASH.snap.collected_at * 1000).toLocaleTimeString('ko-KR', { hour12: false }) + '</span></div>';
       box.innerHTML = html;
+    }
+
+    // DR 모의 시나리오 실시간 텔레메트리 동기화 (창 간 localStorage 동기화)
+    window.addEventListener('storage', e => {
+      if (e.key === 'fig.dr.telemetry_sync' && e.newValue) {
+        try {
+          const d = JSON.parse(e.newValue);
+          if (d && d.telemetry) dashApplyDrTelemetry(d.telemetry);
+        } catch (ex) {}
+      }
+    });
+
+    function dashApplyDrTelemetry(tel) {
+      if (!DASH.snap || !DASH.snap.instances) return;
+      (DASH.snap.instances || []).forEach(inst => {
+        const ov = tel.nodes && tel.nodes[inst.id];
+        if (ov) {
+          if (typeof ov.alive === 'boolean') inst.alive = ov.alive;
+          if (ov.state === 'DOWN') inst.status = 'SHUTOFF';
+          else if (ov.state === 'RUNNING') inst.status = 'ACTIVE';
+        }
+      });
+      const cp1 = (DASH.snap.instances || []).find(i => i.id === 'k8s-cp1');
+      if (cp1 && cp1.pods && tel.pod) {
+        cp1.pods.forEach(p => {
+          if (p.name.indexOf('minwon-app') >= 0) {
+            p.phase = tel.pod.ok ? 'Running' : 'CrashLoopBackOff';
+          }
+        });
+      }
+      dashHeader();
+      const vd = document.getElementById('view-dashboard');
+      if (vd && vd.style.display !== 'none') dashRender();
     }
 
     window.addEventListener('load', () => setTimeout(dashStart, 200));

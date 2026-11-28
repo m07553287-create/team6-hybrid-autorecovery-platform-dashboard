@@ -214,4 +214,37 @@
       box.innerHTML = html;
     }
 
+    // DR 모의 시나리오 실시간 텔레메트리 동기화 (창 간 localStorage 동기화)
+    window.addEventListener('storage', e => {
+      if (e.key === 'fig.dr.telemetry_sync' && e.newValue) {
+        try {
+          const d = JSON.parse(e.newValue);
+          if (d && d.telemetry) dashApplyDrTelemetry(d.telemetry);
+        } catch (ex) {}
+      }
+    });
+
+    function dashApplyDrTelemetry(tel) {
+      if (!DASH.snap || !DASH.snap.instances) return;
+      (DASH.snap.instances || []).forEach(inst => {
+        const ov = tel.nodes && tel.nodes[inst.id];
+        if (ov) {
+          if (typeof ov.alive === 'boolean') inst.alive = ov.alive;
+          if (ov.state === 'DOWN') inst.status = 'SHUTOFF';
+          else if (ov.state === 'RUNNING') inst.status = 'ACTIVE';
+        }
+      });
+      const cp1 = (DASH.snap.instances || []).find(i => i.id === 'k8s-cp1');
+      if (cp1 && cp1.pods && tel.pod) {
+        cp1.pods.forEach(p => {
+          if (p.name.indexOf('minwon-app') >= 0) {
+            p.phase = tel.pod.ok ? 'Running' : 'CrashLoopBackOff';
+          }
+        });
+      }
+      dashHeader();
+      const vd = document.getElementById('view-dashboard');
+      if (vd && vd.style.display !== 'none') dashRender();
+    }
+
     window.addEventListener('load', () => setTimeout(dashStart, 200));
