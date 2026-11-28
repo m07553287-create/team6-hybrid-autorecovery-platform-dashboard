@@ -495,7 +495,10 @@
       const m = /^#cfg\/inst\/([^/]+)(?:\/([^/?]+))?/.exec(h);
       if (m) area = m[2] ? (m[1] + '/' + m[2]) : m[1];
       const cfgUrl = 'https://figteam.ktci5.kr/' + (h.indexOf('#cfg') === 0 ? h : '#cfg/overview');
-      const qs = 'area=' + encodeURIComponent(area) + '&cfg_url=' + encodeURIComponent(cfgUrl);
+      const prof = (typeof wkGetAccessProfile === 'function') ? wkGetAccessProfile() : {};
+      const qs = 'area=' + encodeURIComponent(area) + '&cfg_url=' + encodeURIComponent(cfgUrl) +
+        (prof.member ? '&member=' + encodeURIComponent(prof.member) : '') +
+        (prof.access_key ? '&access_key=' + encodeURIComponent(prof.access_key) : '');
       window.open('/api/ai/hub?' + qs, '_blank', 'noopener');
     }
 
