@@ -2932,26 +2932,47 @@ def render_collab_hub_html(
       window.location.href = '/';
     }}
 
-    // 자동 이름 연동 (포털에서 1회 설정된 이름을 읽어 허브 세션 자동 생성)
+    // 자동 이름 & 접속 키 연동 (포털/허브 양방향 완벽 동기화)
     async function checkAutoSync() {{
-      const isLoggedIn = {"true" if is_logged_in else "false"};
-      if (isLoggedIn) return;
       try {{
-        let name = (localStorage.getItem('fig.term.user') || '').trim();
-        if (!name) {{
-          const pRaw = localStorage.getItem('fig.access.profile_v1');
-          if (pRaw) {{
+        let name = '';
+        let ak = '';
+        const pRaw = localStorage.getItem('fig.access.profile_v1');
+        if (pRaw) {{
+          try {{
             const p = JSON.parse(pRaw);
             name = (p.member || '').trim();
-          }}
+            ak = (p.access_key || '').trim();
+          }} catch(e) {{}}
         }}
+        if (!name) name = (localStorage.getItem('fig.term.user') || '').trim();
+
+        const curUserKey = '{access_key}';
+        const curUserName = '{member_name}';
+        const isLoggedIn = {"true" if is_logged_in else "false"};
+
+        // 1. 이미 로그인되어 있고 서버 세션에 키가 있으면, 로컬 스토리지에 동기화
+        if (isLoggedIn && curUserKey) {{
+          if (!pRaw || !ak || ak !== curUserKey) {{
+            localStorage.setItem('fig.access.profile_v1', JSON.stringify({{ member: curUserName || name, access_key: curUserKey }}));
+            if (curUserName) localStorage.setItem('fig.term.user', curUserName);
+          }}
+          return;
+        }}
+
+        // 2. 허브 로그인이 필요하거나 포털의 키가 아직 연동되지 않은 경우 auto-login 호출
         if (name) {{
           const res = await fetch('/api/ai/hub/auto-login', {{
             method: 'POST',
             headers: {{ 'Content-Type': 'application/json' }},
-            body: JSON.stringify({{ member: name }})
+            body: JSON.stringify({{ member: name, access_key: ak }})
           }});
           if (res.ok) {{
+            const data = await res.json();
+            if (data && data.access_key) {{
+              localStorage.setItem('fig.access.profile_v1', JSON.stringify({{ member: data.member || name, access_key: data.access_key }}));
+              if (data.member) localStorage.setItem('fig.term.user', data.member);
+            }}
             location.reload();
           }}
         }}

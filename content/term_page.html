@@ -72,7 +72,7 @@
       <button type="button" class="nav-btn" id="btn-tab-dashboard" onclick="location.href='/'">대시보드</button>
       <button type="button" class="nav-btn" id="btn-tab-settings" onclick="location.href='/#cfg/kt-edge'">설계/설정</button>
       <button type="button" class="nav-btn active" id="btn-tab-console" onclick="location.href='/term/'">콘솔</button>
-      <a class="nav-btn" id="btn-tab-hub" href="/api/ai/hub" onclick="try{const u=localStorage.getItem('fig.term.user');if(u)this.href='/api/ai/hub?member='+encodeURIComponent(u);}catch(e){}" style="text-decoration:none;" title="협업 허브">협업 허브</a>
+      <a class="nav-btn" id="btn-tab-hub" href="/api/ai/hub" onclick="try{const p=JSON.parse(localStorage.getItem('fig.access.profile_v1')||'{}');const u=p.member||localStorage.getItem('fig.term.user')||'';const ak=p.access_key||'';let q=[];if(u)q.push('member='+encodeURIComponent(u));if(ak)q.push('access_key='+encodeURIComponent(ak));if(q.length)this.href='/api/ai/hub?'+q.join('&');}catch(e){}" style="text-decoration:none;" title="협업 허브">협업 허브</a>
       <div class="g-user-badge" id="portal-user-badge" style="display:none;">
         <span class="g-user-dot"></span>
         <span class="g-user-name" id="portal-user-name"></span>
