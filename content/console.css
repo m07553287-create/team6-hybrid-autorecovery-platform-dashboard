@@ -167,6 +167,22 @@
       display: flex;
       align-items: center;
       gap: 8px;
+      flex-wrap: wrap;
+    }
+    .dr-speed-select {
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      border-radius: 5px;
+      padding: 3px 8px;
+      font-size: 11.5px;
+      font-family: inherit;
+    }
+    .dr-countdown-badge {
+      font-size: 11px;
+      color: #38bdf8;
+      font-weight: 600;
+      margin-left: 6px;
     }
     .dr-timer-box {
       font-family: var(--font-mono);
