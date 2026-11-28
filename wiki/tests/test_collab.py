@@ -384,11 +384,17 @@ def test_discord_inbound_inbox_state_and_doc_delete_webhook(client, monkeypatch)
     )
     assert upd.status_code == 200 and upd.json()["item"]["task_status"] == "done" and upd.json()["goal"]["id"] >= 1
 
-    # 3. /api/ai/hub HTML 에 Discord 수신함 및 과제/공유 표시 확인
+    # 3. /api/ai/hub HTML 에 수신함/발신함 분리 메뉴바 및 탭 패널 확인
     hub = client.get("/api/ai/hub")
     assert hub.status_code == 200
     assert "Discord 멘션 수신함" in hub.text
     assert "처리할 과제" in hub.text and "공유" in hub.text
+    assert "hub-nav" in hub.text and "pane-inbox" in hub.text and "pane-dispatch" in hub.text
+    assert "수신함 (디코 ➔ 웹)" in hub.text and "발신함 (웹 ➔ 디코)" in hub.text
+
+    hub_dispatch = client.get("/api/ai/hub?tab=dispatch")
+    assert hub_dispatch.status_code == 200
+    assert 'default_tab = "dispatch"' in hub_dispatch.text or 'switchHubTab(\'dispatch\')' in hub_dispatch.text or 'data-pane="dispatch"' in hub_dispatch.text
 
     # 4. 문서 생성·수정·삭제·복원 모두 Discord Webhook 알림 전송 확인
     sent_payloads.clear()

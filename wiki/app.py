@@ -566,6 +566,7 @@ def create_app(redis_client=None):
         goal_id: str = "",
         goal_status: str = "",
         dc_filter: str = "all",
+        tab: str = "inbox",
     ):
         s = optional_session_of(request)
         prefill = {
@@ -578,6 +579,7 @@ def create_app(redis_client=None):
             "goal_id": goal_id,
             "goal_status": goal_status,
             "dc_filter": dc_filter,
+            "tab": tab,
         }
         return _hub_render(s, prefill)
 
@@ -594,6 +596,7 @@ def create_app(redis_client=None):
             "cfg_url": str(form.get("cfg_url") or ""),
             "goal_id": str(form.get("goal_id") or ""),
             "goal_status": str(form.get("goal_status") or ""),
+            "tab": str(form.get("tab") or "dispatch"),
         }
         slug = str(form.get("slug") or os.environ.get("DEFAULT_TEAM_SLUG", "figteam")).strip() or "figteam"
         try:
@@ -614,7 +617,7 @@ def create_app(redis_client=None):
         hint_msg = f" · 교차확인 힌트 {len(hints)}건" if hints else ""
         resp = _hub_render(
             s,
-            {"area": prefill["area"], "status": "info", "title": "", "summary": "", "check_request": "", "cfg_url": prefill["cfg_url"], "goal_id": prefill["goal_id"]},
+            {"area": prefill["area"], "status": "info", "title": "", "summary": "", "check_request": "", "cfg_url": prefill["cfg_url"], "goal_id": prefill["goal_id"], "tab": "dispatch"},
             notice=f"공유 #{res['share']['id']} 등록됨 — {dc_msg}{hint_msg}",
         )
         if new_cookie_tok:
@@ -630,12 +633,12 @@ def create_app(redis_client=None):
         try:
             s, new_cookie_tok = _hub_session_or_login(request, form)
         except ApiError as exc:
-            return _hub_render(None, {"area": "general"}, error=exc.message, default_slug=slug, status_code=exc.status)
+            return _hub_render(None, {"area": "general", "tab": "goals"}, error=exc.message, default_slug=slug, status_code=exc.status)
 
         try:
             res = collab.upsert_goal(r, s, form)
         except ApiError as exc:
-            resp = _hub_render(s, {"area": "general"}, error=exc.message, status_code=exc.status)
+            resp = _hub_render(s, {"area": "general", "tab": "goals"}, error=exc.message, status_code=exc.status)
             if new_cookie_tok:
                 set_cookie(resp, new_cookie_tok)
                 if s and s.access_key:
@@ -645,7 +648,7 @@ def create_app(redis_client=None):
         g_obj = res["goal"]
         resp = _hub_render(
             s,
-            {"area": g_obj.get("area") or "general", "goal_id": str(g_obj["id"])},
+            {"area": g_obj.get("area") or "general", "goal_id": str(g_obj["id"]), "tab": "goals"},
             notice=f"공동 목표 #{g_obj['id']} [{g_obj['status_label']}] 저장됨 (전체 달성 {res['summary']['done']}/{res['summary']['total']})",
         )
         if new_cookie_tok:
@@ -662,7 +665,7 @@ def create_app(redis_client=None):
         g_obj = res["goal"]
         return _hub_render(
             s,
-            {"area": g_obj.get("area") or "general", "goal_id": str(g_obj["id"])},
+            {"area": g_obj.get("area") or "general", "goal_id": str(g_obj["id"]), "tab": "goals"},
             notice=f"공동 목표 #{g_obj['id']} → [{g_obj['status_label']}] 변경됨 (달성 {res['summary']['done']}/{res['summary']['total']})",
         )
 
@@ -673,7 +676,7 @@ def create_app(redis_client=None):
         try:
             s, new_cookie_tok = _hub_session_or_login(request, form)
         except ApiError as exc:
-            return _hub_render(None, {"area": "general"}, error=exc.message, default_slug=slug, status_code=exc.status)
+            return _hub_render(None, {"area": "general", "tab": "inbox"}, error=exc.message, default_slug=slug, status_code=exc.status)
         try:
             res = collab.ingest_discord_message(
                 r,
@@ -690,9 +693,9 @@ def create_app(redis_client=None):
             )
             it = res["item"]
             notice = f"Discord 수신함 #{it['id']} [{it['category_label']}] 등록됨 (분류: {it['classify_reason']})"
-            resp = _hub_render(s, {"area": "general"}, notice=notice)
+            resp = _hub_render(s, {"area": "general", "tab": "inbox"}, notice=notice)
         except ApiError as exc:
-            resp = _hub_render(s, {"area": "general"}, error=exc.message, status_code=exc.status)
+            resp = _hub_render(s, {"area": "general", "tab": "inbox"}, error=exc.message, status_code=exc.status)
         if new_cookie_tok:
             set_cookie(resp, new_cookie_tok)
             if s and s.access_key:
@@ -718,7 +721,7 @@ def create_app(redis_client=None):
         )
         it = res["item"]
         g_msg = f" · 공동목표 #{res['goal']['id']} 등록" if res.get("goal") else ""
-        return _hub_render(s, {"area": "general"}, notice=f"#{it['id']} → [{it['category_label']} / {it['task_status_label']}]{g_msg}")
+        return _hub_render(s, {"area": "general", "tab": "inbox"}, notice=f"#{it['id']} → [{it['category_label']} / {it['task_status_label']}]{g_msg}")
 
     static_dir = os.environ.get("SERVE_STATIC")
     if static_dir:  # 로컬 개발 전용: 화면(public/)도 같은 출처로 제공
