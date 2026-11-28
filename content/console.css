@@ -218,11 +218,11 @@
     .dr-btn-report:hover:not(:disabled) { background: #047857; }
     .dr-btn-report:disabled { cursor: not-allowed; opacity: 0.45; }
 
-    /* 5단계 인터랙티브 스테퍼 */
+    /* 인터랙티브 스테퍼 (5~8단계 자동 유연 배치) */
     .dr-stepper {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 8px;
+      grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+      gap: 6px;
       margin-top: 2px;
     }
     .dr-step-item {
