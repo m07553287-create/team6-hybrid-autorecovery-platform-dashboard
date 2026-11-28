@@ -2269,6 +2269,22 @@
       display: flex;
       align-items: center;
       gap: 8px;
+      flex-wrap: wrap;
+    }
+    .dr-speed-select {
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      border-radius: 5px;
+      padding: 3px 8px;
+      font-size: 11.5px;
+      font-family: inherit;
+    }
+    .dr-countdown-badge {
+      font-size: 11px;
+      color: #38bdf8;
+      font-weight: 600;
+      margin-left: 6px;
     }
     .dr-timer-box {
       font-family: var(--font-mono);
@@ -9654,7 +9670,10 @@
       startTime: 0,
       elapsedMs: 0,
       logs: [],
-      showLogs: true
+      showLogs: true,
+      stepDelaySec: 10,
+      paused: false,
+      stopped: false
     };
 
     function csOpenScenarioWarRoom(scId) {
@@ -9694,6 +9713,19 @@
       const b = document.getElementById('dr-log-toggle-btn');
       if (p) p.style.display = DR_STATE.showLogs ? 'flex' : 'none';
       if (b) b.textContent = DR_STATE.showLogs ? '로그 접기 ▲' : '로그 펼치기 ▼';
+    }
+
+    function csChangeSpeed(val) {
+      DR_STATE.stepDelaySec = parseInt(val, 10) || 10;
+    }
+
+    function csTogglePause() {
+      if (!DR_STATE.running) return;
+      DR_STATE.paused = !DR_STATE.paused;
+      const btn = document.getElementById('dr-pause-btn');
+      if (btn) btn.textContent = DR_STATE.paused ? '▶ 계속 진행' : '⏸ 일시정지';
+      const cd = document.getElementById('dr-step-countdown');
+      if (cd && DR_STATE.paused) cd.textContent = ' (일시정지됨)';
     }
 
     function csScenarioBarHtml() {
@@ -9737,7 +9769,14 @@
             </div>
             <div class="dr-controls">
               <div class="dr-timer-box">RTO 실측: <b id="dr-rto-timer">${(DR_STATE.elapsedMs / 1000).toFixed(1)}s</b></div>
+              <select class="dr-speed-select" id="dr-speed-select" onchange="csChangeSpeed(this.value)">
+                <option value="10" ${DR_STATE.stepDelaySec === 10 ? 'selected' : ''}>간격: 10초 (여유 시연)</option>
+                <option value="15" ${DR_STATE.stepDelaySec === 15 ? 'selected' : ''}>간격: 15초 (상세 해설)</option>
+                <option value="6" ${DR_STATE.stepDelaySec === 6 ? 'selected' : ''}>간격: 6초 (보통)</option>
+                <option value="3" ${DR_STATE.stepDelaySec === 3 ? 'selected' : ''}>간격: 3초 (고속)</option>
+              </select>
               <button type="button" class="dr-btn dr-btn-run" id="dr-run-btn" onclick="csRunAutoScenario()">▶ 전체 자동 실행</button>
+              <button type="button" class="dr-btn" id="dr-pause-btn" onclick="csTogglePause()" ${DR_STATE.running ? '' : 'disabled'}>⏸ 일시정지</button>
               <button type="button" class="dr-btn" id="dr-next-btn" onclick="csRunNextStep()">다음 단계 (▶)</button>
               <button type="button" class="dr-btn" onclick="csResetScenario()">초기화</button>
               <button type="button" class="dr-btn dr-btn-report" id="dr-report-btn" onclick="csPublishReport()" disabled>📤 결과 허브·디스코드 리포트 발행</button>
@@ -9748,6 +9787,7 @@
             <div>
               <span>현재 상태:</span>
               <b id="dr-step-desc-text">${DR_STATE.curStep === 0 ? '대기 중 — [전체 자동 실행] 또는 [다음 단계]를 누르면 시작됩니다.' : (sc.steps[DR_STATE.curStep - 1] ? sc.steps[DR_STATE.curStep - 1].desc : '완료')}</b>
+              <span class="dr-countdown-badge" id="dr-step-countdown"></span>
             </div>
             <button type="button" class="dr-log-toggle-btn" id="dr-log-toggle-btn" onclick="csToggleScenarioLogs()">${DR_STATE.showLogs ? '로그 접기 ▲' : '로그 펼치기 ▼'}</button>
           </div>
@@ -9814,12 +9854,18 @@
       csStopRtoTimer();
       DR_STATE.curStep = 0;
       DR_STATE.running = false;
+      DR_STATE.paused = false;
+      DR_STATE.stopped = true;
       DR_STATE.elapsedMs = 0;
       DR_STATE.logs = [];
       const tEl = document.getElementById('dr-rto-timer');
       if (tEl) tEl.textContent = '00.0s';
       const rBtn = document.getElementById('dr-report-btn');
       if (rBtn) { rBtn.disabled = true; rBtn.style.opacity = '0.45'; }
+      const pBtn = document.getElementById('dr-pause-btn');
+      if (pBtn) { pBtn.disabled = true; pBtn.textContent = '⏸ 일시정지'; }
+      const runBtn = document.getElementById('dr-run-btn');
+      if (runBtn) { runBtn.disabled = false; runBtn.textContent = '▶ 전체 자동 실행'; }
       const bar = document.getElementById('cs-scenario-bar');
       if (bar) bar.outerHTML = csScenarioBarHtml();
     }
@@ -9844,6 +9890,9 @@
       const st = sc.steps[DR_STATE.curStep];
       DR_STATE.running = true;
 
+      const pBtn = document.getElementById('dr-pause-btn');
+      if (pBtn) pBtn.disabled = false;
+
       if (st.startTimer) {
         csStartRtoTimer();
       }
@@ -9856,11 +9905,16 @@
       const descEl = document.getElementById('dr-step-desc-text');
       if (descEl) descEl.textContent = `[Step ${DR_STATE.curStep}] ${st.desc}`;
 
-      // 각 노드별 명령어 주입 및 상세 대시보드 로그 기록
+      // 각 노드별 명령어 주입: 사람이 타자 치듯 1.2초 간격을 두어 순차 실행
       const cmds = st.commands || (st.target && st.cmd ? [{ target: st.target, cmd: st.cmd, tag: 'info', log: st.desc }] : []);
-      for (const c of cmds) {
+      for (let i = 0; i < cmds.length; i++) {
+        if (DR_STATE.stopped) break;
+        const c = cmds[i];
         csSendCmdToTarget(c.target, c.cmd, c.title);
         csAppendScenarioLog(c.target, c.tag || 'info', c.log || c.cmd);
+        if (i < cmds.length - 1) {
+          await new Promise(r => setTimeout(r, 1200));
+        }
       }
 
       if (st.stopTimer) {
@@ -9868,26 +9922,55 @@
         DR_STATE.running = false;
         const rBtn = document.getElementById('dr-report-btn');
         if (rBtn) { rBtn.disabled = false; rBtn.style.opacity = '1'; }
+        if (pBtn) pBtn.disabled = true;
         if (descEl) descEl.textContent = `✓ [모든 단계 완료] 실측 RTO ${(DR_STATE.elapsedMs / 1000).toFixed(1)}초 달성! 아래 [결과 허브·디스코드 리포트 발행] 버튼으로 공유할 수 있습니다.`;
         csAppendScenarioLog('system', 'pass', `모의 시나리오 종료: 실측 RTO ${(DR_STATE.elapsedMs / 1000).toFixed(1)}초 달성, 서비스 전면 복구 완료!`);
       }
     }
 
     async function csRunAutoScenario() {
-      if (DR_STATE.running && DR_STATE.curStep > 0) return;
-      csResetScenario();
+      if (DR_STATE.running && DR_STATE.curStep > 0 && !DR_STATE.paused) return;
+      if (DR_STATE.curStep >= 5) csResetScenario();
+      DR_STATE.stopped = false;
+      DR_STATE.paused = false;
       const sc = DR_SCENARIOS[DR_STATE.curScenario] || DR_SCENARIOS.l3_failover;
       const runBtn = document.getElementById('dr-run-btn');
-      if (runBtn) { runBtn.disabled = true; runBtn.textContent = '진행 중...'; }
+      if (runBtn) { runBtn.disabled = true; runBtn.textContent = '시연 진행 중...'; }
+      const pBtn = document.getElementById('dr-pause-btn');
+      if (pBtn) { pBtn.disabled = false; pBtn.textContent = '⏸ 일시정지'; }
 
-      for (let i = 0; i < sc.steps.length; i++) {
+      const totalSteps = sc.steps.length;
+      while (DR_STATE.curStep < totalSteps) {
+        if (DR_STATE.stopped) break;
+        while (DR_STATE.paused) {
+          await new Promise(r => setTimeout(r, 200));
+          if (DR_STATE.stopped) break;
+        }
+        if (DR_STATE.stopped) break;
+
         await csRunNextStep();
-        if (i < sc.steps.length - 1) {
-          await new Promise(r => setTimeout(r, 4500)); // 단계별 4.5초 간격으로 시연 가시성 확보
+
+        if (DR_STATE.curStep < totalSteps && !DR_STATE.stopped) {
+          const delaySec = DR_STATE.stepDelaySec || 10;
+          const waitStart = Date.now();
+          while ((Date.now() - waitStart) < (delaySec * 1000)) {
+            if (DR_STATE.stopped) break;
+            while (DR_STATE.paused) {
+              await new Promise(r => setTimeout(r, 200));
+              if (DR_STATE.stopped) break;
+            }
+            const remainSec = Math.ceil(((delaySec * 1000) - (Date.now() - waitStart)) / 1000);
+            const cdEl = document.getElementById('dr-step-countdown');
+            if (cdEl) cdEl.textContent = ` (다음 단계까지 ${remainSec}초 대기 중...)`;
+            await new Promise(r => setTimeout(r, 250));
+          }
+          const cdEl = document.getElementById('dr-step-countdown');
+          if (cdEl) cdEl.textContent = '';
         }
       }
 
       if (runBtn) { runBtn.disabled = false; runBtn.textContent = '▶ 전체 자동 실행'; }
+      if (pBtn) { pBtn.disabled = true; pBtn.textContent = '⏸ 일시정지'; }
     }
 
     async function csPublishReport() {
