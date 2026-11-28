@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { wkGenAccessKey, wkNormalizeAccessKey, wkFormatAuthor, wkParseAuthor } = require('../wiki.js');
+const { wkGenAccessKey, wkNormalizeAccessKey, wkFormatAuthor, wkParseAuthor, wkIsRealName, wkResolveEntryName } = require('../wiki.js');
 
 test('wkGenAccessKey produces 6 unambiguous uppercase alphanumeric characters', () => {
   const key = wkGenAccessKey();
@@ -43,4 +43,23 @@ test('wkParseAuthor extracts accessKey and resolves keybook user mapping', () =>
   assert.equal(p3.hasRealName, true);
 
   assert.equal(wkNormalizeAccessKey(' ab-12_cd!@# '), 'AB-12_CD');
+});
+
+test('wkIsRealName rejects placeholders and accepts real user names', () => {
+  for (const placeholder of ['', '   ', '게스트', 'guest', 'Guest', 'seed', '미설정', null, undefined]) {
+    assert.equal(wkIsRealName(placeholder), false);
+  }
+  assert.equal(wkIsRealName('다운'), true);
+  assert.equal(wkIsRealName('홍길동'), true);
+});
+
+test('wkResolveEntryName shares real name across settings profile and console user', () => {
+  // 아무 이름도 없으면 빈 문자열 → 최초 1회 입력 대상
+  assert.equal(wkResolveEntryName({ profileMember: '게스트', termUser: 'guest', lastMember: '', meMember: 'seed' }), '');
+  // 콘솔에만 이름이 저장된 경우(설계/설정 profile이 게스트여도 콘솔 이름을 우선 채택)
+  assert.equal(wkResolveEntryName({ profileMember: '게스트', termUser: '홍길동', lastMember: '', meMember: '' }), '홍길동');
+  // 설계/설정에만 이름이 저장된 경우
+  assert.equal(wkResolveEntryName({ profileMember: '혜빈', termUser: '', lastMember: '', meMember: '' }), '혜빈');
+  // fw_last에 name#KEY 형식으로 남은 경우
+  assert.equal(wkResolveEntryName({ profileMember: '게스트', termUser: '', lastMember: '다운#K7M3P9', meMember: '' }), '다운');
 });
