@@ -407,3 +407,26 @@ def test_discord_inbound_inbox_state_and_doc_delete_webhook(client, monkeypatch)
     assert any("수정" in t for t in titles)
     assert any("삭제" in t for t in titles)
     assert any("되돌리기" in t for t in titles)
+
+
+def test_hub_auto_login_and_query_member(client, monkeypatch):
+    monkeypatch.setenv("FIGTEAM_DISCORD_WEBHOOK_URL", "")
+    assert client.post("/api/teams", json=TEAM).status_code == 201
+
+    # 1. POST /api/ai/hub/auto-login
+    res = client.post("/api/ai/hub/auto-login", json={"member": "김엔지니어"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["ok"] is True
+    assert data["member"] == "김엔지니어"
+    assert "access_key" in data
+    assert "fw_s" in res.cookies
+    assert "fc_k" in res.cookies
+
+    # 2. GET /api/ai/hub?member=박엔지니어
+    client.cookies.clear()
+    page = client.get("/api/ai/hub", params={"member": "박엔지니어"})
+    assert page.status_code == 200
+    assert "박엔지니어" in page.text
+    assert "fw_s" in client.cookies or "fw_s" in page.headers.get("set-cookie", "")
+

@@ -568,7 +568,7 @@ def create_app(redis_client=None):
         cookie_ak = auth.check_access_key(request.cookies.get(auth.KEY_COOKIE) or "")
         final_ak = cookie_ak or auth.gen_access_key()
         tok = auth.new_session(r, team_id, clean_m, auto=True, access_key=final_ak)
-        auth.upsert_keybook(r, team_id, final_ak, clean_m, client_ip(request))
+        auth.upsert_keybook(r, team_id, final_ak, clean_m, client_key(request))
         resp = JSONResponse({"ok": True, "member": clean_m, "access_key": final_ak})
         set_cookie(resp, tok)
         set_key_cookie(resp, final_ak)
@@ -603,7 +603,7 @@ def create_app(redis_client=None):
                     cookie_ak = auth.check_access_key(request.cookies.get(auth.KEY_COOKIE) or "")
                     new_ak = cookie_ak or auth.gen_access_key()
                     new_tok = auth.new_session(r, team_id, clean_m, auto=True, access_key=new_ak)
-                    auth.upsert_keybook(r, team_id, new_ak, clean_m, client_ip(request))
+                    auth.upsert_keybook(r, team_id, new_ak, clean_m, client_key(request))
                     _, s = auth.get_session_detail(r, new_tok, require_key=require_key)
             except Exception:
                 pass
