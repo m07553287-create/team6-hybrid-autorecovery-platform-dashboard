@@ -15,6 +15,7 @@ ORIGIN = "http://testserver"
 def r(monkeypatch):
     monkeypatch.setenv("TEAM_CREATE_CODE", "test-code")
     monkeypatch.setenv("ALLOWED_ORIGIN", ORIGIN)
+    monkeypatch.setenv("WIKI_REQUIRE_ACCESS_KEY", "0")
     return fakeredis.FakeRedis(decode_responses=True)
 
 

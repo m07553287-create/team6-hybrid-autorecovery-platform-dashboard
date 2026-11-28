@@ -10,6 +10,8 @@
     // fetch 래퍼: JSON 주고받기, 401 이면 로그인 화면
     async function api(method, path, body) {
       const opt = { method: method, headers: {}, credentials: 'same-origin', cache: 'no-store' };
+      const storedKey = typeof figReadStoredAccessKey === 'function' ? figReadStoredAccessKey() : null;
+      if (storedKey && storedKey.access_key) opt.headers['X-Fig-Access-Key'] = storedKey.access_key;
       if (body !== undefined) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
       let res;
       try { res = await fetch(path, opt); }
@@ -18,6 +20,15 @@
       try { data = await res.json(); } catch (e) { data = null; }
       if (!res.ok) {
         const err = Object.assign({ status: res.status }, data || {});
+        if (res.status === 401 && data && data.key_expired) {
+          WIKI.ready = false;
+          try { sessionStorage.removeItem(typeof figAuthStorageKey === 'function' ? figAuthStorageKey() : 'figteam_auth_token'); } catch (e) {}
+          if (typeof figExpireKeylessSessions === 'function') await figExpireKeylessSessions();
+          if (typeof figShowLoginNotice === 'function') figShowLoginNotice(data.error || '접속 키가 없는 이전 세션이 만료되었습니다. 다시 로그인해 주세요.');
+          if (typeof checkAuth === 'function') checkAuth();
+          else wikiShowLogin(data.error || '');
+          throw err;
+        }
         if (res.status === 401 && ['/api/login', '/api/me', '/api/team/password'].indexOf(path) < 0) {
           WIKI.ready = false;
           if (typeof wikiOnSessionLost === 'function') wikiOnSessionLost();
@@ -1367,6 +1378,13 @@
       wkRenderChangesTab();
     }
 
+    function wkHasValidAccessKey(profile) {
+      if (!profile || typeof profile !== 'object') return false;
+      const ak = wkNormalizeAccessKey(profile.access_key);
+      const parsedName = wkParseAuthor(profile.member).name;
+      return ak.length >= 2 && wkIsRealName(parsedName);
+    }
+
     if (typeof module !== 'undefined') {
       module.exports = {
         wkGenAccessKey: wkGenAccessKey,
@@ -1374,6 +1392,7 @@
         wkFormatAuthor: wkFormatAuthor,
         wkParseAuthor: wkParseAuthor,
         wkIsRealName: wkIsRealName,
-        wkResolveEntryName: wkResolveEntryName
+        wkResolveEntryName: wkResolveEntryName,
+        wkHasValidAccessKey: wkHasValidAccessKey
       };
     }

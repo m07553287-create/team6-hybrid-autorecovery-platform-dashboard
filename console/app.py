@@ -12,7 +12,7 @@ import time
 from fastapi import FastAPI, Request, Response, WebSocket
 from fastapi.responses import JSONResponse
 
-from console.auth import Lock, TTL
+from console.auth import Lock, TTL, normalize_access_key
 from console.pty_session import PtySession
 from console.status import Collector
 from console.presets import PresetError, PresetStore
@@ -34,8 +34,10 @@ def create_app():
     app = FastAPI(title="figteam-console", docs_url=None, redoc_url=None, openapi_url=None)
     targets, order = _load_targets(os.environ.get("CONSOLE_TARGETS",
                                                   str(pathlib.Path(__file__).with_name("targets.json"))))
+    require_key = os.environ.get("CONSOLE_REQUIRE_ACCESS_KEY", "1") != "0"
     lock = Lock(os.environ.get("CONSOLE_PASS_HASH"), os.environ.get("CONSOLE_PASS_SALT"),
-                os.environ.get("CONSOLE_SESSIONS", "/var/lib/figteam-console/sessions.json"))
+                os.environ.get("CONSOLE_SESSIONS", "/var/lib/figteam-console/sessions.json"),
+                require_key=require_key)
     origin = os.environ.get("ALLOWED_ORIGIN", "https://figteam.ktci5.kr")
     log_dir = pathlib.Path(os.environ.get("CONSOLE_LOG_DIR", "/var/log/figteam-console"))
     hub = SessionHub(store=store_mod.from_env())
@@ -93,13 +95,19 @@ def create_app():
             data = await request.json()
         except ValueError:
             data = {}
-        token = lock.unlock(str(data.get("password") or ""), ip)
+        ak = data.get("access_key") or ""
+        member = data.get("member") or ""
+        try:
+            token = lock.unlock(str(data.get("password") or ""), ip, access_key=ak, member=member)
+        except ValueError as e:
+            return JSONResponse({"error": str(e), "field": "access_key"}, status_code=422)
         if not token:
             log.warning("unlock failed ip=%s", ip)
             return JSONResponse({"error": "콘솔 비밀번호가 맞지 않습니다"}, status_code=401)
-        log.info("unlock ok ip=%s", ip)
+        norm_ak = normalize_access_key(ak)
+        log.info("unlock ok ip=%s key=%s", ip, norm_ak or "-")
         response.set_cookie(COOKIE, token, max_age=TTL, httponly=True, secure=True, samesite="strict", path="/console")
-        return {"ok": True, "ttl": TTL}
+        return {"ok": True, "ttl": TTL, "access_key": norm_ak}
 
     presets = PresetStore(os.environ.get("CONSOLE_PRESETS", "/var/lib/figteam-console/presets.json"), targets)
 
@@ -137,10 +145,19 @@ def create_app():
         return {"ok": True}
 
     @app.get("/console/api/me")
-    def me(request: Request):
+    def me(request: Request, response: Response):
         """사이트 입장 로그인 상태 (서버 확인). 대시보드 첫 화면이 이걸로 로그인 여부를 판단한다."""
-        if lock.check(request.cookies.get(COOKIE), ip_of(request)):
-            return {"unlocked": True, "ttl": TTL}
+        status, info = lock.check_detail(request.cookies.get(COOKIE), ip_of(request))
+        if status == "ok":
+            out = {"unlocked": True, "ttl": TTL}
+            if info and info.get("access_key"):
+                out["access_key"] = info["access_key"]
+            if info and info.get("member"):
+                out["member"] = info["member"]
+            return out
+        if status == "no_key":
+            response.delete_cookie(COOKIE, path="/console")
+            return {"unlocked": False, "key_expired": True}
         return {"unlocked": False}
 
     @app.post("/console/api/lock")
