@@ -1543,226 +1543,503 @@ def render_collab_hub_html(
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>FIGTEAM 인프라 협업 허브</title>
   <style>
-    /* 리셋 및 기본 서체 */
-    *, *::before, *::after {{ box-sizing:border-box; }}
+    /* CSS 변수: 메인 포털과 100% 동일한 디자인 시스템 */
+    :root {{
+      --bg: #0b1120;
+      --surface: #0f172a;
+      --surface-border: #1e293b;
+      --text-main: #f8fafc;
+      --text-sub: #94a3b8;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --blue: #38bdf8;
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --border-color: #334155;
+      --font-mono: 'JetBrains Mono', 'Pretendard', monospace;
+    }}
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{
-      margin:0; background:#080d1a; color:#e2e8f0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Pretendard",sans-serif;
-      min-height:100vh; display:flex; flex-direction:column;
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }}
-    a {{ color:#60a5fa; text-decoration:none; }}
-    a:hover {{ text-decoration:underline; }}
+    a {{ color: #60a5fa; text-decoration: none; }}
+    a:hover {{ text-decoration: underline; }}
 
-    /* 1. 상단 공통 글로벌 헤더 (포털과 100% 동일한 네비게이션) */
-    .fig-global-header {{
-      background:#0f172a; border-bottom:1px solid #1e293b; height:56px; padding:0 20px;
-      display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100;
+    /* 1. TOP HEADER (메인 포털 https://figteam.ktci5.kr/ 와 100% 동일한 FHD FIXED 레이아웃) */
+    header {{
+      height: 52px;
+      border-bottom: 1px solid var(--surface-border);
+      background: rgba(15, 23, 42, 0.96);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      flex-shrink: 0;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }}
-    .g-brand {{ display:flex; align-items:center; gap:8px; font-weight:900; font-size:16px; color:#fff; text-decoration:none; }}
-    .g-brand-badge {{ font-size:11px; font-weight:700; color:#38bdf8; background:rgba(56,189,248,.12); border:1px solid rgba(56,189,248,.25); padding:2px 6px; border-radius:4px; }}
-    
-    .g-nav {{ display:flex; align-items:center; gap:4px; height:100%; }}
-    .g-link {{
-      display:flex; align-items:center; height:100%; padding:0 14px; font-size:13.5px; font-weight:700; color:#94a3b8; text-decoration:none; border-bottom:2px solid transparent; transition:all .15s;
+    .header-left {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
     }}
-    .g-link:hover {{ color:#f8fafc; background:rgba(255,255,255,.03); text-decoration:none; }}
-    .g-link.active {{ color:#fff; border-bottom-color:#3b82f6; background:rgba(59,130,246,.08); }}
+    .brand-title {{
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }}
+    .brand-tag {{
+      font-size: 10.5px;
+      font-weight: 600;
+      background: #1e293b;
+      color: var(--blue);
+      border: 1px solid #0284c7;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+    }}
+    .header-clock-timer {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11.5px;
+      font-family: var(--font-mono);
+      color: var(--text-sub);
+      background: #090d16;
+      border: 1px solid var(--surface-border);
+      padding: 3px 10px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }}
+    .pulse-dot {{
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--blue);
+      box-shadow: 0 0 6px var(--blue);
+    }}
 
+    /* TOP INFRASTATUS INDIVIDUAL BADGES */
+    .header-infra-status {{
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      flex: 1;
+      justify-content: center;
+    }}
+    .infra-badge-item {{
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #141e33;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 11px;
+      white-space: nowrap;
+    }}
+    .infra-badge-name {{
+      font-weight: 600;
+      color: #cbd5e1;
+    }}
+    .infra-badge-state {{
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }}
+    .state-green {{
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+    }}
+    .state-amber {{
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+    }}
+
+    /* HEADER RIGHT NAV BUTTONS */
+    .header-right {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }}
+    .fs-ctl {{ display: inline-flex; gap: 2px; margin-right: 6px; border: 1px solid var(--surface-border); border-radius: 5px; overflow: hidden; }}
+    .fs-btn {{ background: transparent; border: 0; color: var(--text-sub); padding: 4px 8px; font-size: 12px; cursor: pointer; font-family: inherit; }}
+    .fs-btn:hover {{ background: #1f2937; color: #fff; }}
+    .fs-btn + .fs-btn {{ border-left: 1px solid var(--surface-border); }}
+    .nav-btn {{
+      background: #1e293b;
+      border: 1px solid var(--surface-border);
+      color: var(--text-sub);
+      padding: 5px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-family: inherit;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+    }}
+    .nav-btn:hover {{
+      background: #334155;
+      color: #fff;
+      text-decoration: none;
+    }}
+    .nav-btn.active {{
+      background: var(--primary);
+      color: #fff;
+      border-color: #3b82f6;
+    }}
     .g-user-badge {{
-      display:flex; align-items:center; gap:8px; background:#0b1220; border:1px solid #1e293b; border-radius:999px; padding:4px 12px; font-size:12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #090d16;
+      border: 1px solid var(--surface-border);
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 11.5px;
     }}
-    .g-user-dot {{ width:7px; height:7px; border-radius:999px; background:#10b981; box-shadow:0 0 6px #10b981; }}
-    .g-user-dot.warn {{ background:#f59e0b; box-shadow:none; }}
-    .g-user-name {{ font-weight:700; color:#f8fafc; }}
-    .g-user-key {{ font-family:monospace; color:#93c5fd; font-size:11.5px; }}
+    .g-user-dot {{ width: 6px; height: 6px; border-radius: 50%; background: #10b981; box-shadow: 0 0 6px #10b981; }}
+    .g-user-dot.warn {{ background: #f59e0b; box-shadow: none; }}
+    .g-user-name {{ font-weight: 700; color: #f8fafc; }}
+    .g-user-key {{ font-family: var(--font-mono); color: #93c5fd; font-size: 11px; }}
 
-    /* 2. 메인 작업 레이아웃: 좌측 네비(260px) + 우측 콘텐츠 */
+    /* 2. 메인 워크스페이스 레이아웃: 좌측 사이드바(타이틀만 보유) + 우측 바디 */
     .hub-container {{
-      display:grid; grid-template-columns:260px 1fr; flex:1; min-height:calc(100vh - 56px);
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      flex: 1;
+      min-height: calc(100vh - 52px);
     }}
     @media (max-width: 900px) {{
-      .hub-container {{ grid-template-columns:1fr; }}
+      .hub-container {{ grid-template-columns: 1fr; }}
     }}
 
-    /* 좌측 사이드바 */
+    /* 좌측 사이드바 (설명 없이 오직 타이틀만 보유) */
     .hub-side {{
-      background:#0b1220; border-right:1px solid #1e293b; padding:20px 14px; display:flex; flex-direction:column; gap:20px;
+      background: #090e1a;
+      border-right: 1px solid var(--surface-border);
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
     }}
-    .side-title {{
-      font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.08em; padding-left:8px; margin-bottom:6px;
-    }}
-    .side-menu {{ display:flex; flex-direction:column; gap:4px; }}
+    .side-menu {{ display: flex; flex-direction: column; gap: 4px; }}
     .side-btn {{
-      display:flex; align-items:center; justify-content:space-between; width:100%; padding:11px 12px; border-radius:8px;
-      font-size:13.5px; font-weight:700; cursor:pointer; background:transparent; border:1px solid transparent; color:#94a3b8; text-align:left; transition:all .15s;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      background: transparent;
+      border: 1px solid transparent;
+      color: #94a3b8;
+      text-align: left;
+      transition: all .15s;
     }}
-    .side-btn:hover {{ background:#1e293b; color:#fff; }}
+    .side-btn:hover {{ background: #1e293b; color: #fff; }}
     .side-btn.active {{
-      background:#1e40af; border-color:#3b82f6; color:#fff; box-shadow:0 4px 12px rgba(30,64,175,.35);
+      background: #1e40af;
+      border-color: #3b82f6;
+      color: #fff;
     }}
     .badge-count {{
-      font-size:11px; font-weight:800; padding:2px 7px; border-radius:999px; background:#0f172a; color:#94a3b8;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: #0f172a;
+      color: #94a3b8;
     }}
-    .side-btn.active .badge-count {{ background:#2563eb; color:#fff; }}
-    .badge-warn {{ background:rgba(245,158,11,.2); color:#fde68a !important; }}
+    .side-btn.active .badge-count {{ background: #2563eb; color: #fff; }}
+    .badge-warn {{ background: rgba(245,158,11,.2); color: #fde68a !important; }}
 
-    .side-info-card {{
-      background:#0f172a; border:1px solid #1e293b; border-radius:8px; padding:12px; font-size:12px; color:#94a3b8; line-height:1.5;
-    }}
-    .side-info-card b {{ color:#f8fafc; }}
-
-    /* 우측 본문 */
+    /* 3. 우측 바디 콘텐츠 */
     .hub-content {{
-      padding:24px 32px; max-width:1100px; overflow-y:auto;
+      padding: 20px 28px;
+      max-width: 1120px;
+      overflow-y: auto;
     }}
     @media (max-width: 900px) {{
-      .hub-content {{ padding:16px 14px; }}
+      .hub-content {{ padding: 14px 12px; }}
     }}
 
-    /* 섹션 패널 */
-    .pane {{ display:none; }}
-    .pane.active {{ display:block; animation:fadeIn .15s ease-in-out; }}
-    @keyframes fadeIn {{ from {{ opacity:0; transform:translateY(2px); }} to {{ opacity:1; transform:translateY(0); }} }}
+    /* 바디 상단 작업 메뉴 (바디에 나눠진 작업을 메뉴로 분리) */
+    .task-nav-bar {{
+      display: flex;
+      gap: 4px;
+      background: #090e1a;
+      border: 1px solid var(--surface-border);
+      border-radius: 6px;
+      padding: 4px;
+      margin-bottom: 18px;
+      width: fit-content;
+    }}
+    .task-tab-btn {{
+      background: transparent;
+      border: 0;
+      color: #94a3b8;
+      padding: 6px 14px;
+      border-radius: 4px;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .15s;
+    }}
+    .task-tab-btn:hover {{
+      color: #fff;
+      background: #1e293b;
+    }}
+    .task-tab-btn.active {{
+      background: #2563eb;
+      color: #fff;
+    }}
 
-    .pane-header {{ margin-bottom:18px; }}
-    .pane-title {{ font-size:20px; font-weight:800; color:#fff; margin:0 0 4px; }}
-    .pane-desc {{ font-size:13px; color:#94a3b8; margin:0; line-height:1.5; }}
+    /* 작업 뷰 영역 */
+    .task-view {{ display: none; }}
+    .task-view.active {{ display: block; animation: fadeIn .12s ease-in-out; }}
+
+    /* 섹션 패널 */
+    .pane {{ display: none; }}
+    .pane.active {{ display: block; animation: fadeIn .12s ease-in-out; }}
+    @keyframes fadeIn {{ from {{ opacity: 0; transform: translateY(2px); }} to {{ opacity: 1; transform: translateY(0); }} }}
+
+    .pane-header {{ margin-bottom: 16px; }}
+    .pane-title {{ font-size: 19px; font-weight: 800; color: #fff; margin: 0 0 4px; }}
+    .pane-desc {{ font-size: 12.5px; color: #94a3b8; margin: 0; line-height: 1.5; }}
 
     /* 카드 */
     .work-card {{
-      background:#0f172a; border:1px solid #1e293b; border-radius:10px; padding:16px 18px; margin-bottom:12px;
-      transition:border-color .15s;
+      background: #0f172a;
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      transition: border-color .15s;
     }}
-    .work-card:hover {{ border-color:#334155; }}
-    .border-task {{ border-left:4px solid #f59e0b; }}
-    .border-share {{ border-left:4px solid #38bdf8; }}
+    .work-card:hover {{ border-color: #334155; }}
+    .border-task {{ border-left: 4px solid #f59e0b; }}
+    .border-share {{ border-left: 4px solid #38bdf8; }}
 
-    .card-head {{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px; }}
-    .card-title {{ font-size:15px; font-weight:800; color:#fff; margin-bottom:6px; }}
-    .card-desc {{ font-size:13.5px; color:#cbd5e1; white-space:pre-wrap; line-height:1.55; }}
-    .card-meta {{ font-size:12px; color:#94a3b8; }}
-    .card-sub-info {{ font-size:11.5px; color:#64748b; margin-top:6px; }}
-    .card-alert {{ background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.3); border-radius:6px; padding:6px 10px; font-size:12.5px; color:#fde68a; }}
+    .card-head {{ display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }}
+    .card-title {{ font-size: 14.5px; font-weight: 800; color: #fff; margin-bottom: 6px; }}
+    .card-desc {{ font-size: 13px; color: #cbd5e1; white-space: pre-wrap; line-height: 1.55; }}
+    .card-meta {{ font-size: 11.5px; color: #94a3b8; }}
+    .card-sub-info {{ font-size: 11px; color: #64748b; margin-top: 6px; }}
+    .card-alert {{ background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.3); border-radius: 6px; padding: 6px 10px; font-size: 12px; color: #fde68a; }}
 
     /* 태그 */
-    .tag {{ display:inline-block; font-size:11px; font-weight:800; padding:2px 7px; border-radius:4px; margin-right:4px; }}
-    .tag-task {{ background:rgba(245,158,11,.16); color:#fde68a; border:1px solid #d97706; }}
-    .tag-share {{ background:rgba(56,189,248,.14); color:#7dd3fc; border:1px solid #0284c7; }}
-    .tag-status {{ background:#1e293b; color:#cbd5e1; border:1px solid #334155; }}
-    .tag-area {{ background:#0b1220; color:#93c5fd; border:1px solid #1e3a8a; font-family:monospace; }}
-    .tag-target {{ background:rgba(16,185,129,.14); color:#6ee7b7; border:1px solid #059669; }}
+    .tag {{ display: inline-block; font-size: 10.5px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-right: 4px; }}
+    .tag-task {{ background: rgba(245,158,11,.16); color: #fde68a; border: 1px solid #d97706; }}
+    .tag-share {{ background: rgba(56,189,248,.14); color: #7dd3fc; border: 1px solid #0284c7; }}
+    .tag-status {{ background: #1e293b; color: #cbd5e1; border: 1px solid #334155; }}
+    .tag-area {{ background: #0b1220; color: #93c5fd; border: 1px solid #1e3a8a; font-family: var(--font-mono); }}
+    .tag-target {{ background: rgba(16,185,129,.14); color: #6ee7b7; border: 1px solid #059669; }}
 
     /* 버튼류 */
     .act-btn {{
-      padding:5px 11px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; background:#1e293b; border:1px solid #334155; color:#cbd5e1; transition:all .1s;
+      padding: 4px 10px;
+      border-radius: 5px;
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      transition: all .1s;
     }}
-    .act-btn:hover {{ border-color:#60a5fa; color:#fff; }}
-    .act-btn.active {{ background:#2563eb; border-color:#3b82f6; color:#fff; }}
-    .btn-done {{ background:#059669; border-color:#10b981; color:#fff; }}
-    .btn-done:hover {{ background:#047857; }}
+    .act-btn:hover {{ border-color: #60a5fa; color: #fff; }}
+    .act-btn.active {{ background: #2563eb; border-color: #3b82f6; color: #fff; }}
+    .btn-done {{ background: #059669; border-color: #10b981; color: #fff; }}
+    .btn-done:hover {{ background: #047857; }}
     .btn-submit {{
-      background:#2563eb; color:#fff; border:0; border-radius:8px; padding:11px 20px; font-size:14px; font-weight:800; cursor:pointer; transition:background .15s;
+      background: #2563eb;
+      color: #fff;
+      border: 0;
+      border-radius: 6px;
+      padding: 9px 18px;
+      font-size: 13.5px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: background .15s;
     }}
-    .btn-submit:hover {{ background:#1d4ed8; }}
-    .card-actions {{ display:flex; gap:6px; flex-wrap:wrap; }}
+    .btn-submit:hover {{ background: #1d4ed8; }}
+    .card-actions {{ display: flex; gap: 6px; flex-wrap: wrap; }}
 
     /* 폼 스타일 */
     .form-panel {{
-      background:#0f172a; border:1px solid #1e293b; border-radius:10px; padding:20px; margin-bottom:18px;
+      background: #0f172a;
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      padding: 18px;
+      margin-bottom: 16px;
     }}
-    .form-row {{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }}
-    @media (max-width:640px) {{ .form-row {{ grid-template-columns:1fr; }} }}
-    .form-group {{ margin-bottom:14px; }}
-    .form-label {{ display:block; font-size:12px; font-weight:700; color:#94a3b8; margin-bottom:5px; }}
+    .form-row {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }}
+    @media (max-width: 640px) {{ .form-row {{ grid-template-columns: 1fr; }} }}
+    .form-group {{ margin-bottom: 12px; }}
+    .form-label {{ display: block; font-size: 11.5px; font-weight: 700; color: #94a3b8; margin-bottom: 5px; }}
     input[type=text], input[type=password], select, textarea {{
-      width:100%; background:#0b1220; border:1px solid #1e293b; color:#fff; border-radius:6px; padding:9px 11px; font-size:13.5px; font-family:inherit;
+      width: 100%;
+      background: #0b1220;
+      border: 1px solid var(--surface-border);
+      color: #fff;
+      border-radius: 5px;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-family: inherit;
     }}
-    input:focus, select:focus, textarea:focus {{ outline:none; border-color:#3b82f6; }}
-    textarea {{ min-height:90px; resize:vertical; line-height:1.5; }}
+    input:focus, select:focus, textarea:focus {{ outline: none; border-color: #3b82f6; }}
+    textarea {{ min-height: 85px; resize: vertical; line-height: 1.5; }}
 
-    .quick-chips {{ display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 10px; }}
+    .quick-chips {{ display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }}
     .chip-btn {{
-      padding:5px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; background:#0b1220; border:1px solid #1e293b; color:#94a3b8;
+      padding: 4px 8px;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      background: #0b1220;
+      border: 1px solid var(--surface-border);
+      color: #94a3b8;
     }}
-    .chip-btn:hover {{ border-color:#3b82f6; color:#fff; background:#1e293b; }}
+    .chip-btn:hover {{ border-color: #3b82f6; color: #fff; background: #1e293b; }}
 
     /* KPI 바 */
-    .kpi-row {{ display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-bottom:16px; }}
-    .kpi-box {{ background:#0f172a; border:1px solid #1e293b; border-radius:8px; padding:10px 12px; }}
-    .kpi-title {{ font-size:11.5px; color:#94a3b8; font-weight:700; margin-bottom:4px; }}
-    .kpi-val {{ font-size:18px; font-weight:900; color:#fff; }}
+    .kpi-row {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 14px; }}
+    .kpi-box {{ background: #0f172a; border: 1px solid var(--surface-border); border-radius: 6px; padding: 8px 10px; }}
+    .kpi-title {{ font-size: 11px; color: #94a3b8; font-weight: 700; margin-bottom: 3px; }}
+    .kpi-val {{ font-size: 16px; font-weight: 900; color: #fff; }}
 
-    .filter-pills {{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }}
+    .filter-pills {{ display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }}
     .filter-pill {{
-      padding:6px 12px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; background:#0f172a; border:1px solid #1e293b; color:#94a3b8; text-decoration:none;
+      padding: 5px 11px;
+      border-radius: 5px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      background: #0f172a;
+      border: 1px solid var(--surface-border);
+      color: #94a3b8;
+      text-decoration: none;
     }}
-    .filter-pill:hover {{ color:#fff; border-color:#334155; text-decoration:none; }}
-    .filter-pill.active {{ background:#1e40af; border-color:#3b82f6; color:#fff; text-decoration:none; }}
+    .filter-pill:hover {{ color: #fff; border-color: #334155; text-decoration: none; }}
+    .filter-pill.active {{ background: #1e40af; border-color: #3b82f6; color: #fff; text-decoration: none; }}
 
     /* 알림 박스 */
-    .alert {{ padding:11px 14px; border-radius:8px; font-size:13px; margin-bottom:16px; }}
-    .alert-ok {{ background:rgba(16,185,129,.14); border:1px solid rgba(16,185,129,.35); color:#a7f3d0; }}
-    .alert-err {{ background:rgba(239,68,68,.14); border:1px solid rgba(239,68,68,.35); color:#fecaca; }}
-    .empty-box {{ text-align:center; padding:32px 16px; color:#64748b; font-size:13.5px; background:#0f172a; border:1px dashed #1e293b; border-radius:8px; }}
+    .alert {{ padding: 10px 14px; border-radius: 6px; font-size: 12.5px; margin-bottom: 14px; }}
+    .alert-ok {{ background: rgba(16,185,129,.14); border: 1px solid rgba(16,185,129,.35); color: #a7f3d0; }}
+    .alert-err {{ background: rgba(239,68,68,.14); border: 1px solid rgba(239,68,68,.35); color: #fecaca; }}
+    .empty-box {{ text-align: center; padding: 28px 16px; color: #64748b; font-size: 13px; background: #0f172a; border: 1px dashed var(--surface-border); border-radius: 6px; }}
 
-    .prog-bar {{ height:8px; background:#0b1220; border-radius:999px; overflow:hidden; margin:8px 0 16px; border:1px solid #1e293b; }}
-    .prog-fill {{ height:100%; background:#10b981; }}
+    .prog-bar {{ height: 8px; background: #0b1220; border-radius: 999px; overflow: hidden; margin: 8px 0 14px; border: 1px solid var(--surface-border); }}
+    .prog-fill {{ height: 100%; background: #10b981; }}
   </style>
 </head>
 <body>
-  <!-- 1. 상단 공통 글로벌 헤더 (메인 포털과 동일 메뉴) -->
-  <header class="fig-global-header">
-    <div style="display:flex;align-items:center;gap:20px;height:100%;">
-      <a href="/" class="g-brand">
-        <span>FIGTEAM</span>
-        <span class="g-brand-badge">인프라 자동복구</span>
-      </a>
-      <nav class="g-nav">
-        <a href="/" class="g-link">대시보드</a>
-        <a href="/#cfg/" class="g-link">설계/설정</a>
-        <a href="/#term/" class="g-link">콘솔</a>
-        <a href="/api/ai/hub" class="g-link active">협업 허브 (Discord)</a>
-      </nav>
+  <!-- 1. TOP HEADER (포털과 100% 동일한 FHD FIXED 메인 헤더 레이아웃) -->
+  <header>
+    <div class="header-left">
+      <div class="brand-title">
+        <a href="/" style="color:#fff;text-decoration:none;display:flex;align-items:center;gap:6px;">
+          <span>FIGTEAM 하이브리드 멀티클라우드</span>
+          <span class="brand-tag">v2.0 FHD</span>
+        </a>
+      </div>
+      <div class="header-clock-timer">
+        <span id="current-clock">2026-11-28 00:00:00 KST</span>
+        <span>·</span>
+        <div class="pulse-dot"></div>
+        <span id="timer-label">인프라 텔레메트리 연동</span>
+      </div>
     </div>
-    <div>
+
+    <!-- INDIVIDUAL INFRASTRUCTURE STATUS BADGES -->
+    <div class="header-infra-status">
+      <div class="infra-badge-item">
+        <span class="infra-badge-name">KT Edge</span>
+        <span class="infra-badge-state state-green">정상</span>
+      </div>
+      <div class="infra-badge-item">
+        <span class="infra-badge-name">온프렘 cp1</span>
+        <span class="infra-badge-state state-green">정상</span>
+      </div>
+      <div class="infra-badge-item">
+        <span class="infra-badge-name">온프렘 db01</span>
+        <span class="infra-badge-state state-green">정상</span>
+      </div>
+      <div class="infra-badge-item">
+        <span class="infra-badge-name">AWS CTL</span>
+        <span class="infra-badge-state state-green">정상</span>
+      </div>
+      <div class="infra-badge-item">
+        <span class="infra-badge-name">AWS DR</span>
+        <span class="infra-badge-state state-amber" title="AWS는 Standby 상태가 정상 가동입니다.">Standby(정상)</span>
+      </div>
+    </div>
+
+    <!-- NAVIGATION & LOGOUT -->
+    <div class="header-right">
+      <div class="fs-ctl" role="group" aria-label="글자 크기" title="글자 크기 조절">
+        <button type="button" class="fs-btn" onclick="figFont(-1)" aria-label="글자 작게">가−</button>
+        <button type="button" class="fs-btn" onclick="figFont(0)" aria-label="글자 기본" title="기본으로">가</button>
+        <button type="button" class="fs-btn" onclick="figFont(1)" aria-label="글자 크게">가+</button>
+      </div>
+      <a class="nav-btn" href="/">대시보드</a>
+      <a class="nav-btn" href="/#cfg/">설계/설정</a>
+      <a class="nav-btn" href="/#term/">콘솔</a>
+      <a class="nav-btn active" href="/api/ai/hub#inbox">협업 허브</a>
       {user_header_html}
     </div>
   </header>
 
-  <!-- 2. 메인 워크스페이스 레이아웃 (좌측 메뉴 + 우측 바디) -->
+  <!-- 2. 메인 워크스페이스 레이아웃 (좌측 사이드바: 타이틀만 보유 + 우측 바디) -->
   <div class="hub-container">
-    <!-- 좌측 사이드바 -->
+    <!-- 좌측 사이드바 (설명 없이 오직 타이틀만 보유) -->
     <aside class="hub-side">
-      <div>
-        <div class="side-title">협업 워크스페이스</div>
-        <nav class="side-menu hub-nav" id="hub-menu">
-          <button type="button" class="side-btn" data-pane="inbox" onclick="switchHubTab('inbox')">
-            <span>수신함 (디코 ➔ 웹)</span>
-            <span class="badge-count badge-warn">{dc_sum['tasks_open']}</span>
-          </button>
-          <button type="button" class="side-btn" data-pane="dispatch" onclick="switchHubTab('dispatch')">
-            <span>발신함 (웹 ➔ 디코)</span>
-            <span class="badge-count">{len(shares)}</span>
-          </button>
-          <button type="button" class="side-btn" data-pane="goals" onclick="switchHubTab('goals')">
-            <span>공동 목표 및 AI 연계</span>
-            <span class="badge-count">{gs['done']}/{gs['total']}</span>
-          </button>
-          <button type="button" class="side-btn" data-pane="portal" onclick="switchHubTab('portal')">
-            <span>포털 변경 이력</span>
-            <span class="badge-count">{len(ch_list)}</span>
-          </button>
-        </nav>
-      </div>
-
-      <div class="side-info-card">
-        <div style="margin-bottom:6px;font-weight:700;color:#f8fafc;">연동 현황</div>
-        <div>상태: <span style="color:#10b981;font-weight:700;">{dc_status_label}</span></div>
-        <div style="margin-top:4px;">채널: <code>#figteaminfra</code></div>
-        <div style="margin-top:6px;font-size:11.5px;color:#64748b;">포털에서 이름을 1회 설정하면 허브에 자동 연동됩니다.</div>
-      </div>
+      <nav class="side-menu hub-nav" id="hub-menu">
+        <button type="button" class="side-btn" data-pane="inbox" onclick="switchHubTab('inbox')">
+          <span>수신함 (디코 ➔ 웹)</span>
+          <span class="badge-count badge-warn">{dc_sum['tasks_open']}</span>
+        </button>
+        <button type="button" class="side-btn" data-pane="dispatch" onclick="switchHubTab('dispatch')">
+          <span>발신함 (웹 ➔ 디코)</span>
+          <span class="badge-count">{len(shares)}</span>
+        </button>
+        <button type="button" class="side-btn" data-pane="goals" onclick="switchHubTab('goals')">
+          <span>공동 목표 및 AI 연계</span>
+          <span class="badge-count">{gs['done']}/{gs['total']}</span>
+        </button>
+        <button type="button" class="side-btn" data-pane="portal" onclick="switchHubTab('portal')">
+          <span>포털 변경 이력</span>
+          <span class="badge-count">{len(ch_list)}</span>
+        </button>
+      </nav>
     </aside>
 
-    <!-- 우측 본문 -->
+    <!-- 우측 본문 (바디에 나눠진 작업을 작업 메뉴로 분리) -->
     <main class="hub-content">
       {err_html}{notice_html}
 
@@ -1773,38 +2050,50 @@ def render_collab_hub_html(
           <p class="pane-desc">Discord #figteaminfra 채널에서 들어온 확인 요청 및 공유 사항을 한곳에서 관리합니다.</p>
         </div>
 
-        <div class="kpi-row">
-          <div class="kpi-box"><div class="kpi-title">전체 접수</div><div class="kpi-val">{dc_sum['total']}건</div></div>
-          <div class="kpi-box" style="border-left:3px solid #f59e0b;"><div class="kpi-title" style="color:#fde68a;">미처리 과제</div><div class="kpi-val" style="color:#fde68a;">{dc_sum['tasks_open']}건</div></div>
-          <div class="kpi-box" style="border-left:3px solid #3b82f6;"><div class="kpi-title">진행중</div><div class="kpi-val">{dc_sum['tasks_in_progress']}건</div></div>
-          <div class="kpi-box" style="border-left:3px solid #10b981;"><div class="kpi-title">처리완료</div><div class="kpi-val">{dc_sum['tasks_done']}건</div></div>
-          <div class="kpi-box" style="border-left:3px solid #38bdf8;"><div class="kpi-title">공유 정보</div><div class="kpi-val">{dc_sum['shares']}건</div></div>
+        <!-- 바디 작업 메뉴 1: 수신 과제 목록 / 신규 과제 접수 -->
+        <div class="task-nav-bar" id="inbox-task-nav">
+          <button type="button" class="task-tab-btn active" data-task="list" onclick="switchTaskView('inbox', 'list')">수신 과제 목록 ({dc_sum['total']})</button>
+          <button type="button" class="task-tab-btn" data-task="create" onclick="switchTaskView('inbox', 'create')">신규 과제 수동 접수</button>
         </div>
 
-        <div class="filter-pills">
-          <a class="filter-pill" href="/api/ai/hub?tab=inbox&amp;dc_filter=all">전체 ({dc_sum['total']})</a>
-          <a class="filter-pill" href="/api/ai/hub?tab=inbox&amp;dc_filter=task">처리할 과제 ({dc_sum['tasks_total']})</a>
-          <a class="filter-pill" href="/api/ai/hub?tab=inbox&amp;dc_filter=open_task">미처리 과제 ({dc_sum['tasks_open'] + dc_sum['tasks_in_progress']})</a>
-          <a class="filter-pill" href="/api/ai/hub?tab=inbox&amp;dc_filter=share">공유 ({dc_sum['shares']})</a>
+        <!-- 작업 1-A: 수신 과제 목록 -->
+        <div class="task-view active" id="inbox-view-list">
+          <div class="kpi-row">
+            <div class="kpi-box"><div class="kpi-title">전체 접수</div><div class="kpi-val">{dc_sum['total']}건</div></div>
+            <div class="kpi-box" style="border-left:3px solid #f59e0b;"><div class="kpi-title" style="color:#fde68a;">미처리 과제</div><div class="kpi-val" style="color:#fde68a;">{dc_sum['tasks_open']}건</div></div>
+            <div class="kpi-box" style="border-left:3px solid #3b82f6;"><div class="kpi-title">진행중</div><div class="kpi-val">{dc_sum['tasks_in_progress']}건</div></div>
+            <div class="kpi-box" style="border-left:3px solid #10b981;"><div class="kpi-title">처리완료</div><div class="kpi-val">{dc_sum['tasks_done']}건</div></div>
+            <div class="kpi-box" style="border-left:3px solid #38bdf8;"><div class="kpi-title">공유 정보</div><div class="kpi-val">{dc_sum['shares']}건</div></div>
+          </div>
+
+          <div class="filter-pills">
+            <a class="filter-pill" href="/api/ai/hub?tab=inbox&amp;dc_filter=all">전체 ({dc_sum['total']})</a>
+            <a class="filter-pill" href="/api/ai/hub?tab=inbox&amp;dc_filter=task">처리할 과제 ({dc_sum['tasks_total']})</a>
+            <a class="filter-pill" href="/api/ai/hub?tab=inbox&amp;dc_filter=open_task">미처리 과제 ({dc_sum['tasks_open'] + dc_sum['tasks_in_progress']})</a>
+            <a class="filter-pill" href="/api/ai/hub?tab=inbox&amp;dc_filter=share">공유 ({dc_sum['shares']})</a>
+          </div>
+
+          {discord_inbox_html}
         </div>
 
-        {discord_inbox_html}
-
-        <div class="form-panel" style="margin-top:24px;">
-          <h2 style="font-size:15px;color:#fff;margin:0 0 4px;">신규 과제 또는 멘션 수동 접수</h2>
-          <p style="font-size:12.5px;color:#94a3b8;margin:0 0 12px;">회의 중 발생한 인프라 과제나 점검 사항을 웹에서 직접 등록하면 디스코드에 알림이 전송됩니다.</p>
-          <form method="post" action="/api/ai/hub/discord-ingest">
-            <input type="hidden" name="tab" value="inbox">
-            <div class="form-row">
-              <div><label class="form-label">채널</label><input type="text" name="channel" value="figteaminfra" maxlength="60"></div>
-              <div><label class="form-label">구분</label><select name="category"><option value="">자동 구분</option><option value="task">처리할 과제</option><option value="share">공유 정보</option></select></div>
-            </div>
-            <div class="form-group">
-              <label class="form-label">내용 (#figteaminfra 멘션 포함)</label>
-              <textarea name="content" required placeholder="예: #figteaminfra KT Edge 502 에러 간헐 발생 점검 필요"></textarea>
-            </div>
-            <button type="submit" class="btn-submit">과제 접수 및 Discord 알림</button>
-          </form>
+        <!-- 작업 1-B: 신규 과제 수동 접수 -->
+        <div class="task-view" id="inbox-view-create">
+          <div class="form-panel">
+            <h2 style="font-size:14px;color:#fff;margin:0 0 4px;">신규 과제 또는 멘션 수동 접수</h2>
+            <p style="font-size:12px;color:#94a3b8;margin:0 0 12px;">회의 중 발생한 인프라 과제나 점검 사항을 웹에서 직접 등록하면 디스코드에 알림이 전송됩니다.</p>
+            <form method="post" action="/api/ai/hub/discord-ingest">
+              <input type="hidden" name="tab" value="inbox">
+              <div class="form-row">
+                <div><label class="form-label">채널</label><input type="text" name="channel" value="figteaminfra" maxlength="60"></div>
+                <div><label class="form-label">구분</label><select name="category"><option value="">자동 구분</option><option value="task">처리할 과제</option><option value="share">공유 정보</option></select></div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">내용 (#figteaminfra 멘션 포함)</label>
+                <textarea name="content" required placeholder="예: #figteaminfra KT Edge 502 에러 간헐 발생 점검 필요"></textarea>
+              </div>
+              <button type="submit" class="btn-submit">과제 접수 및 Discord 알림</button>
+            </form>
+          </div>
         </div>
       </section>
 
@@ -1815,54 +2104,64 @@ def render_collab_hub_html(
           <p class="pane-desc">인프라 작업 결과나 점검 내용을 작성하면 Discord 채널로 실시간 알림이 발송되고 팀 피드에 기록됩니다.</p>
         </div>
 
-        <div class="form-panel">
-          <form method="post" action="/api/ai/hub">
-            <input type="hidden" name="tab" value="dispatch">
-            
-            <div class="form-group">
-              <label class="form-label">대상 인프라 영역 (아래 버튼을 누르면 자동 입력됩니다)</label>
-              <div class="quick-chips">
-                <button type="button" class="chip-btn" onclick="setArea('inst-ktedge/nginx')">KT Edge (Nginx)</button>
-                <button type="button" class="chip-btn" onclick="setArea('inst-cp1/k8s')">k8s 마스터 (cp1)</button>
-                <button type="button" class="chip-btn" onclick="setArea('inst-db01/mysql')">MySQL DB (db-01)</button>
-                <button type="button" class="chip-btn" onclick="setArea('inst-awsdr/dr')">AWS DR (Warm-Standby)</button>
-                <button type="button" class="chip-btn" onclick="setArea('network/wireguard')">WireGuard 풀메쉬</button>
-                <button type="button" class="chip-btn" onclick="setArea('openstack/core')">OpenStack Core</button>
-                <button type="button" class="chip-btn" onclick="setArea('general')">일반 공통</button>
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div><label class="form-label">영역 코드</label><input type="text" id="dispatch-area" name="area" value="{esc(prefill.get('area') or 'general')}" maxlength="60"></div>
-              <div><label class="form-label">진행 상태</label><select name="status">{options_html}</select></div>
-            </div>
-
-            <div class="form-row">
-              <div><label class="form-label">연계 목표 (선택)</label><select name="goal_id">{goal_select_html}</select></div>
-              <div><label class="form-label">연계 목표 상태 변경 (선택)</label><select name="goal_status">{"".join(g_st_opts)}</select></div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">제목</label>
-              <input type="text" name="title" value="{esc(prefill.get('title') or '')}" placeholder="예: k3s flannel 10.42.0.0/16 서브넷 점검 완료" maxlength="120">
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">작업 내용 요약</label>
-              <textarea name="summary" required placeholder="수행한 작업 내용, 변경 파라미터, 확인된 수치를 입력하세요.">{esc(prefill.get('summary') or '')}</textarea>
-            </div>
-
-            <div class="form-row">
-              <div><label class="form-label">타 영역 확인 요청 (선택)</label><input type="text" name="check_request" value="{esc(prefill.get('check_request') or '')}" placeholder="예: AWS DR 담당자 ch_dr 확인 부탁드립니다" maxlength="400"></div>
-              <div><label class="form-label">관련 포털 URL (선택)</label><input type="text" name="cfg_url" value="{esc(prefill.get('cfg_url') or '')}" placeholder="예: https://figteam.ktci5.kr/#cfg/inst-db01" maxlength="300"></div>
-            </div>
-
-            <button type="submit" class="btn-submit">Discord 공유 및 팀 피드 기록</button>
-          </form>
+        <!-- 바디 작업 메뉴 2: 상황 공유 작성 / 최근 공유 내역 -->
+        <div class="task-nav-bar" id="dispatch-task-nav">
+          <button type="button" class="task-tab-btn active" data-task="form" onclick="switchTaskView('dispatch', 'form')">상황 공유 작성 및 발신</button>
+          <button type="button" class="task-tab-btn" data-task="feed" onclick="switchTaskView('dispatch', 'feed')">최근 팀 공유 내역 ({len(shares)})</button>
         </div>
 
-        <div style="margin-top:20px;">
-          <h2 style="font-size:16px;color:#fff;margin:0 0 10px;">최근 팀 공유 내역</h2>
+        <!-- 작업 2-A: 상황 공유 작성 -->
+        <div class="task-view active" id="dispatch-view-form">
+          <div class="form-panel">
+            <form method="post" action="/api/ai/hub">
+              <input type="hidden" name="tab" value="dispatch">
+              
+              <div class="form-group">
+                <label class="form-label">대상 인프라 영역 (아래 버튼을 누르면 자동 입력됩니다)</label>
+                <div class="quick-chips">
+                  <button type="button" class="chip-btn" onclick="setArea('inst-ktedge/nginx')">KT Edge (Nginx)</button>
+                  <button type="button" class="chip-btn" onclick="setArea('inst-cp1/k8s')">k8s 마스터 (cp1)</button>
+                  <button type="button" class="chip-btn" onclick="setArea('inst-db01/mysql')">MySQL DB (db-01)</button>
+                  <button type="button" class="chip-btn" onclick="setArea('inst-awsdr/dr')">AWS DR (Warm-Standby)</button>
+                  <button type="button" class="chip-btn" onclick="setArea('network/wireguard')">WireGuard 풀메쉬</button>
+                  <button type="button" class="chip-btn" onclick="setArea('openstack/core')">OpenStack Core</button>
+                  <button type="button" class="chip-btn" onclick="setArea('general')">일반 공통</button>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div><label class="form-label">영역 코드</label><input type="text" id="dispatch-area" name="area" value="{esc(prefill.get('area') or 'general')}" maxlength="60"></div>
+                <div><label class="form-label">진행 상태</label><select name="status">{options_html}</select></div>
+              </div>
+
+              <div class="form-row">
+                <div><label class="form-label">연계 목표 (선택)</label><select name="goal_id">{goal_select_html}</select></div>
+                <div><label class="form-label">연계 목표 상태 변경 (선택)</label><select name="goal_status">{"".join(g_st_opts)}</select></div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">제목</label>
+                <input type="text" name="title" value="{esc(prefill.get('title') or '')}" placeholder="예: k3s flannel 10.42.0.0/16 서브넷 점검 완료" maxlength="120">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">작업 내용 요약</label>
+                <textarea name="summary" required placeholder="수행한 작업 내용, 변경 파라미터, 확인된 수치를 입력하세요.">{esc(prefill.get('summary') or '')}</textarea>
+              </div>
+
+              <div class="form-row">
+                <div><label class="form-label">타 영역 확인 요청 (선택)</label><input type="text" name="check_request" value="{esc(prefill.get('check_request') or '')}" placeholder="예: AWS DR 담당자 ch_dr 확인 부탁드립니다" maxlength="400"></div>
+                <div><label class="form-label">관련 포털 URL (선택)</label><input type="text" name="cfg_url" value="{esc(prefill.get('cfg_url') or '')}" placeholder="예: https://figteam.ktci5.kr/#cfg/inst-db01" maxlength="300"></div>
+              </div>
+
+              <button type="submit" class="btn-submit">Discord 공유 및 팀 피드 기록</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- 작업 2-B: 최근 공유 내역 -->
+        <div class="task-view" id="dispatch-view-feed">
+          <div style="margin-bottom:12px;font-size:13.5px;font-weight:700;color:#fff;">최근 팀 공유 내역</div>
           {feed_html}
         </div>
       </section>
@@ -1874,53 +2173,65 @@ def render_collab_hub_html(
           <p class="pane-desc">인프라 목표 달성률을 추적하고, ChatGPT, Claude, Gemini에 현재 인프라 현황을 원클릭으로 주입합니다.</p>
         </div>
 
-        <div class="form-panel">
-          <h2 style="font-size:15px;color:#fff;margin:0 0 6px;">3대 AI 채팅 1-Click 연계</h2>
-          <p style="font-size:12.5px;color:#94a3b8;margin:0 0 12px;">현재 인프라 상태와 목표 브리핑을 AI 창으로 자동 전달합니다.</p>
-          
-          <div class="form-group">
-            <label class="form-label">집중 공동 목표 선택</label>
-            <select id="hub-focus-goal">{goal_select_html}</select>
-          </div>
-
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button type="button" class="btn-submit" style="background:#059669;padding:9px 14px;font-size:13px;" onclick="launchAi('chatgpt')">ChatGPT로 열기</button>
-            <button type="button" class="btn-submit" style="background:#d97706;padding:9px 14px;font-size:13px;" onclick="launchAi('claude')">Claude로 열기</button>
-            <button type="button" class="btn-submit" style="background:#2563eb;padding:9px 14px;font-size:13px;" onclick="launchAi('gemini')">Gemini로 열기</button>
-            <button type="button" class="act-btn" id="btn-copy-prompt" style="padding:9px 14px;font-size:13px;" onclick="launchAi('copy')">공통 프롬프트 복사</button>
-          </div>
-          <p id="hub-launch-msg" style="margin:10px 0 0;font-size:12px;color:#94a3b8;"></p>
-          <textarea id="hub-fallback-prompt" readonly style="margin-top:10px;min-height:70px;font-size:12px;color:#94a3b8;{'display:none;' if not full_prompt_txt else ''}">{full_prompt_txt}</textarea>
+        <!-- 바디 작업 메뉴 3: 공동 목표 보드 / AI 연계 -->
+        <div class="task-nav-bar" id="goals-task-nav">
+          <button type="button" class="task-tab-btn active" data-task="board" onclick="switchTaskView('goals', 'board')">공동 목표 보드 ({gs['done']}/{gs['total']})</button>
+          <button type="button" class="task-tab-btn" data-task="ai" onclick="switchTaskView('goals', 'ai')">AI 프롬프트 1-Click 연계</button>
         </div>
 
-        <div class="form-panel">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <h2 style="font-size:15px;color:#fff;margin:0;">공동 목표 보드 (달성 {gs['done']}/{gs['total']} · {gs['percent']}%)</h2>
-            <span style="font-weight:900;color:#10b981;font-size:15px;">{gs['percent']}%</span>
+        <!-- 작업 3-A: 공동 목표 보드 -->
+        <div class="task-view active" id="goals-view-board">
+          <div class="form-panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <h2 style="font-size:14.5px;color:#fff;margin:0;">공동 목표 보드 (달성 {gs['done']}/{gs['total']} · {gs['percent']}%)</h2>
+              <span style="font-weight:900;color:#10b981;font-size:15px;">{gs['percent']}%</span>
+            </div>
+            <div class="prog-bar"><div class="prog-fill" style="width:{gs['percent']}%;"></div></div>
+
+            {goals_board_html}
+
+            <details style="margin-top:16px;">
+              <summary style="cursor:pointer;font-weight:700;color:#93c5fd;font-size:13px;">+ 신규 공동 목표 추가</summary>
+              <form method="post" action="/api/ai/hub/goal" style="margin-top:12px;">
+                <input type="hidden" name="tab" value="goals">
+                <div class="form-row">
+                  <div><label class="form-label">목표 제목</label><input type="text" name="title" placeholder="예: 3사 DR 자동 절체 리허설 성공" maxlength="120" required></div>
+                  <div><label class="form-label">대상 영역</label><input type="text" name="area" value="{esc(prefill.get('area') or 'general')}" maxlength="60"></div>
+                </div>
+                <div class="form-row">
+                  <div><label class="form-label">담당자</label><input type="text" name="owner" value="{member_name}" placeholder="담당자 이름" maxlength="40"></div>
+                  <div><label class="form-label">기한</label><input type="text" name="target_date" placeholder="예: 2026-11-30" maxlength="20"></div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">완료 기준 및 검증 메모</label>
+                  <input type="text" name="note" placeholder="예: ch_dr 지연 0초 및 200 OK 확인" maxlength="600">
+                </div>
+                <button type="submit" class="btn-submit">목표 등록 및 알림</button>
+              </form>
+            </details>
           </div>
-          <div class="prog-bar"><div class="prog-fill" style="width:{gs['percent']}%;"></div></div>
+        </div>
 
-          {goals_board_html}
+        <!-- 작업 3-B: AI 연계 -->
+        <div class="task-view" id="goals-view-ai">
+          <div class="form-panel">
+            <h2 style="font-size:14px;color:#fff;margin:0 0 6px;">3대 AI 채팅 1-Click 연계</h2>
+            <p style="font-size:12px;color:#94a3b8;margin:0 0 12px;">현재 인프라 상태와 목표 브리핑을 AI 창으로 자동 전달합니다.</p>
+            
+            <div class="form-group">
+              <label class="form-label">집중 공동 목표 선택</label>
+              <select id="hub-focus-goal">{goal_select_html}</select>
+            </div>
 
-          <details style="margin-top:16px;">
-            <summary style="cursor:pointer;font-weight:700;color:#93c5fd;font-size:13px;">+ 신규 공동 목표 추가</summary>
-            <form method="post" action="/api/ai/hub/goal" style="margin-top:12px;">
-              <input type="hidden" name="tab" value="goals">
-              <div class="form-row">
-                <div><label class="form-label">목표 제목</label><input type="text" name="title" placeholder="예: 3사 DR 자동 절체 리허설 성공" maxlength="120" required></div>
-                <div><label class="form-label">대상 영역</label><input type="text" name="area" value="{esc(prefill.get('area') or 'general')}" maxlength="60"></div>
-              </div>
-              <div class="form-row">
-                <div><label class="form-label">담당자</label><input type="text" name="owner" value="{member_name}" placeholder="담당자 이름" maxlength="40"></div>
-                <div><label class="form-label">기한</label><input type="text" name="target_date" placeholder="예: 2026-11-30" maxlength="20"></div>
-              </div>
-              <div class="form-group">
-                <label class="form-label">완료 기준 및 검증 메모</label>
-                <input type="text" name="note" placeholder="예: ch_dr 지연 0초 및 200 OK 확인" maxlength="600">
-              </div>
-              <button type="submit" class="btn-submit">목표 등록 및 알림</button>
-            </form>
-          </details>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button type="button" class="btn-submit" style="background:#059669;padding:8px 14px;font-size:12.5px;" onclick="launchAi('chatgpt')">ChatGPT로 열기</button>
+              <button type="button" class="btn-submit" style="background:#d97706;padding:8px 14px;font-size:12.5px;" onclick="launchAi('claude')">Claude로 열기</button>
+              <button type="button" class="btn-submit" style="background:#2563eb;padding:8px 14px;font-size:12.5px;" onclick="launchAi('gemini')">Gemini로 열기</button>
+              <button type="button" class="act-btn" id="btn-copy-prompt" style="padding:8px 14px;font-size:12.5px;" onclick="launchAi('copy')">공통 프롬프트 복사</button>
+            </div>
+            <p id="hub-launch-msg" style="margin:10px 0 0;font-size:12px;color:#94a3b8;"></p>
+            <textarea id="hub-fallback-prompt" readonly style="margin-top:10px;min-height:70px;font-size:12px;color:#94a3b8;{'display:none;' if not full_prompt_txt else ''}">{full_prompt_txt}</textarea>
+          </div>
         </div>
       </section>
 
@@ -1965,6 +2276,48 @@ def render_collab_hub_html(
         history.replaceState(null, '', '#' + tabName);
         localStorage.setItem('figteam_hub_tab', tabName);
       }} catch (e) {{}}
+    }}
+
+    // 바디 내 작업 메뉴 전환 함수
+    function switchTaskView(paneName, taskName) {{
+      const nav = document.getElementById(paneName + '-task-nav');
+      if (nav) {{
+        nav.querySelectorAll('.task-tab-btn').forEach(b => {{
+          if (b.getAttribute('data-task') === taskName) {{
+            b.classList.add('active');
+          }} else {{
+            b.classList.remove('active');
+          }}
+        }});
+      }}
+      const pane = document.getElementById('pane-' + paneName);
+      if (pane) {{
+        pane.querySelectorAll('.task-view').forEach(v => {{
+          if (v.id === paneName + '-view-' + taskName) {{
+            v.classList.add('active');
+          }} else {{
+            v.classList.remove('active');
+          }}
+        }});
+      }}
+    }}
+
+    // 탑 헤더 실시간 시계 연동
+    function updateClock() {{
+      const d = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      const s = `${{d.getFullYear()}}-${{pad(d.getMonth()+1)}}-${{pad(d.getDate())}} ${{pad(d.getHours())}}:${{pad(d.getMinutes())}}:${{pad(d.getSeconds())}} KST`;
+      const el = document.getElementById('current-clock');
+      if (el) el.textContent = s;
+    }}
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // 탑 헤더 글자 크기 조절
+    function figFont(delta) {{
+      const cur = parseInt(document.documentElement.style.fontSize || '14', 10);
+      const next = delta === 0 ? 14 : Math.min(18, Math.max(12, cur + delta));
+      document.documentElement.style.fontSize = next + 'px';
     }}
 
     // 자동 이름 연동 (포털에서 1회 설정된 이름을 읽어 허브 세션 자동 생성)
