@@ -80,6 +80,65 @@ def create_app():
     def ip_of(conn):
         return conn.headers.get("cf-connecting-ip") or (conn.client.host if conn.client else "-")
 
+    def _summarize_ua(ua):
+        raw = str(ua or "").strip()
+        if not raw:
+            return ""
+        if "curl/" in raw:
+            browser = "curl"
+        elif "Edg/" in raw:
+            browser = "Edge"
+        elif "Chrome/" in raw:
+            browser = "Chrome"
+        elif "Firefox/" in raw:
+            browser = "Firefox"
+        elif "Safari/" in raw:
+            browser = "Safari"
+        else:
+            browser = raw.split(" ", 1)[0][:24]
+        os_name = "iOS" if ("iPhone" in raw or "iPad" in raw) else "Android" if "Android" in raw else "macOS" if ("Mac OS X" in raw or "Macintosh" in raw) else "Windows" if "Windows" in raw else "Linux" if "Linux" in raw else ""
+        return (f"{browser} · {os_name}" if os_name else browser)[:64]
+
+    visits_path = pathlib.Path(os.environ.get("CONSOLE_VISITS") or (lock.store.with_name("visits.json") if lock.store else "/tmp/figteam-console-visits.json"))
+    try:
+        visits_buf = json.loads(visits_path.read_text(encoding="utf-8")) if visits_path.exists() else []
+        if not isinstance(visits_buf, list):
+            visits_buf = []
+    except (OSError, ValueError):
+        visits_buf = []
+    visit_last_anon = {}
+
+    def _record_visit(auth_state, path, view, ip, ua="", access_key="", member="", detail="", throttle_anon=False):
+        now = int(time.time())
+        if throttle_anon and ip:
+            prev = visit_last_anon.get(ip, 0)
+            if now - prev < 60:
+                return
+            visit_last_anon[ip] = now
+        ak = normalize_access_key(access_key or "")
+        entry = {
+            "ts": now,
+            "auth_state": auth_state,
+            "path": str(path or "/")[:120],
+            "view": str(view or "console")[:32],
+            "ip": str(ip or "")[:64],
+            "ua": _summarize_ua(ua),
+            "access_key": ak,
+            "member": str(member or "").strip()[:20],
+            "detail": str(detail or "")[:120],
+        }
+        visits_buf.insert(0, entry)
+        del visits_buf[500:]
+        try:
+            visits_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = visits_path.with_suffix(".tmp")
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(visits_buf, f, ensure_ascii=False)
+            os.replace(tmp, visits_path)
+        except OSError:
+            pass
+
     @app.middleware("http")
     async def _origin(request: Request, call_next):
         if request.method in ("POST", "PUT", "DELETE") and request.headers.get("origin") != origin:
@@ -89,6 +148,7 @@ def create_app():
     @app.post("/console/api/unlock")
     async def unlock(request: Request, response: Response):
         ip = ip_of(request)
+        ua = request.headers.get("user-agent", "")
         if lock.limited(ip):
             return JSONResponse({"error": "시도가 많습니다. 10분 뒤 다시 시도하세요"}, status_code=429)
         try:
@@ -100,12 +160,15 @@ def create_app():
         try:
             token = lock.unlock(str(data.get("password") or ""), ip, access_key=ak, member=member)
         except ValueError as e:
+            _record_visit("expired", "/console/api/unlock", "login", ip, ua, ak, member, "접속 키 누락 거부")
             return JSONResponse({"error": str(e), "field": "access_key"}, status_code=422)
         if not token:
             log.warning("unlock failed ip=%s", ip)
+            _record_visit("login_fail", "/console/api/unlock", "login", ip, ua, ak, member, "콘솔/사이트 비밀번호 오류")
             return JSONResponse({"error": "콘솔 비밀번호가 맞지 않습니다"}, status_code=401)
         norm_ak = normalize_access_key(ak)
         log.info("unlock ok ip=%s key=%s", ip, norm_ak or "-")
+        _record_visit("authenticated", "/console/api/unlock", "login", ip, ua, norm_ak, member, "콘솔/사이트 로그인 성공")
         response.set_cookie(COOKIE, token, max_age=TTL, httponly=True, secure=True, samesite="strict", path="/console")
         return {"ok": True, "ttl": TTL, "access_key": norm_ak}
 
@@ -147,7 +210,9 @@ def create_app():
     @app.get("/console/api/me")
     def me(request: Request, response: Response):
         """사이트 입장 로그인 상태 (서버 확인). 대시보드 첫 화면이 이걸로 로그인 여부를 판단한다."""
-        status, info = lock.check_detail(request.cookies.get(COOKIE), ip_of(request))
+        ip = ip_of(request)
+        ua = request.headers.get("user-agent", "")
+        status, info = lock.check_detail(request.cookies.get(COOKIE), ip)
         if status == "ok":
             out = {"unlocked": True, "ttl": TTL}
             if info and info.get("access_key"):
@@ -156,15 +221,25 @@ def create_app():
                 out["member"] = info["member"]
             return out
         if status == "no_key":
+            _record_visit("expired", "/console/api/me", "login", ip, ua, detail="접속 키 없는 콘솔 세션 만료")
             response.delete_cookie(COOKIE, path="/console")
             return {"unlocked": False, "key_expired": True}
+        _record_visit("visitor", "/console/api/me", "login", ip, ua, detail="미로그인 상태 사이트 접속", throttle_anon=True)
         return {"unlocked": False}
 
     @app.post("/console/api/lock")
     def lock_(request: Request, response: Response):
+        _record_visit("logout", "/console/api/lock", "login", ip_of(request), request.headers.get("user-agent", ""), detail="로그아웃 / 세션 잠금")
         lock.lock(request.cookies.get(COOKIE))
         response.delete_cookie(COOKIE, path="/console")
         return {"ok": True}
+
+    @app.get("/console/api/visitors")
+    def list_visitors(request: Request, limit: int = 200):
+        if not unlocked(request):
+            return JSONResponse({"error": "로그인이 필요합니다"}, status_code=401)
+        lim = max(1, min(int(limit or 200), 500))
+        return {"visitors": visits_buf[:lim]}
 
     @app.get("/console/api/targets")
     def list_targets(request: Request):

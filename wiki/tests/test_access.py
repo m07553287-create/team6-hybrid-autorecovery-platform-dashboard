@@ -139,3 +139,27 @@ def test_auto_login_requires_access_key_header_and_bulk_expire(r, monkeypatch):
         # 유효한 X-Fig-Access-Key 헤더가 있으면 키 바인딩된 자동 세션 발급
         r_hdr = c.get("/api/me", headers={"X-Fig-Access-Key": "AUTO99"})
         assert r_hdr.status_code == 200 and r_hdr.json()["access_key"] == "AUTO99"
+
+
+def test_site_visit_beacon_and_visitors_endpoint(client):
+    # 비로그인 상태에서 사이트 전체 접속 기록(방문자, 실패, 만료) 적재 허용
+    v1 = client.post("/api/visit", json={"path": "/", "view": "login", "auth_state": "visitor", "detail": "첫 방문"},
+                     headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X) Chrome/131.0.0.0 Safari/537.36"})
+    assert v1.status_code == 200
+    v2 = client.post("/api/visit", json={"path": "/", "view": "login", "auth_state": "login_fail", "detail": "비번 오류"})
+    assert v2.status_code == 200
+
+    # 조회(/api/access/visitors)는 로그인 전 차단(401)
+    assert client.get("/api/access/visitors").status_code == 401
+
+    # 팀 생성·로그인 후 조회 시 요약 및 매칭 확인
+    assert client.post("/api/teams", json={**T, "access_key": "TEAM99"}).status_code == 201
+    client.post("/api/visit", json={"path": "/#cfg/", "view": "settings", "auth_state": "authenticated", "access_key": "TEAM99", "detail": "설정 진입"})
+    res = client.get("/api/access/visitors")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["summary"]["total"] == 3
+    assert body["summary"]["authenticated"] == 1
+    assert body["summary"]["anonymous"] == 1
+    assert body["summary"]["expired_or_fail"] == 1
+    assert any(row["matched_user"] == "다운" and row["access_key"] == "TEAM99" for row in body["visits"])
