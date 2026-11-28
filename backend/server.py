@@ -1997,6 +1997,15 @@ LANDING_HTML = """<!DOCTYPE html>
     .cfg-guide-inline-msg { font-size: 12px; padding: 7px 10px; border-radius: 6px; }
     .cfg-guide-inline-msg.ok { background: rgba(16, 185, 129, 0.12); border: 1px solid #059669; color: #a7f3d0; }
     .cfg-guide-inline-msg.err { background: rgba(239, 68, 68, 0.12); border: 1px solid #ef4444; color: #fecaca; }
+
+    .cfg-manual-link-btn {
+      display: flex; align-items: center; justify-content: space-between; width: 100%;
+      padding: 7px 11px; border-radius: 6px; text-decoration: none;
+      background: #0f172a; border: 1px solid #334155; color: #cbd5e1; font-size: 12px; font-weight: 600;
+      transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+    }
+    .cfg-manual-link-btn:hover { background: #1e293b; border-color: #60a5fa; color: #fff; }
+    .cfg-manual-link-btn small { font-size: 10.5px; color: #94a3b8; }
     /* ===== 통합 콘솔 (content/console.css) ===== */
     .cs-rail { position: fixed; left: 0; top: 50%; transform: translateY(-50%); z-index: 700; writing-mode: vertical-rl; letter-spacing: .12em;
       background: var(--primary); color: #fff; border: 0; border-radius: 0 8px 8px 0; padding: 16px 7px; font-size: 13px; font-weight: 700;
@@ -2624,6 +2633,7 @@ LANDING_HTML = """<!DOCTYPE html>
         '<div class="wk-login">' +
           '<div class="wk-login-intro"><h2>기본 팀 (figteam) 구성 위키</h2>' +
           '<p>본 시스템은 기본 팀(figteam) 전용 구성 포털입니다. 팀 비밀번호로 들어가면 인프라의 클라우드·인스턴스·서비스 구성 문서를 함께 보고 고칠 수 있습니다.</p>' +
+          '<a href="/manual/" target="_blank" rel="noopener" class="wk-btn" style="display:inline-block;width:fit-content;text-decoration:none;margin-top:8px;">📖 처음이라면 사용 매뉴얼 먼저 보기</a>' +
           (msg ? '<p class="wk-error" role="alert">' + cfgEsc(msg) + '</p>' : '') + '</div>' +
           '<form class="wk-card" id="wk-login-form" onsubmit="wikiLogin(event)">' +
             '<h3>팀 들어가기 (기본 팀: figteam)</h3>' +
@@ -5404,11 +5414,12 @@ LANDING_HTML = """<!DOCTYPE html>
       const lens = LENSES.find(l => l.id === CFG.lens);
       let lastGroup = null;
 
-      // 1. 상단 렌즈 탭 & 지침 스튜디오 버튼 & 힌트 & 매트릭스
+      // 1. 상단 렌즈 탭 & 지침 스튜디오 버튼 & 사용 매뉴얼 링크 & 힌트 & 매트릭스
       let html = wikiTeamBar() +
         (typeof cfgGuideOpen === 'function'
           ? '<button type="button" class="cfg-guide-launch-btn" onclick="cfgGuideOpen()"><span>📋 지침 복사 · 결과 등록/수정</span><small>생성·수정·순서</small></button>'
           : '') +
+        '<a href="/manual/" target="_blank" rel="noopener" class="cfg-manual-link-btn"><span>📖 사용 매뉴얼 보기 (화면 클릭 안내)</span><small>새 탭</small></a>' +
         '<div class="cfg-lens" role="tablist" aria-label="보는 기준">' + LENSES.map(l =>
           '<button type="button" role="tab" aria-selected="' + (l.id === CFG.lens) + '" class="cfg-lens-btn' + (l.id === CFG.lens ? ' active' : '') +
           '" onclick="' + cfgGo(l.id, '', '') + '">' + cfgEsc(l.name) + '</button>').join('') + '</div>' +

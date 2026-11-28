@@ -322,11 +322,12 @@
       const lens = LENSES.find(l => l.id === CFG.lens);
       let lastGroup = null;
 
-      // 1. 상단 렌즈 탭 & 지침 스튜디오 버튼 & 힌트 & 매트릭스
+      // 1. 상단 렌즈 탭 & 지침 스튜디오 버튼 & 사용 매뉴얼 링크 & 힌트 & 매트릭스
       let html = wikiTeamBar() +
         (typeof cfgGuideOpen === 'function'
           ? '<button type="button" class="cfg-guide-launch-btn" onclick="cfgGuideOpen()"><span>📋 지침 복사 · 결과 등록/수정</span><small>생성·수정·순서</small></button>'
           : '') +
+        '<a href="/manual/" target="_blank" rel="noopener" class="cfg-manual-link-btn"><span>📖 사용 매뉴얼 보기 (화면 클릭 안내)</span><small>새 탭</small></a>' +
         '<div class="cfg-lens" role="tablist" aria-label="보는 기준">' + LENSES.map(l =>
           '<button type="button" role="tab" aria-selected="' + (l.id === CFG.lens) + '" class="cfg-lens-btn' + (l.id === CFG.lens ? ' active' : '') +
           '" onclick="' + cfgGo(l.id, '', '') + '">' + cfgEsc(l.name) + '</button>').join('') + '</div>' +

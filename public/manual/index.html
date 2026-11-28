@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>figteam #cfg 사용 매뉴얼</title>
+  <meta name="description" content="실제 figteam.ktci5.kr/#cfg 화면 캡처와 번호 핀으로 어디를 눌러 어디로 이동하는지 안내하는 운영 매뉴얼">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chivo+Mono:wght@400;500;800&family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./manual.css">
+</head>
+<body>
+  <header class="site-nav">
+    <div class="container site-nav__inner">
+      <a class="site-nav__brand" href="#top" aria-label="figteam #cfg 매뉴얼 처음으로">figteam #cfg 매뉴얼</a>
+      <nav class="site-nav__links" aria-label="매뉴얼 목차">
+        <a href="#screen-map">화면 구조</a>
+        <a href="#edit-and-order">편집과 안전 실행</a>
+        <a href="#guide-workflow">지침 스튜디오</a>
+        <a href="#quick-urls">URL 바로가기</a>
+      </nav>
+      <a class="btn btn--nav" href="https://figteam.ktci5.kr/#cfg/" target="_blank" rel="noopener">설정 포털 열기</a>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- Hero: Stage -->
+    <section class="hero">
+      <div class="container hero__grid">
+        <div class="hero__copy">
+          <h1>처음 열어도 바로 쓰는 #cfg 안내서</h1>
+          <p class="lead">화면 위 번호 핀과 클릭 경로를 따라가면 설계 조회, 카드 편집, 안전 실행까지 바로 쓸 수 있습니다.</p>
+          <div class="hero__actions">
+            <a class="btn btn--primary" href="https://figteam.ktci5.kr/#cfg/" target="_blank" rel="noopener">설정 포털 열기</a>
+            <a class="btn" href="#screen-map">클릭 경로 보기</a>
+          </div>
+          <ol class="hero__index">
+            <li><span class="plate-num">1</span><span>상단 설계/설정 탭</span></li>
+            <li><span class="plate-num">2</span><span>왼쪽 보기 기준 5개</span></li>
+            <li><span class="plate-num">3</span><span>대분류·중분류 트리</span></li>
+            <li><span class="plate-num">4</span><span>상단 이동경로 바</span></li>
+          </ol>
+        </div>
+
+        <figure class="shot-frame">
+          <div class="shot-stage" data-slot="hero" data-kind="product" data-screen="01-overview-nav.png">
+            <img src="./screens/01-overview-nav.png" width="1440" height="900" alt="figteam #cfg 첫 화면에서 설계/설정 탭, 보기 기준 5개, 통합 계층 트리, 상단 이동경로 바 위치를 번호로 표시한 스크린샷" fetchpriority="high">
+          </div>
+          <figcaption class="shot-caption">
+            <span>번호 핀을 누르면 실제 포털 위치가 강조됩니다</span>
+            <a href="https://figteam.ktci5.kr/#cfg/inst" target="_blank" rel="noopener">figteam.ktci5.kr/#cfg/inst</a>
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- Section 1: Screen Structure & Step Order -->
+    <section class="section" id="screen-map">
+      <div class="container">
+        <div class="section__head">
+          <h2>어디를 눌러 이동하나요</h2>
+          <p class="lead">왼쪽 패널에서 대분류와 중분류를 고르면 오른쪽 본문에 상세가 열립니다.</p>
+        </div>
+
+        <div class="switcher" data-switch>
+          <div class="switcher__bar">
+            <div class="seg-tabs" role="tablist" aria-label="화면 이동 안내">
+              <button type="button" class="seg-tab" role="tab" aria-selected="true" aria-controls="panel-map-1" id="tab-map-1">기본 화면과 계층 트리</button>
+              <button type="button" class="seg-tab" role="tab" aria-selected="false" aria-controls="panel-map-2" id="tab-map-2" tabindex="-1">진행 순서와 통과 조건</button>
+            </div>
+            <a class="btn btn--sm" href="https://figteam.ktci5.kr/#cfg/inst" target="_blank" rel="noopener">이 화면 바로 열기</a>
+          </div>
+
+          <section role="tabpanel" id="panel-map-1" aria-labelledby="tab-map-1">
+            <div class="workbench">
+              <ol class="route-list" data-route-group="map-1">
+                <li class="route-item is-active" data-step="1">
+                  <button type="button" class="route-trigger" aria-label="1번 위치 보기"><span class="plate-num">1</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>상단 메뉴</span><span>설계/설정</span></div>
+                    <p class="route-desc">대시보드와 콘솔에서 구성 문서 화면으로 들어옵니다.</p>
+                  </div>
+                </li>
+                <li class="route-item" data-step="2">
+                  <button type="button" class="route-trigger" aria-label="2번 위치 보기"><span class="plate-num">2</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>왼쪽 상단</span><span>클라우드 기준</span><span>보기 전환</span></div>
+                    <p class="route-desc">클라우드, 서비스, 기준점, 진행 순서, 참고 중 고릅니다.</p>
+                  </div>
+                </li>
+                <li class="route-item" data-step="3">
+                  <button type="button" class="route-trigger" aria-label="3번 위치 보기"><span class="plate-num">3</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>통합 트리</span><span>클라우드</span><span>인스턴스</span><span>서비스 영역</span></div>
+                    <p class="route-desc">한 화면 트리에서 접고 펼치며 대상 영역을 엽니다.</p>
+                  </div>
+                </li>
+                <li class="route-item" data-step="4">
+                  <button type="button" class="route-trigger" aria-label="4번 위치 보기"><span class="plate-num">4</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>본문 상단 고정 바</span><span>상위 경로 클릭</span></div>
+                    <p class="route-desc">스크롤해도 상단에 남아 상위 단계로 바로 돌아갑니다.</p>
+                  </div>
+                </li>
+              </ol>
+
+              <figure class="shot-frame">
+                <div class="shot-stage" data-slot="map-1" data-kind="product" data-screen="01-overview-nav.png" data-route-group="map-1">
+                  <img src="./screens/01-overview-nav.png" width="1440" height="900" alt="기본 화면 내 상단 메뉴, 보기 기준, 통합 트리, 상단 고정 이동경로 위치" loading="lazy">
+                </div>
+                <figcaption class="shot-caption">
+                  <span>경로: 상단 설계/설정 &gt; 왼쪽 보기 기준 &gt; 통합 트리 항목 선택</span>
+                  <a href="https://figteam.ktci5.kr/#cfg/inst" target="_blank" rel="noopener">URL 열기</a>
+                </figcaption>
+              </figure>
+            </div>
+          </section>
+
+          <section role="tabpanel" id="panel-map-2" aria-labelledby="tab-map-2" hidden>
+            <div class="workbench">
+              <ol class="route-list" data-route-group="map-2">
+                <li class="route-item is-active" data-step="1">
+                  <button type="button" class="route-trigger" aria-label="1번 위치 보기"><span class="plate-num">1</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>왼쪽 보기 기준</span><span>진행 순서</span></div>
+                    <p class="route-desc">구축 단계 S0부터 S12까지 순서대로 보는 뷰로 바꿉니다.</p>
+                  </div>
+                </li>
+                <li class="route-item" data-step="2">
+                  <button type="button" class="route-trigger" aria-label="2번 위치 보기"><span class="plate-num">2</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>진행 순서 트리</span><span>S0~S12 단계 클릭</span></div>
+                    <p class="route-desc">원하는 단계를 고르면 해당 서버 영역까지 아래에 이어집니다.</p>
+                  </div>
+                </li>
+                <li class="route-item" data-step="3">
+                  <button type="button" class="route-trigger" aria-label="3번 위치 보기"><span class="plate-num">3</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>본문 우측 상단</span><span>순서 편집</span><span>지침으로 순서편집</span></div>
+                    <p class="route-desc">단계 순서를 위아래로 바꾸거나 지침 결과로 일괄 재정렬합니다.</p>
+                  </div>
+                </li>
+                <li class="route-item" data-step="4">
+                  <button type="button" class="route-trigger" aria-label="4번 위치 보기"><span class="plate-num">4</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>통과 조건 카드</span><span>뷰/확인 실행</span></div>
+                    <p class="route-desc">다음 단계로 넘어가기 전에 성공 기준 명령을 바로 확인합니다.</p>
+                  </div>
+                </li>
+              </ol>
+
+              <figure class="shot-frame">
+                <div class="shot-stage" data-slot="map-2" data-kind="product" data-screen="06-steps-and-zoom.png" data-route-group="map-2">
+                  <img src="./screens/06-steps-and-zoom.png" width="1440" height="900" alt="진행 순서 S0 화면에서 보기 기준, 단계 트리, 순서 편집 버튼, 통과 조건 카드 위치" loading="lazy">
+                </div>
+                <figcaption class="shot-caption">
+                  <span>경로: 왼쪽 진행 순서 &gt; S0 단계 클릭 &gt; 통과 조건 확인</span>
+                  <a href="https://figteam.ktci5.kr/#cfg/step/all/S0" target="_blank" rel="noopener">URL 열기</a>
+                </figcaption>
+              </figure>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Card Builder & Safe Terminal -->
+    <section class="section section--loose" id="edit-and-order">
+      <div class="container">
+        <div class="section__head">
+          <h2>수정과 실행은 어떻게 나누나요</h2>
+          <p class="lead">카드는 바로 추가·순서 이동하고, 터미널 실행은 조회와 변경을 색으로 나눕니다.</p>
+        </div>
+
+        <div class="switcher" data-switch>
+          <div class="switcher__bar">
+            <div class="seg-tabs" role="tablist" aria-label="편집과 안전 실행 안내">
+              <button type="button" class="seg-tab" role="tab" aria-selected="true" aria-controls="panel-edit-1" id="tab-edit-1">카드 추가와 순서 이동</button>
+              <button type="button" class="seg-tab" role="tab" aria-selected="false" aria-controls="panel-edit-2" id="tab-edit-2" tabindex="-1">뷰 모드와 빨강 수정 경고</button>
+            </div>
+            <a class="btn btn--sm" href="https://figteam.ktci5.kr/#cfg/inst" target="_blank" rel="noopener">영역 카드 보러가기</a>
+          </div>
+
+          <section role="tabpanel" id="panel-edit-1" aria-labelledby="tab-edit-1">
+            <div class="workbench workbench--reverse">
+              <figure class="shot-frame">
+                <div class="shot-stage" data-slot="edit-1" data-kind="product" data-screen="02-area-builder.png" data-route-group="edit-1">
+                  <img src="./screens/02-area-builder.png" width="1440" height="900" alt="실행 명령어 카드에서 추가 버튼, 순서 이동 위아래 바, 뷰/수정 실행 버튼 위치" loading="lazy">
+                </div>
+                <figcaption class="shot-caption">
+                  <span>경로: 서비스 영역 본문 &gt; [+ 추가] 또는 카드 위 [위/아래/수정/삭제] 클릭</span>
+                  <a href="https://figteam.ktci5.kr/#cfg/inst" target="_blank" rel="noopener">URL 열기</a>
+                </figcaption>
+              </figure>
+
+              <ol class="route-list" data-route-group="edit-1">
+                <li class="route-item is-active" data-step="1">
+                  <button type="button" class="route-trigger" aria-label="1번 위치 보기"><span class="plate-num">1</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>섹션 오른쪽 위</span><span>+ 명령어 추가</span></div>
+                    <p class="route-desc">설계, 설정, 명령어, 검증, 오류 섹션마다 개별 추가 팝업을 엽니다.</p>
+                  </div>
+                </li>
+                <li class="route-item" data-step="2">
+                  <button type="button" class="route-trigger" aria-label="2번 위치 보기"><span class="plate-num">2</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>카드 상단 바</span><span>위아래 순서</span><span>수정</span><span>삭제</span></div>
+                    <p class="route-desc">버튼 한 번으로 항목 순서를 옮기거나 서버 문서를 바로 갱신합니다.</p>
+                  </div>
+                </li>
+                <li class="route-item" data-step="3">
+                  <button type="button" class="route-trigger" aria-label="3번 위치 보기"><span class="plate-num">3</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>명령 헤더 우측</span><span>복사</span><span>뷰 모드</span><span>실행</span></div>
+                    <p class="route-desc">안전한 조회는 즉시 실행하고, 설정 편집과 변경은 경고를 먼저 띄웁니다.</p>
+                  </div>
+                </li>
+                <li class="route-item" data-step="4">
+                  <button type="button" class="route-trigger" aria-label="4번 위치 보기"><span class="plate-num">4</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>상단 이동경로 바</span><span>현재 영역 확인</span></div>
+                    <p class="route-desc">작업 중인 클라우드, 인스턴스, 서비스 영역 이름을 고정 표시합니다.</p>
+                  </div>
+                </li>
+              </ol>
+            </div>
+          </section>
+
+          <section role="tabpanel" id="panel-edit-2" aria-labelledby="tab-edit-2" hidden>
+            <div class="workbench workbench--reverse">
+              <figure class="shot-frame">
+                <div class="shot-stage" data-slot="edit-2" data-kind="product" data-screen="03-terminal-safety.png" data-route-group="edit-2">
+                  <img src="./screens/03-terminal-safety.png" width="1440" height="900" alt="빨강 수정/변경 버튼 클릭 시 나타나는 사전 경고 모달과 확인 버튼 위치" loading="lazy">
+                </div>
+                <figcaption class="shot-caption">
+                  <span>경로: 빨강 [수정/변경] 버튼 클릭 &gt; 대상과 코드 확인 &gt; [확인 후 실행]</span>
+                  <a href="https://figteam.ktci5.kr/#cfg/inst" target="_blank" rel="noopener">URL 열기</a>
+                </figcaption>
+              </figure>
+
+              <ol class="route-list" data-route-group="edit-2">
+                <li class="route-item is-active" data-step="1">
+                  <button type="button" class="route-trigger" aria-label="1번 위치 보기"><span class="plate-num">1</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>사전 확인 창 상단</span><span>변경 작업 안내</span></div>
+                    <p class="route-desc">중지, 재시작, 설정 수정 명령은 즉시 실행을 막고 먼저 확인합니다.</p>
+                  </div>
+                </li>
+                <li class="route-item" data-step="2">
+                  <button type="button" class="route-trigger" aria-label="2번 위치 보기"><span class="plate-num">2</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>경고 박스</span><span>영향 범위 읽기</span></div>
+                    <p class="route-desc">대상 노드와 서비스 영향 경고를 확인해 실수 실행을 막습니다.</p>
+                  </div>
+                </li>
+                <li class="route-item" data-step="3">
+                  <button type="button" class="route-trigger" aria-label="3번 위치 보기"><span class="plate-num">3</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>실행 코드 창</span><span>명령어 최종 점검</span></div>
+                    <p class="route-desc">터미널에 전달될 전체 명령이나 편집 파일 경로를 확인합니다.</p>
+                  </div>
+                </li>
+                <li class="route-item" data-step="4">
+                  <button type="button" class="route-trigger" aria-label="4번 위치 보기"><span class="plate-num">4</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>우측 하단 빨강 버튼</span><span>확인 후 변경 실행</span></div>
+                    <p class="route-desc">누르면 하단 터미널 창이 열리며 같은 노드 창을 재사용해 실행합니다.</p>
+                  </div>
+                </li>
+              </ol>
+            </div>
+          </section>
+        </div>
+
+        <div class="signal-rows" aria-label="버튼 색상 구분 기준">
+          <div class="signal-row">
+            <span class="signal-swatch"><span class="signal-mark signal-mark--view"></span><span>파랑 뷰/확인 버튼</span></span>
+            <span>상태 조회, cat 읽기 전용 확인</span>
+            <span>시스템 변경 없이 팝업이나 조회 전용 터미널에서 안전하게 실행합니다.</span>
+          </div>
+          <div class="signal-row">
+            <span class="signal-swatch"><span class="signal-mark signal-mark--warn"></span><span>빨강 수정/변경 버튼</span></span>
+            <span>vi·nano 편집, 재시작, 적용, 삭제</span>
+            <span>반드시 빨강 사전 경고 창을 거친 뒤 [확인 후 실행]을 눌러야 동작합니다.</span>
+          </div>
+          <div class="signal-row">
+            <span class="signal-swatch"><span class="signal-mark signal-mark--amber"></span><span>하단 세션 바</span></span>
+            <span>노드별 실행 창 유지 및 재사용</span>
+            <span>다른 설정 페이지로 이동하거나 새로고침해도 띄운 터미널 목록을 유지합니다.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Guide Studio Workflow -->
+    <section class="section section--loose" id="guide-workflow">
+      <div class="container">
+        <div class="section__head">
+          <h2>지침 복사로 등록하고 순서 바꾸기</h2>
+          <p class="lead">지침을 복사해 AI나 직접 작성한 결과를 붙여넣으면 Diff 비교 후 한 번에 저장합니다.</p>
+        </div>
+
+        <div class="switcher" data-switch>
+          <div class="switcher__bar">
+            <div class="seg-tabs" role="tablist" aria-label="지침 스튜디오 사용 방법">
+              <button type="button" class="seg-tab" role="tab" aria-selected="true" aria-controls="panel-guide-1" id="tab-guide-1">지침 스튜디오 전체 흐름</button>
+              <button type="button" class="seg-tab" role="tab" aria-selected="false" aria-controls="panel-guide-2" id="tab-guide-2" tabindex="-1">위키 편집기 안 인라인 도우미</button>
+            </div>
+            <a class="btn btn--sm" href="https://figteam.ktci5.kr/#cfg/inst" target="_blank" rel="noopener">사이드바에서 열기</a>
+          </div>
+
+          <section role="tabpanel" id="panel-guide-1" aria-labelledby="tab-guide-1">
+            <div class="workbench">
+              <ol class="route-list" data-route-group="guide-1">
+                <li class="route-item is-active" data-step="1">
+                  <button type="button" class="route-trigger" aria-label="1번 위치 보기"><span class="plate-num">1</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>왼쪽 최상단 버튼</span><span>유형·문서 종류 선택</span></div>
+                    <p class="route-desc">생성, 수정, 순서 편집 중 하나와 대상 문서 종류를 고릅니다.</p>
+                  </div>
+                </li>
+                <li class="route-item" data-step="2">
+                  <button type="button" class="route-trigger" aria-label="2번 위치 보기"><span class="plate-num">2</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>왼쪽 패널</span><span>지침 전체 복사</span><span>사용 예시</span></div>
+                    <p class="route-desc">현재 문서 구조가 담긴 지침을 복사하거나 예시를 바로 불러옵니다.</p>
+                  </div>
+                </li>
+                <li class="route-item" data-step="3">
+                  <button type="button" class="route-trigger" aria-label="3번 위치 보기"><span class="plate-num">3</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>오른쪽 입력창</span><span>지침 결과 붙여넣기</span></div>
+                    <p class="route-desc">AI 응답 전체나 JSON을 넣으면 비밀값 검사와 Diff가 자동 표시됩니다.</p>
+                  </div>
+                </li>
+                <li class="route-item" data-step="4">
+                  <button type="button" class="route-trigger" aria-label="4번 위치 보기"><span class="plate-num">4</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>우측 하단</span><span>지침 결과 즉시 적용</span></div>
+                    <p class="route-desc">검증 통과를 확인한 뒤 서버에 저장하거나 위키 편집기로 엽니다.</p>
+                  </div>
+                </li>
+              </ol>
+
+              <figure class="shot-frame">
+                <div class="shot-stage" data-slot="guide-1" data-kind="product" data-screen="04-guide-studio.png" data-route-group="guide-1">
+                  <img src="./screens/04-guide-studio.png" width="1440" height="900" alt="지침 스튜디오 모달에서 유형 선택 바, 지침 복사 버튼, 결과 붙여넣기 창, 즉시 적용 버튼 위치" loading="lazy">
+                </div>
+                <figcaption class="shot-caption">
+                  <span>경로: 왼쪽 [지침 복사] &gt; [지침 전체 복사] &gt; 결과 붙여넣기 &gt; [즉시 적용]</span>
+                  <a href="https://figteam.ktci5.kr/#cfg/inst" target="_blank" rel="noopener">URL 열기</a>
+                </figcaption>
+              </figure>
+            </div>
+          </section>
+
+          <section role="tabpanel" id="panel-guide-2" aria-labelledby="tab-guide-2" hidden>
+            <div class="workbench">
+              <ol class="route-list" data-route-group="guide-2">
+                <li class="route-item is-active" data-step="1">
+                  <button type="button" class="route-trigger" aria-label="1번 위치 보기"><span class="plate-num">1</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>편집 화면 상단</span><span>지침 복사·채우기 펼치기</span></div>
+                    <p class="route-desc">위키 전체 편집 화면 안에서도 접힌 지침 도우미를 바로 엽니다.</p>
+                  </div>
+                </li>
+                <li class="route-item" data-step="2">
+                  <button type="button" class="route-trigger" aria-label="2번 위치 보기"><span class="plate-num">2</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>상단 도구 줄</span><span>현재 문서 지침 복사</span><span>예시 넣기</span></div>
+                    <p class="route-desc">열려 있는 문서 전용 지침을 복사하거나 수정·순서 예시를 넣습니다.</p>
+                  </div>
+                </li>
+                <li class="route-item" data-step="3">
+                  <button type="button" class="route-trigger" aria-label="3번 위치 보기"><span class="plate-num">3</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>인라인 입력칸</span><span>JSON 결과 붙여넣기</span></div>
+                    <p class="route-desc">전체 지침 JSON이나 순수 body JSON 모두 그대로 해석합니다.</p>
+                  </div>
+                </li>
+                <li class="route-item" data-step="4">
+                  <button type="button" class="route-trigger" aria-label="4번 위치 보기"><span class="plate-num">4</span></button>
+                  <div class="route-body">
+                    <div class="route-path"><span>아래 버튼</span><span>이 편집 폼에 반영</span><span>바로 저장</span></div>
+                    <p class="route-desc">아래 입력 칸들만 자동으로 채운 뒤 검토하거나 즉시 서버에 저장합니다.</p>
+                  </div>
+                </li>
+              </ol>
+
+              <figure class="shot-frame">
+                <div class="shot-stage" data-slot="guide-2" data-kind="product" data-screen="05-wiki-editor.png" data-route-group="guide-2">
+                  <img src="./screens/05-wiki-editor.png" width="1440" height="900" alt="위키 편집 화면 상단에 펼쳐진 인라인 지침 복사 및 폼 자동 채우기 패널 위치" loading="lazy">
+                </div>
+                <figcaption class="shot-caption">
+                  <span>경로: [서비스 영역 편집] &gt; 상단 [지침 복사] 펼치기 &gt; [이 편집 폼에 반영]</span>
+                  <a href="https://figteam.ktci5.kr/#cfg/inst" target="_blank" rel="noopener">URL 열기</a>
+                </figcaption>
+              </figure>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: Ink Band Quick URLs Board -->
+    <section class="band--ink" id="quick-urls">
+      <div class="container">
+        <div class="section__head">
+          <h2>목적별 클릭 경로와 바로가기 URL</h2>
+          <p class="lead">원하는 작업의 클릭 순서를 확인하고 URL을 누르면 해당 포털 화면으로 바로 이동합니다.</p>
+        </div>
+
+        <div class="board-wrap">
+          <table class="board-table">
+            <thead>
+              <tr>
+                <th>할 일</th>
+                <th>어디 클릭 &gt; 어디 위치</th>
+                <th>바로가기 URL</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>인스턴스별 설정 보기</strong></td>
+                <td class="board-path">상단 설계/설정 &gt; 왼쪽 클라우드 기준 &gt; 인스턴스 &gt; 영역</td>
+                <td><a class="board-link" href="https://figteam.ktci5.kr/#cfg/inst" target="_blank" rel="noopener">figteam.ktci5.kr/#cfg/inst</a></td>
+              </tr>
+              <tr>
+                <td><strong>서비스 기능별 모아보기</strong></td>
+                <td class="board-path">상단 설계/설정 &gt; 왼쪽 서비스 기준 &gt; 분야 &gt; 서버 영역</td>
+                <td><a class="board-link" href="https://figteam.ktci5.kr/#cfg/svc" target="_blank" rel="noopener">figteam.ktci5.kr/#cfg/svc</a></td>
+              </tr>
+              <tr>
+                <td><strong>전체 연결 구조 기준점</strong></td>
+                <td class="board-path">상단 설계/설정 &gt; 왼쪽 기준점 &gt; 전체 또는 클라우드 선택</td>
+                <td><a class="board-link" href="https://figteam.ktci5.kr/#cfg/zoom/forest/all" target="_blank" rel="noopener">figteam.ktci5.kr/#cfg/zoom/forest/all</a></td>
+              </tr>
+              <tr>
+                <td><strong>단계별 구축 순서 확인</strong></td>
+                <td class="board-path">상단 설계/설정 &gt; 왼쪽 진행 순서 &gt; S0~S12 단계</td>
+                <td><a class="board-link" href="https://figteam.ktci5.kr/#cfg/step/all/S0" target="_blank" rel="noopener">figteam.ktci5.kr/#cfg/step/all/S0</a></td>
+              </tr>
+              <tr>
+                <td><strong>변수표 및 변경 이력</strong></td>
+                <td class="board-path">상단 설계/설정 &gt; 왼쪽 참고 &gt; 문서 또는 최근 변경</td>
+                <td><a class="board-link" href="https://figteam.ktci5.kr/#cfg/ref" target="_blank" rel="noopener">figteam.ktci5.kr/#cfg/ref</a></td>
+              </tr>
+              <tr>
+                <td><strong>노드 웹 터미널 직접 접속</strong></td>
+                <td class="board-path">상단 콘솔 탭 &gt; 대상 인스턴스 선택 또는 명령 실행</td>
+                <td><a class="board-link" href="https://figteam.ktci5.kr/#console" target="_blank" rel="noopener">figteam.ktci5.kr/#console</a></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container site-footer__inner">
+      <span>figteam (team6) #cfg 운영 포털 실화면 사용 매뉴얼 (실측 캡처 기준 2026-11-28)</span>
+      <nav class="site-footer__links" aria-label="관련 링크">
+        <a href="https://figteam.ktci5.kr/#cfg/" target="_blank" rel="noopener">설정 포털</a>
+        <a href="https://figteam.ktci5.kr/" target="_blank" rel="noopener">메인 대시보드</a>
+        <a href="https://figteam.ktci5.kr/#console" target="_blank" rel="noopener">웹 콘솔</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="./manual.js"></script>
+</body>
+</html>

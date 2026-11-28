@@ -126,6 +126,7 @@
         '<div class="wk-login">' +
           '<div class="wk-login-intro"><h2>기본 팀 (figteam) 구성 위키</h2>' +
           '<p>본 시스템은 기본 팀(figteam) 전용 구성 포털입니다. 팀 비밀번호로 들어가면 인프라의 클라우드·인스턴스·서비스 구성 문서를 함께 보고 고칠 수 있습니다.</p>' +
+          '<a href="/manual/" target="_blank" rel="noopener" class="wk-btn" style="display:inline-block;width:fit-content;text-decoration:none;margin-top:8px;">📖 처음이라면 사용 매뉴얼 먼저 보기</a>' +
           (msg ? '<p class="wk-error" role="alert">' + cfgEsc(msg) + '</p>' : '') + '</div>' +
           '<form class="wk-card" id="wk-login-form" onsubmit="wikiLogin(event)">' +
             '<h3>팀 들어가기 (기본 팀: figteam)</h3>' +
