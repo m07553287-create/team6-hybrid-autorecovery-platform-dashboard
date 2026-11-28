@@ -19,15 +19,30 @@ def test_unlock_wrong_then_rate_limit(client):
 
 
 def test_unlock_cookie_flags(client):
-    r = client.post("/console/api/unlock", json={"password": PW, "access_key": "KEY123", "member": "테스터"})
+    r = client.post("/console/api/unlock", json={"password": PW, "member": "테스터"})
     sc = r.headers["set-cookie"]
-    assert r.status_code == 200 and "fc_s=" in sc and "HttpOnly" in sc and "Path=/console" in sc and "strict" in sc.lower()
+    assert r.status_code == 200 and "fc_s=" in sc and "fc_k=" in sc and "HttpOnly" in sc
 
 
-def test_unlock_requires_access_key(client):
-    r = client.post("/console/api/unlock", json={"password": PW})
-    assert r.status_code == 422
-    assert client.get("/console/api/me").json() == {"unlocked": False}
+def test_unlock_auto_assigns_immutable_key_and_traces_history(client):
+    assert client.get("/console/api/keys").status_code == 401
+    # 클라이언트 입력 없이도 서버가 8자리 불변 키 자동 발급 + 요청 본문 임의 키(HACK99) 무시
+    r1 = client.post("/console/api/unlock", json={"password": PW, "member": "테스터", "access_key": "HACK99"})
+    assert r1.status_code == 200
+    ak = r1.json()["access_key"]
+    assert len(ak) == 8 and ak != "HACK99"
+
+    # 로그아웃 후 다른 이름 + 또 다른 임의 키로 재로그인해도 fc_k 쿠키의 기존 불변 키 유지 및 이름 이력 누적
+    client.post("/console/api/lock")
+    r2 = client.post("/console/api/unlock", json={"password": PW, "member": "홍길동", "access_key": "EVIL11"})
+    assert r2.status_code == 200 and r2.json()["access_key"] == ak
+
+    keys_res = client.get("/console/api/keys")
+    assert keys_res.status_code == 200
+    entry = keys_res.json()["keys"][ak]
+    assert entry["member"] == "홍길동"
+    assert entry["names"] == ["테스터", "홍길동"]
+    assert entry["login_count"] >= 2 and entry["first_seen"] <= entry["last_seen"]
 
 
 def test_targets_requires_unlock(client):
@@ -133,22 +148,23 @@ def test_lock(unlocked):
 
 
 def test_me_locked_then_unlocked(client):
-    assert client.get("/console/api/me").json() == {"unlocked": False}
-    client.post("/console/api/unlock", json={"password": PW, "access_key": "KEY123", "member": "테스터"})
+    assert client.get("/console/api/me").json()["unlocked"] is False
+    r = client.post("/console/api/unlock", json={"password": PW, "member": "테스터"})
+    ak = r.json()["access_key"]
     d = client.get("/console/api/me").json()
-    assert d["unlocked"] is True and d["ttl"] == 43200 and d["access_key"] == "KEY123"
+    assert d["unlocked"] is True and d["ttl"] == 43200 and d["access_key"] == ak
 
 
 def test_unlock_ttl_12h(client):
-    r = client.post("/console/api/unlock", json={"password": PW, "access_key": "KEY123"})
+    r = client.post("/console/api/unlock", json={"password": PW})
     assert "Max-Age=43200" in r.headers["set-cookie"]
 
 
 def test_visitors_records_anonymous_fail_and_authenticated(client):
     assert client.get("/console/api/visitors").status_code == 401
     client.get("/console/api/me")
-    client.post("/console/api/unlock", json={"password": "wrong", "access_key": "KEY123", "member": "김방문"})
-    client.post("/console/api/unlock", json={"password": PW, "access_key": "KEY123", "member": "김방문"})
+    client.post("/console/api/unlock", json={"password": "wrong", "member": "김방문"})
+    client.post("/console/api/unlock", json={"password": PW, "member": "김방문"})
     res = client.get("/console/api/visitors")
     assert res.status_code == 200
     states = [v["auth_state"] for v in res.json()["visitors"]]
