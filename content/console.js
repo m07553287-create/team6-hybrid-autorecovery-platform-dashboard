@@ -1882,7 +1882,6 @@
       if (DR_STATE.curStep >= sc.steps.length) csResetScenario();
       DR_STATE.stopped = false;
       DR_STATE.paused = false;
-      const sc = DR_SCENARIOS[DR_STATE.curScenario] || DR_SCENARIOS.l3_failover;
       const runBtn = document.getElementById('dr-run-btn');
       if (runBtn) { runBtn.disabled = true; runBtn.textContent = '시연 진행 중...'; }
       const pBtn = document.getElementById('dr-pause-btn');
